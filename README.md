@@ -1,16 +1,17 @@
 # survivor-like
 
-一个基于 Godot 4 的 2D 幸存者 Like 原型项目。  
-当前核心方向是“三角色切换战斗”，强调：
+A Godot 4 2D survivor-like prototype focused on **three-character switching combat**.
+
+当前核心体验：
 
 - 走位普攻
 - 切换角色入场
 - 释放大招
-- 角色演出差异
+- 通过构筑和演出拉开角色差异
 
-## 当前项目状态
+## Current Status
 
-项目已经具备可玩的战斗主循环，包含：
+这个项目已经具备可玩的主循环，当前已包含：
 
 - 主菜单
 - 存档位选择
@@ -22,39 +23,57 @@
 - HUD / 暂停菜单 / 继续游戏 / BGM
 - 开发者模式
 
-## 当前角色方向
+## Core Roles
 
-- 剑士：近身压制、斩击演出、生存收益
-- 枪手：远程 poke、弹幕覆盖、稳定点杀
-- 术师：范围轰炸、区域控制、AOE 压迫
+- `Swordsman`
+  近身压制、斩击演出、生存收益
 
-## 操作方式
+- `Gunner`
+  远程 poke、弹幕覆盖、稳定点杀
 
-- `WASD`：移动
-- 鼠标：控制攻击方向
-- `Q`：切到上一位角色
-- `E`：切到下一位角色
-- `R`：释放大招
-- `ESC`：暂停菜单
-- ``~``：切换高级信息显示
+- `Mage`
+  范围轰炸、区域控制、AOE 压迫
 
-## 运行方式
+## Controls
+
+- `WASD`: 移动
+- `Mouse`: 控制攻击方向
+- `Q`: 切到上一位角色
+- `E`: 切到下一位角色
+- `R`: 释放大招
+- `ESC`: 暂停菜单
+- ``~``: 切换高级信息显示
+
+## Run
 
 1. 用 Godot 4 打开项目目录
 2. 运行主场景 `res://scenes/main_menu.tscn`
 
-当前 `project.godot` 已将主运行场景设置为主菜单。
+当前 `project.godot` 已将主运行场景设置为：
 
-## 目录结构
+- `res://scenes/main_menu.tscn`
 
-- `assets/`：背景图、音乐、角色测试贴图等
-- `effects/`：特效场景与特效贴图
-- `scenes/`：主要场景、UI 场景、战斗单位场景
-- `scripts/`：核心逻辑脚本
-- `shaders/`：材质与 shader
-- `docs/`：项目说明文档
+## Project Structure
 
-## 核心脚本
+- `assets/`
+  背景图、音乐、角色测试贴图等
+
+- `effects/`
+  特效场景与特效贴图
+
+- `scenes/`
+  主场景、UI 场景、战斗单位场景
+
+- `scripts/`
+  核心逻辑脚本
+
+- `shaders/`
+  材质与 shader
+
+- `docs/`
+  项目说明文档
+
+## Key Scripts
 
 - `scripts/main.gd`
   战斗主控、刷怪、Boss、UI、继续游戏
@@ -71,13 +90,13 @@
 - `scripts/story_data.gd`
   主线关卡表、角色池、风格样式
 
-## 文档入口
+## Documentation
 
-完整文档见：
+完整文档入口：
 
 - [docs/README_文档索引.md](docs/README_文档索引.md)
 
-推荐阅读顺序：
+推荐优先阅读：
 
 1. 项目定位与核心理念
 2. 工程架构与代码入口
@@ -85,7 +104,18 @@
 4. 构筑系统与文案交互规范
 5. 当前实现状态与后续重点
 
-## 备注
+## Development Notes
 
-当前项目仍处于持续迭代阶段，很多内容是为了先验证玩法与爽点而落地的原型实现。  
-现阶段重点不是做最终成品包装，而是持续把战斗、角色差异、构筑和关卡节奏打磨成立。
+当前项目仍处于持续迭代阶段。
+
+现阶段优先级不是做最终成品包装，而是持续验证并打磨：
+
+- 战斗节奏
+- 角色差异
+- 构筑深度
+- 关卡与 Boss 压力
+- 演出反馈
+
+## Changelog
+
+- [CHANGELOG.md](CHANGELOG.md)
