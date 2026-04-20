@@ -1,0 +1,10 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/heart_pickup.gd" id="1_heart"]
+
+[node name="HeartPickup" type="Node2D"]
+script = ExtResource("1_heart")
+
+[node name="Polygon2D" type="Polygon2D" parent="."]
+color = Color(1, 0.36, 0.48, 1)
+polygon = PackedVector2Array(0, -6, 6, -12, 12, -8, 12, -1, 0, 13, -12, -1, -12, -8, -6, -12)

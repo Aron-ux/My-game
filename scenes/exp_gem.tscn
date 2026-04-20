@@ -1,0 +1,10 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/exp_gem.gd" id="1_52v00"]
+
+[node name="ExpGem" type="Node2D"]
+script = ExtResource("1_52v00")
+
+[node name="Polygon2D" type="Polygon2D" parent="."]
+color = Color(0.36862746, 0.98039216, 0.57254905, 1)
+polygon = PackedVector2Array(0, -10, 8, 0, 0, 10, -8, 0)

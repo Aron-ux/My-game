@@ -1,0 +1,227 @@
+extends Node2D
+
+const WHITE_KEY_SHADER := preload("res://shaders/white_key.gdshader")
+const BULLET_TEXTURE_RELATIVE_PATH := "技能特效/子弹.jpg"
+const BULLET_TEXTURE_SIZE := Vector2(1200.0, 1600.0)
+const BULLET_VISIBLE_BOUNDS := Rect2(563.0, 641.0, 120.0, 118.0)
+
+@export var speed: float = 420.0
+@export var damage: float = 10.0
+@export var lifetime: float = 3.0
+@export var hit_radius: float = 14.0
+@export var pierce_count: int = 0
+@export var slow_multiplier: float = 1.0
+@export var slow_duration: float = 0.0
+@export var vulnerability_bonus: float = 0.0
+@export var vulnerability_duration: float = 0.0
+@export var visual_color: Color = Color(1.0, 0.93, 0.39, 1.0)
+
+var direction: Vector2 = Vector2.RIGHT
+var target: Node2D
+var source_player: Node
+var source_role_id: String = ""
+var hit_enemy_ids: Dictionary = {}
+var wave_amplitude: float = 0.0
+var wave_frequency: float = 0.0
+var wave_phase: float = 0.0
+var wave_elapsed: float = 0.0
+var wave_travel_distance: float = 0.0
+var wave_origin: Vector2 = Vector2.ZERO
+var wave_forward_direction: Vector2 = Vector2.RIGHT
+var wave_side_direction: Vector2 = Vector2.DOWN
+var bullet_texture: Texture2D
+
+func _get_desktop_sketch_path(relative_path: String) -> String:
+	return (OS.get_system_dir(OS.SYSTEM_DIR_DESKTOP).replace("\\", "/") + "/草图/" + relative_path)
+
+func _get_project_sketch_path(relative_path: String) -> String:
+	return "res://assets/sketch/" + relative_path
+
+func _load_runtime_texture(relative_path: String) -> Texture2D:
+	var project_path := _get_project_sketch_path(relative_path)
+	if ResourceLoader.exists(project_path):
+		var project_texture := load(project_path) as Texture2D
+		if project_texture != null:
+			return project_texture
+	var image := Image.new()
+	var load_error := image.load(_get_desktop_sketch_path(relative_path))
+	if load_error != OK:
+		return null
+	return ImageTexture.create_from_image(image)
+
+func _ensure_bullet_sprite() -> Sprite2D:
+	var sprite := get_node_or_null("BulletSprite") as Sprite2D
+	if sprite != null:
+		return sprite
+	sprite = Sprite2D.new()
+	sprite.name = "BulletSprite"
+	sprite.z_index = 2
+	sprite.centered = true
+	add_child(sprite)
+	return sprite
+
+func _refresh_bullet_visual() -> void:
+	var polygon := get_node_or_null("Polygon2D") as Polygon2D
+	if polygon != null:
+		polygon.visible = bullet_texture == null
+		if polygon.visible:
+			polygon.color = visual_color
+			polygon.scale = Vector2(1.4, 0.9)
+
+	var sprite := _ensure_bullet_sprite()
+	if bullet_texture == null:
+		bullet_texture = _load_runtime_texture(BULLET_TEXTURE_RELATIVE_PATH)
+	if bullet_texture == null:
+		sprite.visible = false
+		return
+
+	sprite.visible = true
+	sprite.texture = bullet_texture
+	sprite.modulate = Color.WHITE
+	sprite.offset = Vector2(
+		BULLET_TEXTURE_SIZE.x * 0.5 - (BULLET_VISIBLE_BOUNDS.position.x + BULLET_VISIBLE_BOUNDS.size.x * 0.5),
+		BULLET_TEXTURE_SIZE.y * 0.5 - (BULLET_VISIBLE_BOUNDS.position.y + BULLET_VISIBLE_BOUNDS.size.y * 0.5)
+	)
+	var target_diameter: float = max(10.0, hit_radius * 2.0)
+	var base_size: float = max(BULLET_VISIBLE_BOUNDS.size.x, BULLET_VISIBLE_BOUNDS.size.y)
+	var visual_scale: float = target_diameter / base_size
+	sprite.scale = Vector2.ONE * visual_scale
+	sprite.rotation = 0.0
+
+	var shader_material := sprite.material as ShaderMaterial
+	if shader_material == null:
+		shader_material = ShaderMaterial.new()
+		shader_material.shader = WHITE_KEY_SHADER
+		sprite.material = shader_material
+
+func _ready() -> void:
+	_refresh_bullet_visual()
+	rotation = direction.angle()
+	if wave_amplitude > 0.0:
+		_initialize_wave_motion()
+
+func _physics_process(delta: float) -> void:
+	_refresh_bullet_visual()
+	lifetime -= delta
+	if lifetime <= 0.0:
+		queue_free()
+		return
+
+	var start_position := global_position
+	if wave_amplitude > 0.0 and target == null:
+		_update_wave_motion(delta)
+	elif target != null and is_instance_valid(target):
+		direction = global_position.direction_to(target.global_position)
+		rotation = direction.angle()
+		global_position += direction.normalized() * speed * delta
+	else:
+		rotation = direction.angle()
+		global_position += direction.normalized() * speed * delta
+
+	_try_hit_enemy(start_position, global_position)
+
+func configure_wave_motion(amplitude: float, frequency: float, phase: float = 0.0) -> void:
+	wave_amplitude = max(0.0, amplitude)
+	wave_frequency = max(0.0, frequency)
+	wave_phase = phase
+	wave_elapsed = 0.0
+	wave_travel_distance = 0.0
+	_initialize_wave_motion()
+
+func _initialize_wave_motion() -> void:
+	wave_origin = global_position
+	wave_forward_direction = direction.normalized()
+	if wave_forward_direction.length_squared() <= 0.001:
+		wave_forward_direction = Vector2.RIGHT
+	wave_side_direction = wave_forward_direction.orthogonal().normalized()
+
+func _update_wave_motion(delta: float) -> void:
+	wave_elapsed += delta
+	wave_travel_distance += speed * delta
+	var wave_offset: float = sin(wave_elapsed * wave_frequency + wave_phase) * wave_amplitude
+	var next_position: Vector2 = wave_origin + wave_forward_direction * wave_travel_distance + wave_side_direction * wave_offset
+	var move_vector: Vector2 = next_position - global_position
+	if move_vector.length_squared() > 0.001:
+		direction = move_vector.normalized()
+		rotation = direction.angle()
+	global_position = next_position
+
+func _get_enemy_hit_radius(enemy: Node2D) -> float:
+	var enemy_contact_radius: Variant = enemy.get("contact_radius")
+	if enemy_contact_radius == null:
+		return 12.0
+	return clamp(float(enemy_contact_radius) * 0.42, 10.0, 28.0)
+
+func _segment_hits_enemy(enemy: Node2D, start_position: Vector2, end_position: Vector2) -> bool:
+	var total_hit_radius := hit_radius + _get_enemy_hit_radius(enemy)
+	if start_position.distance_squared_to(end_position) <= 0.001:
+		return start_position.distance_to(enemy.global_position) <= total_hit_radius
+	var closest_point := Geometry2D.get_closest_point_to_segment(enemy.global_position, start_position, end_position)
+	return closest_point.distance_to(enemy.global_position) <= total_hit_radius
+
+func _try_hit_enemy(start_position: Vector2, end_position: Vector2) -> void:
+	if target != null and is_instance_valid(target) and _can_hit_enemy(target):
+		if _segment_hits_enemy(target, start_position, end_position):
+			_apply_hit(target)
+			return
+
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(enemy):
+			continue
+		if not _can_hit_enemy(enemy):
+			continue
+		if _segment_hits_enemy(enemy, start_position, end_position):
+			_apply_hit(enemy)
+			return
+
+func _can_hit_enemy(enemy: Node2D) -> bool:
+	return not hit_enemy_ids.has(enemy.get_instance_id())
+
+func _apply_hit(enemy: Node2D) -> void:
+	hit_enemy_ids[enemy.get_instance_id()] = true
+
+	var killed: bool = false
+	if source_player != null and source_player.has_method("_deal_damage_to_enemy"):
+		killed = bool(source_player._deal_damage_to_enemy(enemy, damage, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration))
+	else:
+		if enemy.has_method("take_damage"):
+			killed = bool(enemy.take_damage(damage))
+		if slow_duration > 0.0 and enemy.has_method("apply_slow"):
+			enemy.apply_slow(slow_multiplier, slow_duration)
+		if vulnerability_duration > 0.0 and enemy.has_method("apply_vulnerability"):
+			enemy.apply_vulnerability(vulnerability_bonus, vulnerability_duration)
+
+	if source_player != null and source_player.has_method("_register_attack_result"):
+		source_player._register_attack_result(source_role_id, 1, killed)
+
+	_spawn_impact_effect(enemy.global_position, killed)
+
+	if pierce_count > 0:
+		pierce_count -= 1
+		target = null
+		return
+
+	queue_free()
+
+func _spawn_impact_effect(position: Vector2, killed: bool) -> void:
+	var current_scene := get_tree().current_scene
+	if current_scene == null:
+		return
+
+	var impact := Polygon2D.new()
+	impact.global_position = position
+	impact.z_index = 15
+	impact.color = visual_color if not killed else Color(1.0, 0.92, 0.6, 1.0)
+	impact.polygon = PackedVector2Array([
+		Vector2(0.0, -10.0),
+		Vector2(10.0, 0.0),
+		Vector2(0.0, 10.0),
+		Vector2(-10.0, 0.0)
+	])
+	current_scene.add_child(impact)
+
+	impact.scale = Vector2(0.35, 0.35)
+	var tween := impact.create_tween()
+	tween.parallel().tween_property(impact, "scale", Vector2(1.1, 1.1) if killed else Vector2(0.75, 0.75), 0.12)
+	tween.parallel().tween_property(impact, "modulate:a", 0.0, 0.14 if killed else 0.1)
+	tween.tween_callback(impact.queue_free)
