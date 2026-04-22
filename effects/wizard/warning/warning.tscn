@@ -1,0 +1,38 @@
+[gd_scene format=3 uid="uid://dy0ypyl746a8c"]
+
+[ext_resource type="Texture2D" uid="uid://cagfp3hb8ldkj" path="res://effects/wizard/warning/1.png" id="1_j1etj"]
+[ext_resource type="Texture2D" uid="uid://62nd4n654g0j" path="res://effects/wizard/warning/2.png" id="2_p66g7"]
+[ext_resource type="Texture2D" uid="uid://bt8uvrpb03xiv" path="res://effects/wizard/warning/3.png" id="3_d8w2v"]
+[ext_resource type="Texture2D" uid="uid://wk1tpiil6ck1" path="res://effects/wizard/warning/4.png" id="4_gi1e1"]
+[ext_resource type="Texture2D" uid="uid://0qt4iudqipjn" path="res://effects/wizard/warning/5.png" id="5_kvfs1"]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_k7y74"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("1_j1etj")
+}, {
+"duration": 1.0,
+"texture": ExtResource("2_p66g7")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3_d8w2v")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_gi1e1")
+}, {
+"duration": 1.0,
+"texture": ExtResource("5_kvfs1")
+}],
+"loop": false,
+"name": &"boom",
+"speed": 16.0
+}]
+
+[node name="Warning" type="Node2D" unique_id=728329335]
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=452775986]
+sprite_frames = SubResource("SpriteFrames_k7y74")
+animation = &"boom"
+frame = 4
+frame_progress = 1.0

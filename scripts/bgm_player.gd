@@ -9,6 +9,7 @@ const MUTED_VOLUME_DB := -80.0
 
 var stored_playback_position: float = 0.0
 var resume_request_id: int = 0
+var paused_by_script: bool = false
 
 func _ready() -> void:
 	finished.connect(_on_finished)
@@ -25,6 +26,7 @@ func apply_saved_volume() -> void:
 
 func _on_finished() -> void:
 	stored_playback_position = 0.0
+	paused_by_script = false
 	play()
 
 func get_saved_playback_position() -> float:
@@ -34,6 +36,7 @@ func get_saved_playback_position() -> float:
 
 func restore_playback_position(position_seconds: float) -> void:
 	stored_playback_position = max(position_seconds, 0.0)
+	paused_by_script = false
 
 func start_music(position_seconds: float = 0.0) -> void:
 	if stream == null:
@@ -41,7 +44,8 @@ func start_music(position_seconds: float = 0.0) -> void:
 
 	resume_request_id += 1
 	stored_playback_position = max(position_seconds, 0.0)
-	play(stored_playback_position)
+	paused_by_script = false
+	_play_from_position(stored_playback_position)
 
 func pause_music() -> void:
 	if stream == null:
@@ -49,7 +53,11 @@ func pause_music() -> void:
 
 	resume_request_id += 1
 	stored_playback_position = get_saved_playback_position()
-	stop()
+	paused_by_script = true
+	if playing:
+		stream_paused = true
+	else:
+		stop()
 
 func resume_music(delay_seconds: float = 0.0) -> void:
 	if stream == null:
@@ -64,7 +72,20 @@ func resume_music(delay_seconds: float = 0.0) -> void:
 		if request_id != resume_request_id:
 			return
 
-	play(target_position)
+	if paused_by_script and playing:
+		stream_paused = false
+	else:
+		_play_from_position(target_position)
+	paused_by_script = false
+
+func _play_from_position(position_seconds: float) -> void:
+	stream_paused = false
+	var safe_position: float = max(position_seconds, 0.0)
+	if safe_position <= 0.001:
+		play()
+	else:
+		play()
+		seek(safe_position)
 
 static func load_music_volume() -> float:
 	var config := ConfigFile.new()

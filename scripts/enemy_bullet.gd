@@ -134,7 +134,13 @@ func _update_returning_sine_motion(delta: float) -> bool:
 func _try_hit_player() -> void:
 	if target == null or not is_instance_valid(target):
 		return
-	if global_position.distance_to(target.global_position) > hit_radius:
+	var target_center: Vector2 = target.global_position
+	var target_radius: float = 0.0
+	if target.has_method("get_hurtbox_center"):
+		target_center = target.get_hurtbox_center()
+	if target.has_method("get_hurtbox_radius"):
+		target_radius = float(target.get_hurtbox_radius())
+	if global_position.distance_to(target_center) > hit_radius + target_radius:
 		return
 	if target.has_method("take_damage"):
 		target.take_damage(damage)

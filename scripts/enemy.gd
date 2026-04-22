@@ -628,8 +628,15 @@ func _update_boss_lasers(delta: float) -> void:
 		core.default_color = Color(1.0, 0.92, 0.58, min(1.0, alpha + 0.4))
 
 		if boss_laser_hit_timer <= 0.0 and target != null and is_instance_valid(target):
-			var distance_to_beam := Geometry2D.get_closest_point_to_segment(target.global_position, global_position + start_point, global_position + end_point).distance_to(target.global_position)
-			if distance_to_beam <= 22.0 and target.has_method("take_damage"):
+			var target_center: Vector2 = target.global_position
+			var target_radius: float = 0.0
+			if target.has_method("get_hurtbox_center"):
+				target_center = target.get_hurtbox_center()
+			if target.has_method("get_hurtbox_radius"):
+				target_radius = float(target.get_hurtbox_radius())
+			var closest_point := Geometry2D.get_closest_point_to_segment(target_center, global_position + start_point, global_position + end_point)
+			var distance_to_beam := closest_point.distance_to(target_center)
+			if distance_to_beam <= 22.0 + target_radius and target.has_method("take_damage"):
 				target.take_damage(projectile_damage * 0.62)
 				boss_laser_hit_timer = 0.16
 

@@ -1,4 +1,4 @@
-﻿extends Control
+extends Control
 
 const GAME_SCENE_PATH := "res://scenes/main.tscn"
 const SAVE_SELECT_SCENE_PATH := "res://scenes/save_select.tscn"
@@ -212,5 +212,3 @@ func _on_mute_toggled(toggled_on: bool) -> void:
 
 func _on_quit_pressed() -> void:
 	get_tree().quit()
-
-

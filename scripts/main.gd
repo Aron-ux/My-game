@@ -232,7 +232,7 @@ func _resume_game() -> void:
 		pause_menu.hide_ui()
 	get_tree().paused = false
 
-	var resume_delay: float = 0.0
+	var resume_delay: float = CONTINUE_BGM_RESUME_DELAY
 
 	if loaded_from_save and player != null and player.has_method("resume_pending_level_ups"):
 		player.resume_pending_level_ups()

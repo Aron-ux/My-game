@@ -3,6 +3,21 @@ extends CharacterBody2D
 const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
 const WHITE_KEY_SHADER := preload("res://shaders/white_key.gdshader")
 const SWORD_SLASH_EFFECT_SCENE := preload("res://effects/sword/slash3/slasheffect3.tscn")
+const SWORD_OMNISLASH_EFFECT_SCENE := preload("res://effects/sword/omnislash/omnislash.tscn")
+const SWORD_FAN_EFFECT_SCENE := preload("res://effects/sword/fan/fan.tscn")
+const GUNNER_INTERSECT_EFFECT_SCENE := preload("res://effects/gun/intersect/intersect.tscn")
+const MAGE_BOOM_EFFECT_SCENE := preload("res://effects/wizard/boom/boom.tscn")
+const MAGE_WARNING_EFFECT_SCENE := preload("res://effects/wizard/warning/warning.tscn")
+const MAGE_GATHERING_EFFECT_SCENE := preload("res://effects/wizard/wave/gathering/gatering.tscn")
+const MAGE_WAVE_EFFECT_SCENE := preload("res://effects/wizard/wave/wave.tscn")
+
+const DANGZHEN_PREVIEW_ACTIVE := false
+const SWORD_FAN_SCENE_SIZE := Vector2(1024.0, 1024.0)
+const SWORD_FAN_SCENE_VISIBLE_BOUNDS := Rect2(485.0, 405.0, 117.0, 50.0)
+const GUNNER_INTERSECT_SCENE_SIZE := Vector2(1024.0, 1024.0)
+const GUNNER_INTERSECT_SCENE_VISIBLE_BOUNDS := Rect2(465.0, 489.0, 274.0, 39.0)
+const MAGE_GATHERING_SCENE_SIZE := Vector2(1024.0, 1024.0)
+const MAGE_GATHERING_SCENE_VISIBLE_BOUNDS := Rect2(298.0, 399.0, 102.0, 165.0)
 
 signal experience_changed(current_experience: int, required_experience: int, level: int)
 signal level_up_requested(options: Array)
@@ -48,6 +63,9 @@ const SLOT_RESONANCE_SECOND_THRESHOLD := 6
 const SLOT_EVOLUTION_THRESHOLD := 2
 const GEM_COLLECTION_INTERVAL := 0.08
 const CONTACT_CHECK_INTERVAL := 0.05
+const PLAYER_HURT_CORE_RADIUS := 7.7
+const PLAYER_HURT_CORE_OUTLINE_WIDTH := 3.0
+const PLAYER_HURT_CORE_OFFSET := Vector2.ZERO
 const ROLE_SKETCH_TARGET_HEIGHT := 72.0
 const ROLE_SKETCH_PATHS := {
 	"swordsman": "人设草图/剑士草图.jpg",
@@ -80,12 +98,23 @@ const SWORD_SLASH_VISIBLE_BOUNDS := Rect2(246.0, 537.0, 600.0, 615.0)
 const SWORD_SLASH_SCENE_SIZE := Vector2(256.0, 256.0)
 const SWORD_SLASH_SCENE_VISIBLE_BOUNDS := Rect2(99.0, 30.0, 27.0, 153.0)
 const SWORD_SLASH_DAMAGE_FOLLOW_PULSES := 2
+const SWORD_OMNISLASH_SCENE_SIZE := Vector2(1024.0, 1024.0)
+const SWORD_OMNISLASH_SCENE_VISIBLE_BOUNDS := Rect2(30.0, 344.0, 951.0, 189.0)
+const MAGE_WARNING_SCENE_SIZE := Vector2(256.0, 256.0)
+const MAGE_WARNING_SCENE_VISIBLE_BOUNDS := Rect2(98.0, 98.0, 59.0, 30.0)
+const MAGE_BOOM_SCENE_SIZE := Vector2(256.0, 256.0)
+const MAGE_BOOM_SCENE_VISIBLE_BOUNDS := Rect2(101.0, 33.0, 56.0, 92.0)
+const MAGE_BOOM_IMPACT_FOCUS_BOUNDS := Rect2(104.0, 99.0, 44.0, 26.0)
 const GUNNER_BULLET_TEXTURE_RELATIVE_PATH := "技能特效/子弹.jpg"
 const MAGE_BOMBARD_TEXTURE_RELATIVE_PATH := "技能特效/轰炸.jpg"
 const MAGE_BOMBARD_TEXTURE_SIZE := Vector2(1200.0, 1600.0)
 const MAGE_BOMBARD_VISIBLE_BOUNDS := Rect2(287.0, 434.0, 634.0, 561.0)
 
-@export var bullet_scene: PackedScene = preload("res://scenes/bullet.tscn")
+const MAGE_ATTACK_EFFECT_SCALE := 0.8
+const MAGE_ENTRY_EFFECT_RADIUS := 52.0 * MAGE_ATTACK_EFFECT_SCALE
+const MAGE_ENTRY_HIT_RADIUS := 104.0 * MAGE_ATTACK_EFFECT_SCALE
+
+@export var bullet_scene: PackedScene = preload("res://effects/gun/bullet/bullet.tscn")
 @export var max_health: float = 110.0
 @export var max_mana: float = 100.0
 @export var base_speed: float = 192.0
@@ -176,10 +205,14 @@ var role_standby_elapsed: Dictionary = {}
 var role_cycle_marks: Dictionary = {}
 var role_share_initialized: bool = false
 var role_visual_time: float = 0.0
+var active_role_visual_hidden: bool = false
+var active_role_visual_hidden_role_id: String = ""
 var runtime_texture_cache: Dictionary = {}
 var swordsman_attack_chain: int = 0
+var swordsman_dangzhen_slash_cooldown_attacks: int = 0
 var gunner_attack_chain: int = 0
 var mage_attack_chain: int = 0
+var mage_dangzhen_wave_cooldown_attacks: int = 0
 var gunner_lock_target: Node2D
 var gunner_lock_stacks: int = 0
 var gem_collection_elapsed: float = 0.0
@@ -223,6 +256,8 @@ func _ready() -> void:
 	camera_node = get_node_or_null("Camera2D") as Camera2D
 	if camera_node != null:
 		camera_base_offset = camera_node.offset
+
+	_setup_hurt_core_visual()
 
 	_initialize_existing_role_shares()
 	role_cycle_marks[str(_get_active_role().get("id", ""))] = true
@@ -414,6 +449,388 @@ func _spawn_sword_slash_scene_effect(center: Vector2, direction: Vector2, radius
 	current_scene.add_child(effect)
 	return effect
 
+func _spawn_sword_omnislash_scene_effect(center: Vector2, direction: Vector2, length: float, thickness: float) -> Node2D:
+	var current_scene := get_tree().current_scene
+	if current_scene == null or SWORD_OMNISLASH_EFFECT_SCENE == null:
+		return null
+
+	var playback_direction: Vector2 = direction.normalized()
+	if playback_direction.length_squared() <= 0.001:
+		playback_direction = Vector2.RIGHT
+
+	var effect := SWORD_OMNISLASH_EFFECT_SCENE.instantiate() as Node2D
+	if effect == null:
+		return null
+
+	effect.global_position = center
+	effect.rotation = playback_direction.angle() - Vector2.RIGHT.angle()
+	effect.z_index = 15
+
+	var slash_sprite := effect.get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
+	if slash_sprite != null:
+		var base_scale: Vector2 = slash_sprite.scale
+		var authored_animation: StringName = slash_sprite.animation
+		slash_sprite.material = null
+		slash_sprite.modulate = Color.WHITE
+		slash_sprite.centered = true
+		slash_sprite.position = Vector2.ZERO
+		slash_sprite.offset = SWORD_OMNISLASH_SCENE_SIZE * 0.5 - (SWORD_OMNISLASH_SCENE_VISIBLE_BOUNDS.position + SWORD_OMNISLASH_SCENE_VISIBLE_BOUNDS.size * 0.5)
+		var target_visible_size := Vector2(
+			max(120.0, length),
+			max(28.0, thickness * 1.18)
+		)
+		var target_scale := Vector2(
+			target_visible_size.x / max(1.0, SWORD_OMNISLASH_SCENE_VISIBLE_BOUNDS.size.x),
+			target_visible_size.y / max(1.0, SWORD_OMNISLASH_SCENE_VISIBLE_BOUNDS.size.y)
+		)
+		slash_sprite.scale = Vector2(
+			base_scale.x * target_scale.x,
+			base_scale.y * target_scale.y
+		)
+		if slash_sprite.sprite_frames != null:
+			var animation_names: PackedStringArray = slash_sprite.sprite_frames.get_animation_names()
+			var animation_name: StringName = authored_animation
+			if animation_name == StringName() and animation_names.size() > 0:
+				animation_name = StringName(animation_names[0])
+			elif animation_name != StringName() and not animation_names.has(String(animation_name)) and animation_names.size() > 0:
+				animation_name = StringName(animation_names[0])
+			if animation_name != StringName():
+				slash_sprite.sprite_frames.set_animation_loop(animation_name, false)
+				slash_sprite.animation = animation_name
+				slash_sprite.frame = 0
+				slash_sprite.frame_progress = 0.0
+				slash_sprite.play(animation_name)
+			else:
+				slash_sprite.play()
+		else:
+			slash_sprite.play()
+		if not slash_sprite.animation_finished.is_connected(effect.queue_free):
+			slash_sprite.animation_finished.connect(effect.queue_free, CONNECT_ONE_SHOT)
+	else:
+		var tween := effect.create_tween()
+		tween.tween_interval(0.2)
+		tween.tween_callback(effect.queue_free)
+
+	current_scene.add_child(effect)
+	return effect
+
+func _set_active_role_visual_hidden(hidden: bool) -> void:
+	active_role_visual_hidden = hidden
+	active_role_visual_hidden_role_id = str(_get_active_role().get("id", "")) if hidden else ""
+	var should_hide := active_role_visual_hidden and str(_get_active_role().get("id", "")) == active_role_visual_hidden_role_id
+	var sprite := get_node_or_null("RoleVisualRoot/RoleSprite") as Sprite2D
+	if sprite != null:
+		sprite.visible = not should_hide
+	var polygon := get_node_or_null("Polygon2D") as Polygon2D
+	if polygon != null:
+		polygon.visible = sprite == null and not should_hide
+
+func _spawn_authored_scene_effect(scene: PackedScene, scene_size: Vector2, visible_bounds: Rect2, center: Vector2, rotation_radians: float, scale_multiplier: float, z_index: int = 12) -> Node2D:
+	var current_scene := get_tree().current_scene
+	if current_scene == null or scene == null:
+		return null
+
+	var effect := scene.instantiate() as Node2D
+	if effect == null:
+		return null
+
+	effect.global_position = center
+	effect.rotation = rotation_radians
+	effect.z_index = z_index
+
+	var animated_sprite := effect.get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
+	if animated_sprite != null:
+		var base_scale: Vector2 = animated_sprite.scale
+		var authored_animation: StringName = animated_sprite.animation
+		animated_sprite.material = null
+		animated_sprite.modulate = Color.WHITE
+		animated_sprite.centered = true
+		animated_sprite.position = Vector2.ZERO
+		animated_sprite.offset = scene_size * 0.5 - (visible_bounds.position + visible_bounds.size * 0.5)
+		animated_sprite.scale = base_scale * scale_multiplier
+		if animated_sprite.sprite_frames != null:
+			var animation_names: PackedStringArray = animated_sprite.sprite_frames.get_animation_names()
+			var animation_name: StringName = authored_animation
+			if animation_name == StringName() and animation_names.size() > 0:
+				animation_name = StringName(animation_names[0])
+			elif animation_name != StringName() and not animation_names.has(String(animation_name)) and animation_names.size() > 0:
+				animation_name = StringName(animation_names[0])
+			if animation_name != StringName():
+				animated_sprite.sprite_frames.set_animation_loop(animation_name, false)
+				animated_sprite.animation = animation_name
+				animated_sprite.frame = 0
+				animated_sprite.frame_progress = 0.0
+				animated_sprite.play(animation_name)
+			else:
+				animated_sprite.play()
+		else:
+			animated_sprite.play()
+		if not animated_sprite.animation_finished.is_connected(effect.queue_free):
+			animated_sprite.animation_finished.connect(effect.queue_free, CONNECT_ONE_SHOT)
+	else:
+		var tween := effect.create_tween()
+		tween.tween_interval(0.3)
+		tween.tween_callback(effect.queue_free)
+
+	current_scene.add_child(effect)
+	return effect
+
+func _spawn_sword_fan_scene_effect(center: Vector2, direction: Vector2, scale_multiplier: float = 1.0) -> Node2D:
+	var playback_direction := direction.normalized()
+	if playback_direction.length_squared() <= 0.001:
+		playback_direction = Vector2.RIGHT
+	var current_scene := get_tree().current_scene
+	if current_scene == null or SWORD_FAN_EFFECT_SCENE == null:
+		return null
+	var effect := SWORD_FAN_EFFECT_SCENE.instantiate() as Node2D
+	if effect == null:
+		return null
+	effect.global_position = center
+	effect.rotation = playback_direction.angle() + PI
+	effect.z_index = 12
+	var slash_sprite := effect.get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
+	if slash_sprite != null:
+		var authored_animation: StringName = slash_sprite.animation
+		slash_sprite.material = null
+		slash_sprite.modulate = Color.WHITE
+		slash_sprite.centered = true
+		slash_sprite.position = Vector2.ZERO
+		slash_sprite.offset = SWORD_FAN_SCENE_SIZE * 0.5 - (SWORD_FAN_SCENE_VISIBLE_BOUNDS.position + SWORD_FAN_SCENE_VISIBLE_BOUNDS.size * 0.5)
+		var target_visible_size := Vector2(138.0, 74.0) * scale_multiplier
+		slash_sprite.scale = Vector2(
+			target_visible_size.x / max(1.0, SWORD_FAN_SCENE_VISIBLE_BOUNDS.size.x),
+			target_visible_size.y / max(1.0, SWORD_FAN_SCENE_VISIBLE_BOUNDS.size.y)
+		)
+		if slash_sprite.sprite_frames != null:
+			var animation_names: PackedStringArray = slash_sprite.sprite_frames.get_animation_names()
+			var animation_name: StringName = authored_animation
+			if animation_name == StringName() and animation_names.size() > 0:
+				animation_name = StringName(animation_names[0])
+			elif animation_name != StringName() and not animation_names.has(String(animation_name)) and animation_names.size() > 0:
+				animation_name = StringName(animation_names[0])
+			if animation_name != StringName():
+				slash_sprite.sprite_frames.set_animation_loop(animation_name, false)
+				slash_sprite.animation = animation_name
+				slash_sprite.frame = 0
+				slash_sprite.frame_progress = 0.0
+				slash_sprite.play(animation_name)
+			else:
+				slash_sprite.play()
+		else:
+			slash_sprite.play()
+		if not slash_sprite.animation_finished.is_connected(effect.queue_free):
+			slash_sprite.animation_finished.connect(effect.queue_free, CONNECT_ONE_SHOT)
+	else:
+		var tween := effect.create_tween()
+		tween.tween_interval(0.24)
+		tween.tween_callback(effect.queue_free)
+	current_scene.add_child(effect)
+	return effect
+
+func _spawn_gunner_intersect_scene_effect(center: Vector2, direction: Vector2, visual_length: float = 112.0, visual_thickness: float = 18.0) -> Node2D:
+	var playback_direction := direction.normalized()
+	if playback_direction.length_squared() <= 0.001:
+		playback_direction = Vector2.RIGHT
+	if GUNNER_INTERSECT_EFFECT_SCENE == null:
+		return null
+	var effect := GUNNER_INTERSECT_EFFECT_SCENE.instantiate() as Node2D
+	if effect == null:
+		return null
+	effect.set_script(null)
+	effect.position = center - global_position
+	effect.rotation = playback_direction.angle()
+	effect.z_index = 13
+	var intersect_sprite := effect.get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
+	if intersect_sprite != null:
+		var authored_animation: StringName = intersect_sprite.animation
+		intersect_sprite.centered = true
+		intersect_sprite.position = Vector2.ZERO
+		intersect_sprite.modulate = Color.WHITE
+		var shader_material := ShaderMaterial.new()
+		shader_material.shader = WHITE_KEY_SHADER
+		intersect_sprite.material = shader_material
+		intersect_sprite.offset = GUNNER_INTERSECT_SCENE_SIZE * 0.5 - Vector2(
+			GUNNER_INTERSECT_SCENE_VISIBLE_BOUNDS.position.x,
+			GUNNER_INTERSECT_SCENE_VISIBLE_BOUNDS.position.y + GUNNER_INTERSECT_SCENE_VISIBLE_BOUNDS.size.y * 0.5
+		)
+		var target_visible_size := Vector2(visual_length, visual_thickness)
+		intersect_sprite.scale = Vector2(
+			target_visible_size.x / max(1.0, GUNNER_INTERSECT_SCENE_VISIBLE_BOUNDS.size.x),
+			target_visible_size.y / max(1.0, GUNNER_INTERSECT_SCENE_VISIBLE_BOUNDS.size.y)
+		)
+		intersect_sprite.speed_scale = 1.875
+		if intersect_sprite.sprite_frames != null:
+			var animation_names: PackedStringArray = intersect_sprite.sprite_frames.get_animation_names()
+			var animation_name: StringName = authored_animation
+			if animation_name == StringName() and animation_names.size() > 0:
+				animation_name = StringName(animation_names[0])
+			elif animation_name != StringName() and not animation_names.has(String(animation_name)) and animation_names.size() > 0:
+				animation_name = StringName(animation_names[0])
+			if animation_name != StringName():
+				intersect_sprite.sprite_frames.set_animation_loop(animation_name, false)
+				intersect_sprite.animation = animation_name
+				intersect_sprite.frame = 0
+				intersect_sprite.frame_progress = 0.0
+				intersect_sprite.play(animation_name)
+			else:
+				intersect_sprite.play()
+		else:
+			intersect_sprite.play()
+		if not intersect_sprite.animation_finished.is_connected(effect.queue_free):
+			intersect_sprite.animation_finished.connect(effect.queue_free, CONNECT_ONE_SHOT)
+	else:
+		var tween := effect.create_tween()
+		tween.tween_interval(0.18)
+		tween.tween_callback(effect.queue_free)
+	add_child(effect)
+	return effect
+
+func _spawn_mage_gathering_scene_effect(center: Vector2, direction: Vector2, scale_multiplier: float = 1.0) -> Node2D:
+	var playback_direction := direction.normalized()
+	if playback_direction.length_squared() <= 0.001:
+		playback_direction = Vector2.RIGHT
+	return _spawn_authored_scene_effect(
+		MAGE_GATHERING_EFFECT_SCENE,
+		MAGE_GATHERING_SCENE_SIZE,
+		MAGE_GATHERING_SCENE_VISIBLE_BOUNDS,
+		center,
+		playback_direction.angle() - Vector2.RIGHT.angle(),
+		1.55 * scale_multiplier,
+		12
+	)
+
+func _spawn_mage_boom_scene_effect(center: Vector2, radius: float) -> Node2D:
+	var current_scene := get_tree().current_scene
+	if current_scene == null or MAGE_BOOM_EFFECT_SCENE == null:
+		return null
+
+	var effect := MAGE_BOOM_EFFECT_SCENE.instantiate() as Node2D
+	if effect == null:
+		return null
+
+	effect.global_position = center
+	effect.z_index = 14
+
+	var boom_sprite := effect.get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
+	if boom_sprite != null:
+		var base_scale: Vector2 = boom_sprite.scale
+		var authored_animation: StringName = boom_sprite.animation
+		boom_sprite.material = null
+		boom_sprite.modulate = Color.WHITE
+		boom_sprite.centered = true
+		boom_sprite.position = Vector2.ZERO
+		boom_sprite.offset = MAGE_BOOM_SCENE_SIZE * 0.5 - (MAGE_BOOM_IMPACT_FOCUS_BOUNDS.position + MAGE_BOOM_IMPACT_FOCUS_BOUNDS.size * 0.5)
+		var target_visible_size := Vector2(
+			max(80.0, radius * 4.0),
+			max(184.0, radius * 4.9)
+		)
+		var target_scale := Vector2(
+			target_visible_size.x / max(1.0, MAGE_BOOM_SCENE_VISIBLE_BOUNDS.size.x),
+			target_visible_size.y / max(1.0, MAGE_BOOM_SCENE_VISIBLE_BOUNDS.size.y)
+		)
+		boom_sprite.scale = Vector2(
+			base_scale.x * target_scale.x,
+			base_scale.y * target_scale.y
+		)
+		if boom_sprite.sprite_frames != null:
+			var animation_names: PackedStringArray = boom_sprite.sprite_frames.get_animation_names()
+			var animation_name: StringName = authored_animation
+			if animation_name == StringName() and animation_names.size() > 0:
+				animation_name = StringName(animation_names[0])
+			elif animation_name != StringName() and not animation_names.has(String(animation_name)) and animation_names.size() > 0:
+				animation_name = StringName(animation_names[0])
+			if animation_name != StringName():
+				boom_sprite.sprite_frames.set_animation_loop(animation_name, false)
+				boom_sprite.animation = animation_name
+				boom_sprite.frame = 0
+				boom_sprite.frame_progress = 0.0
+				boom_sprite.play(animation_name)
+			else:
+				boom_sprite.play()
+		else:
+			boom_sprite.play()
+		if not boom_sprite.animation_finished.is_connected(effect.queue_free):
+			boom_sprite.animation_finished.connect(effect.queue_free, CONNECT_ONE_SHOT)
+	else:
+		var tween := effect.create_tween()
+		tween.tween_interval(0.3)
+		tween.tween_callback(effect.queue_free)
+
+	current_scene.add_child(effect)
+	return effect
+
+func _get_dangzhen_qichao_damage(role_id: String, qichao_level: int) -> float:
+	var level_index: int = clamp(qichao_level - 1, 0, 2)
+	match role_id:
+		"swordsman":
+			return [22.0, 30.0, 38.0][level_index]
+		"gunner":
+			return [18.0, 25.0, 32.0][level_index]
+		"mage":
+			return [24.0, 32.0, 40.0][level_index]
+		_:
+			return [20.0, 28.0, 36.0][level_index]
+
+func _spawn_mage_warning_scene_effect(center: Vector2, radius: float) -> Node2D:
+	var current_scene := get_tree().current_scene
+	if current_scene == null or MAGE_WARNING_EFFECT_SCENE == null:
+		return null
+
+	var effect := MAGE_WARNING_EFFECT_SCENE.instantiate() as Node2D
+	if effect == null:
+		return null
+
+	effect.global_position = center
+	effect.z_index = 13
+
+	var warning_sprite := effect.get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
+	if warning_sprite != null:
+		var base_scale: Vector2 = warning_sprite.scale
+		var authored_animation: StringName = warning_sprite.animation
+		warning_sprite.material = null
+		warning_sprite.modulate = Color.WHITE
+		warning_sprite.centered = true
+		warning_sprite.position = Vector2.ZERO
+		warning_sprite.offset = MAGE_WARNING_SCENE_SIZE * 0.5 - (MAGE_WARNING_SCENE_VISIBLE_BOUNDS.position + MAGE_WARNING_SCENE_VISIBLE_BOUNDS.size * 0.5)
+		var target_visible_size := Vector2(
+			max(80.0, radius * 4.0),
+			max(42.0, radius * 1.2)
+		)
+		var target_scale := Vector2(
+			target_visible_size.x / max(1.0, MAGE_WARNING_SCENE_VISIBLE_BOUNDS.size.x),
+			target_visible_size.y / max(1.0, MAGE_WARNING_SCENE_VISIBLE_BOUNDS.size.y)
+		)
+		warning_sprite.scale = Vector2(
+			base_scale.x * target_scale.x,
+			base_scale.y * target_scale.y
+		)
+		if warning_sprite.sprite_frames != null:
+			var animation_names: PackedStringArray = warning_sprite.sprite_frames.get_animation_names()
+			var animation_name: StringName = authored_animation
+			if animation_name == StringName() and animation_names.size() > 0:
+				animation_name = StringName(animation_names[0])
+			elif animation_name != StringName() and not animation_names.has(String(animation_name)) and animation_names.size() > 0:
+				animation_name = StringName(animation_names[0])
+			if animation_name != StringName():
+				warning_sprite.sprite_frames.set_animation_loop(animation_name, false)
+				warning_sprite.animation = animation_name
+				warning_sprite.frame = 0
+				warning_sprite.frame_progress = 0.0
+				warning_sprite.play(animation_name)
+			else:
+				warning_sprite.play()
+		else:
+			warning_sprite.play()
+		if not warning_sprite.animation_finished.is_connected(effect.queue_free):
+			warning_sprite.animation_finished.connect(effect.queue_free, CONNECT_ONE_SHOT)
+	else:
+		var tween := effect.create_tween()
+		tween.tween_interval(0.2)
+		tween.tween_callback(effect.queue_free)
+
+	current_scene.add_child(effect)
+	return effect
+
 func _get_downward_perpendicular(direction: Vector2) -> Vector2:
 	var normalized_direction: Vector2 = direction.normalized()
 	if normalized_direction.length_squared() <= 0.001:
@@ -451,6 +868,33 @@ func _get_sword_slash_scene_animation_duration() -> float:
 			for frame_index in range(frame_count):
 				total_relative_duration += slash_sprite.sprite_frames.get_frame_duration(animation_name, frame_index)
 			var animation_speed: float = slash_sprite.sprite_frames.get_animation_speed(animation_name)
+			if animation_speed <= 0.001:
+				animation_speed = 1.0
+			duration = max(0.05, total_relative_duration / animation_speed)
+	effect.queue_free()
+	return duration
+
+func _get_scene_animation_duration(scene: PackedScene, default_duration: float = 0.18) -> float:
+	if scene == null:
+		return default_duration
+	var effect := scene.instantiate() as Node2D
+	if effect == null:
+		return default_duration
+	var duration: float = default_duration
+	var sprite := effect.get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
+	if sprite != null and sprite.sprite_frames != null:
+		var animation_name: StringName = sprite.animation
+		var animation_names: PackedStringArray = sprite.sprite_frames.get_animation_names()
+		if animation_name == StringName() and animation_names.size() > 0:
+			animation_name = StringName(animation_names[0])
+		elif animation_name != StringName() and not animation_names.has(String(animation_name)) and animation_names.size() > 0:
+			animation_name = StringName(animation_names[0])
+		if animation_name != StringName():
+			var frame_count: int = sprite.sprite_frames.get_frame_count(animation_name)
+			var total_relative_duration: float = 0.0
+			for frame_index in range(frame_count):
+				total_relative_duration += sprite.sprite_frames.get_frame_duration(animation_name, frame_index)
+			var animation_speed: float = sprite.sprite_frames.get_animation_speed(animation_name) * max(sprite.speed_scale, 0.001)
 			if animation_speed <= 0.001:
 				animation_speed = 1.0
 			duration = max(0.05, total_relative_duration / animation_speed)
@@ -796,6 +1240,8 @@ func _get_card_level(card_id: String) -> int:
 	return int(card_pick_levels.get(card_id, 0))
 
 func _can_offer_card(card_id: String, max_level: int = 3) -> bool:
+	if card_id in ["battle_dangzhen_dielang", "battle_dangzhen_huichao"] and _get_card_level("battle_dangzhen_qichao") <= 0:
+		return false
 	return _get_card_level(card_id) < max_level
 
 func _has_elite_relic(relic_id: String) -> bool:
@@ -806,6 +1252,27 @@ func _unlock_elite_relic(relic_id: String) -> void:
 
 func _get_build_card_config(card_id: String) -> Dictionary:
 	match card_id:
+		"battle_dangzhen_qichao":
+			return {
+				"title": "起潮",
+				"max_level": 3,
+				"set_key": "battle_dangzhen",
+				"glossary_terms": []
+			}
+		"battle_dangzhen_dielang":
+			return {
+				"title": "叠浪",
+				"max_level": 3,
+				"set_key": "battle_dangzhen",
+				"glossary_terms": []
+			}
+		"battle_dangzhen_huichao":
+			return {
+				"title": "回潮",
+				"max_level": 2,
+				"set_key": "battle_dangzhen",
+				"glossary_terms": []
+			}
 		"battle_cover":
 			return {
 				"title": "扩域",
@@ -1000,6 +1467,16 @@ func _get_build_card_config(card_id: String) -> Dictionary:
 
 func _get_build_final_set_data(set_key: String) -> Dictionary:
 	match set_key:
+		"battle_dangzhen":
+			return {
+				"main_name": "荡阵",
+				"full_title": "荡阵：潮锋连卷",
+				"requirements": [
+					{"card_id": "battle_dangzhen_qichao", "label": "起潮", "max_level": 3},
+					{"card_id": "battle_dangzhen_dielang", "label": "叠浪", "max_level": 3},
+					{"card_id": "battle_dangzhen_huichao", "label": "回潮", "max_level": 2}
+				]
+			}
 		"battle_disaster":
 			return {
 				"main_name": "天灾化身",
@@ -1135,6 +1612,30 @@ func _build_role_preview_line(role_id: String, content: String) -> String:
 func _get_build_card_role_line(card_id: String, role_id: String) -> String:
 	var next_level := _get_card_level(card_id) + 1
 	match card_id:
+		"battle_dangzhen_qichao":
+			match role_id:
+				"swordsman":
+					return "追加 1 道月牙斩，造成 %d 点伤害" % int(round(_get_dangzhen_qichao_damage("swordsman", next_level)))
+				"gunner":
+					return "追加 1 道贯穿弹，造成 %d 点伤害" % int(round(_get_dangzhen_qichao_damage("gunner", next_level)))
+				"mage":
+					return "聚能后追加 1 道冲击波，造成 %d 点伤害" % int(round(_get_dangzhen_qichao_damage("mage", next_level)))
+		"battle_dangzhen_dielang":
+			match role_id:
+				"swordsman":
+					return "当前月牙斩结束后，立刻再补 %d 道同方向月牙斩" % next_level
+				"gunner":
+					return "当前贯穿弹结束后，立刻再补 %d 道同方向贯穿弹" % next_level
+				"mage":
+					return "第一道冲击波结束后，立刻再补 %d 道同方向冲击波（后续不再聚能）" % next_level
+		"battle_dangzhen_huichao":
+			match role_id:
+				"swordsman":
+					return "月牙斩会在反方向同时生成一道镜像斩击" if next_level == 1 else "正反两道斩击结束后，再沿其连线的垂直方向追加一道斩击（继承叠浪）"
+				"gunner":
+					return "改为两道贯穿弹，夹角 30°" if next_level == 1 else "改为三道贯穿弹，夹角 30°（全部继承叠浪）"
+				"mage":
+					return "不同冲击波之间的夹角增大" if next_level == 1 else "不同冲击波之间的夹角进一步增大"
 		"battle_cover":
 			match role_id:
 				"swordsman":
@@ -1324,6 +1825,12 @@ func _get_build_card_role_line(card_id: String, role_id: String) -> String:
 func _get_build_card_common_lines(card_id: String) -> Array[String]:
 	var next_level := _get_card_level(card_id) + 1
 	match card_id:
+		"battle_dangzhen_qichao":
+			return ["叠浪与回潮只有在拿到起潮后才会刷新"]
+		"battle_dangzhen_dielang":
+			return ["起潮触发后，按等级连续补发同方向追加攻击"]
+		"battle_dangzhen_huichao":
+			return ["改变追加攻击的出手方向，并继承叠浪效果"]
 		"battle_cover":
 			return ["全队伤害 +1.5", "技能系数 +0.04"]
 		"battle_split":
@@ -1882,6 +2389,12 @@ func _get_option_preview_description(option_id: String) -> String:
 func _describe_battle_card(card_id: String) -> String:
 	var next_level := _get_card_level(card_id) + 1
 	match card_id:
+		"battle_dangzhen_qichao":
+			return "本层：起潮会为三名角色追加一段独立伤害，不再按本次普通攻击伤害百分比结算。"
+		"battle_dangzhen_dielang":
+			return "本层：起潮触发后，剑士和枪手会在当前特效结束后立刻补发，术师会在第一道波结束后立刻补发同方向的后续波。"
+		"battle_dangzhen_huichao":
+			return "本层：回潮会改变三名角色的追加攻击方向，并让这些方向全部继承叠浪。"
 		"battle_cover":
 			return "\u672C\u5C42\uff1A\u5168\u961F\u4F24\u5BB3 +1.5\uff0c\u5C04\u7A0B/\u8303\u56F4 +10\uff0c\u5251\u58EB\u56DE\u626B+\uFF11\uff0c\u67AA\u624B\u6563\u5C04+\uFF11\uff0c\u672F\u5E08\u51B0\u57DF+\uFF11\u3002"
 		"battle_tempo":
@@ -2370,6 +2883,199 @@ func _perform_active_attack() -> void:
 		"mage":
 			_perform_mage_attack()
 
+func _execute_dangzhen_sword_slash(slash_origin: Vector2, slash_direction: Vector2, attack_damage: float, damage_ratio: float, split_level: int, huichao_level: int, role_id: String) -> int:
+	var fan_center := slash_origin + slash_direction * 52.0
+	_spawn_sword_fan_scene_effect(fan_center, slash_direction, 0.72 + split_level * 0.07 + huichao_level * 0.05)
+	var fan_start := slash_origin + slash_direction * 22.0
+	var fan_end := slash_origin + slash_direction * 118.0
+	return _damage_enemies_in_line(fan_start, fan_end, 18.0, attack_damage, 0.0, 1.0, 0.0, role_id)
+
+func _trigger_dangzhen_sword_qichao_preview(attack_direction: Vector2, attack_damage: float, role_id: String) -> int:
+	var qichao_level := _get_card_level("battle_dangzhen_qichao")
+	if qichao_level <= 0:
+		return 0
+	if swordsman_dangzhen_slash_cooldown_attacks > 0:
+		swordsman_dangzhen_slash_cooldown_attacks -= 1
+		return 0
+	swordsman_dangzhen_slash_cooldown_attacks = 1
+	var split_level := _get_card_level("battle_dangzhen_dielang")
+	var huichao_level := _get_card_level("battle_dangzhen_huichao")
+	var qichao_damage := _get_dangzhen_qichao_damage(role_id, qichao_level)
+	var extra_count := split_level
+	var primary_directions: Array[Vector2] = [attack_direction.normalized()]
+	if huichao_level >= 1:
+		primary_directions.append((-attack_direction).normalized())
+	var total_hits := 0
+	var fan_animation_duration := _get_scene_animation_duration(SWORD_FAN_EFFECT_SCENE, 0.2)
+	for slash_direction in primary_directions:
+		total_hits += _execute_dangzhen_sword_slash(global_position, slash_direction, qichao_damage, 1.0, split_level, huichao_level, role_id)
+		if extra_count <= 0:
+			continue
+		var current_scene := get_tree().current_scene
+		if current_scene == null:
+			continue
+		var controller := Node2D.new()
+		controller.name = "DangzhenSwordFollowController"
+		current_scene.add_child(controller)
+		var tween := controller.create_tween()
+		for extra_index in range(extra_count):
+			tween.tween_interval(fan_animation_duration)
+			tween.tween_callback(func() -> void:
+				if not is_instance_valid(self):
+					return
+				var follow_hits := _execute_dangzhen_sword_slash(global_position, slash_direction, qichao_damage, 1.0, split_level, huichao_level, role_id)
+				if follow_hits > 0:
+					_register_attack_result(role_id, follow_hits, false)
+			)
+		tween.tween_callback(controller.queue_free)
+	if huichao_level >= 2:
+		var current_scene := get_tree().current_scene
+		if current_scene != null:
+			var controller := Node2D.new()
+			controller.name = "DangzhenSwordCrossController"
+			current_scene.add_child(controller)
+			var tween := controller.create_tween()
+			tween.tween_interval(fan_animation_duration * float(extra_count + 1))
+			tween.tween_callback(func() -> void:
+				if not is_instance_valid(self):
+					return
+				var cross_direction := _get_downward_perpendicular(attack_direction).normalized()
+				var cross_hits := _execute_dangzhen_sword_slash(global_position, cross_direction, qichao_damage, 1.0, split_level, huichao_level, role_id)
+				if cross_hits > 0:
+					_register_attack_result(role_id, cross_hits, false)
+			)
+			for extra_index in range(extra_count):
+				tween.tween_interval(fan_animation_duration)
+				tween.tween_callback(func() -> void:
+					if not is_instance_valid(self):
+						return
+					var cross_direction := _get_downward_perpendicular(attack_direction).normalized()
+					var cross_hits := _execute_dangzhen_sword_slash(global_position, cross_direction, qichao_damage, 1.0, split_level, huichao_level, role_id)
+					if cross_hits > 0:
+						_register_attack_result(role_id, cross_hits, false)
+				)
+			tween.tween_callback(controller.queue_free)
+	return total_hits
+
+func _execute_dangzhen_gunner_beam(origin: Vector2, fire_direction: Vector2, damage_amount: float, role_id: String) -> int:
+	var line_length: float = 168.0
+	var line_width: float = 15.0
+	_spawn_gunner_intersect_scene_effect(origin, fire_direction, line_length, 34.0)
+	return _damage_enemies_in_line(
+		origin,
+		origin + fire_direction * line_length,
+		line_width,
+		damage_amount,
+		0.0,
+		1.0,
+		0.0,
+		role_id
+	)
+
+func _trigger_dangzhen_gunner_qichao_preview(shot_direction: Vector2, attack_damage: float, role_id: String) -> int:
+	var qichao_level := _get_card_level("battle_dangzhen_qichao")
+	if qichao_level <= 0:
+		return 0
+	if gunner_attack_chain != 0:
+		return 0
+	var split_level := _get_card_level("battle_dangzhen_dielang")
+	var huichao_level := _get_card_level("battle_dangzhen_huichao")
+	var qichao_damage := _get_dangzhen_qichao_damage(role_id, qichao_level)
+	var extra_count := split_level
+	var primary_directions: Array[Vector2] = [shot_direction.normalized()]
+	if huichao_level == 1:
+		primary_directions = [
+			shot_direction.rotated(deg_to_rad(-15.0)).normalized(),
+			shot_direction.rotated(deg_to_rad(15.0)).normalized()
+		]
+	elif huichao_level >= 2:
+		primary_directions = [
+			shot_direction.rotated(deg_to_rad(-15.0)).normalized(),
+			shot_direction.normalized(),
+			shot_direction.rotated(deg_to_rad(15.0)).normalized()
+		]
+	var total_hits := 0
+	var beam_origin := global_position + shot_direction.normalized() * 20.0
+	var intersect_animation_duration := _get_scene_animation_duration(GUNNER_INTERSECT_EFFECT_SCENE, 0.18) * 0.8
+	for fire_direction in primary_directions:
+		total_hits += _execute_dangzhen_gunner_beam(beam_origin, fire_direction, qichao_damage, role_id)
+		if extra_count <= 0:
+			continue
+		var current_scene := get_tree().current_scene
+		if current_scene == null:
+			continue
+		var controller := Node2D.new()
+		controller.name = "DangzhenGunnerFollowController"
+		current_scene.add_child(controller)
+		var tween := controller.create_tween()
+		for extra_index in range(extra_count):
+			tween.tween_interval(intersect_animation_duration)
+			tween.tween_callback(func() -> void:
+				if not is_instance_valid(self):
+					return
+				var follow_hits := _execute_dangzhen_gunner_beam(global_position + fire_direction * 20.0, fire_direction, qichao_damage, role_id)
+				if follow_hits > 0:
+					_register_attack_result(role_id, follow_hits, false)
+			)
+		tween.tween_callback(controller.queue_free)
+	return total_hits
+
+func _spawn_dangzhen_mage_wave(origin: Vector2, fire_direction: Vector2, damage_amount: float, role_id: String) -> Node2D:
+	var wave = _spawn_directional_bullet_from_scene(
+		MAGE_WAVE_EFFECT_SCENE,
+		fire_direction,
+		damage_amount,
+		Color(1.0, 0.62, 0.36, 1.0),
+		role_id,
+		origin + fire_direction * 16.0
+	)
+	if wave == null:
+		return null
+	wave.speed = 240.0
+	wave.lifetime = 3.84
+	wave.hit_radius = 28.0
+	wave.pierce_count = 999
+	wave.visual_scale_multiplier = 5.2
+	wave.enemy_hit_radius_scale = 0.62
+	wave.enemy_hit_radius_min = 12.0
+	wave.enemy_hit_radius_max = 30.0
+	return wave
+
+func _trigger_dangzhen_mage_qichao_preview(wave_direction: Vector2, attack_damage: float, role_id: String) -> void:
+	var qichao_level := _get_card_level("battle_dangzhen_qichao")
+	if qichao_level <= 0:
+		return
+	if mage_dangzhen_wave_cooldown_attacks > 0:
+		mage_dangzhen_wave_cooldown_attacks -= 1
+		return
+	mage_dangzhen_wave_cooldown_attacks = 1
+	var split_level := _get_card_level("battle_dangzhen_dielang")
+	var huichao_level := _get_card_level("battle_dangzhen_huichao")
+	var qichao_damage := _get_dangzhen_qichao_damage(role_id, qichao_level)
+	var extra_count := split_level
+	var angle_offsets: Array[float] = [0.0]
+	if huichao_level >= 1:
+		angle_offsets.append(-0.36)
+		angle_offsets.append(0.36)
+	if huichao_level >= 2:
+		angle_offsets.append(-0.72)
+		angle_offsets.append(0.72)
+	for angle_offset in angle_offsets:
+		var fire_direction := wave_direction.rotated(angle_offset).normalized()
+		var gather_origin := global_position + fire_direction * 18.0
+		_spawn_mage_gathering_scene_effect(gather_origin, fire_direction, 1.25)
+		var gather_duration := _get_scene_animation_duration(MAGE_GATHERING_EFFECT_SCENE, 0.16)
+		var tween := create_tween()
+		tween.tween_interval(gather_duration)
+		tween.tween_callback(func() -> void:
+			_spawn_dangzhen_mage_wave(gather_origin, fire_direction, qichao_damage, role_id)
+		)
+		for extra_index in range(extra_count):
+			tween.tween_interval(3.84)
+			tween.tween_callback(func() -> void:
+				_spawn_dangzhen_mage_wave(global_position + fire_direction * 18.0, fire_direction, qichao_damage, role_id)
+			)
+
 func _perform_swordsman_attack() -> void:
 	var role_data: Dictionary = _get_active_role()
 	var upgrade_data: Dictionary = role_upgrade_levels[role_data["id"]]
@@ -2481,6 +3187,7 @@ func _perform_swordsman_attack() -> void:
 				if guard_hits > 0:
 					_spawn_burst_effect(global_position + facing_direction * 12.0, 30.0 + stance_level * 7.0, Color(1.0, 0.84, 0.42, 0.18), 0.12)
 
+	enemies_hit += _trigger_dangzhen_sword_qichao_preview(attack_direction, attack_damage, role_data["id"])
 	_spawn_attack_aftershock(global_position + facing_direction * max(26.0, attack_range * 0.55), role_data["id"])
 
 	if enemies_hit > 0:
@@ -2528,9 +3235,6 @@ func _perform_gunner_attack() -> void:
 		bullet.scale = Vector2(1.55, 1.55)
 		bullet.hit_radius += 6.0
 		bullet.pierce_count += 1
-		var tracer_end: Vector2 = global_position + shot_direction * min(300.0, float(role_data["range"]) + float(upgrade_data.get("range_bonus", 0.0)) + 80.0)
-		_spawn_line_corridor_effect(global_position + shot_direction * 16.0, tracer_end, 16.0 + focus_level * 2.0, Color(1.0, 0.46, 0.22, 0.2), 0.16)
-		_spawn_dash_line_effect(global_position + shot_direction * 18.0, tracer_end, Color(1.0, 0.92, 0.58, 0.94), 7.0 + focus_level, 0.12)
 		for angle_offset in [-0.11, 0.11]:
 			var disaster_bullet = _spawn_directional_bullet(shot_direction.rotated(angle_offset), _get_role_damage(role_data["id"]) * 0.24, Color(0.34, 0.92, 1.0, 0.98), role_data["id"], global_position + shot_direction * 20.0)
 			if disaster_bullet != null:
@@ -2565,23 +3269,27 @@ func _perform_gunner_attack() -> void:
 				lock_bullet.hit_radius = 11.0
 
 	if focus_level >= 2 and target_distance >= 170.0:
-		var snipe_end := global_position + facing_direction * (320.0 + float(upgrade_data["range_bonus"]) + focus_level * 40.0)
 		var rail_width: float = 16.0 + focus_level * 2.0
-		_spawn_line_corridor_effect(global_position, snipe_end, rail_width, Color(1.0, 0.82, 0.44, 0.34), 0.12)
-		_spawn_dash_line_effect(global_position + facing_direction * 12.0, snipe_end, Color(1.0, 0.82, 0.44, 0.92), 5.0 + focus_level, 0.1)
-		var rail_hits := _damage_enemies_in_line(global_position, snipe_end, rail_width, _get_role_damage(role_data["id"]) * (0.34 + focus_level * 0.08), 0.05 * focus_level, 1.0, 0.0, role_data["id"])
-		if rail_hits > 0:
-			_register_attack_result(role_data["id"], rail_hits, false)
+		var rail_bullet = _spawn_directional_bullet(facing_direction, _get_role_damage(role_data["id"]) * (0.34 + focus_level * 0.08), Color(1.0, 0.82, 0.44, 0.96), role_data["id"], global_position + facing_direction * 16.0)
+		if rail_bullet != null:
+			rail_bullet.speed = 980.0 + focus_level * 80.0
+			rail_bullet.lifetime = 0.72 + focus_level * 0.04
+			rail_bullet.hit_radius = rail_width
+			rail_bullet.pierce_count = 3 + focus_level
+			rail_bullet.vulnerability_bonus = max(rail_bullet.vulnerability_bonus, 0.05 * focus_level)
+			rail_bullet.vulnerability_duration = max(rail_bullet.vulnerability_duration, 1.0)
 
 	gunner_attack_chain = (gunner_attack_chain + 1) % 4
 	if gunner_attack_chain == 0 and focus_level > 0:
-		var tracer_end := global_position + facing_direction * (280.0 + focus_level * 45.0)
 		var tracer_width: float = 18.0 + focus_level * 2.0
-		_spawn_line_corridor_effect(global_position, tracer_end, tracer_width, Color(1.0, 0.88, 0.52, 0.26), 0.1)
-		_spawn_dash_line_effect(global_position + facing_direction * 10.0, tracer_end, Color(1.0, 0.9, 0.5, 0.95), 8.0, 0.08)
-		var tracer_hits := _damage_enemies_in_line(global_position, tracer_end, tracer_width, _get_role_damage(role_data["id"]) * (0.52 + focus_level * 0.08), 0.08 + focus_level * 0.02, 1.0, 0.0, role_data["id"])
-		if tracer_hits > 0:
-			_register_attack_result(role_data["id"], tracer_hits, false)
+		var tracer_bullet = _spawn_directional_bullet(facing_direction, _get_role_damage(role_data["id"]) * (0.52 + focus_level * 0.08), Color(1.0, 0.9, 0.5, 0.98), role_data["id"], global_position + facing_direction * 14.0)
+		if tracer_bullet != null:
+			tracer_bullet.speed = 860.0 + focus_level * 65.0
+			tracer_bullet.lifetime = 0.68 + focus_level * 0.05
+			tracer_bullet.hit_radius = tracer_width
+			tracer_bullet.pierce_count = 2 + focus_level
+			tracer_bullet.vulnerability_bonus = max(tracer_bullet.vulnerability_bonus, 0.08 + focus_level * 0.02)
+			tracer_bullet.vulnerability_duration = max(tracer_bullet.vulnerability_duration, 1.0)
 
 	if overload_ready:
 		var overdrive_bullet = _spawn_directional_bullet(shot_direction, _get_role_damage(role_data["id"]) * (0.72 + overload_level * 0.1), Color(1.0, 0.88, 0.54, 0.98), role_data["id"], global_position + shot_direction * 22.0)
@@ -2591,7 +3299,10 @@ func _perform_gunner_attack() -> void:
 			overdrive_bullet.hit_radius = 14.0
 			overdrive_bullet.pierce_count = 1 + min(1, overload_level)
 
+	var dangzhen_hits := _trigger_dangzhen_gunner_qichao_preview(shot_direction, _get_role_damage(role_data["id"]), role_data["id"])
 	_spawn_attack_aftershock(global_position + shot_direction * min(220.0 + focus_level * 20.0, float(role_data["range"]) + float(upgrade_data.get("range_bonus", 0.0))), role_data["id"])
+	if dangzhen_hits > 0:
+		_register_attack_result(role_data["id"], dangzhen_hits, false)
 
 func _perform_mage_attack() -> void:
 	var role_data: Dictionary = _get_active_role()
@@ -2614,13 +3325,14 @@ func _perform_mage_attack() -> void:
 	if disaster_ready:
 		radius += 16.0
 		damage_amount *= 1.08
+	radius *= MAGE_ATTACK_EFFECT_SCALE
 	var vulnerability_bonus: float = 0.03 * frost_level
 	var slow_multiplier: float = max(0.38, max(0.56, 0.76 - frost_level * 0.07) - _get_story_style_slow_bonus(role_data["id"]))
 	var slow_duration: float = 1.0 + frost_level * 0.3 + overload_level * 0.15 if overload_level > 0 and mage_attack_chain == 2 else 1.0 + frost_level * 0.3
 	if disaster_ready:
 		_spawn_ring_effect(bombard_center, radius * 0.92, Color(0.32, 0.96, 1.0, 0.82), 7.0, 0.24)
 		_spawn_vortex_effect(bombard_center, radius * 0.44, Color(0.92, 0.22, 0.48, 0.32), 0.22)
-	_start_basic_mage_bombardment(bombard_center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, gravity_level, echo_level, frost_level, role_data["id"])
+	_start_basic_mage_bombardment(bombard_center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, gravity_level, echo_level, frost_level, role_data["id"], true)
 	if disaster_ready:
 		var side_direction: Vector2 = (bombard_center - global_position).orthogonal().normalized()
 		if side_direction.length_squared() <= 0.001:
@@ -2630,7 +3342,11 @@ func _perform_mage_attack() -> void:
 		var side_offset: float = max(34.0, radius * 0.72)
 		for sign in [-1.0, 1.0]:
 			var echo_center: Vector2 = bombard_center + side_direction * side_offset * sign
-			_start_basic_mage_bombardment(echo_center, radius * 0.72, damage_amount * 0.34, vulnerability_bonus * 0.5, slow_multiplier, slow_duration * 0.8, max(0, gravity_level - 1), min(echo_level, 1), frost_level, role_data["id"])
+			_start_basic_mage_bombardment(echo_center, radius * 0.72, damage_amount * 0.34, vulnerability_bonus * 0.5, slow_multiplier, slow_duration * 0.8, max(0, gravity_level - 1), min(echo_level, 1), frost_level, role_data["id"], true)
+	var wave_direction := (get_global_mouse_position() - global_position).normalized()
+	if wave_direction.length_squared() <= 0.001:
+		wave_direction = facing_direction if facing_direction.length_squared() > 0.001 else Vector2.RIGHT
+	_trigger_dangzhen_mage_qichao_preview(wave_direction, damage_amount, role_data["id"])
 	_spawn_attack_aftershock(bombard_center, role_data["id"])
 
 func _try_switch_role(new_role_index: int) -> void:
@@ -2638,14 +3354,14 @@ func _try_switch_role(new_role_index: int) -> void:
 		return
 	if new_role_index < 0 or new_role_index >= roles.size():
 		return
-	if switch_cooldown_remaining > 0.0:
+	if switch_cooldown_remaining > 0.0 and not DEVELOPER_MODE.is_enabled():
 		return
 
 	var previous_role_index: int = active_role_index
 	var previous_position := global_position
 	var exit_hits: int = _apply_exit_skill(previous_role_index)
 	active_role_index = new_role_index
-	switch_cooldown_remaining = max(2.5, ROLE_SWITCH_COOLDOWN - role_switch_cooldown_bonus)
+	switch_cooldown_remaining = 0.0 if DEVELOPER_MODE.is_enabled() else max(2.5, ROLE_SWITCH_COOLDOWN - role_switch_cooldown_bonus)
 	switch_invulnerability_remaining = SWITCH_INVULNERABILITY
 	_apply_pending_entry_blessing(str(roles[active_role_index]["id"]))
 	var entry_hits: int = _apply_enter_skill(active_role_index)
@@ -2697,9 +3413,9 @@ func _apply_enter_skill(role_index: int) -> int:
 			_show_switch_banner("\u8FDB\u573A", "\u7A81\u8FDB\u7834\u9635", Color(1.0, 0.84, 0.46, 1.0))
 			var scar_width: float = 32.0 + thrust_level * 4.0
 			var scar_end: Vector2 = global_position + travel_direction * (84.0 + thrust_level * 18.0)
-			_spawn_dash_line_effect(previous_position, global_position, Color(1.0, 0.8, 0.45, 0.98), 22.0, 0.16)
-			_spawn_thrust_effect(previous_position + travel_direction * 14.0, scar_end, Color(1.0, 0.78, 0.36, 0.98), scar_width, 0.18)
-			_spawn_line_corridor_effect(previous_position, scar_end, scar_width * 0.76, Color(1.0, 0.78, 0.32, 0.18), 0.2)
+			var scar_center := previous_position.lerp(scar_end, 0.5)
+			var scar_length := previous_position.distance_to(scar_end)
+			_spawn_sword_omnislash_scene_effect(scar_center, travel_direction, scar_length, scar_width * 1.08)
 			_spawn_ring_effect(global_position, 78.0 + crescent_level * 8.0, Color(1.0, 0.86, 0.5, 0.78), 9.0, 0.18)
 			_spawn_burst_effect(global_position, 72.0 + crescent_level * 8.0, Color(1.0, 0.78, 0.38, 0.18), 0.16)
 			switch_invulnerability_remaining = max(switch_invulnerability_remaining, 0.5)
@@ -2711,7 +3427,6 @@ func _apply_enter_skill(role_index: int) -> int:
 			return entry_hits
 		"gunner":
 			_show_switch_banner("\u8FDB\u573A", "\u5FEB\u62D4\u538B\u5236", Color(1.0, 0.58, 0.36, 1.0))
-			_spawn_ring_effect(global_position, 64.0, Color(1.0, 0.62, 0.38, 0.78), 7.0, 0.16)
 			_fire_gunner_entry_wave(role_id, 0)
 			var current_scene := get_tree().current_scene
 			if current_scene != null:
@@ -2722,7 +3437,6 @@ func _apply_enter_skill(role_index: int) -> int:
 				tween.tween_interval(0.08)
 				tween.tween_callback(Callable(self, "_fire_gunner_entry_wave").bind(role_id, 1))
 				tween.tween_callback(controller.queue_free)
-			_spawn_burst_effect(global_position, 58.0, Color(1.0, 0.58, 0.35, 0.16), 0.12)
 			_activate_switch_power(role_id, "\u5F39\u9053\u8D85\u8F7D", 2.0, 1.22, 0.11)
 			_apply_switch_payoff(8 + assault_level * 2, 5.0 + assault_level, 1.0 + assault_level * 0.15)
 			return 8
@@ -2731,7 +3445,7 @@ func _apply_enter_skill(role_index: int) -> int:
 			var bombard_centers: Array = _get_random_enemy_cluster_centers(2)
 			var total_hits: int = 0
 			for bombard_center in bombard_centers:
-				total_hits += _count_enemies_in_radius(bombard_center, 104.0)
+				total_hits += _count_enemies_in_radius(bombard_center, MAGE_ENTRY_HIT_RADIUS)
 			_start_mage_entry_bombardment(role_id, bombard_centers)
 			_activate_switch_power(role_id, "\u5171\u9E23\u8FC7\u8F7D", 2.4, 1.18, 0.07)
 			_apply_switch_payoff(total_hits, 7.0 + assault_level, 1.2 + assault_level * 0.18)
@@ -2907,6 +3621,18 @@ func _use_swordsman_ultimate(cast_payload: Dictionary) -> void:
 		ultimate_guard_remaining = max(ultimate_guard_remaining, total_duration)
 		ultimate_guard_damage_multiplier = min(ultimate_guard_damage_multiplier, 0.9)
 	_delay_level_up_requests(total_duration)
+	_set_active_role_visual_hidden(true)
+	var current_scene := get_tree().current_scene
+	if current_scene != null:
+		var restore_controller := Node2D.new()
+		restore_controller.name = "SwordsmanUltimateVisualRestore"
+		current_scene.add_child(restore_controller)
+		var restore_tween := restore_controller.create_tween()
+		restore_tween.tween_interval(total_duration)
+		restore_tween.tween_callback(func() -> void:
+			_set_active_role_visual_hidden(false)
+		)
+		restore_tween.tween_callback(restore_controller.queue_free)
 	_spawn_combat_tag(global_position + Vector2(0.0, -34.0), "\u7EDD\u65A9", Color(1.0, 0.92, 0.6, 1.0))
 	_spawn_ring_effect(global_position, 68.0, Color(1.0, 0.88, 0.52, 0.84), 8.0, 0.18)
 	_schedule_repeating_sequence(SWORD_ULTIMATE_SLASH_INTERVAL, slash_count, func(slash_index: int) -> void:
@@ -2932,8 +3658,6 @@ func _use_gunner_ultimate(cast_payload: Dictionary) -> void:
 		ultimate_guard_damage_multiplier = min(ultimate_guard_damage_multiplier, 0.9)
 	_delay_level_up_requests(total_duration)
 	_spawn_combat_tag(global_position + Vector2(0.0, -34.0), "\u5F39\u5E55", Color(1.0, 0.86, 0.5, 1.0))
-	_spawn_ring_effect(global_position, 92.0, Color(1.0, 0.84, 0.48, 0.78), 8.0, 0.22)
-	_spawn_burst_effect(global_position, 78.0, Color(1.0, 0.76, 0.38, 0.18), 0.2)
 	_schedule_repeating_sequence(GUNNER_ULTIMATE_WAVE_INTERVAL, wave_count, func(wave_index: int) -> void:
 		_fire_gunner_ultimate_wave(wave_count, barrage_level, focus_level, scatter_level, lock_level, float(cast_payload.get("damage_multiplier", 1.0)), wave_index)
 	)
@@ -3074,11 +3798,7 @@ func _trigger_ultimate_afterglow_pulse(role_id: String, pulse_index: int) -> voi
 			var pulse_direction := facing_direction.rotated(0.18 if pulse_index % 2 == 0 else -0.18)
 			_spawn_crescent_wave_effect(global_position + pulse_direction * 10.0, pulse_direction, 76.0 + pulse_index * 8.0, Color(1.0, 0.88, 0.56, 0.62), 0.24, 130.0, 22.0)
 		"gunner":
-			var radius := 78.0 + pulse_index * 8.0
-			_spawn_ring_effect(global_position, radius, Color(1.0, 0.82, 0.48, 0.5), 5.0, 0.22)
-			for angle_index in range(6):
-				var angle := TAU * float(angle_index) / 6.0 + pulse_index * 0.12
-				_spawn_dash_line_effect(global_position, global_position + Vector2.RIGHT.rotated(angle) * radius, Color(1.0, 0.84, 0.52, 0.52), 3.0, 0.18)
+			pass
 		"mage":
 			var center := _get_enemy_cluster_center()
 			if center == Vector2.ZERO:
@@ -3121,9 +3841,9 @@ func _execute_swordsman_ultimate_slash(slash_count: int, pursuit_level: int, cre
 	_queue_camera_shake(8.6 + float(slash_index) * 0.7, 0.15)
 	var scar_width: float = 40.0 + thrust_level * 5.0
 	var scar_length_end: Vector2 = end_position + travel_direction * (84.0 + thrust_level * 18.0)
-	_spawn_dash_line_effect(start_position, end_position, Color(1.0, 0.94, 0.62, 0.98), 20.0 + thrust_level * 2.0, 0.12)
-	_spawn_thrust_effect(start_position + travel_direction * 16.0, scar_length_end, Color(1.0, 0.8, 0.38, 0.98), scar_width, 0.16)
-	_spawn_line_corridor_effect(start_position, scar_length_end, scar_width * 0.78, Color(1.0, 0.78, 0.32, 0.18), 0.18)
+	var scar_center := start_position.lerp(scar_length_end, 0.5)
+	var scar_length := start_position.distance_to(scar_length_end)
+	_spawn_sword_omnislash_scene_effect(scar_center, travel_direction, scar_length, scar_width * 1.12)
 
 	var damage_scale: float = (1.15 + float(pursuit_level) * 0.12 + float(crescent_level + thrust_level) * 0.06 + float(slash_index) * 0.08) * cast_damage_multiplier
 	var line_hits := _damage_enemies_in_line(start_position, scar_length_end, scar_width, _get_role_damage("swordsman") * damage_scale, 0.08 + pursuit_level * 0.02, 1.0, 0.0, "swordsman")
@@ -3136,8 +3856,6 @@ func _execute_swordsman_ultimate_slash(slash_count: int, pursuit_level: int, cre
 		var direct_cut_kill := _deal_damage_to_enemy(target_enemy, _get_role_damage("swordsman") * (0.68 + pursuit_level * 0.08) * cast_damage_multiplier, "swordsman", 0.06 + pursuit_level * 0.02, 2.0, 1.0, 0.0)
 		_register_attack_result("swordsman", 1, direct_cut_kill)
 
-	var swing_sign := 1.0 if slash_index % 2 == 0 else -1.0
-	_spawn_cross_slash_effect(end_position, travel_direction.rotated(0.16 * swing_sign), 138.0 + pursuit_level * 16.0, 20.0 + crescent_level * 2.0, Color(1.0, 0.88, 0.48, 0.92), 0.14)
 	_spawn_ring_effect(end_position, 34.0 + crescent_level * 8.0, Color(1.0, 0.84, 0.44, 0.76), 5.0, 0.12)
 
 	if target_enemy != null and is_instance_valid(target_enemy) and target_enemy.has_method("apply_bleed"):
@@ -3172,16 +3890,14 @@ func _fire_gunner_ultimate_wave(wave_count: int, barrage_level: int, focus_level
 		target_direction = wave_origin.direction_to(cluster_center)
 	var fan_arc_degrees: float = 92.0 + scatter_level * 8.0 + min(10.0, float(barrage_level) * 3.0)
 	var fan_arc_radians: float = deg_to_rad(fan_arc_degrees)
-	var bullet_count: int = 6 + scatter_level + barrage_level
+	var bullet_count: int = 16 + scatter_level * 3 + barrage_level * 3
 	var damage_scale: float = (0.52 + float(barrage_level) * 0.05 + float(focus_level) * 0.06) * cast_damage_multiplier
 	var finale_level := _get_card_level("skill_finale")
 	if wave_index == wave_count - 1 and finale_level > 0:
-		bullet_count += 2 + finale_level
+		bullet_count += 6 + finale_level * 3
 		damage_scale *= [1.18, 1.26, 1.35][finale_level - 1]
 	var angle_offset: float = sin(spin * 0.9) * 0.18
 	_queue_camera_shake(4.6 + float(barrage_level) * 0.24, 0.1)
-	_spawn_line_corridor_effect(wave_origin, wave_origin + target_direction * (240.0 + focus_level * 30.0), 20.0 + focus_level * 2.0, Color(1.0, 0.48, 0.22, 0.18), 0.12)
-	_spawn_dash_line_effect(wave_origin, wave_origin + target_direction * (220.0 + focus_level * 24.0), Color(1.0, 0.88, 0.54, 0.84), 5.0 + focus_level, 0.1)
 
 	for bullet_index in range(bullet_count):
 		var ratio: float = 0.0 if bullet_count <= 1 else float(bullet_index) / float(bullet_count - 1)
@@ -3193,8 +3909,12 @@ func _fire_gunner_ultimate_wave(wave_count: int, barrage_level: int, focus_level
 		var spray_bullet = _spawn_directional_bullet(shot_direction, _get_role_damage("gunner") * damage_scale * central_bonus, Color(1.0, 0.72, 0.38, 0.94), "gunner", wave_origin + muzzle_offset)
 		if spray_bullet != null:
 			spray_bullet.speed = 620.0 + focus_level * 54.0 + barrage_level * 18.0
-			spray_bullet.lifetime = 0.74 + barrage_level * 0.04
-			spray_bullet.hit_radius = 20.0 + scatter_level * 1.4 + (2.0 if central_bonus > 1.0 else 0.0)
+			spray_bullet.lifetime = 1.08 + barrage_level * 0.06
+			spray_bullet.hit_radius = 10.0 + scatter_level * 0.8 + (1.0 if central_bonus > 1.0 else 0.0)
+			spray_bullet.visual_scale_multiplier = 0.68
+			spray_bullet.enemy_hit_radius_scale = 0.2
+			spray_bullet.enemy_hit_radius_min = 4.0
+			spray_bullet.enemy_hit_radius_max = 12.0
 			spray_bullet.pierce_count = 1 + min(1, focus_level)
 			if spray_bullet.has_method("configure_wave_motion") and abs(centered_ratio) >= 0.34:
 				var wave_phase: float = ratio * PI + spin * 0.45
@@ -3205,10 +3925,6 @@ func _fire_gunner_ultimate_wave(wave_count: int, barrage_level: int, focus_level
 				spray_bullet.vulnerability_bonus = 0.03 + focus_level * 0.015
 				spray_bullet.vulnerability_duration = 1.0 + focus_level * 0.2
 
-	if wave_index % 2 == 0:
-		_spawn_ring_effect(wave_origin, 42.0 + scatter_level * 5.0, Color(1.0, 0.84, 0.46, 0.34), 3.0, 0.12)
-		_spawn_crescent_wave_effect(wave_origin, target_direction, 86.0 + scatter_level * 6.0, Color(1.0, 0.5, 0.24, 0.42), 0.14, fan_arc_degrees, 18.0 + scatter_level * 2.0)
-
 	if lock_level > 0 and wave_index % max(2, 4 - lock_level) == 0:
 		for enemy in _get_enemy_targets(min(1 + lock_level, 3), false):
 			if enemy == null or not is_instance_valid(enemy):
@@ -3216,12 +3932,15 @@ func _fire_gunner_ultimate_wave(wave_count: int, barrage_level: int, focus_level
 			var lock_bullet = _spawn_bullet(enemy, _get_role_damage("gunner") * (1.2 + lock_level * 0.16), Color(1.0, 0.86, 0.5, 1.0), "gunner", wave_origin)
 			if lock_bullet != null:
 				lock_bullet.speed = 760.0 + focus_level * 55.0
-				lock_bullet.lifetime = 1.1 + barrage_level * 0.05
-				lock_bullet.hit_radius = 16.0 + lock_level
+				lock_bullet.lifetime = 1.38 + barrage_level * 0.07
+				lock_bullet.hit_radius = 8.0 + lock_level * 0.8
+				lock_bullet.visual_scale_multiplier = 0.68
+				lock_bullet.enemy_hit_radius_scale = 0.18
+				lock_bullet.enemy_hit_radius_min = 4.0
+				lock_bullet.enemy_hit_radius_max = 10.0
 				lock_bullet.pierce_count = min(2, focus_level)
 				lock_bullet.vulnerability_bonus = 0.04 + lock_level * 0.02
 				lock_bullet.vulnerability_duration = 1.4 + lock_level * 0.22
-			_spawn_target_lock_effect(enemy.global_position, 16.0 + lock_level * 4.0, Color(1.0, 0.84, 0.48, 0.94), 0.16)
 
 func _trigger_mage_ultimate_bombardment(pulse_count: int, storm_level: int, frost_level: int, echo_level: int, gravity_level: int, cast_damage_multiplier: float, pulse_index: int) -> void:
 	if is_dead:
@@ -3308,49 +4027,35 @@ func _start_mage_entry_bombardment(role_id: String, bombard_centers: Array) -> v
 	current_scene.add_child(controller)
 
 	var first_center: Vector2 = bombard_centers[0]
+	var warning_duration: float = _get_scene_animation_duration(MAGE_WARNING_EFFECT_SCENE, 0.2)
 	_show_mage_entry_bombardment_warning(first_center)
 
 	var tween := controller.create_tween()
-	tween.tween_interval(0.2)
+	tween.tween_interval(warning_duration)
 	tween.tween_callback(Callable(self, "_trigger_mage_entry_bombardment_impact").bind(role_id, first_center))
 
 	if bombard_centers.size() > 1:
 		var second_center: Vector2 = bombard_centers[1]
 		tween.tween_interval(0.22)
 		tween.tween_callback(Callable(self, "_show_mage_entry_bombardment_warning").bind(second_center))
-		tween.tween_interval(0.2)
+		tween.tween_interval(warning_duration)
 		tween.tween_callback(Callable(self, "_trigger_mage_entry_bombardment_impact").bind(role_id, second_center))
 
 	tween.tween_callback(controller.queue_free)
 
 func _show_mage_entry_bombardment_warning(center: Vector2) -> void:
-	_spawn_ring_effect(center, 92.0, Color(0.68, 0.96, 1.0, 0.52), 6.0, 0.2)
-	_spawn_vortex_effect(center, 34.0, Color(0.76, 0.84, 1.0, 0.32), 0.2)
+	_spawn_mage_warning_scene_effect(center, MAGE_ENTRY_EFFECT_RADIUS)
 
 func _trigger_mage_entry_bombardment_impact(role_id: String, center: Vector2) -> void:
 	_queue_camera_shake(7.2, 0.14)
-	_spawn_sketch_sprite_effect(
-		center,
-		0.0,
-		MAGE_BOMBARD_TEXTURE_RELATIVE_PATH,
-		MAGE_BOMBARD_TEXTURE_SIZE,
-		MAGE_BOMBARD_VISIBLE_BOUNDS,
-		Vector2(208.0, 184.0),
-		0.22,
-		Color.WHITE,
-		14,
-		true,
-		true
-	)
-	_spawn_ring_effect(center, 112.0, Color(0.6, 0.94, 1.0, 0.74), 8.0, 0.2)
-	_spawn_burst_effect(center, 104.0, Color(0.52, 0.88, 1.0, 0.24), 0.22)
-	_spawn_vortex_effect(center, 44.0, Color(0.76, 0.84, 1.0, 0.46), 0.2)
-	var hits := _damage_enemies_in_radius(center, 104.0, _get_role_damage(role_id) * 0.82, 0.06, 0.58, 2.2)
+	_spawn_mage_boom_scene_effect(center, MAGE_ENTRY_EFFECT_RADIUS)
+	var hits := _damage_enemies_in_radius(center, MAGE_ENTRY_HIT_RADIUS, _get_role_damage(role_id) * 0.82, 0.06, 0.58, 2.2)
 	if hits > 0:
 		_register_attack_result(role_id, hits, false)
 
-func _start_basic_mage_bombardment(center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, gravity_level: int, echo_level: int, frost_level: int, role_id: String) -> void:
-	_spawn_airstrike_warning_effect(center, radius)
+func _start_basic_mage_bombardment(center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, gravity_level: int, echo_level: int, frost_level: int, role_id: String, use_boom_effect: bool = false) -> void:
+	if not use_boom_effect:
+		_spawn_airstrike_warning_effect(center, radius)
 	if gravity_level > 0:
 		_spawn_vortex_effect(center, 18.0 + gravity_level * 7.0, Color(0.74, 0.82, 1.0, 0.26), 0.18)
 
@@ -3363,34 +4068,57 @@ func _start_basic_mage_bombardment(center: Vector2, radius: float, damage_amount
 	current_scene.add_child(controller)
 
 	var tween := controller.create_tween()
-	tween.tween_interval(0.22)
-	tween.tween_callback(Callable(self, "_trigger_basic_mage_bombardment_impact").bind(center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, gravity_level, echo_level, frost_level, role_id))
+	if use_boom_effect:
+		var warning_duration: float = _get_scene_animation_duration(MAGE_WARNING_EFFECT_SCENE, 0.2)
+		var boom_duration: float = _get_scene_animation_duration(MAGE_BOOM_EFFECT_SCENE, 0.3)
+		tween.tween_callback(Callable(self, "_spawn_mage_warning_scene_effect").bind(center, radius))
+		tween.tween_interval(warning_duration)
+		tween.tween_callback(Callable(self, "_spawn_mage_boom_scene_effect").bind(center, radius))
+		tween.tween_interval(boom_duration)
+		tween.tween_callback(Callable(self, "_resolve_basic_mage_bombardment_damage").bind(center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, gravity_level, echo_level, frost_level, role_id, use_boom_effect))
+	else:
+		tween.tween_interval(0.22)
+		tween.tween_callback(Callable(self, "_trigger_basic_mage_bombardment_impact").bind(center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, gravity_level, echo_level, frost_level, role_id, use_boom_effect))
 	tween.tween_callback(controller.queue_free)
 
-func _trigger_basic_mage_bombardment_impact(center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, gravity_level: int, echo_level: int, frost_level: int, role_id: String) -> void:
+func _trigger_basic_mage_bombardment_impact(center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, gravity_level: int, echo_level: int, frost_level: int, role_id: String, use_boom_effect: bool = false) -> void:
+	if not use_boom_effect:
+		_spawn_airstrike_fall_effect(center, radius)
+	if use_boom_effect:
+		_resolve_basic_mage_bombardment_damage(center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, gravity_level, echo_level, frost_level, role_id, true)
+	else:
+		_spawn_sketch_sprite_effect(
+			center,
+			0.0,
+			MAGE_BOMBARD_TEXTURE_RELATIVE_PATH,
+			MAGE_BOMBARD_TEXTURE_SIZE,
+			MAGE_BOMBARD_VISIBLE_BOUNDS,
+			Vector2(radius * 2.0, radius * 2.0),
+			0.22,
+			Color.WHITE,
+			14,
+			true,
+			true
+		)
+		_resolve_basic_mage_bombardment_damage(center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, gravity_level, echo_level, frost_level, role_id, false)
+
+func _resolve_basic_mage_bombardment_damage(center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, gravity_level: int, echo_level: int, frost_level: int, role_id: String, use_boom_effect: bool) -> void:
 	_queue_camera_shake(5.8, 0.12)
-	_spawn_airstrike_fall_effect(center, radius)
 	if gravity_level > 0:
 		_pull_enemies_toward(center, radius + gravity_level * 10.0, 16.0 + gravity_level * 10.0)
 		_spawn_vortex_effect(center, 24.0 + gravity_level * 8.0, Color(0.76, 0.84, 1.0, 0.42), 0.2)
-	_spawn_sketch_sprite_effect(
-		center,
-		0.0,
-		MAGE_BOMBARD_TEXTURE_RELATIVE_PATH,
-		MAGE_BOMBARD_TEXTURE_SIZE,
-		MAGE_BOMBARD_VISIBLE_BOUNDS,
-		Vector2(radius * 2.0, radius * 2.0),
-		0.22,
-		Color.WHITE,
-		14,
-		true,
-		true
-	)
-	_spawn_ring_effect(center, radius, Color(0.72, 0.96, 1.0, 0.78), 6.0, 0.18)
+	if not use_boom_effect:
+		_spawn_ring_effect(center, radius, Color(0.72, 0.96, 1.0, 0.78), 6.0, 0.18)
 	_spawn_burst_effect(center, radius, Color(0.52, 0.9, 1.0, 0.22), 0.2)
 	if frost_level > 0:
 		_spawn_frost_sigils_effect(center, max(20.0, radius * 0.58), Color(0.86, 0.98, 1.0, 0.76), 0.18)
-	var hits := _damage_enemies_in_radius(center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration)
+	var hits: int = 0
+	if use_boom_effect:
+		var ellipse_horizontal_radius: float = radius * 2.04
+		var ellipse_vertical_radius: float = max(32.0, radius * 0.84)
+		hits = _damage_enemies_in_ellipse(center, ellipse_horizontal_radius, ellipse_vertical_radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, role_id)
+	else:
+		hits = _damage_enemies_in_radius(center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration)
 	if hits > 0:
 		_register_attack_result(role_id, hits, false)
 
@@ -3478,6 +4206,28 @@ func _spawn_directional_bullet(direction: Vector2, damage_amount: float, color: 
 		return null
 
 	var bullet = bullet_scene.instantiate()
+	if bullet == null:
+		return null
+
+	var current_scene := get_tree().current_scene
+	if current_scene == null:
+		return null
+
+	current_scene.add_child(bullet)
+	bullet.global_position = origin if origin is Vector2 else global_position
+	bullet.direction = direction.normalized()
+	bullet.target = null
+	bullet.damage = damage_amount
+	bullet.visual_color = color
+	bullet.source_player = self
+	bullet.source_role_id = role_id if role_id != "" else _get_active_role()["id"]
+	return bullet
+
+func _spawn_directional_bullet_from_scene(projectile_scene: PackedScene, direction: Vector2, damage_amount: float, color: Color, role_id: String = "", origin: Variant = null):
+	if projectile_scene == null:
+		return null
+
+	var bullet = projectile_scene.instantiate()
 	if bullet == null:
 		return null
 
@@ -3663,6 +4413,27 @@ func _damage_enemies_in_oriented_rect_unique(center: Vector2, axis_direction: Ve
 
 	return hit_count
 
+func _damage_enemies_in_ellipse(center: Vector2, horizontal_radius: float, vertical_radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "") -> int:
+	var hit_count: int = 0
+	var safe_horizontal_radius: float = max(1.0, horizontal_radius)
+	var safe_vertical_radius: float = max(1.0, vertical_radius)
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(enemy):
+			continue
+		var enemy_position: Vector2 = enemy.global_position
+		var enemy_radius: float = _get_enemy_hit_radius(enemy)
+		var normalized_x: float = (enemy_position.x - center.x) / (safe_horizontal_radius + enemy_radius)
+		var normalized_y: float = (enemy_position.y - center.y) / (safe_vertical_radius + enemy_radius)
+		if normalized_x * normalized_x + normalized_y * normalized_y > 1.0:
+			continue
+
+		var killed: bool = _deal_damage_to_enemy(enemy, damage_amount, source_role_id if source_role_id != "" else str(_get_active_role().get("id", "")), vulnerability_bonus, 2.0, slow_multiplier, slow_duration)
+		hit_count += 1
+		if killed:
+			_register_attack_result(source_role_id if source_role_id != "" else _get_active_role()["id"], 1, true)
+
+	return hit_count
+
 func _schedule_swordsman_slash_followthrough(center: Vector2, axis_direction: Vector2, rect_length: float, rect_width: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, animation_duration: float, source_role_id: String, hit_registry: Dictionary) -> void:
 	var current_scene := get_tree().current_scene
 	if current_scene == null or SWORD_SLASH_DAMAGE_FOLLOW_PULSES <= 0:
@@ -3692,7 +4463,6 @@ func _apply_gunner_lock(target_enemy: Node2D, lock_level: int) -> void:
 		gunner_lock_stacks = 0
 
 	gunner_lock_stacks += 1
-	_spawn_target_lock_effect(target_enemy.global_position, 15.0 + gunner_lock_stacks * 4.0, Color(1.0, 0.8, 0.42, 0.92), 0.16)
 	if target_enemy.has_method("apply_vulnerability"):
 		target_enemy.apply_vulnerability(0.04 * lock_level, 1.4 + 0.2 * lock_level)
 
@@ -3702,9 +4472,6 @@ func _apply_gunner_lock(target_enemy: Node2D, lock_level: int) -> void:
 
 	gunner_lock_stacks = 0
 	gunner_lock_target = null
-	_spawn_combat_tag(target_enemy.global_position + Vector2(0.0, -26.0), "\u9501\u6740", Color(1.0, 0.84, 0.48, 1.0))
-	_spawn_target_lock_effect(target_enemy.global_position, 24.0 + lock_level * 5.0, Color(1.0, 0.88, 0.56, 0.98), 0.22)
-	_spawn_dash_line_effect(global_position + facing_direction * 10.0, target_enemy.global_position, Color(1.0, 0.88, 0.54, 0.95), 6.0 + lock_level, 0.1)
 	var bonus_damage := _get_role_damage("gunner") * (0.36 + lock_level * 0.14)
 	var locked_kill := false
 	locked_kill = _deal_damage_to_enemy(target_enemy, bonus_damage, "gunner")
@@ -3717,9 +4484,52 @@ func _apply_gunner_lock(target_enemy: Node2D, lock_level: int) -> void:
 func _update_active_role_state() -> void:
 	var role_data: Dictionary = _get_active_role()
 	_update_visuals(role_data)
+	_update_hurt_core_visual(role_data)
 	_update_fire_timer()
 	stats_changed.emit(get_stat_summary())
 	active_role_changed.emit(role_data["id"], role_data["name"])
+
+func _setup_hurt_core_visual() -> void:
+	var hurt_core := get_node_or_null("HurtCore") as Node2D
+	if hurt_core == null:
+		return
+	var fill := hurt_core.get_node_or_null("Fill") as Polygon2D
+	if fill != null:
+		fill.polygon = _build_circle_polygon(PLAYER_HURT_CORE_RADIUS)
+	var outline := hurt_core.get_node_or_null("Outline") as Line2D
+	if outline != null:
+		var ring_points := _build_circle_polygon(PLAYER_HURT_CORE_RADIUS + PLAYER_HURT_CORE_OUTLINE_WIDTH * 0.35)
+		if ring_points.size() > 0:
+			ring_points.append(ring_points[0])
+		outline.points = ring_points
+		outline.width = PLAYER_HURT_CORE_OUTLINE_WIDTH
+
+func _update_hurt_core_visual(role_data: Dictionary = {}) -> void:
+	var hurt_core := get_node_or_null("HurtCore") as Node2D
+	if hurt_core == null:
+		return
+	if role_data.is_empty():
+		role_data = _get_active_role()
+	hurt_core.position = PLAYER_HURT_CORE_OFFSET
+	hurt_core.z_index = 60
+	var role_color: Color = role_data.get("color", Color(1.0, 0.5, 0.4, 1.0))
+	var fill := hurt_core.get_node_or_null("Fill") as Polygon2D
+	if fill != null:
+		fill.color = Color(1.0, 1.0, 1.0, 0.94)
+		fill.visible = true
+	var outline := hurt_core.get_node_or_null("Outline") as Line2D
+	if outline != null:
+		outline.default_color = Color(role_color.r, role_color.g, role_color.b, 1.0)
+		outline.visible = true
+
+func get_hurtbox_center() -> Vector2:
+	var hurt_core := get_node_or_null("HurtCore") as Node2D
+	if hurt_core != null:
+		return hurt_core.global_position
+	return global_position
+
+func get_hurtbox_radius() -> float:
+	return PLAYER_HURT_CORE_RADIUS
 
 func _update_visuals(role_data: Dictionary) -> void:
 	var polygon := get_node_or_null("Polygon2D") as Polygon2D
@@ -3740,9 +4550,16 @@ func _update_visuals(role_data: Dictionary) -> void:
 		if polygon != null:
 			polygon.visible = true
 			polygon.color = role_data["color"]
+			if active_role_visual_hidden and str(role_data["id"]) == active_role_visual_hidden_role_id:
+				polygon.visible = false
 		sprite.queue_free()
 		return
 	visual_root.add_child(sprite)
+	var should_hide := active_role_visual_hidden and str(role_data["id"]) == active_role_visual_hidden_role_id
+	if sprite != null:
+		sprite.visible = not should_hide
+	if polygon != null and not should_hide:
+		polygon.visible = false
 
 func _update_fire_timer() -> void:
 	if fire_timer == null:
@@ -4307,6 +5124,8 @@ func _check_enemy_contact_damage() -> void:
 	if hurt_cooldown_remaining > 0.0 or switch_invulnerability_remaining > 0.0:
 		return
 
+	var hurtbox_center := get_hurtbox_center()
+	var hurtbox_radius := get_hurtbox_radius()
 	for enemy in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(enemy):
 			continue
@@ -4318,7 +5137,8 @@ func _check_enemy_contact_damage() -> void:
 			contact_radius = float(enemy_contact_radius)
 		if enemy_touch_damage != null:
 			touch_damage = float(enemy_touch_damage)
-		if global_position.distance_squared_to(enemy.global_position) <= contact_radius * contact_radius:
+		var combined_radius := contact_radius + hurtbox_radius
+		if hurtbox_center.distance_squared_to(enemy.global_position) <= combined_radius * combined_radius:
 			take_damage(touch_damage)
 			break
 
@@ -4343,7 +5163,7 @@ func take_damage(amount: float) -> void:
 	var swordsman_counter_level := 0
 	if _get_active_role()["id"] == "swordsman":
 		swordsman_counter_level = int(_get_role_special_state("swordsman").get("counter_level", 0))
-		var nearby_enemy_count := _count_enemies_in_radius(global_position, 62.0)
+		var nearby_enemy_count := _count_enemies_in_radius(get_hurtbox_center(), 62.0)
 		if nearby_enemy_count > 0:
 			amount *= max(0.84, 0.96 - min(nearby_enemy_count, 3) * 0.04)
 		if swordsman_counter_level > 0:
@@ -4610,7 +5430,7 @@ func _spawn_attack_aftershock(center: Vector2, role_id: String) -> void:
 func _play_player_hurt_feedback() -> void:
 	_queue_camera_shake(6.0, 0.16)
 	_pulse_player_visual(1.18, 0.16)
-	_spawn_burst_effect(global_position, 54.0, Color(1.0, 0.3, 0.3, 0.18), 0.16)
+	_spawn_burst_effect(get_hurtbox_center(), 54.0, Color(1.0, 0.3, 0.3, 0.18), 0.16)
 
 func _trigger_swordsman_counter() -> void:
 	var special_data: Dictionary = _get_role_special_state("swordsman")
@@ -4647,6 +5467,15 @@ func _record_card_pick(slot_id: String, option_id: String) -> void:
 
 func _apply_battle_card(option_id: String) -> bool:
 	match option_id:
+		"battle_dangzhen_qichao":
+			_record_card_pick("body", option_id)
+			return true
+		"battle_dangzhen_dielang":
+			_record_card_pick("body", option_id)
+			return true
+		"battle_dangzhen_huichao":
+			_record_card_pick("body", option_id)
+			return true
 		"battle_cover":
 			_record_card_pick("body", option_id)
 			_apply_team_role_bonus(1.5, 0.0, 10.0, 0.04)
@@ -5531,11 +6360,23 @@ func _try_request_level_up() -> void:
 	level_up_requested.emit(_build_upgrade_options())
 
 func _build_upgrade_options() -> Array:
+	if DEVELOPER_MODE.should_offer_all_build_cards():
+		return _build_all_upgrade_options_for_developer_mode()
+
 	var options: Array = []
 	var pick_count: int = 4 if _has_elite_relic("elite_fate_shift") else 3
 	options.append_array(_pick_upgrade_options(_get_body_upgrade_pool(), pick_count))
 	options.append_array(_pick_upgrade_options(_get_combat_upgrade_pool(), pick_count))
 	options.append_array(_pick_upgrade_options(_get_skill_upgrade_pool(), pick_count))
+	if options.is_empty():
+		options.append_array(_get_fallback_upgrade_pool())
+	return options
+
+func _build_all_upgrade_options_for_developer_mode() -> Array:
+	var options: Array = []
+	options.append_array(_get_body_upgrade_pool())
+	options.append_array(_get_combat_upgrade_pool())
+	options.append_array(_get_skill_upgrade_pool())
 	if options.is_empty():
 		options.append_array(_get_fallback_upgrade_pool())
 	return options
@@ -5550,6 +6391,9 @@ func _get_fallback_upgrade_pool() -> Array:
 func _get_body_upgrade_pool() -> Array:
 	var options: Array = []
 	for card_id in [
+		"battle_dangzhen_qichao",
+		"battle_dangzhen_dielang",
+		"battle_dangzhen_huichao",
 		"battle_cover",
 		"battle_split",
 		"battle_overload",

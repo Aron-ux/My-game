@@ -1,0 +1,42 @@
+[gd_scene format=3 uid="uid://dtj8r2elti5lh"]
+
+[ext_resource type="Script" path="res://scripts/bullet.gd" id="1_x4n5p"]
+[ext_resource type="Texture2D" uid="uid://d0nr7d8iy2g45" path="res://effects/gun/bullet/1.png" id="1_0jj28"]
+[ext_resource type="Texture2D" uid="uid://c77amvdoltg73" path="res://effects/gun/bullet/2.png" id="2_svbw5"]
+[ext_resource type="Texture2D" uid="uid://cbscx6rksap57" path="res://effects/gun/bullet/3.png" id="3_flg74"]
+[ext_resource type="Texture2D" uid="uid://08d6aar88x3e" path="res://effects/gun/bullet/4.png" id="4_v0w7u"]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_08fay"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("1_0jj28")
+}, {
+"duration": 1.0,
+"texture": ExtResource("2_svbw5")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3_flg74")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_v0w7u")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3_flg74")
+}, {
+"duration": 1.0,
+"texture": ExtResource("2_svbw5")
+}],
+"loop": true,
+"name": &"bullet",
+"speed": 14.0
+}]
+
+[node name="Bullet" type="Node2D" unique_id=153232911]
+script = ExtResource("1_x4n5p")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1651973210]
+sprite_frames = SubResource("SpriteFrames_08fay")
+animation = &"bullet"
+frame_progress = 0.45839065
+speed_scale = 2.0

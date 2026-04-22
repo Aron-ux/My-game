@@ -4,6 +4,9 @@ const WHITE_KEY_SHADER := preload("res://shaders/white_key.gdshader")
 const BULLET_TEXTURE_RELATIVE_PATH := "技能特效/子弹.jpg"
 const BULLET_TEXTURE_SIZE := Vector2(1200.0, 1600.0)
 const BULLET_VISIBLE_BOUNDS := Rect2(563.0, 641.0, 120.0, 118.0)
+const BULLET_EFFECT_SCENE_SIZE := Vector2(1024.0, 1024.0)
+const BULLET_EFFECT_VISIBLE_BOUNDS := Rect2(505.0, 476.0, 36.0, 36.0)
+const BULLET_VISUAL_SCALE := 0.67
 
 @export var speed: float = 420.0
 @export var damage: float = 10.0
@@ -15,6 +18,12 @@ const BULLET_VISIBLE_BOUNDS := Rect2(563.0, 641.0, 120.0, 118.0)
 @export var vulnerability_bonus: float = 0.0
 @export var vulnerability_duration: float = 0.0
 @export var visual_color: Color = Color(1.0, 0.93, 0.39, 1.0)
+@export var visual_scale_multiplier: float = 1.0
+@export var enemy_hit_radius_scale: float = 0.42
+@export var enemy_hit_radius_min: float = 10.0
+@export var enemy_hit_radius_max: float = 28.0
+@export var animated_scene_size: Vector2 = BULLET_EFFECT_SCENE_SIZE
+@export var animated_visible_bounds: Rect2 = BULLET_EFFECT_VISIBLE_BOUNDS
 
 var direction: Vector2 = Vector2.RIGHT
 var target: Node2D
@@ -61,14 +70,43 @@ func _ensure_bullet_sprite() -> Sprite2D:
 	return sprite
 
 func _refresh_bullet_visual() -> void:
+	var animated_sprite := get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
 	var polygon := get_node_or_null("Polygon2D") as Polygon2D
+	var sprite := get_node_or_null("BulletSprite") as Sprite2D
+	if animated_sprite != null:
+		if polygon != null:
+			polygon.visible = false
+		if sprite != null:
+			sprite.visible = false
+		animated_sprite.visible = true
+		animated_sprite.material = null
+		animated_sprite.modulate = Color.WHITE
+		animated_sprite.centered = true
+		animated_sprite.position = Vector2.ZERO
+		animated_sprite.offset = animated_scene_size * 0.5 - (animated_visible_bounds.position + animated_visible_bounds.size * 0.5)
+		var effect_diameter: float = max(14.0, hit_radius * 2.15) * BULLET_VISUAL_SCALE * visual_scale_multiplier
+		var effect_scale: float = effect_diameter / max(animated_visible_bounds.size.x, animated_visible_bounds.size.y)
+		animated_sprite.scale = Vector2.ONE * effect_scale
+		if animated_sprite.sprite_frames != null:
+			var animation_name: StringName = animated_sprite.animation
+			var animation_names: PackedStringArray = animated_sprite.sprite_frames.get_animation_names()
+			if animation_name == StringName() and animation_names.size() > 0:
+				animation_name = StringName(animation_names[0])
+			elif animation_name != StringName() and not animation_names.has(String(animation_name)) and animation_names.size() > 0:
+				animation_name = StringName(animation_names[0])
+			if animation_name != StringName():
+				animated_sprite.animation = animation_name
+				if not animated_sprite.is_playing():
+					animated_sprite.play(animation_name)
+		return
+
 	if polygon != null:
 		polygon.visible = bullet_texture == null
 		if polygon.visible:
 			polygon.color = visual_color
-			polygon.scale = Vector2(1.4, 0.9)
+			polygon.scale = Vector2(1.4, 0.9) * BULLET_VISUAL_SCALE * visual_scale_multiplier
 
-	var sprite := _ensure_bullet_sprite()
+	sprite = _ensure_bullet_sprite()
 	if bullet_texture == null:
 		bullet_texture = _load_runtime_texture(BULLET_TEXTURE_RELATIVE_PATH)
 	if bullet_texture == null:
@@ -82,7 +120,7 @@ func _refresh_bullet_visual() -> void:
 		BULLET_TEXTURE_SIZE.x * 0.5 - (BULLET_VISIBLE_BOUNDS.position.x + BULLET_VISIBLE_BOUNDS.size.x * 0.5),
 		BULLET_TEXTURE_SIZE.y * 0.5 - (BULLET_VISIBLE_BOUNDS.position.y + BULLET_VISIBLE_BOUNDS.size.y * 0.5)
 	)
-	var target_diameter: float = max(10.0, hit_radius * 2.0)
+	var target_diameter: float = max(10.0, hit_radius * 2.0) * BULLET_VISUAL_SCALE * visual_scale_multiplier
 	var base_size: float = max(BULLET_VISIBLE_BOUNDS.size.x, BULLET_VISIBLE_BOUNDS.size.y)
 	var visual_scale: float = target_diameter / base_size
 	sprite.scale = Vector2.ONE * visual_scale
@@ -149,8 +187,8 @@ func _update_wave_motion(delta: float) -> void:
 func _get_enemy_hit_radius(enemy: Node2D) -> float:
 	var enemy_contact_radius: Variant = enemy.get("contact_radius")
 	if enemy_contact_radius == null:
-		return 12.0
-	return clamp(float(enemy_contact_radius) * 0.42, 10.0, 28.0)
+		return clamp(12.0 * enemy_hit_radius_scale, enemy_hit_radius_min, enemy_hit_radius_max)
+	return clamp(float(enemy_contact_radius) * enemy_hit_radius_scale, enemy_hit_radius_min, enemy_hit_radius_max)
 
 func _segment_hits_enemy(enemy: Node2D, start_position: Vector2, end_position: Vector2) -> bool:
 	var total_hit_radius := hit_radius + _get_enemy_hit_radius(enemy)

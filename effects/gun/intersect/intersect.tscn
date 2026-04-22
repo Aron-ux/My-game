@@ -1,0 +1,61 @@
+[gd_scene format=3 uid="uid://cq33qtaw582ig"]
+
+[ext_resource type="Texture2D" uid="uid://c2io83sh017t3" path="res://effects/gun/intersect/1.png" id="1_a61qv"]
+[ext_resource type="Texture2D" uid="uid://msxrsr5xtdp3" path="res://effects/gun/intersect/2.png" id="2_12owg"]
+[ext_resource type="Texture2D" uid="uid://oxdr741lw44q" path="res://effects/gun/intersect/3.png" id="3_ixsqa"]
+[ext_resource type="Texture2D" uid="uid://cino2dhf8bidg" path="res://effects/gun/intersect/4.png" id="4_n760d"]
+[ext_resource type="Texture2D" uid="uid://bvmvqhufrw06s" path="res://effects/gun/intersect/5.png" id="5_lo1co"]
+[ext_resource type="Texture2D" uid="uid://d0iv82jes30c2" path="res://effects/gun/intersect/6.png" id="6_kw5bl"]
+[ext_resource type="Texture2D" uid="uid://b6sm463ypedd" path="res://effects/gun/intersect/7.png" id="7_p855r"]
+[ext_resource type="Texture2D" uid="uid://cq1u287kulswu" path="res://effects/gun/intersect/8.png" id="8_1lgbw"]
+[ext_resource type="Texture2D" uid="uid://b5xnh4i6wa6lx" path="res://effects/gun/intersect/9.png" id="9_6i18j"]
+[ext_resource type="Texture2D" uid="uid://bauc5j8vnbhet" path="res://effects/gun/intersect/10.png" id="10_3sc31"]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_jw0ut"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("1_a61qv")
+}, {
+"duration": 1.0,
+"texture": ExtResource("2_12owg")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3_ixsqa")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_n760d")
+}, {
+"duration": 1.0,
+"texture": ExtResource("5_lo1co")
+}, {
+"duration": 1.0,
+"texture": ExtResource("6_kw5bl")
+}, {
+"duration": 1.0,
+"texture": ExtResource("7_p855r")
+}, {
+"duration": 1.0,
+"texture": ExtResource("8_1lgbw")
+}, {
+"duration": 1.0,
+"texture": ExtResource("9_6i18j")
+}, {
+"duration": 1.0,
+"texture": ExtResource("10_3sc31")
+}],
+"loop": false,
+"name": &"intersect",
+"speed": 16.0
+}]
+
+[node name="Intersect" type="Node2D" unique_id=676958244]
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1848217899]
+position = Vector2(0.5, 0)
+scale = Vector2(0.80811036, -0.29057136)
+sprite_frames = SubResource("SpriteFrames_jw0ut")
+animation = &"intersect"
+frame = 9
+frame_progress = 1.0
+speed_scale = 1.5

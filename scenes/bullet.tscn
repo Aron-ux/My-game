@@ -1,10 +1,10 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://ciyvc5stph8fe"]
 
-[ext_resource type="Script" path="res://scripts/bullet.gd" id="1_kri3c"]
+[ext_resource type="Script" uid="uid://cqe8fsrrjq8dw" path="res://scripts/bullet.gd" id="1_kri3c"]
 
-[node name="Bullet" type="Node2D"]
+[node name="Bullet" type="Node2D" unique_id=1355026829]
 script = ExtResource("1_kri3c")
 
-[node name="Polygon2D" type="Polygon2D" parent="."]
+[node name="Polygon2D" type="Polygon2D" parent="." unique_id=315265110]
 color = Color(1, 0.92941177, 0.3882353, 1)
 polygon = PackedVector2Array(0, -8, 8, 0, 0, 8, -8, 0)

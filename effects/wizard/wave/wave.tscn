@@ -1,0 +1,45 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/bullet.gd" id="1_wave_script"]
+[ext_resource type="Texture2D" path="res://effects/wizard/wave/11.png" id="2_wave_11"]
+[ext_resource type="Texture2D" path="res://effects/wizard/wave/12.png" id="3_wave_12"]
+[ext_resource type="Texture2D" path="res://effects/wizard/wave/13.png" id="4_wave_13"]
+[ext_resource type="Texture2D" path="res://effects/wizard/wave/14.png" id="5_wave_14"]
+[ext_resource type="Texture2D" path="res://effects/wizard/wave/15.png" id="6_wave_15"]
+[ext_resource type="Texture2D" path="res://effects/wizard/wave/16.png" id="7_wave_16"]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_wave"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_wave_11")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3_wave_12")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_wave_13")
+}, {
+"duration": 1.0,
+"texture": ExtResource("5_wave_14")
+}, {
+"duration": 1.0,
+"texture": ExtResource("6_wave_15")
+}, {
+"duration": 1.0,
+"texture": ExtResource("7_wave_16")
+}],
+"loop": true,
+"name": &"wave",
+"speed": 14.0
+}]
+
+[node name="Wave" type="Node2D"]
+script = ExtResource("1_wave_script")
+animated_scene_size = Vector2(1024, 1024)
+animated_visible_bounds = Rect2(205, 224, 216, 492)
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+sprite_frames = SubResource("SpriteFrames_wave")
+animation = &"wave"
+speed_scale = 1.4
