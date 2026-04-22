@@ -1,6 +1,7 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+/graphify-out/
 
 # Temporary local-only BGM assets
 /assets/game_bgm.mp3
