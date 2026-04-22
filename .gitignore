@@ -1,3 +1,13 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# Temporary local-only BGM assets
+/assets/game_bgm.mp3
+/assets/game_bgm.mp3.import
+/assets/game_bgm.ogg
+/assets/game_bgm.ogg.import
+/assets/menu_bgm.mp3
+/assets/menu_bgm.mp3.import
+/assets/menu_bgm.ogg
+/assets/menu_bgm.ogg.import
