@@ -2,7 +2,7 @@ extends RefCounted
 
 const SWORD_TORNADO_EFFECT_SCENE := preload("res://effects/sword/tornado/tornado.tscn")
 
-const COOLDOWN := 6.0
+const COOLDOWN := 8.0
 const BASE_DURATION := 1.6
 const TICK_INTERVAL := 0.2
 const MAX_CATCH_UP_TICKS := 5

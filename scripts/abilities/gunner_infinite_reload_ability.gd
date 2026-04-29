@@ -1,6 +1,6 @@
 extends RefCounted
 
-const COOLDOWN := 6.0
+const COOLDOWN := 13.0
 const BASE_DURATION := 1.0
 const TICK_INTERVAL := 0.1
 const MAX_CATCH_UP_TICKS := 6
