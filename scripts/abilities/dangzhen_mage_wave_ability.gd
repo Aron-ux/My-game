@@ -3,7 +3,7 @@ extends RefCounted
 const MAGE_GATHERING_EFFECT_SCENE := preload("res://effects/wizard/wave/gathering/gatering.tscn")
 const MAGE_WAVE_EFFECT_SCENE := preload("res://effects/wizard/wave/wave.tscn")
 
-const COOLDOWN := 8.0
+const COOLDOWN := 9.0
 const DIELANG_INTERVAL := 0.5
 const HUICHAO_HALF_SPREAD := deg_to_rad(15.0)
 const HUICHAO_FULL_SPREAD := deg_to_rad(30.0)

@@ -3,7 +3,7 @@ extends RefCounted
 const MAGE_GATHERING_EFFECT_SCENE := preload("res://effects/wizard/wave/gathering/gatering.tscn")
 const MAGE_WAVE_EFFECT_SCENE := preload("res://effects/wizard/wave/wave.tscn")
 
-const COOLDOWN := 11.0
+const COOLDOWN := 12.0
 const WAVE_REPEAT_INTERVAL := 0.3
 const BASE_SCALE_MULTIPLIER := 1.5
 const LIFETIME_MULTIPLIER := 1.5

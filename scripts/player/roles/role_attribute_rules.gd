@@ -25,10 +25,11 @@ const GUNNER_FOOTWORK_MOVE_GROWTH := 0.01
 const GUNNER_FOOTWORK_EVOLVED_FLAT_SPEED := 20.0
 const GUNNER_FOOTWORK_THIRD_FLAT_SPEED := 35.0
 
-const MAGE_ARCANE_FOCUS_RANGE_GROWTH := 0.0175
-const MAGE_ARCANE_FOCUS_EVOLVED_GROWTH_MULTIPLIER := 1.2
-const MAGE_ARCANE_FOCUS_THIRD_GROWTH_MULTIPLIER := 1.8
-const MAGE_ARCANE_FOCUS_EVOLUTION_RANGE_SCALE := 1.20
+const MAGE_ARCANE_FOCUS_BASE_FINAL_SCALE := 1.18
+const MAGE_ARCANE_FOCUS_EVOLVED_START_SCALE := 1.32
+const MAGE_ARCANE_FOCUS_EVOLVED_FINAL_SCALE := 1.50
+const MAGE_ARCANE_FOCUS_THIRD_START_SCALE := 1.62
+const MAGE_ARCANE_FOCUS_THIRD_FINAL_SCALE := 1.80
 const MAGE_SURPLUS_ENERGY_GROWTH := 0.01
 const MAGE_SURPLUS_ENERGY_GROWTH_SELF := 0.02
 const MAGE_SURPLUS_EVOLVED_GROWTH_MULTIPLIER := 1.5
@@ -208,15 +209,19 @@ static func get_gunner_footwork_flat_speed_bonus(level: int) -> float:
 
 
 static func get_mage_arcane_focus_range_multiplier(level: int) -> float:
-	var base_multiplier := pow(1.0 + MAGE_ARCANE_FOCUS_RANGE_GROWTH, float(get_base_tier_level(level)))
-	var second_multiplier := pow(1.0 + MAGE_ARCANE_FOCUS_RANGE_GROWTH * MAGE_ARCANE_FOCUS_EVOLVED_GROWTH_MULTIPLIER, float(get_evolved_extra_level(level)))
-	var third_multiplier := pow(1.0 + MAGE_ARCANE_FOCUS_RANGE_GROWTH * MAGE_ARCANE_FOCUS_THIRD_GROWTH_MULTIPLIER, float(get_third_extra_level(level)))
-	var evolution_multiplier: float = 1.0
-	if level > EVOLUTION_LEVEL:
-		evolution_multiplier *= MAGE_ARCANE_FOCUS_EVOLUTION_RANGE_SCALE
-	if level > THIRD_EVOLUTION_LEVEL:
-		evolution_multiplier *= MAGE_ARCANE_FOCUS_EVOLUTION_RANGE_SCALE
-	return base_multiplier * second_multiplier * third_multiplier * evolution_multiplier
+	level = get_effective_level(level)
+	if level <= EVOLUTION_LEVEL:
+		return lerp(1.0, MAGE_ARCANE_FOCUS_BASE_FINAL_SCALE, float(level) / float(EVOLUTION_LEVEL))
+	if level <= THIRD_EVOLUTION_LEVEL:
+		var evolved_step: float = _ease_out_ratio(float(level - (EVOLUTION_LEVEL + 1)) / float(THIRD_EVOLUTION_LEVEL - (EVOLUTION_LEVEL + 1)))
+		return lerp(MAGE_ARCANE_FOCUS_EVOLVED_START_SCALE, MAGE_ARCANE_FOCUS_EVOLVED_FINAL_SCALE, evolved_step)
+	var third_step: float = _ease_out_ratio(float(level - (THIRD_EVOLUTION_LEVEL + 1)) / float(MAX_ATTRIBUTE_LEVEL - (THIRD_EVOLUTION_LEVEL + 1)))
+	return lerp(MAGE_ARCANE_FOCUS_THIRD_START_SCALE, MAGE_ARCANE_FOCUS_THIRD_FINAL_SCALE, third_step)
+
+
+static func _ease_out_ratio(raw_ratio: float) -> float:
+	var ratio: float = clamp(raw_ratio, 0.0, 1.0)
+	return 1.0 - pow(1.0 - ratio, 2.0)
 
 
 static func get_mage_surplus_energy_multiplier(level: int, role_id: String = "") -> float:
@@ -301,10 +306,10 @@ static func get_role_attribute_description(role_id: String, attribute_key: Strin
 		"mage":
 			if attribute_key == "vitality":
 				if level > THIRD_EVOLUTION_LEVEL:
-					return "III阶：普通攻击聚能一次轰炸3下；13-18级每级按原奥数集中的1.8倍提升范围。当前技能范围 %.1f%%" % (get_mage_arcane_focus_range_multiplier(level) * 100.0)
+					return "III阶：普通攻击聚能一次轰炸3下；13级即时提升至162%，13-18级保守非线性提升，18级最终约180%。当前技能范围 %.1f%%" % (get_mage_arcane_focus_range_multiplier(level) * 100.0)
 				if level > EVOLUTION_LEVEL:
-					return "II阶：普通攻击聚能一次轰炸2下；7-12级每级按原奥数集中的1.2倍提升范围。当前技能范围 %.1f%%" % (get_mage_arcane_focus_range_multiplier(level) * 100.0)
-				return "术师技能范围提升为基准的 %.1f%%" % (get_mage_arcane_focus_range_multiplier(level) * 100.0)
+					return "II阶：普通攻击聚能一次轰炸2下；7级即时提升至132%，7-12级保守非线性提升，12级约150%。当前技能范围 %.1f%%" % (get_mage_arcane_focus_range_multiplier(level) * 100.0)
+				return "术师全技能范围保守提升；6级约118%。当前技能范围 %.1f%%" % (get_mage_arcane_focus_range_multiplier(level) * 100.0)
 			if attribute_key == "agility":
 				if level > THIRD_EVOLUTION_LEVEL:
 					return "III阶：站场自动回能继续增强；13-18级每级按原奥数光环的2倍提升能量获取。当前每秒 %.2f，术师获取 %.1f%%，其他角色 %.1f%%" % [get_mage_surplus_passive_energy_per_second(level), get_mage_surplus_energy_multiplier(level, "mage") * 100.0, get_mage_surplus_energy_multiplier(level, "swordsman") * 100.0]
