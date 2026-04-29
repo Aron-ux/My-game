@@ -116,6 +116,10 @@ A Godot 4 2D survivor-like prototype focused on **three-character switching comb
 - 关卡与 Boss 压力
 - 演出反馈
 
+## Asset Notice
+
+The current BGM files under `assets/` are non-commercial placeholder materials for development testing only. They are included so the project can run with the current audio setup, and will be replaced before any commercial release or public distribution build.
+
 ## Changelog
 
 - [CHANGELOG.md](CHANGELOG.md)
