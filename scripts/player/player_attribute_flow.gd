@@ -56,6 +56,10 @@ static func get_gunner_barrage_speed_multiplier(level: int) -> float:
 	return ROLE_ATTRIBUTE_RULES.get_gunner_barrage_speed_multiplier(level)
 
 
+static func get_gunner_barrage_interval_reduction(level: int) -> float:
+	return ROLE_ATTRIBUTE_RULES.get_gunner_barrage_interval_reduction(level)
+
+
 static func get_gunner_barrage_bounce_count(level: int) -> int:
 	return ROLE_ATTRIBUTE_RULES.get_gunner_barrage_bounce_count(level)
 
@@ -120,6 +124,12 @@ static func get_role_attack_interval_multiplier(owner, role_id: String) -> float
 	if role_id == "swordsman":
 		return get_swordsman_heart_interval_multiplier(get_role_attribute_level(owner, role_id, "vitality"))
 	return 1.0
+
+
+static func get_role_attack_interval_flat_reduction(owner, role_id: String) -> float:
+	if role_id == "gunner":
+		return get_gunner_barrage_interval_reduction(get_role_attribute_level(owner, role_id, "vitality"))
+	return 0.0
 
 
 static func get_ultimate_energy_gain_multiplier_for_role(owner, role_id: String) -> float:

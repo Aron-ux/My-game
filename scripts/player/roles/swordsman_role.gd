@@ -19,10 +19,7 @@ func perform_attack(owner) -> void:
 	var slash_mirror: bool = attack_direction.x > 0.0
 	var slash_length: float = (56.0 + float(upgrade_data.get("range_bonus", 0.0)) * 0.19 + crescent_level * 4.0 + thrust_level * 2.0) * owner._get_story_style_range_multiplier(role_data["id"])
 	var slash_width: float = (8.0 + crescent_level * 1.05 + thrust_level * 0.7) * heart_range_multiplier
-	var slash_start: Vector2 = owner.global_position + attack_direction * (18.0 + thrust_level * 3.0)
-	var slash_center: Vector2 = owner.global_position + attack_direction * (42.0 + thrust_level * 3.0)
-	var slash_end: Vector2 = slash_center + slash_axis * (slash_length * 0.5)
-	slash_start = slash_center - slash_axis * (slash_length * 0.5)
+	var slash_forward_distance: float = 42.0 + thrust_level * 3.0
 	var style_color := Color(0.48, 0.86, 1.0, 0.95) if owner._get_story_style_id(role_data["id"]) == "moon_edge" else Color(1.0, 0.74, 0.34, 0.95)
 	var enemies_hit: int = 0
 	var any_kill: bool = false
@@ -31,16 +28,16 @@ func perform_attack(owner) -> void:
 		attack_damage *= 1.18 + 0.08 * overload_level
 		slash_length += 5.0 + overload_level * 3.0
 		slash_width += 1.0 + overload_level * 0.6
-		slash_end = slash_center + slash_axis * (slash_length * 0.5)
-		slash_start = slash_center - slash_axis * (slash_length * 0.5)
 
 	slash_length *= normal_attack_scale
 	slash_width *= normal_attack_scale
-	slash_end = slash_center + slash_axis * (slash_length * 0.5)
-	slash_start = slash_center - slash_axis * (slash_length * 0.5)
+	var slash_visual_width: float = _get_slash_visual_width(slash_width)
+	var slash_mirror_forward_offset: float = _get_slash_mirror_forward_offset(owner, slash_visual_width)
+	var slash_center: Vector2 = owner.global_position + attack_direction * (slash_forward_distance + slash_mirror_forward_offset)
+	var slash_effect_center: Vector2 = slash_center - attack_direction * slash_mirror_forward_offset if slash_mirror else slash_center
 
 	owner._spawn_sword_slash_scene_effect(
-		slash_center,
+		slash_effect_center,
 		slash_axis,
 		slash_length * 0.5,
 		style_color,
@@ -49,7 +46,7 @@ func perform_attack(owner) -> void:
 		slash_mirror
 	)
 	var slash_hit_registry: Dictionary = {}
-	var slash_rect_width: float = slash_width * 2.0
+	var slash_rect_width: float = max(slash_visual_width, slash_center.distance_to(owner.global_position) * 2.0 + 12.0)
 	var slash_animation_duration: float = owner._get_sword_slash_scene_animation_duration()
 	enemies_hit += owner._damage_enemies_in_oriented_rect_unique(slash_center, slash_axis, slash_length, slash_rect_width, attack_damage, 0.0, 1.0, 0.0, slash_hit_registry, role_data["id"])
 	owner._schedule_swordsman_slash_followthrough(slash_center, slash_axis, slash_length, slash_rect_width, attack_damage, 0.0, 1.0, 0.0, slash_animation_duration, role_data["id"], slash_hit_registry)
@@ -272,3 +269,14 @@ func _execute_ultimate_slash(owner, slash_count: int, pursuit_level: int, cresce
 		if target_enemy != null and is_instance_valid(target_enemy):
 			var finisher_kill: bool = owner._deal_damage_to_enemy(target_enemy, owner._get_role_damage("swordsman") * (0.92 + pursuit_level * 0.1) * cast_damage_multiplier * finale_damage_multiplier, "swordsman", 0.12, 2.4, 1.0, 0.0)
 			owner._register_attack_result("swordsman", 1, finisher_kill)
+
+func _get_slash_visual_width(slash_width: float) -> float:
+	return max(18.0, slash_width * 2.0)
+
+func _get_slash_mirror_forward_offset(owner, visual_width: float) -> float:
+	var visible_bounds: Rect2 = owner.SWORD_SLASH_SCENE_VISIBLE_BOUNDS
+	var visible_center_x: float = visible_bounds.position.x + visible_bounds.size.x * 0.5
+	var mirrored_center_offset_px: float = owner.SWORD_SLASH_SCENE_SIZE.x - visible_center_x * 2.0
+	if mirrored_center_offset_px <= 0.0:
+		return 0.0
+	return mirrored_center_offset_px * visual_width / max(1.0, visible_bounds.size.x)

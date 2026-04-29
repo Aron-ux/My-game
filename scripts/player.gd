@@ -627,6 +627,9 @@ func _get_swordsman_dodge_chance(level: int) -> float:
 func _get_gunner_barrage_speed_multiplier(level: int) -> float:
 	return PLAYER_ATTRIBUTE_FLOW.get_gunner_barrage_speed_multiplier(level)
 
+func _get_gunner_barrage_interval_reduction(level: int) -> float:
+	return PLAYER_ATTRIBUTE_FLOW.get_gunner_barrage_interval_reduction(level)
+
 func _get_gunner_barrage_bounce_count(level: int) -> int:
 	return PLAYER_ATTRIBUTE_FLOW.get_gunner_barrage_bounce_count(level)
 
@@ -665,6 +668,9 @@ func _get_role_attribute_flat_move_speed_bonus(role_id: String) -> float:
 
 func _get_role_attack_interval_multiplier(role_id: String) -> float:
 	return PLAYER_ATTRIBUTE_FLOW.get_role_attack_interval_multiplier(self, role_id)
+
+func _get_role_attack_interval_flat_reduction(role_id: String) -> float:
+	return PLAYER_ATTRIBUTE_FLOW.get_role_attack_interval_flat_reduction(self, role_id)
 
 func _get_ultimate_energy_gain_multiplier_for_role(role_id: String) -> float:
 	return PLAYER_ATTRIBUTE_FLOW.get_ultimate_energy_gain_multiplier_for_role(self, role_id)

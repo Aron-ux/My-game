@@ -32,7 +32,10 @@ static func get_effective_attack_interval(owner, role_id: String) -> float:
 			break
 	if role_data.is_empty():
 		return 0.18
-	var base_interval: float = max(0.18, float(role_data.get("attack_interval", 0.18)) - get_active_interval_bonus(owner, role_id))
+	var flat_reduction: float = 0.0
+	if owner.has_method("_get_role_attack_interval_flat_reduction"):
+		flat_reduction = float(owner._get_role_attack_interval_flat_reduction(role_id))
+	var base_interval: float = max(0.18, float(role_data.get("attack_interval", 0.18)) - get_active_interval_bonus(owner, role_id) - flat_reduction)
 	return max(0.18, base_interval * owner._get_role_attack_interval_multiplier(role_id))
 
 

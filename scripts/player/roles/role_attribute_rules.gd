@@ -14,6 +14,7 @@ const SWORD_BLOOD_EVOLVED_DODGE_PER_LEVEL := 0.01
 const SWORD_BLOOD_EVOLVED_LIFESTEAL_PER_LEVEL := 0.005
 
 const GUNNER_BARRAGE_SPEED_GROWTH := 0.10
+const GUNNER_BARRAGE_EVOLUTION_INTERVAL_REDUCTION := 0.10
 const GUNNER_FOOTWORK_RANGE_GROWTH := 0.015
 const GUNNER_FOOTWORK_MOVE_GROWTH := 0.01
 const GUNNER_FOOTWORK_EVOLVED_FLAT_SPEED := 20.0
@@ -22,6 +23,7 @@ const GUNNER_FOOTWORK_THIRD_FLAT_SPEED := 35.0
 const MAGE_ARCANE_FOCUS_RANGE_GROWTH := 0.0175
 const MAGE_ARCANE_FOCUS_EVOLVED_GROWTH_MULTIPLIER := 1.2
 const MAGE_ARCANE_FOCUS_THIRD_GROWTH_MULTIPLIER := 1.8
+const MAGE_ARCANE_FOCUS_EVOLUTION_RANGE_SCALE := 1.15
 const MAGE_SURPLUS_ENERGY_GROWTH := 0.01
 const MAGE_SURPLUS_ENERGY_GROWTH_SELF := 0.02
 const MAGE_SURPLUS_EVOLVED_GROWTH_MULTIPLIER := 1.5
@@ -128,6 +130,15 @@ static func get_gunner_barrage_speed_multiplier(level: int) -> float:
 	return base_multiplier * second_multiplier * third_multiplier
 
 
+static func get_gunner_barrage_interval_reduction(level: int) -> float:
+	var reduction: float = 0.0
+	if level > EVOLUTION_LEVEL:
+		reduction += GUNNER_BARRAGE_EVOLUTION_INTERVAL_REDUCTION
+	if level > THIRD_EVOLUTION_LEVEL:
+		reduction += GUNNER_BARRAGE_EVOLUTION_INTERVAL_REDUCTION
+	return reduction
+
+
 static func get_gunner_barrage_bounce_count(level: int) -> int:
 	if level > EVOLUTION_LEVEL:
 		return 0
@@ -168,7 +179,12 @@ static func get_mage_arcane_focus_range_multiplier(level: int) -> float:
 	var base_multiplier := pow(1.0 + MAGE_ARCANE_FOCUS_RANGE_GROWTH, float(get_base_tier_level(level)))
 	var second_multiplier := pow(1.0 + MAGE_ARCANE_FOCUS_RANGE_GROWTH * MAGE_ARCANE_FOCUS_EVOLVED_GROWTH_MULTIPLIER, float(get_evolved_extra_level(level)))
 	var third_multiplier := pow(1.0 + MAGE_ARCANE_FOCUS_RANGE_GROWTH * MAGE_ARCANE_FOCUS_THIRD_GROWTH_MULTIPLIER, float(get_third_extra_level(level)))
-	return base_multiplier * second_multiplier * third_multiplier
+	var evolution_multiplier: float = 1.0
+	if level > EVOLUTION_LEVEL:
+		evolution_multiplier *= MAGE_ARCANE_FOCUS_EVOLUTION_RANGE_SCALE
+	if level > THIRD_EVOLUTION_LEVEL:
+		evolution_multiplier *= MAGE_ARCANE_FOCUS_EVOLUTION_RANGE_SCALE
+	return base_multiplier * second_multiplier * third_multiplier * evolution_multiplier
 
 
 static func get_mage_surplus_energy_multiplier(level: int, role_id: String = "") -> float:

@@ -20,6 +20,7 @@ const EXIT_GUNNER_MOVE_SPEED_MULTIPLIER := 1.18
 const MAGE_ATTACK_EFFECT_SCALE := 0.8
 const MAGE_ENTRY_EFFECT_RADIUS := 52.0 * MAGE_ATTACK_EFFECT_SCALE
 const MAGE_ENTRY_HIT_RADIUS := 104.0 * MAGE_ATTACK_EFFECT_SCALE
+const EXIT_SKILLS_ENABLED := false
 
 
 static func activate_switch_power(owner, role_id: String, label: String, duration: float, damage_multiplier: float, interval_bonus: float) -> void:
@@ -242,6 +243,8 @@ static func apply_enter_skill(owner, role_index: int) -> int:
 
 
 static func apply_exit_skill(owner, role_index: int) -> int:
+	if not EXIT_SKILLS_ENABLED:
+		return 0
 	var role_id: String = owner.roles[role_index]["id"]
 	var rearguard_level: int = owner._get_card_level("combat_rearguard")
 	owner._queue_camera_shake(3.2, 0.1)

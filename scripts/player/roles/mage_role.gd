@@ -14,6 +14,7 @@ func perform_attack(owner) -> void:
 	var bombard_center: Vector2 = owner._get_mage_mouse_bombard_center(float(role_data["range"]) + float(upgrade_data.get("range_bonus", 0.0)))
 	var target_enemy: Node2D = owner._get_enemy_near_position(bombard_center, 56.0 + float(upgrade_data.get("range_bonus", 0.0)) * 0.25)
 	var radius: float = (44.0 + float(upgrade_data["range_bonus"]) * 0.55 + echo_level * 5.0 + frost_level * 5.0) * owner._get_story_style_range_multiplier(role_data["id"])
+	radius *= owner._get_mage_arcane_focus_range_multiplier(arcane_focus_level)
 	var damage_amount: float = owner._get_role_damage(role_data["id"]) * (0.96 + echo_level * 0.04)
 	if target_enemy != null:
 		damage_amount *= owner._get_priority_target_bonus(target_enemy)
@@ -32,21 +33,25 @@ func perform_attack(owner) -> void:
 
 func _start_evolved_arcane_bombardment(owner, center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, gravity_level: int, echo_level: int, frost_level: int, role_id: String, third_tier: bool = false) -> void:
 	owner._start_basic_mage_bombardment(center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, gravity_level, echo_level, frost_level, role_id, true, false)
+	var followup_count: int = 2 if third_tier else 1
 	var current_scene: Node = owner.get_tree().current_scene
 	if current_scene == null:
-		owner._start_basic_mage_bombardment(center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, gravity_level, echo_level, frost_level, role_id, true, true)
-		if third_tier:
-			owner._start_basic_mage_bombardment(center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, gravity_level, echo_level, frost_level, role_id, true, true)
+		for followup_index in range(followup_count):
+			owner._resolve_basic_mage_bombardment_damage(center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, gravity_level, echo_level, frost_level, role_id, true, followup_index == followup_count - 1)
 		return
 	var controller := Node2D.new()
 	controller.name = "MageArcaneBurstSecondBombardment"
 	current_scene.add_child(controller)
 	var tween := controller.create_tween()
-	tween.tween_interval(0.16)
-	tween.tween_callback(Callable(owner, "_start_basic_mage_bombardment").bind(center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, gravity_level, echo_level, frost_level, role_id, true, true))
-	if third_tier:
-		tween.tween_interval(0.16)
-		tween.tween_callback(Callable(owner, "_start_basic_mage_bombardment").bind(center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, gravity_level, echo_level, frost_level, role_id, true, true))
+	var first_damage_delay: float = owner._get_scene_animation_duration(owner.MAGE_WARNING_EFFECT_SCENE, 0.2) + owner._get_scene_animation_duration(owner.MAGE_BOOM_EFFECT_SCENE, 0.3)
+	var boom_duration: float = owner._get_scene_animation_duration(owner.MAGE_BOOM_EFFECT_SCENE, 0.3)
+	tween.tween_interval(first_damage_delay + 0.06)
+	for followup_index in range(followup_count):
+		tween.tween_callback(Callable(owner, "_spawn_mage_boom_scene_effect").bind(center, radius))
+		tween.tween_interval(boom_duration)
+		tween.tween_callback(Callable(owner, "_resolve_basic_mage_bombardment_damage").bind(center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, gravity_level, echo_level, frost_level, role_id, true, followup_index == followup_count - 1))
+		if followup_index < followup_count - 1:
+			tween.tween_interval(0.06)
 	tween.tween_callback(controller.queue_free)
 
 func perform_background(owner) -> void:
