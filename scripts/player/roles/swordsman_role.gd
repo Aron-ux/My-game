@@ -6,8 +6,8 @@ func perform_attack(owner) -> void:
 	var special_data: Dictionary = owner._get_role_special_state("swordsman")
 	var attack_direction: Vector2 = owner._get_attack_aim_direction(owner.facing_direction)
 	var heart_level: int = owner._get_role_attribute_level("swordsman", "vitality")
-	var heart_range_multiplier: float = owner._get_swordsman_heart_range_multiplier(heart_level)
 	var normal_attack_scale: float = owner._get_swordsman_normal_attack_scale(heart_level)
+	var normal_attack_width_scale: float = owner._get_swordsman_normal_attack_width_scale(heart_level)
 	var crescent_level: int = int(special_data.get("crescent_level", 0))
 	var thrust_level: int = int(special_data.get("thrust_level", 0))
 	var blood_level: int = int(special_data.get("blood_level", 0))
@@ -18,7 +18,7 @@ func perform_attack(owner) -> void:
 	var slash_axis: Vector2 = owner._get_downward_perpendicular(attack_direction)
 	var slash_mirror: bool = attack_direction.x > 0.0
 	var slash_length: float = (56.0 + float(upgrade_data.get("range_bonus", 0.0)) * 0.19 + crescent_level * 4.0 + thrust_level * 2.0) * owner._get_story_style_range_multiplier(role_data["id"])
-	var slash_width: float = (8.0 + crescent_level * 1.05 + thrust_level * 0.7) * heart_range_multiplier
+	var slash_width: float = (8.0 + crescent_level * 1.05 + thrust_level * 0.7) * normal_attack_width_scale
 	var slash_forward_distance: float = 42.0 + thrust_level * 3.0
 	var style_color := Color(0.48, 0.86, 1.0, 0.95) if owner._get_story_style_id(role_data["id"]) == "moon_edge" else Color(1.0, 0.74, 0.34, 0.95)
 	var enemies_hit: int = 0
@@ -30,7 +30,6 @@ func perform_attack(owner) -> void:
 		slash_width += 1.0 + overload_level * 0.6
 
 	slash_length *= normal_attack_scale
-	slash_width *= normal_attack_scale
 	var slash_visual_width: float = _get_slash_visual_width(slash_width)
 	var slash_mirror_forward_offset: float = _get_slash_mirror_forward_offset(owner, slash_visual_width)
 	var slash_center: Vector2 = owner.global_position + attack_direction * (slash_forward_distance + slash_mirror_forward_offset)

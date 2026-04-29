@@ -544,7 +544,7 @@ func _update_focus_blur() -> void:
 	var overlay_visible := false
 	if detail_overlay.has_method("has_visible_overlay"):
 		overlay_visible = detail_overlay.has_visible_overlay()
-	var should_show: bool = visible and (current_mode == "build" or current_mode == "small_boss_pair") and (active_slot_id != "" or overlay_visible)
+	var should_show: bool = visible and (current_mode == "build" or current_mode == "small_boss_pair") and overlay_visible
 	if detail_overlay.has_method("set_focus_visible"):
 		detail_overlay.set_focus_visible(should_show)
 

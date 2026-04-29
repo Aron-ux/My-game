@@ -32,6 +32,9 @@ static var cached_enemy_nodes_frame: int = -1
 @export var animated_visible_bounds: Rect2 = BULLET_EFFECT_VISIBLE_BOUNDS
 @export var min_hit_travel_distance: float = 0.0
 @export var hit_scan_interval: float = 0.0
+@export var split_count: int = 0
+@export var split_radius: float = 58.0
+@export var split_visual_bullet_count: int = 12
 
 var direction: Vector2 = Vector2.RIGHT
 var target: Node2D
@@ -311,6 +314,8 @@ func _apply_hit(enemy: Node2D) -> void:
 		source_player._register_attack_result(source_role_id, 1, killed)
 
 	_spawn_impact_effect(enemy.global_position, killed)
+	if split_count > 0:
+		_trigger_split_bursts(enemy.global_position)
 
 	if bounce_count > 0:
 		bounce_count -= 1
@@ -326,6 +331,62 @@ func _apply_hit(enemy: Node2D) -> void:
 		return
 
 	queue_free()
+
+func _trigger_split_bursts(center: Vector2) -> void:
+	var burst_count: int = clamp(split_count, 0, 2)
+	if burst_count <= 0:
+		return
+	for burst_index in range(burst_count):
+		_apply_split_burst(center, burst_index)
+
+func _apply_split_burst(center: Vector2, burst_index: int) -> void:
+	var radius: float = split_radius + float(burst_index) * 20.0
+	_spawn_split_visual(center, radius, burst_index)
+	if source_player != null and source_player.has_method("_damage_enemies_in_radius"):
+		var hit_count: int = int(source_player._damage_enemies_in_radius(center, radius, damage, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id))
+		if hit_count > 0 and source_player.has_method("_register_attack_result"):
+			source_player._register_attack_result(source_role_id, hit_count, false)
+
+func _spawn_split_visual(center: Vector2, radius: float, burst_index: int) -> void:
+	var current_scene := get_tree().current_scene
+	if current_scene == null:
+		return
+	var ring := Node2D.new()
+	ring.add_to_group("temporary_effects")
+	ring.global_position = center
+	ring.z_index = 14
+	current_scene.add_child(ring)
+
+	var bullet_count: int = max(6, split_visual_bullet_count + burst_index * 4)
+	for index in range(bullet_count):
+		var angle: float = TAU * float(index) / float(bullet_count)
+		var shard := Polygon2D.new()
+		shard.color = Color(visual_color.r, visual_color.g, visual_color.b, 0.78)
+		shard.position = Vector2.RIGHT.rotated(angle) * radius
+		shard.rotation = angle
+		shard.polygon = PackedVector2Array([
+			Vector2(7.0, 0.0),
+			Vector2(-4.0, -3.0),
+			Vector2(-2.0, 0.0),
+			Vector2(-4.0, 3.0)
+		])
+		ring.add_child(shard)
+
+	var outline := Line2D.new()
+	outline.width = 3.0
+	outline.default_color = Color(visual_color.r, visual_color.g, visual_color.b, 0.34)
+	outline.closed = true
+	var points := PackedVector2Array()
+	for index in range(24):
+		points.append(Vector2.RIGHT.rotated(TAU * float(index) / 24.0) * radius)
+	outline.points = points
+	ring.add_child(outline)
+
+	ring.scale = Vector2(0.28, 0.28)
+	var tween := ring.create_tween()
+	tween.parallel().tween_property(ring, "scale", Vector2.ONE, 0.12)
+	tween.parallel().tween_property(ring, "modulate:a", 0.0, 0.22)
+	tween.tween_callback(ring.queue_free)
 
 func _spawn_impact_effect(position: Vector2, killed: bool) -> void:
 	var current_scene := get_tree().current_scene

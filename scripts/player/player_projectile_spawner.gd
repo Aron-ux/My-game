@@ -10,6 +10,8 @@ static func apply_role_projectile_modifiers(owner, projectile: Node, role_id: St
 		return
 	projectile.set("speed_multiplier", owner._get_gunner_barrage_speed_multiplier(barrage_level))
 	projectile.set("bounce_count", owner._get_gunner_barrage_bounce_count(barrage_level))
+	if owner.has_method("_get_gunner_barrage_split_count"):
+		projectile.set("split_count", owner._get_gunner_barrage_split_count(barrage_level))
 	projectile.set("hit_radius_multiplier", 1.2)
 
 static func spawn_bullet(owner, bullet_scene: PackedScene, target_enemy: Node2D, damage_amount: float, color: Color, role_id: String = "", origin: Variant = null):

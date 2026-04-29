@@ -40,6 +40,10 @@ static func get_swordsman_normal_attack_scale(level: int) -> float:
 	return ROLE_ATTRIBUTE_RULES.get_swordsman_normal_attack_scale(level)
 
 
+static func get_swordsman_normal_attack_width_scale(level: int) -> float:
+	return ROLE_ATTRIBUTE_RULES.get_swordsman_normal_attack_width_scale(level)
+
+
 static func get_swordsman_bloodthirst_ratio(level: int) -> float:
 	return ROLE_ATTRIBUTE_RULES.get_swordsman_bloodthirst_ratio(level)
 
@@ -70,6 +74,10 @@ static func get_gunner_barrage_shotgun_wave_count(level: int) -> int:
 
 static func get_gunner_barrage_shotgun_pellet_count(level: int) -> int:
 	return ROLE_ATTRIBUTE_RULES.get_gunner_barrage_shotgun_pellet_count(level)
+
+
+static func get_gunner_barrage_split_count(level: int) -> int:
+	return ROLE_ATTRIBUTE_RULES.get_gunner_barrage_split_count(level)
 
 
 static func get_gunner_footwork_range_multiplier(level: int) -> float:

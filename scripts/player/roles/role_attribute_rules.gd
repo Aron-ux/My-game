@@ -5,10 +5,15 @@ const THIRD_EVOLUTION_LEVEL := 12
 const MAX_ATTRIBUTE_LEVEL := 18
 const EVOLVED_TITLE_COLOR := Color(0.38, 1.0, 0.48, 1.0)
 
-const SWORD_HEART_INTERVAL_REDUCTION := 0.10
+const SWORD_HEART_INTERVAL_REDUCTION := 0.022
+const SWORD_HEART_EVOLVED_INTERVAL_REDUCTION := 0.034
+const SWORD_HEART_THIRD_INTERVAL_REDUCTION := 0.057
 const SWORD_HEART_RANGE_GROWTH := 0.05
 const SWORD_HEART_EVOLVED_SCALE := 1.25
 const SWORD_HEART_THIRD_EVOLVED_SCALE := 1.5
+const SWORD_HEART_THIRD_LENGTH_GROWTH := 0.10
+const SWORD_HEART_THIRD_WIDTH_GROWTH := 0.12
+const SWORD_HEART_THIRD_FINAL_VISUAL_RATIO := 0.60
 const SWORD_BLOOD_EVOLVED_BASE_DODGE := 0.25
 const SWORD_BLOOD_EVOLVED_DODGE_PER_LEVEL := 0.01
 const SWORD_BLOOD_EVOLVED_LIFESTEAL_PER_LEVEL := 0.005
@@ -23,7 +28,7 @@ const GUNNER_FOOTWORK_THIRD_FLAT_SPEED := 35.0
 const MAGE_ARCANE_FOCUS_RANGE_GROWTH := 0.0175
 const MAGE_ARCANE_FOCUS_EVOLVED_GROWTH_MULTIPLIER := 1.2
 const MAGE_ARCANE_FOCUS_THIRD_GROWTH_MULTIPLIER := 1.8
-const MAGE_ARCANE_FOCUS_EVOLUTION_RANGE_SCALE := 1.15
+const MAGE_ARCANE_FOCUS_EVOLUTION_RANGE_SCALE := 1.20
 const MAGE_SURPLUS_ENERGY_GROWTH := 0.01
 const MAGE_SURPLUS_ENERGY_GROWTH_SELF := 0.02
 const MAGE_SURPLUS_EVOLVED_GROWTH_MULTIPLIER := 1.5
@@ -59,8 +64,8 @@ static func get_third_extra_level(level: int) -> int:
 
 static func get_swordsman_heart_interval_multiplier(level: int) -> float:
 	var base_multiplier := pow(1.0 - SWORD_HEART_INTERVAL_REDUCTION, float(get_base_tier_level(level)))
-	var second_multiplier := pow(1.0 - SWORD_HEART_INTERVAL_REDUCTION * 2.0, float(get_evolved_extra_level(level)))
-	var third_multiplier := pow(1.0 - SWORD_HEART_INTERVAL_REDUCTION * 3.0, float(get_third_extra_level(level)))
+	var second_multiplier := pow(1.0 - SWORD_HEART_EVOLVED_INTERVAL_REDUCTION, float(get_evolved_extra_level(level)))
+	var third_multiplier := pow(1.0 - SWORD_HEART_THIRD_INTERVAL_REDUCTION, float(get_third_extra_level(level)))
 	return base_multiplier * second_multiplier * third_multiplier
 
 
@@ -78,11 +83,32 @@ static func get_swordsman_heart_range_multiplier(level: int) -> float:
 static func get_swordsman_normal_attack_scale(level: int) -> float:
 	if level <= EVOLUTION_LEVEL:
 		return 1.0
-	var second_multiplier := SWORD_HEART_EVOLVED_SCALE * pow(1.0 + SWORD_HEART_RANGE_GROWTH * 2.0, float(get_evolved_extra_level(level)))
-	var third_multiplier := 1.0
-	if level > THIRD_EVOLUTION_LEVEL:
-		third_multiplier = SWORD_HEART_THIRD_EVOLVED_SCALE * pow(1.0 + SWORD_HEART_RANGE_GROWTH * 3.0, float(get_third_extra_level(level)))
-	return second_multiplier * third_multiplier
+	if level <= THIRD_EVOLUTION_LEVEL:
+		return SWORD_HEART_EVOLVED_SCALE * pow(1.0 + SWORD_HEART_RANGE_GROWTH * 2.0, float(get_evolved_extra_level(level)))
+	var level_thirteen_scale: float = _get_swordsman_level_thirteen_normal_attack_scale()
+	var target_level_eighteen_scale: float = level_thirteen_scale * (1.0 + SWORD_HEART_THIRD_LENGTH_GROWTH) * SWORD_HEART_THIRD_FINAL_VISUAL_RATIO
+	var third_step: float = _get_swordsman_third_visual_step(level)
+	return lerp(level_thirteen_scale, target_level_eighteen_scale, third_step)
+
+
+static func get_swordsman_normal_attack_width_scale(level: int) -> float:
+	if level <= THIRD_EVOLUTION_LEVEL:
+		return get_swordsman_heart_range_multiplier(level) * get_swordsman_normal_attack_scale(level)
+	var level_thirteen_width_scale: float = get_swordsman_heart_range_multiplier(THIRD_EVOLUTION_LEVEL + 1) * _get_swordsman_level_thirteen_normal_attack_scale()
+	var target_level_eighteen_width_scale: float = level_thirteen_width_scale * (1.0 + SWORD_HEART_THIRD_WIDTH_GROWTH) * SWORD_HEART_THIRD_FINAL_VISUAL_RATIO
+	var third_step: float = _get_swordsman_third_visual_step(level)
+	return lerp(level_thirteen_width_scale, target_level_eighteen_width_scale, third_step)
+
+
+static func _get_swordsman_level_thirteen_normal_attack_scale() -> float:
+	var level_twelve_scale: float = SWORD_HEART_EVOLVED_SCALE * pow(1.0 + SWORD_HEART_RANGE_GROWTH * 2.0, float(THIRD_EVOLUTION_LEVEL - EVOLUTION_LEVEL))
+	return level_twelve_scale * SWORD_HEART_THIRD_EVOLVED_SCALE
+
+
+static func _get_swordsman_third_visual_step(level: int) -> float:
+	var raw_step: float = float(max(0, get_effective_level(level) - (THIRD_EVOLUTION_LEVEL + 1))) / float(max(1, MAX_ATTRIBUTE_LEVEL - (THIRD_EVOLUTION_LEVEL + 1)))
+	raw_step = clamp(raw_step, 0.0, 1.0)
+	return 1.0 - pow(1.0 - raw_step, 2.0)
 
 
 static func _get_original_swordsman_bloodthirst_ratio(level: int) -> float:
@@ -153,6 +179,12 @@ static func get_gunner_barrage_shotgun_wave_count(level: int) -> int:
 
 static func get_gunner_barrage_shotgun_pellet_count(level: int) -> int:
 	return 3 if level > EVOLUTION_LEVEL else 0
+
+
+static func get_gunner_barrage_split_count(level: int) -> int:
+	if level > THIRD_EVOLUTION_LEVEL:
+		return 2
+	return 1 if level > EVOLUTION_LEVEL else 0
 
 
 static func get_gunner_footwork_range_multiplier(level: int) -> float:

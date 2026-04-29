@@ -615,6 +615,9 @@ func _get_swordsman_heart_range_multiplier(level: int) -> float:
 func _get_swordsman_normal_attack_scale(level: int) -> float:
 	return PLAYER_ATTRIBUTE_FLOW.get_swordsman_normal_attack_scale(level)
 
+func _get_swordsman_normal_attack_width_scale(level: int) -> float:
+	return PLAYER_ATTRIBUTE_FLOW.get_swordsman_normal_attack_width_scale(level)
+
 func _get_swordsman_bloodthirst_ratio(level: int) -> float:
 	return PLAYER_ATTRIBUTE_FLOW.get_swordsman_bloodthirst_ratio(level)
 
@@ -638,6 +641,9 @@ func _get_gunner_barrage_shotgun_wave_count(level: int) -> int:
 
 func _get_gunner_barrage_shotgun_pellet_count(level: int) -> int:
 	return PLAYER_ATTRIBUTE_FLOW.get_gunner_barrage_shotgun_pellet_count(level)
+
+func _get_gunner_barrage_split_count(level: int) -> int:
+	return PLAYER_ATTRIBUTE_FLOW.get_gunner_barrage_split_count(level)
 
 func _get_gunner_footwork_range_multiplier(level: int) -> float:
 	return PLAYER_ATTRIBUTE_FLOW.get_gunner_footwork_range_multiplier(level)
