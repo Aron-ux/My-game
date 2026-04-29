@@ -1,114 +1,120 @@
 extends RefCounted
 
 const STORY_DATA := preload("res://scripts/story_data.gd")
+const SAVE_FILE_STORE := preload("res://scripts/save/save_file_store.gd")
+const SAVE_PROFILE_DEFAULTS := preload("res://scripts/save/save_profile_defaults.gd")
 
-const SAVE_ROOT := "user://story_slots"
-const META_PATH := SAVE_ROOT + "/meta.json"
-const SLOT_COUNT := 3
+const STORY_SLOT_COUNT := 3
+const ENDLESS_SLOT_COUNT := 9
+const MODE_STORY := "story"
+const MODE_ENDLESS := "endless"
 
 static var continue_requested: bool = false
 static var active_slot_id: int = -1
-
-static func _ensure_save_root() -> void:
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(SAVE_ROOT))
-
-static func _slot_dir(slot_id: int) -> String:
-	return "%s/slot_%d" % [SAVE_ROOT, slot_id]
+static var active_mode: String = MODE_STORY
+static var active_endless_slot_id: int = -1
 
 static func _profile_path(slot_id: int) -> String:
-	return _slot_dir(slot_id) + "/story_profile.json"
+	return SAVE_FILE_STORE.story_profile_path(slot_id)
 
 static func _run_path(slot_id: int) -> String:
-	return _slot_dir(slot_id) + "/run_save.json"
+	return SAVE_FILE_STORE.story_run_path(slot_id)
 
 static func _run_backup_path(slot_id: int) -> String:
-	return _slot_dir(slot_id) + "/run_save_backup.json"
+	return SAVE_FILE_STORE.story_run_backup_path(slot_id)
+
+static func _endless_profile_path(slot_id: int) -> String:
+	return SAVE_FILE_STORE.endless_profile_path(slot_id)
+
+static func _endless_run_path(slot_id: int) -> String:
+	return SAVE_FILE_STORE.endless_run_path(slot_id)
+
+static func _endless_run_backup_path(slot_id: int) -> String:
+	return SAVE_FILE_STORE.endless_run_backup_path(slot_id)
 
 static func _resolve_slot(slot_id: int = -1) -> int:
-	if slot_id >= 1 and slot_id <= SLOT_COUNT:
+	if slot_id >= 1 and slot_id <= STORY_SLOT_COUNT:
 		return slot_id
 	var current := get_active_slot_id()
-	if current >= 1 and current <= SLOT_COUNT:
+	if current >= 1 and current <= STORY_SLOT_COUNT:
+		return current
+	return -1
+
+static func _resolve_endless_slot(slot_id: int = -1) -> int:
+	if slot_id >= 1 and slot_id <= ENDLESS_SLOT_COUNT:
+		return slot_id
+	var current := get_active_endless_slot_id()
+	if current >= 1 and current <= ENDLESS_SLOT_COUNT:
 		return current
 	return -1
 
 static func _read_json(path: String) -> Variant:
-	if not FileAccess.file_exists(path):
-		return null
-	var file := FileAccess.open(path, FileAccess.READ)
-	if file == null:
-		return null
-	var raw_text := file.get_as_text()
-	var json := JSON.new()
-	var parse_result := json.parse(raw_text)
-	if parse_result != OK:
-		printerr("SaveManager JSON parse failed: %s line %d: %s" % [path, json.get_error_line(), json.get_error_message()])
-		return null
-	return json.data
+	return SAVE_FILE_STORE.read_json(path)
 
 static func _write_json(path: String, data: Dictionary) -> void:
-	_ensure_save_root()
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
-	var file := FileAccess.open(path, FileAccess.WRITE)
-	if file == null:
-		return
-	file.store_string(JSON.stringify(data))
+	SAVE_FILE_STORE.write_json(path, data)
 
 static func _load_meta() -> Dictionary:
-	var parsed: Variant = _read_json(META_PATH)
-	if parsed is Dictionary:
-		return parsed
-	return {}
+	return SAVE_FILE_STORE.load_meta()
 
 static func _save_meta(meta: Dictionary) -> void:
-	_write_json(META_PATH, meta)
+	SAVE_FILE_STORE.save_meta(meta)
 
 static func _get_last_slot_id() -> int:
 	return int(_load_meta().get("last_slot_id", -1))
 
+static func _get_last_endless_slot_id() -> int:
+	return int(_load_meta().get("last_endless_slot_id", -1))
+
+static func _get_last_mode() -> String:
+	return str(_load_meta().get("last_mode", MODE_STORY))
+
 static func set_active_slot(slot_id: int) -> void:
-	if slot_id < 1 or slot_id > SLOT_COUNT:
+	if slot_id < 1 or slot_id > STORY_SLOT_COUNT:
 		return
+	active_mode = MODE_STORY
 	active_slot_id = slot_id
 	var meta := _load_meta()
 	meta["last_slot_id"] = slot_id
+	meta["last_mode"] = MODE_STORY
 	_save_meta(meta)
 
 static func get_active_slot_id() -> int:
-	if active_slot_id >= 1 and active_slot_id <= SLOT_COUNT:
+	if active_slot_id >= 1 and active_slot_id <= STORY_SLOT_COUNT:
 		return active_slot_id
 	active_slot_id = _get_last_slot_id()
 	return active_slot_id
 
+static func set_active_endless_slot(slot_id: int) -> void:
+	if slot_id < 1 or slot_id > ENDLESS_SLOT_COUNT:
+		return
+	active_mode = MODE_ENDLESS
+	active_endless_slot_id = slot_id
+	var meta := _load_meta()
+	meta["last_endless_slot_id"] = slot_id
+	meta["last_mode"] = MODE_ENDLESS
+	_save_meta(meta)
+
+static func get_active_endless_slot_id() -> int:
+	if active_endless_slot_id >= 1 and active_endless_slot_id <= ENDLESS_SLOT_COUNT:
+		return active_endless_slot_id
+	active_endless_slot_id = _get_last_endless_slot_id()
+	return active_endless_slot_id
+
+static func get_active_mode() -> String:
+	if active_mode in [MODE_STORY, MODE_ENDLESS]:
+		return active_mode
+	active_mode = _get_last_mode()
+	return active_mode
+
 static func _ensure_profile_defaults(profile: Dictionary, slot_id: int) -> Dictionary:
-	var normalized := STORY_DATA.build_default_story_profile(slot_id)
-	for key in profile.keys():
-		normalized[key] = profile[key]
-	if not normalized.has("unlocked_styles") or not (normalized["unlocked_styles"] is Dictionary):
-		normalized["unlocked_styles"] = {}
-	if not normalized.has("equipped_styles") or not (normalized["equipped_styles"] is Dictionary):
-		normalized["equipped_styles"] = {}
-	if not normalized.has("team_order") or not (normalized["team_order"] is Array):
-		normalized["team_order"] = ["swordsman", "gunner", "mage"]
-	if not normalized.has("unlocked_role_ids") or not (normalized["unlocked_role_ids"] is Array):
-		normalized["unlocked_role_ids"] = ["swordsman", "gunner", "mage"]
-	for role_id in ["swordsman", "gunner", "mage"]:
-		if not normalized["unlocked_styles"].has(role_id):
-			normalized["unlocked_styles"][role_id] = []
-		if not normalized["equipped_styles"].has(role_id):
-			normalized["equipped_styles"][role_id] = "default"
-	var ordered_roles: Array = []
-	for role_variant in normalized["team_order"]:
-		var role_id := str(role_variant)
-		if role_id in ["swordsman", "gunner", "mage"] and not ordered_roles.has(role_id):
-			ordered_roles.append(role_id)
-	for fallback_role in ["swordsman", "gunner", "mage"]:
-		if not ordered_roles.has(fallback_role):
-			ordered_roles.append(fallback_role)
-	normalized["team_order"] = ordered_roles
-	normalized["slot_id"] = slot_id
-	normalized["last_updated_unix"] = Time.get_unix_time_from_system()
-	return normalized
+	return SAVE_PROFILE_DEFAULTS.ensure_story_profile_defaults(profile, slot_id)
+
+static func _build_default_endless_profile(slot_id: int, difficulty: String) -> Dictionary:
+	return SAVE_PROFILE_DEFAULTS.build_default_endless_profile(slot_id, difficulty)
+
+static func _ensure_endless_profile_defaults(profile: Dictionary, slot_id: int) -> Dictionary:
+	return SAVE_PROFILE_DEFAULTS.ensure_endless_profile_defaults(profile, slot_id)
 
 static func has_story_profile(slot_id: int = -1) -> bool:
 	var resolved := _resolve_slot(slot_id)
@@ -117,6 +123,8 @@ static func has_story_profile(slot_id: int = -1) -> bool:
 	return FileAccess.file_exists(_profile_path(resolved))
 
 static func create_or_load_story_profile(slot_id: int) -> Dictionary:
+	if not STORY_DATA.is_story_mode_enabled():
+		return {}
 	set_active_slot(slot_id)
 	var existing := load_story_profile(slot_id)
 	if not existing.is_empty():
@@ -142,7 +150,7 @@ static func save_story_profile(profile: Dictionary, slot_id: int = -1) -> void:
 	_write_json(_profile_path(resolved), _ensure_profile_defaults(profile, resolved))
 
 static func delete_story_profile(slot_id: int) -> void:
-	if slot_id < 1 or slot_id > SLOT_COUNT:
+	if slot_id < 1 or slot_id > STORY_SLOT_COUNT:
 		return
 	var profile_path := _profile_path(slot_id)
 	var run_path := _run_path(slot_id)
@@ -156,9 +164,69 @@ static func delete_story_profile(slot_id: int) -> void:
 	if get_active_slot_id() == slot_id:
 		active_slot_id = -1
 
+static func has_endless_profile(slot_id: int = -1) -> bool:
+	var resolved := _resolve_endless_slot(slot_id)
+	if resolved < 1:
+		return false
+	return FileAccess.file_exists(_endless_profile_path(resolved))
+
+static func create_or_load_endless_profile(slot_id: int, difficulty: String = "normal") -> Dictionary:
+	set_active_endless_slot(slot_id)
+	var existing := load_endless_profile(slot_id)
+	if not existing.is_empty():
+		return existing
+	var profile := _build_default_endless_profile(slot_id, difficulty)
+	save_endless_profile(profile, slot_id)
+	return profile
+
+static func load_endless_profile(slot_id: int = -1) -> Dictionary:
+	var resolved := _resolve_endless_slot(slot_id)
+	if resolved < 1:
+		return {}
+	var parsed: Variant = _read_json(_endless_profile_path(resolved))
+	if parsed is Dictionary:
+		return _ensure_endless_profile_defaults(parsed, resolved)
+	return {}
+
+static func save_endless_profile(profile: Dictionary, slot_id: int = -1) -> void:
+	var resolved := _resolve_endless_slot(slot_id)
+	if resolved < 1:
+		return
+	set_active_endless_slot(resolved)
+	_write_json(_endless_profile_path(resolved), _ensure_endless_profile_defaults(profile, resolved))
+
+static func delete_endless_profile(slot_id: int) -> void:
+	if slot_id < 1 or slot_id > ENDLESS_SLOT_COUNT:
+		return
+	var profile_path := _endless_profile_path(slot_id)
+	var run_path := _endless_run_path(slot_id)
+	var run_backup_path := _endless_run_backup_path(slot_id)
+	if FileAccess.file_exists(profile_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(profile_path))
+	if FileAccess.file_exists(run_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(run_path))
+	if FileAccess.file_exists(run_backup_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(run_backup_path))
+	if get_active_endless_slot_id() == slot_id:
+		active_endless_slot_id = -1
+
+static func list_endless_slots() -> Array:
+	var slots: Array = []
+	for slot_id in range(1, ENDLESS_SLOT_COUNT + 1):
+		var profile := load_endless_profile(slot_id)
+		var run_data := load_run(slot_id, MODE_ENDLESS)
+		slots.append({
+			"slot_id": slot_id,
+			"has_profile": not profile.is_empty(),
+			"profile": profile,
+			"has_run": not run_data.is_empty(),
+			"survival_time": float(run_data.get("survival_time", 0.0))
+		})
+	return slots
+
 static func list_story_slots() -> Array:
 	var slots: Array = []
-	for slot_id in range(1, SLOT_COUNT + 1):
+	for slot_id in range(1, STORY_SLOT_COUNT + 1):
 		var profile := load_story_profile(slot_id)
 		slots.append({
 			"slot_id": slot_id,
@@ -167,39 +235,52 @@ static func list_story_slots() -> Array:
 		})
 	return slots
 
-static func has_save(slot_id: int = -1) -> bool:
-	var resolved := _resolve_slot(slot_id)
+static func has_save(slot_id: int = -1, mode: String = "") -> bool:
+	var resolved_mode := mode if mode != "" else get_active_mode()
+	var resolved := _resolve_slot(slot_id) if resolved_mode == MODE_STORY else _resolve_endless_slot(slot_id)
 	if resolved < 1:
 		return false
-	return FileAccess.file_exists(_run_path(resolved)) or FileAccess.file_exists(_run_backup_path(resolved))
+	var run_path := _run_path(resolved) if resolved_mode == MODE_STORY else _endless_run_path(resolved)
+	var backup_path := _run_backup_path(resolved) if resolved_mode == MODE_STORY else _endless_run_backup_path(resolved)
+	return FileAccess.file_exists(run_path) or FileAccess.file_exists(backup_path)
 
-static func save_run(data: Dictionary, slot_id: int = -1) -> void:
-	var resolved := _resolve_slot(slot_id)
+static func save_run(data: Dictionary, slot_id: int = -1, mode: String = "") -> void:
+	var resolved_mode := mode if mode != "" else get_active_mode()
+	var resolved := _resolve_slot(slot_id) if resolved_mode == MODE_STORY else _resolve_endless_slot(slot_id)
 	if resolved < 1:
 		return
-	set_active_slot(resolved)
-	_write_json(_run_path(resolved), data)
-	_write_json(_run_backup_path(resolved), data)
+	if resolved_mode == MODE_STORY:
+		set_active_slot(resolved)
+		_write_json(_run_path(resolved), data)
+		_write_json(_run_backup_path(resolved), data)
+		return
+	set_active_endless_slot(resolved)
+	_write_json(_endless_run_path(resolved), data)
+	_write_json(_endless_run_backup_path(resolved), data)
 
-static func load_run(slot_id: int = -1) -> Dictionary:
-	var resolved := _resolve_slot(slot_id)
+static func load_run(slot_id: int = -1, mode: String = "") -> Dictionary:
+	var resolved_mode := mode if mode != "" else get_active_mode()
+	var resolved := _resolve_slot(slot_id) if resolved_mode == MODE_STORY else _resolve_endless_slot(slot_id)
 	if resolved < 1:
 		return {}
-	var parsed: Variant = _read_json(_run_path(resolved))
+	var run_path := _run_path(resolved) if resolved_mode == MODE_STORY else _endless_run_path(resolved)
+	var backup_path := _run_backup_path(resolved) if resolved_mode == MODE_STORY else _endless_run_backup_path(resolved)
+	var parsed: Variant = _read_json(run_path)
 	if parsed is Dictionary:
 		return parsed
-	var backup_parsed: Variant = _read_json(_run_backup_path(resolved))
+	var backup_parsed: Variant = _read_json(backup_path)
 	if backup_parsed is Dictionary:
-		_write_json(_run_path(resolved), backup_parsed)
+		_write_json(run_path, backup_parsed)
 		return backup_parsed
 	return {}
 
-static func clear_save(slot_id: int = -1) -> void:
-	var resolved := _resolve_slot(slot_id)
+static func clear_save(slot_id: int = -1, mode: String = "") -> void:
+	var resolved_mode := mode if mode != "" else get_active_mode()
+	var resolved := _resolve_slot(slot_id) if resolved_mode == MODE_STORY else _resolve_endless_slot(slot_id)
 	if resolved < 1:
 		return
-	var run_path := _run_path(resolved)
-	var run_backup_path := _run_backup_path(resolved)
+	var run_path := _run_path(resolved) if resolved_mode == MODE_STORY else _endless_run_path(resolved)
+	var run_backup_path := _run_backup_path(resolved) if resolved_mode == MODE_STORY else _endless_run_backup_path(resolved)
 	if not FileAccess.file_exists(run_path):
 		if FileAccess.file_exists(run_backup_path):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(run_backup_path))
@@ -212,10 +293,20 @@ static func has_continue_target() -> bool:
 	return get_continue_target_scene() != ""
 
 static func get_continue_target_scene() -> String:
-	var slot_id := _get_last_slot_id()
-	if slot_id < 1 or slot_id > SLOT_COUNT:
+	var mode := _get_last_mode()
+	if mode == MODE_ENDLESS:
+		var endless_slot_id := _get_last_endless_slot_id()
+		if endless_slot_id >= 1 and endless_slot_id <= ENDLESS_SLOT_COUNT and has_save(endless_slot_id, MODE_ENDLESS):
+			return STORY_DATA.BATTLE_SCENE_PATH
 		return ""
-	if has_save(slot_id):
+
+	if not STORY_DATA.is_story_mode_enabled():
+		return ""
+
+	var slot_id := _get_last_slot_id()
+	if slot_id < 1 or slot_id > STORY_SLOT_COUNT:
+		return ""
+	if has_save(slot_id, MODE_STORY):
 		return STORY_DATA.BATTLE_SCENE_PATH
 	if has_story_profile(slot_id):
 		return STORY_DATA.PREP_SCENE_PATH
@@ -223,10 +314,18 @@ static func get_continue_target_scene() -> String:
 
 static func request_continue_to_last_target() -> String:
 	var scene_path := get_continue_target_scene()
-	var slot_id := _get_last_slot_id()
-	if scene_path == "" or slot_id < 1:
+	if scene_path == "":
 		return ""
-	set_active_slot(slot_id)
+	if _get_last_mode() == MODE_ENDLESS:
+		var endless_slot_id := _get_last_endless_slot_id()
+		if endless_slot_id < 1:
+			return ""
+		set_active_endless_slot(endless_slot_id)
+	else:
+		var slot_id := _get_last_slot_id()
+		if slot_id < 1:
+			return ""
+		set_active_slot(slot_id)
 	continue_requested = scene_path == STORY_DATA.BATTLE_SCENE_PATH
 	return scene_path
 
@@ -238,7 +337,17 @@ static func consume_continue_request() -> bool:
 	continue_requested = false
 	return requested
 
+static func is_endless_mode_active() -> bool:
+	return get_active_mode() == MODE_ENDLESS and get_active_endless_slot_id() >= 1
+
+static func get_current_endless_profile() -> Dictionary:
+	if not is_endless_mode_active():
+		return {}
+	return load_endless_profile()
+
 static func get_current_story_stage() -> Dictionary:
+	if not STORY_DATA.is_story_mode_enabled():
+		return {}
 	var profile := load_story_profile()
 	if profile.is_empty():
 		return {}

@@ -30,13 +30,19 @@ func _on_finished() -> void:
 	play()
 
 func get_saved_playback_position() -> float:
+	if paused_by_script:
+		return stored_playback_position
 	if playing:
 		return get_playback_position()
 	return stored_playback_position
 
 func restore_playback_position(position_seconds: float) -> void:
+	resume_request_id += 1
+	if playing:
+		stop()
+	stream_paused = false
 	stored_playback_position = max(position_seconds, 0.0)
-	paused_by_script = false
+	paused_by_script = true
 
 func start_music(position_seconds: float = 0.0) -> void:
 	if stream == null:

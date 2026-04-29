@@ -1,10 +1,23 @@
 extends Node2D
 
+const DEFAULT_EXPERIENCE_MULTIPLIER := 0.75
+const ATTRACT_START_SPEED := 760.0
+const ATTRACT_MAX_SPEED := 1480.0
+const ATTRACT_ACCELERATION := 3200.0
+const DESPAWN_SECONDS := 30.0
+
 const TIER_VALUES := {
 	1: 4,
 	2: 9,
 	3: 18,
 	4: 40
+}
+
+const TIER_EXPERIENCE_MULTIPLIERS := {
+	1: 1.0,
+	2: 1.25,
+	3: 1.2,
+	4: 1.0
 }
 
 const TIER_COLORS := {
@@ -25,22 +38,70 @@ const TIER_SCALES := {
 @export var tier: int = 1
 
 var polygon_node: Polygon2D
+var attraction_target: Vector2 = Vector2.ZERO
+var attraction_target_node: Node = null
+var attraction_active: bool = false
+var attraction_speed: float = 0.0
+var age_seconds: float = 0.0
 
 func _ready() -> void:
 	add_to_group("exp_gems")
 	polygon_node = get_node_or_null("Polygon2D") as Polygon2D
 	if value <= 0:
-		value = int(TIER_VALUES.get(tier, 4))
+		var default_value := _apply_value_multiplier(int(TIER_VALUES.get(tier, 4)), DEFAULT_EXPERIENCE_MULTIPLIER)
+		value = _apply_tier_experience_multiplier(default_value, tier)
 	_apply_appearance()
 
-func configure(new_tier: int, custom_value: int = -1) -> void:
+func _physics_process(delta: float) -> void:
+	age_seconds += delta
+	if not attraction_active and age_seconds >= DESPAWN_SECONDS:
+		queue_free()
+		return
+	if not attraction_active:
+		return
+	if is_instance_valid(attraction_target_node):
+		if attraction_target_node.has_method("get_hurtbox_center"):
+			attraction_target = attraction_target_node.get_hurtbox_center()
+		elif attraction_target_node is Node2D:
+			attraction_target = (attraction_target_node as Node2D).global_position
+	var to_target: Vector2 = attraction_target - global_position
+	var distance: float = to_target.length()
+	if distance <= 0.001:
+		return
+	attraction_speed = min(ATTRACT_MAX_SPEED, attraction_speed + ATTRACT_ACCELERATION * delta)
+	var step: float = min(distance, attraction_speed * delta)
+	global_position += to_target.normalized() * step
+
+func configure(new_tier: int, custom_value: int = -1, value_multiplier: float = DEFAULT_EXPERIENCE_MULTIPLIER) -> void:
 	tier = clamp(new_tier, 1, 4)
-	value = custom_value if custom_value > 0 else int(TIER_VALUES.get(tier, 4))
+	var base_value: int = custom_value if custom_value > 0 else int(TIER_VALUES.get(tier, 4))
+	var scaled_value := _apply_value_multiplier(base_value, value_multiplier)
+	value = _apply_tier_experience_multiplier(scaled_value, tier)
 	_apply_appearance()
+
+func set_attraction_target(target) -> void:
+	attraction_target_node = null
+	if target is Node:
+		attraction_target_node = target
+		if attraction_target_node.has_method("get_hurtbox_center"):
+			attraction_target = attraction_target_node.get_hurtbox_center()
+		elif attraction_target_node is Node2D:
+			attraction_target = (attraction_target_node as Node2D).global_position
+	elif target is Vector2:
+		attraction_target = target
+	if not attraction_active:
+		attraction_active = true
+		attraction_speed = ATTRACT_START_SPEED
 
 func collect() -> int:
 	queue_free()
 	return value
+
+func merge_pickup_value(extra_value: int, extra_tier: int = 1) -> void:
+	value += max(0, extra_value)
+	tier = max(tier, clamp(extra_tier, 1, 4))
+	age_seconds = min(age_seconds, DESPAWN_SECONDS * 0.5)
+	_apply_appearance()
 
 func _apply_appearance() -> void:
 	if polygon_node == null:
@@ -49,11 +110,19 @@ func _apply_appearance() -> void:
 		polygon_node.color = TIER_COLORS.get(tier, TIER_COLORS[1])
 	scale = Vector2.ONE * float(TIER_SCALES.get(tier, 1.0))
 
+func _apply_value_multiplier(base_value: int, multiplier: float) -> int:
+	return max(1, int(round(float(base_value) * max(0.0, multiplier))))
+
+func _apply_tier_experience_multiplier(base_value: int, target_tier: int) -> int:
+	var tier_multiplier := float(TIER_EXPERIENCE_MULTIPLIERS.get(target_tier, 1.0))
+	return max(1, int(round(float(base_value) * max(0.0, tier_multiplier))))
+
 func get_save_data() -> Dictionary:
 	return {
 		"position": [global_position.x, global_position.y],
 		"value": value,
-		"tier": tier
+		"tier": tier,
+		"age_seconds": age_seconds
 	}
 
 func apply_save_data(data: Dictionary) -> void:
@@ -63,4 +132,5 @@ func apply_save_data(data: Dictionary) -> void:
 
 	value = int(data.get("value", value))
 	tier = clamp(int(data.get("tier", tier)), 1, 4)
+	age_seconds = clamp(float(data.get("age_seconds", 0.0)), 0.0, DESPAWN_SECONDS)
 	_apply_appearance()

@@ -7,6 +7,9 @@ const STORY_DATA := preload("res://scripts/story_data.gd")
 var profile: Dictionary = {}
 
 func _ready() -> void:
+	if not STORY_DATA.is_story_mode_enabled():
+		get_tree().change_scene_to_file(MAIN_MENU_SCENE_PATH)
+		return
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	profile = SAVE_MANAGER.load_story_profile()
 	if profile.is_empty():
@@ -291,6 +294,9 @@ func _on_equip_style(role_id: String, style_id: String) -> void:
 	_rebuild_ui()
 
 func _on_start_pressed() -> void:
+	if not STORY_DATA.is_story_mode_enabled():
+		get_tree().change_scene_to_file(MAIN_MENU_SCENE_PATH)
+		return
 	get_tree().change_scene_to_file(STORY_DATA.BATTLE_SCENE_PATH)
 
 func _on_back_pressed() -> void:

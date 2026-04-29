@@ -5,6 +5,9 @@ const SAVE_MANAGER := preload("res://scripts/save_manager.gd")
 const STORY_DATA := preload("res://scripts/story_data.gd")
 
 func _ready() -> void:
+	if not STORY_DATA.is_story_mode_enabled():
+		get_tree().change_scene_to_file(MAIN_MENU_SCENE_PATH)
+		return
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_ui()
 
@@ -109,7 +112,9 @@ func _build_slot_card(slot_payload: Dictionary) -> Control:
 	return panel
 
 func _on_slot_pressed(slot_id: int) -> void:
-	SAVE_MANAGER.create_or_load_story_profile(slot_id)
+	if SAVE_MANAGER.create_or_load_story_profile(slot_id).is_empty():
+		get_tree().change_scene_to_file(MAIN_MENU_SCENE_PATH)
+		return
 	get_tree().change_scene_to_file(STORY_DATA.PREP_SCENE_PATH)
 
 func _on_delete_pressed(slot_id: int) -> void:

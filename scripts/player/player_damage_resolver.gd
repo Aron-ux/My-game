@@ -1,0 +1,129 @@
+extends RefCounted
+
+static var cached_live_enemies: Array = []
+static var cached_live_enemies_frame: int = -1
+
+static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null) -> bool:
+	if enemy == null or not is_instance_valid(enemy) or not enemy.has_method("take_damage"):
+		return false
+	if vulnerability_bonus > 0.0 and enemy.has_method("apply_vulnerability"):
+		enemy.apply_vulnerability(vulnerability_bonus, vulnerability_duration)
+	if slow_multiplier < 1.0 and slow_duration > 0.0 and enemy.has_method("apply_slow"):
+		enemy.apply_slow(slow_multiplier, slow_duration)
+	var adjusted_damage: float = damage_amount
+	if source_position is Vector2 and source_role_id == "gunner" and owner.has_method("_get_gunner_distance_damage_multiplier"):
+		adjusted_damage *= float(owner._get_gunner_distance_damage_multiplier((enemy.global_position - source_position).length()))
+	var killed: bool = bool(enemy.take_damage(adjusted_damage))
+	if owner.has_method("_apply_role_damage_lifesteal"):
+		owner._apply_role_damage_lifesteal(source_role_id, adjusted_damage)
+	if killed and owner.has_method("_on_enemy_killed_by_role"):
+		owner._on_enemy_killed_by_role(source_role_id)
+	return killed
+
+static func damage_enemies_in_radius(owner, center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "") -> int:
+	var hit_count := 0
+	for enemy in _get_live_enemies(owner):
+		var hit_radius: float = _get_enemy_hit_radius(owner, enemy)
+		if center.distance_to(enemy.global_position) <= radius + hit_radius:
+			if deal_damage_to_enemy(owner, enemy, damage_amount, source_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center):
+				pass
+			hit_count += 1
+	return hit_count
+
+static func pull_enemies_toward(owner, center: Vector2, radius: float, pull_strength: float) -> void:
+	for enemy in _get_live_enemies(owner):
+		var offset: Vector2 = center - enemy.global_position
+		var distance := offset.length()
+		if distance > 0.001 and distance <= radius:
+			enemy.global_position += offset.normalized() * min(pull_strength, distance)
+
+static func damage_enemies_in_line(owner, start_position: Vector2, end_position: Vector2, width: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "") -> int:
+	var axis := end_position - start_position
+	var length := axis.length()
+	if length <= 0.001:
+		return damage_enemies_in_radius(owner, start_position, width, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id)
+	var direction := axis / length
+	var hit_count := 0
+	for enemy in _get_live_enemies(owner):
+		var relative: Vector2 = enemy.global_position - start_position
+		var along: float = clamp(relative.dot(direction), 0.0, length)
+		var closest: Vector2 = start_position + direction * along
+		if enemy.global_position.distance_to(closest) <= width + _get_enemy_hit_radius(owner, enemy):
+			deal_damage_to_enemy(owner, enemy, damage_amount, source_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, start_position)
+			hit_count += 1
+	return hit_count
+
+static func damage_enemies_in_oriented_rect(owner, center: Vector2, axis_direction: Vector2, rect_length: float, rect_width: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "") -> int:
+	return damage_enemies_in_oriented_rect_unique(owner, center, axis_direction, rect_length, rect_width, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, {}, source_role_id)
+
+static func damage_enemies_in_oriented_rect_unique(owner, center: Vector2, axis_direction: Vector2, rect_length: float, rect_width: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, hit_registry: Dictionary, source_role_id: String = "") -> int:
+	var direction := axis_direction.normalized()
+	if direction.length_squared() <= 0.001:
+		direction = Vector2.RIGHT
+	var perpendicular := direction.orthogonal()
+	var half_length := rect_length * 0.5
+	var half_width := rect_width * 0.5
+	var hit_count := 0
+	for enemy in _get_live_enemies(owner):
+		var id: int = enemy.get_instance_id()
+		if hit_registry.has(id):
+			continue
+		var relative: Vector2 = enemy.global_position - center
+		var hit_radius: float = _get_enemy_hit_radius(owner, enemy)
+		if abs(relative.dot(direction)) <= half_length + hit_radius and abs(relative.dot(perpendicular)) <= half_width + hit_radius:
+			hit_registry[id] = true
+			deal_damage_to_enemy(owner, enemy, damage_amount, source_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center)
+			hit_count += 1
+	return hit_count
+
+static func damage_enemies_in_ellipse(owner, center: Vector2, horizontal_radius: float, vertical_radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "") -> int:
+	var hit_count := 0
+	var safe_horizontal: float = max(1.0, horizontal_radius)
+	var safe_vertical: float = max(1.0, vertical_radius)
+	for enemy in _get_live_enemies(owner):
+		var relative: Vector2 = enemy.global_position - center
+		var value := pow(relative.x / safe_horizontal, 2.0) + pow(relative.y / safe_vertical, 2.0)
+		if value <= 1.0:
+			deal_damage_to_enemy(owner, enemy, damage_amount, source_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center)
+			hit_count += 1
+	return hit_count
+
+static func schedule_swordsman_slash_followthrough(owner, center: Vector2, axis_direction: Vector2, rect_length: float, rect_width: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, animation_duration: float, source_role_id: String, hit_registry: Dictionary) -> void:
+	for index in range(max(0, int(owner.SWORD_SLASH_DAMAGE_FOLLOW_PULSES))):
+		var tree: SceneTree = owner.get_tree()
+		if tree == null:
+			return
+		var timer := tree.create_timer(animation_duration * (float(index + 1) / float(owner.SWORD_SLASH_DAMAGE_FOLLOW_PULSES + 1)))
+		timer.timeout.connect(func() -> void:
+			if is_instance_valid(owner):
+				damage_enemies_in_oriented_rect_unique(owner, center, axis_direction, rect_length, rect_width, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, hit_registry, source_role_id)
+		)
+
+static func apply_gunner_lock(owner, target_enemy: Node2D, lock_level: int) -> void:
+	if target_enemy == null or not is_instance_valid(target_enemy):
+		owner.gunner_lock_target = null
+		owner.gunner_lock_stacks = 0
+		return
+	if owner.gunner_lock_target != target_enemy:
+		owner.gunner_lock_target = target_enemy
+		owner.gunner_lock_stacks = 0
+	owner.gunner_lock_stacks = min(max(1, lock_level), owner.gunner_lock_stacks + 1)
+
+static func _get_live_enemies(owner) -> Array:
+	var tree: SceneTree = owner.get_tree()
+	if tree == null:
+		return []
+	var current_frame := Engine.get_physics_frames()
+	if cached_live_enemies_frame == current_frame:
+		return cached_live_enemies
+	cached_live_enemies = []
+	for enemy in tree.get_nodes_in_group("enemies"):
+		if enemy != null and is_instance_valid(enemy):
+			cached_live_enemies.append(enemy)
+	cached_live_enemies_frame = current_frame
+	return cached_live_enemies
+
+static func _get_enemy_hit_radius(owner, enemy: Node) -> float:
+	if owner.has_method("_get_enemy_hit_radius"):
+		return float(owner._get_enemy_hit_radius(enemy))
+	return 12.0

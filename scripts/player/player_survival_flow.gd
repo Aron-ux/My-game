@@ -1,0 +1,243 @@
+extends RefCounted
+
+const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
+const GAME_SETTINGS := preload("res://scripts/game_settings.gd")
+
+
+static func unhandled_input(owner, event: InputEvent) -> void:
+	if owner.is_dead or owner.get_tree().paused:
+		return
+	if event is not InputEventKey:
+		return
+	if not event.pressed or event.echo:
+		return
+
+	if GAME_SETTINGS.event_matches_action(event, GAME_SETTINGS.ACTION_SWITCH_PREV):
+		if owner._get_card_level("combat_fixed_axis") > 0:
+			return
+		owner._try_switch_role((owner.active_role_index - 1 + owner.roles.size()) % owner.roles.size())
+	elif GAME_SETTINGS.event_matches_action(event, GAME_SETTINGS.ACTION_SWITCH_NEXT):
+		if owner._get_card_level("combat_fixed_axis") > 0:
+			return
+		owner._try_switch_role((owner.active_role_index + 1) % owner.roles.size())
+	elif GAME_SETTINGS.event_matches_action(event, GAME_SETTINGS.ACTION_ULTIMATE):
+		owner._try_use_ultimate()
+	elif GAME_SETTINGS.event_matches_action(event, GAME_SETTINGS.ACTION_TOGGLE_ATTACK_MODE):
+		owner._toggle_attack_aim_mode()
+
+
+static func physics_process(owner, delta: float) -> void:
+	if owner.is_dead:
+		owner.velocity = Vector2.ZERO
+		owner.move_and_slide()
+		return
+
+	owner._update_timers(delta)
+	owner._regenerate_energy(delta)
+	owner._apply_equipment_passives(delta)
+	apply_mage_surplus_passive_energy(owner, delta)
+	owner._update_facing_direction()
+	owner._update_role_idle_visual(delta)
+	owner._update_player_health_bar(owner._get_active_role())
+	owner._update_background_effects(delta)
+
+	var direction := Vector2.ZERO
+	if GAME_SETTINGS.is_action_pressed(GAME_SETTINGS.ACTION_MOVE_LEFT):
+		direction.x -= 1.0
+	if GAME_SETTINGS.is_action_pressed(GAME_SETTINGS.ACTION_MOVE_RIGHT):
+		direction.x += 1.0
+	if GAME_SETTINGS.is_action_pressed(GAME_SETTINGS.ACTION_MOVE_UP):
+		direction.y -= 1.0
+	if GAME_SETTINGS.is_action_pressed(GAME_SETTINGS.ACTION_MOVE_DOWN):
+		direction.y += 1.0
+
+	direction = direction.normalized()
+	owner.velocity = direction * owner._get_current_move_speed()
+	owner.move_and_slide()
+	owner.gem_collection_elapsed += delta
+	if owner.gem_collection_elapsed >= owner.GEM_COLLECTION_INTERVAL:
+		owner.gem_collection_elapsed = 0.0
+		owner._collect_nearby_gems()
+	owner.contact_check_elapsed += delta
+	if owner.contact_check_elapsed >= owner.CONTACT_CHECK_INTERVAL:
+		owner.contact_check_elapsed = 0.0
+		owner._check_enemy_contact_damage()
+
+
+static func regenerate_energy(owner, delta: float) -> void:
+	if owner.ENERGY_PASSIVE_REGEN <= 0.0:
+		return
+	owner._add_energy(owner.ENERGY_PASSIVE_REGEN * owner.energy_gain_multiplier * delta)
+
+
+static func apply_mage_surplus_passive_energy(owner, delta: float) -> void:
+	if delta <= 0.0 or str(owner._get_active_role().get("id", "")) != "mage":
+		return
+	var surplus_level: int = owner._get_role_attribute_level("mage", "agility")
+	var passive_energy: float = owner._get_mage_surplus_passive_energy_per_second(surplus_level)
+	if passive_energy <= 0.0:
+		return
+	owner._add_role_mana("mage", passive_energy * delta, true)
+
+
+static func update_facing_direction(owner) -> void:
+	if owner.auto_attack_enabled:
+		var target_enemy: Node2D = owner._get_closest_enemy()
+		if target_enemy != null and is_instance_valid(target_enemy):
+			var to_enemy: Vector2 = target_enemy.global_position - owner.global_position
+			if to_enemy.length_squared() > 0.001:
+				owner.facing_direction = to_enemy.normalized()
+		return
+
+	var mouse_direction: Vector2 = owner.get_global_mouse_position() - owner.global_position
+	if mouse_direction.length_squared() > 16.0:
+		owner.facing_direction = mouse_direction.normalized()
+		return
+
+	var enemy: Node2D = owner._get_closest_enemy()
+	if enemy != null:
+		owner.facing_direction = owner.global_position.direction_to(enemy.global_position)
+
+
+static func get_attack_aim_direction(owner, fallback_direction: Vector2 = Vector2.RIGHT) -> Vector2:
+	if owner.auto_attack_enabled:
+		var target_enemy: Node2D = owner._get_closest_enemy()
+		if target_enemy != null and is_instance_valid(target_enemy):
+			var target_direction: Vector2 = owner.global_position.direction_to(target_enemy.global_position)
+			if target_direction.length_squared() > 0.001:
+				owner.facing_direction = target_direction
+				return target_direction
+		if owner.facing_direction.length_squared() > 0.001:
+			return owner.facing_direction.normalized()
+		if fallback_direction.length_squared() > 0.001:
+			return fallback_direction.normalized()
+		return Vector2.RIGHT
+
+	var mouse_direction: Vector2 = owner.get_global_mouse_position() - owner.global_position
+	if mouse_direction.length_squared() > 4.0:
+		owner.facing_direction = mouse_direction.normalized()
+		return owner.facing_direction
+	if owner.facing_direction.length_squared() > 0.001:
+		return owner.facing_direction.normalized()
+	if fallback_direction.length_squared() > 0.001:
+		return fallback_direction.normalized()
+	return Vector2.RIGHT
+
+
+static func collect_nearby_gems(owner) -> void:
+	var attract_center: Vector2 = owner.get_hurtbox_center()
+	var attract_radius: float = max(owner.GEM_ATTRACT_RADIUS, owner.get_hurtbox_radius() * 3.6)
+	var attract_radius_squared: float = attract_radius * attract_radius
+	var absorb_radius_squared: float = owner.GEM_ABSORB_RADIUS * owner.GEM_ABSORB_RADIUS
+	var pickup_radius_squared: float = owner.pickup_radius * owner.pickup_radius
+	for gem in owner.get_tree().get_nodes_in_group("exp_gems"):
+		if not is_instance_valid(gem):
+			continue
+		var gem_distance_squared: float = attract_center.distance_squared_to(gem.global_position)
+		if gem_distance_squared <= attract_radius_squared and gem.has_method("set_attraction_target"):
+			gem.set_attraction_target(owner)
+		if gem_distance_squared <= absorb_radius_squared:
+			if gem.has_method("collect"):
+				var gained_experience: int = gem.collect()
+				owner.gain_experience(gained_experience)
+
+	for heart_pickup in owner.get_tree().get_nodes_in_group("heart_pickups"):
+		if not is_instance_valid(heart_pickup):
+			continue
+		if attract_center.distance_squared_to(heart_pickup.global_position) <= pickup_radius_squared:
+			if heart_pickup.has_method("collect"):
+				var healed_amount: float = heart_pickup.collect()
+				owner._heal(healed_amount)
+
+
+static func check_enemy_contact_damage(owner) -> void:
+	if owner.hurt_cooldown_remaining > 0.0 or owner.switch_invulnerability_remaining > 0.0:
+		return
+
+	var hurtbox_center: Vector2 = owner.get_hurtbox_center()
+	var hurtbox_radius: float = owner.get_hurtbox_radius()
+	for enemy in owner.get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(enemy):
+			continue
+		var contact_radius: float = 36.0
+		var touch_damage: float = 10.0
+		var enemy_contact_radius = enemy.get("contact_radius")
+		var enemy_touch_damage = enemy.get("touch_damage")
+		if enemy_contact_radius != null:
+			contact_radius = float(enemy_contact_radius)
+		if enemy_touch_damage != null:
+			touch_damage = float(enemy_touch_damage)
+		var combined_radius: float = contact_radius + hurtbox_radius
+		if hurtbox_center.distance_squared_to(enemy.global_position) <= combined_radius * combined_radius:
+			owner.take_damage(touch_damage)
+			break
+
+
+static func gain_experience(owner, amount: int) -> void:
+	owner.experience += amount
+
+	if owner.experience_to_next_level <= 0:
+		owner.experience_to_next_level = 30
+
+	var level_up_guard := 0
+	while owner.experience >= owner.experience_to_next_level and level_up_guard < 100:
+		owner.experience -= owner.experience_to_next_level
+		owner.level += 1
+		owner.experience_to_next_level = int(round(owner.experience_to_next_level * 1.42)) + 10
+		owner.pending_level_ups += 1
+		level_up_guard += 1
+	if level_up_guard >= 100:
+		owner.experience = min(owner.experience, max(0, owner.experience_to_next_level - 1))
+
+	owner.experience_changed.emit(owner.experience, owner.experience_to_next_level, owner.level)
+	owner._try_request_level_up()
+
+
+static func grant_developer_level_up(owner) -> void:
+	owner.level += 1
+	owner.experience_to_next_level = int(round(owner.experience_to_next_level * 1.42)) + 10
+	owner.pending_level_ups += 1
+	owner.experience_changed.emit(owner.experience, owner.experience_to_next_level, owner.level)
+	owner._try_request_level_up()
+
+
+static func take_damage(owner, amount: float) -> void:
+	if DEVELOPER_MODE.should_ignore_damage():
+		return
+	if owner.is_dead or owner.switch_invulnerability_remaining > 0.0:
+		return
+
+	if owner._try_equipment_dodge():
+		owner.hurt_cooldown_remaining = owner.hurt_cooldown * 0.55
+		owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -34.0), "\u95ea\u907f", Color(0.38, 1.0, 0.48, 1.0))
+		return
+
+	var swordsman_counter_level := 0
+	if owner._get_active_role()["id"] == "swordsman":
+		var dodge_chance: float = owner._get_swordsman_dodge_chance(owner._get_role_attribute_level("swordsman", "agility"))
+		if dodge_chance > 0.0 and randf() < dodge_chance:
+			owner.hurt_cooldown_remaining = owner.hurt_cooldown * 0.55
+			owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -34.0), "闪避", Color(0.38, 1.0, 0.48, 1.0))
+			return
+		swordsman_counter_level = int(owner._get_role_special_state("swordsman").get("counter_level", 0))
+		var nearby_enemy_count: int = owner._count_enemies_in_radius(owner.get_hurtbox_center(), 62.0)
+		if nearby_enemy_count > 0:
+			amount *= max(0.84, 0.96 - min(nearby_enemy_count, 3) * 0.04)
+		if swordsman_counter_level > 0:
+			amount *= max(0.76, 0.92 - swordsman_counter_level * 0.04)
+
+	owner.current_health = max(0.0, owner.current_health - amount * owner._get_effective_damage_taken_multiplier())
+	owner.hurt_cooldown_remaining = owner.hurt_cooldown
+	owner.health_changed.emit(owner.current_health, owner.max_health)
+	owner._play_player_hurt_feedback()
+
+	if owner.current_health > 0.0 and owner._get_active_role()["id"] == "swordsman":
+		owner._trigger_swordsman_counter()
+
+	if owner.current_health <= 0.0:
+		owner._die()
+
+
+static func apply_enemy_slow(owner, multiplier: float, duration: float) -> void:
+	owner.enemy_move_slow_multiplier = min(owner.enemy_move_slow_multiplier, clamp(multiplier, 0.15, 1.0))
+	owner.enemy_move_slow_remaining = max(owner.enemy_move_slow_remaining, duration)

@@ -7,12 +7,18 @@ const BULLET_VISIBLE_BOUNDS := Rect2(563.0, 641.0, 120.0, 118.0)
 const BULLET_EFFECT_SCENE_SIZE := Vector2(1024.0, 1024.0)
 const BULLET_EFFECT_VISIBLE_BOUNDS := Rect2(505.0, 476.0, 36.0, 36.0)
 const BULLET_VISUAL_SCALE := 0.67
+static var shared_bullet_texture: Texture2D
+static var cached_enemy_nodes: Array = []
+static var cached_enemy_nodes_frame: int = -1
 
 @export var speed: float = 420.0
+@export var speed_multiplier: float = 1.0
 @export var damage: float = 10.0
 @export var lifetime: float = 3.0
 @export var hit_radius: float = 14.0
+@export var hit_radius_multiplier: float = 1.0
 @export var pierce_count: int = 0
+@export var bounce_count: int = 0
 @export var slow_multiplier: float = 1.0
 @export var slow_duration: float = 0.0
 @export var vulnerability_bonus: float = 0.0
@@ -24,11 +30,15 @@ const BULLET_VISUAL_SCALE := 0.67
 @export var enemy_hit_radius_max: float = 28.0
 @export var animated_scene_size: Vector2 = BULLET_EFFECT_SCENE_SIZE
 @export var animated_visible_bounds: Rect2 = BULLET_EFFECT_VISIBLE_BOUNDS
+@export var min_hit_travel_distance: float = 0.0
+@export var hit_scan_interval: float = 0.0
 
 var direction: Vector2 = Vector2.RIGHT
 var target: Node2D
 var source_player: Node
 var source_role_id: String = ""
+var source_origin_position: Vector2 = Vector2.ZERO
+var traveled_distance: float = 0.0
 var hit_enemy_ids: Dictionary = {}
 var wave_amplitude: float = 0.0
 var wave_frequency: float = 0.0
@@ -38,7 +48,15 @@ var wave_travel_distance: float = 0.0
 var wave_origin: Vector2 = Vector2.ZERO
 var wave_forward_direction: Vector2 = Vector2.RIGHT
 var wave_side_direction: Vector2 = Vector2.DOWN
+var hit_scan_elapsed: float = 0.0
+var last_hit_scan_position: Vector2 = Vector2.ZERO
 var bullet_texture: Texture2D
+var visual_cache_ready: bool = false
+var cached_hit_radius: float = -9999.0
+var cached_visual_scale_multiplier: float = -9999.0
+var cached_visual_color: Color = Color(-1.0, -1.0, -1.0, -1.0)
+var cached_animated_scene_size: Vector2 = Vector2(-1.0, -1.0)
+var cached_animated_visible_bounds: Rect2 = Rect2(-1.0, -1.0, -1.0, -1.0)
 
 func _get_desktop_sketch_path(relative_path: String) -> String:
 	return (OS.get_system_dir(OS.SYSTEM_DIR_DESKTOP).replace("\\", "/") + "/草图/" + relative_path)
@@ -69,7 +87,15 @@ func _ensure_bullet_sprite() -> Sprite2D:
 	add_child(sprite)
 	return sprite
 
-func _refresh_bullet_visual() -> void:
+func _refresh_bullet_visual(force: bool = false) -> void:
+	if not force and visual_cache_ready:
+		if is_equal_approx(cached_hit_radius, hit_radius) \
+		and is_equal_approx(cached_visual_scale_multiplier, visual_scale_multiplier) \
+		and cached_visual_color == visual_color \
+		and cached_animated_scene_size == animated_scene_size \
+		and cached_animated_visible_bounds == animated_visible_bounds:
+			return
+
 	var animated_sprite := get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
 	var polygon := get_node_or_null("Polygon2D") as Polygon2D
 	var sprite := get_node_or_null("BulletSprite") as Sprite2D
@@ -98,6 +124,7 @@ func _refresh_bullet_visual() -> void:
 				animated_sprite.animation = animation_name
 				if not animated_sprite.is_playing():
 					animated_sprite.play(animation_name)
+		_update_visual_cache()
 		return
 
 	if polygon != null:
@@ -108,9 +135,12 @@ func _refresh_bullet_visual() -> void:
 
 	sprite = _ensure_bullet_sprite()
 	if bullet_texture == null:
-		bullet_texture = _load_runtime_texture(BULLET_TEXTURE_RELATIVE_PATH)
+		if shared_bullet_texture == null:
+			shared_bullet_texture = _load_runtime_texture(BULLET_TEXTURE_RELATIVE_PATH)
+		bullet_texture = shared_bullet_texture
 	if bullet_texture == null:
 		sprite.visible = false
+		_update_visual_cache()
 		return
 
 	sprite.visible = true
@@ -131,10 +161,21 @@ func _refresh_bullet_visual() -> void:
 		shader_material = ShaderMaterial.new()
 		shader_material.shader = WHITE_KEY_SHADER
 		sprite.material = shader_material
+	_update_visual_cache()
+
+func _update_visual_cache() -> void:
+	visual_cache_ready = true
+	cached_hit_radius = hit_radius
+	cached_visual_scale_multiplier = visual_scale_multiplier
+	cached_visual_color = visual_color
+	cached_animated_scene_size = animated_scene_size
+	cached_animated_visible_bounds = animated_visible_bounds
 
 func _ready() -> void:
-	_refresh_bullet_visual()
+	add_to_group("player_projectiles")
+	_refresh_bullet_visual(true)
 	rotation = direction.angle()
+	last_hit_scan_position = global_position
 	if wave_amplitude > 0.0:
 		_initialize_wave_motion()
 
@@ -146,17 +187,29 @@ func _physics_process(delta: float) -> void:
 		return
 
 	var start_position := global_position
+	var effective_speed: float = speed * max(0.0, speed_multiplier)
 	if wave_amplitude > 0.0 and target == null:
-		_update_wave_motion(delta)
+		_update_wave_motion(delta, effective_speed)
 	elif target != null and is_instance_valid(target):
 		direction = global_position.direction_to(target.global_position)
 		rotation = direction.angle()
-		global_position += direction.normalized() * speed * delta
+		global_position += direction.normalized() * effective_speed * delta
 	else:
 		rotation = direction.angle()
-		global_position += direction.normalized() * speed * delta
+		global_position += direction.normalized() * effective_speed * delta
 
-	_try_hit_enemy(start_position, global_position)
+	traveled_distance += start_position.distance_to(global_position)
+	if traveled_distance < min_hit_travel_distance:
+		return
+	if hit_scan_interval > 0.0:
+		hit_scan_elapsed += delta
+		if hit_scan_elapsed < hit_scan_interval:
+			return
+		hit_scan_elapsed = 0.0
+		_try_hit_enemy(last_hit_scan_position, global_position)
+		last_hit_scan_position = global_position
+	else:
+		_try_hit_enemy(start_position, global_position)
 
 func configure_wave_motion(amplitude: float, frequency: float, phase: float = 0.0) -> void:
 	wave_amplitude = max(0.0, amplitude)
@@ -173,9 +226,9 @@ func _initialize_wave_motion() -> void:
 		wave_forward_direction = Vector2.RIGHT
 	wave_side_direction = wave_forward_direction.orthogonal().normalized()
 
-func _update_wave_motion(delta: float) -> void:
+func _update_wave_motion(delta: float, effective_speed: float) -> void:
 	wave_elapsed += delta
-	wave_travel_distance += speed * delta
+	wave_travel_distance += effective_speed * delta
 	var wave_offset: float = sin(wave_elapsed * wave_frequency + wave_phase) * wave_amplitude
 	var next_position: Vector2 = wave_origin + wave_forward_direction * wave_travel_distance + wave_side_direction * wave_offset
 	var move_vector: Vector2 = next_position - global_position
@@ -191,11 +244,29 @@ func _get_enemy_hit_radius(enemy: Node2D) -> float:
 	return clamp(float(enemy_contact_radius) * enemy_hit_radius_scale, enemy_hit_radius_min, enemy_hit_radius_max)
 
 func _segment_hits_enemy(enemy: Node2D, start_position: Vector2, end_position: Vector2) -> bool:
-	var total_hit_radius := hit_radius + _get_enemy_hit_radius(enemy)
+	var total_hit_radius: float = hit_radius * max(0.01, hit_radius_multiplier) + _get_enemy_hit_radius(enemy)
 	if start_position.distance_squared_to(end_position) <= 0.001:
 		return start_position.distance_to(enemy.global_position) <= total_hit_radius
 	var closest_point := Geometry2D.get_closest_point_to_segment(enemy.global_position, start_position, end_position)
 	return closest_point.distance_to(enemy.global_position) <= total_hit_radius
+
+func _find_bounce_target(last_enemy: Node2D) -> Node2D:
+	var chosen_enemy: Node2D
+	var best_distance: float = INF
+	for enemy in _get_cached_enemy_nodes():
+		if not is_instance_valid(enemy):
+			continue
+		if enemy == last_enemy:
+			continue
+		if not _can_hit_enemy(enemy):
+			continue
+		var distance: float = global_position.distance_to(enemy.global_position)
+		if distance > 260.0:
+			continue
+		if distance < best_distance:
+			best_distance = distance
+			chosen_enemy = enemy
+	return chosen_enemy
 
 func _try_hit_enemy(start_position: Vector2, end_position: Vector2) -> void:
 	if target != null and is_instance_valid(target) and _can_hit_enemy(target):
@@ -203,7 +274,7 @@ func _try_hit_enemy(start_position: Vector2, end_position: Vector2) -> void:
 			_apply_hit(target)
 			return
 
-	for enemy in get_tree().get_nodes_in_group("enemies"):
+	for enemy in _get_cached_enemy_nodes():
 		if not is_instance_valid(enemy):
 			continue
 		if not _can_hit_enemy(enemy):
@@ -215,12 +286,19 @@ func _try_hit_enemy(start_position: Vector2, end_position: Vector2) -> void:
 func _can_hit_enemy(enemy: Node2D) -> bool:
 	return not hit_enemy_ids.has(enemy.get_instance_id())
 
+func _get_cached_enemy_nodes() -> Array:
+	var current_frame := Engine.get_physics_frames()
+	if cached_enemy_nodes_frame != current_frame:
+		cached_enemy_nodes = get_tree().get_nodes_in_group("enemies")
+		cached_enemy_nodes_frame = current_frame
+	return cached_enemy_nodes
+
 func _apply_hit(enemy: Node2D) -> void:
 	hit_enemy_ids[enemy.get_instance_id()] = true
 
 	var killed: bool = false
 	if source_player != null and source_player.has_method("_deal_damage_to_enemy"):
-		killed = bool(source_player._deal_damage_to_enemy(enemy, damage, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration))
+		killed = bool(source_player._deal_damage_to_enemy(enemy, damage, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_origin_position))
 	else:
 		if enemy.has_method("take_damage"):
 			killed = bool(enemy.take_damage(damage))
@@ -233,6 +311,14 @@ func _apply_hit(enemy: Node2D) -> void:
 		source_player._register_attack_result(source_role_id, 1, killed)
 
 	_spawn_impact_effect(enemy.global_position, killed)
+
+	if bounce_count > 0:
+		bounce_count -= 1
+		var bounce_target := _find_bounce_target(enemy)
+		if bounce_target != null:
+			target = bounce_target
+			direction = global_position.direction_to(bounce_target.global_position)
+			return
 
 	if pierce_count > 0:
 		pierce_count -= 1
@@ -247,6 +333,7 @@ func _spawn_impact_effect(position: Vector2, killed: bool) -> void:
 		return
 
 	var impact := Polygon2D.new()
+	impact.add_to_group("temporary_effects")
 	impact.global_position = position
 	impact.z_index = 15
 	impact.color = visual_color if not killed else Color(1.0, 0.92, 0.6, 1.0)

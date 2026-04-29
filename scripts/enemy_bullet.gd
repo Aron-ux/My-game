@@ -1,6 +1,7 @@
 extends Node2D
 
 const ENEMY_BULLET_SCENE_PATH := "res://scenes/enemy_bullet.tscn"
+const MAX_TURN_CATCH_UP_TICKS := 8
 
 @export var speed: float = 260.0
 @export var damage: float = 8.0
@@ -27,6 +28,9 @@ const ENEMY_BULLET_SCENE_PATH := "res://scenes/enemy_bullet.tscn"
 @export var split_damage_scale: float = 0.45
 @export var split_lifetime: float = 3.2
 @export var split_motion_mode: String = "quarter_sine"
+@export var split_after_time: float = 0.0
+@export var split_pattern: String = "radial"
+@export var split_spread: float = 1.2
 @export var size_scale: float = 1.0
 
 var direction: Vector2 = Vector2.RIGHT
@@ -76,6 +80,11 @@ func _physics_process(delta: float) -> void:
 		_:
 			_update_straight_motion(delta)
 
+	if split_after_time > 0.0 and not split_performed and travel_time >= split_after_time:
+		_spawn_split_bullets()
+		queue_free()
+		return
+
 	_try_hit_player()
 
 func _update_straight_motion(delta: float) -> void:
@@ -94,9 +103,13 @@ func _update_turning_motion(delta: float) -> void:
 		turn_delay_remaining = max(0.0, turn_delay_remaining - delta)
 	else:
 		turn_tick_remaining -= delta
-		while turn_tick_remaining <= 0.0:
+		var catch_up_ticks := 0
+		while turn_tick_remaining <= 0.0 and catch_up_ticks < MAX_TURN_CATCH_UP_TICKS:
 			turn_tick_remaining += max(0.05, turn_interval)
 			direction = direction.rotated(turn_angle_step * turn_direction_sign).normalized()
+			catch_up_ticks += 1
+		if catch_up_ticks >= MAX_TURN_CATCH_UP_TICKS and turn_tick_remaining <= 0.0:
+			turn_tick_remaining = max(0.05, turn_interval)
 	global_position += direction * speed * delta
 	rotation = direction.angle()
 
@@ -163,8 +176,15 @@ func _spawn_split_bullets() -> void:
 		var bullet = bullet_scene.instantiate()
 		if bullet == null:
 			continue
-		var shot_angle := TAU * float(index) / float(count)
-		var shot_direction := Vector2.RIGHT.rotated(shot_angle)
+		var shot_direction := Vector2.RIGHT
+		if split_pattern == "fan":
+			var angle_offset := 0.0
+			if count > 1:
+				angle_offset = lerpf(-split_spread * 0.5, split_spread * 0.5, float(index) / float(count - 1))
+			shot_direction = direction.rotated(angle_offset)
+		else:
+			var shot_angle := TAU * float(index) / float(count)
+			shot_direction = Vector2.RIGHT.rotated(shot_angle)
 		bullet.global_position = global_position
 		bullet.direction = shot_direction
 		bullet.speed = split_speed
@@ -292,6 +312,9 @@ func get_save_data() -> Dictionary:
 		"split_damage_scale": split_damage_scale,
 		"split_lifetime": split_lifetime,
 		"split_motion_mode": split_motion_mode,
+		"split_after_time": split_after_time,
+		"split_pattern": split_pattern,
+		"split_spread": split_spread,
 		"size_scale": size_scale,
 		"travel_time": travel_time,
 		"forward_distance": forward_distance,
@@ -338,6 +361,9 @@ func apply_save_data(data: Dictionary, target_node: Node2D) -> void:
 	split_damage_scale = float(data.get("split_damage_scale", split_damage_scale))
 	split_lifetime = float(data.get("split_lifetime", split_lifetime))
 	split_motion_mode = str(data.get("split_motion_mode", split_motion_mode))
+	split_after_time = float(data.get("split_after_time", split_after_time))
+	split_pattern = str(data.get("split_pattern", split_pattern))
+	split_spread = float(data.get("split_spread", split_spread))
 	size_scale = float(data.get("size_scale", size_scale))
 	travel_time = float(data.get("travel_time", 0.0))
 	forward_distance = float(data.get("forward_distance", 0.0))

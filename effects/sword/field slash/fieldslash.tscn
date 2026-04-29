@@ -1,0 +1,79 @@
+[gd_scene format=3 uid="uid://ltbbf6y2dnpa"]
+
+[ext_resource type="Texture2D" uid="uid://ce4o4ta6hfcwu" path="res://effects/sword/field slash/剑士攻击1.png" id="1_h7skm"]
+[ext_resource type="Texture2D" uid="uid://hjvda1osvgum" path="res://effects/sword/field slash/剑士攻击2.png" id="2_qsnl3"]
+[ext_resource type="Texture2D" uid="uid://c50dhivrtoet1" path="res://effects/sword/field slash/剑士攻击3.png" id="3_g1xpj"]
+[ext_resource type="Texture2D" uid="uid://n7w7sfmt2303" path="res://effects/sword/field slash/剑士攻击4.png" id="4_badm4"]
+[ext_resource type="Texture2D" uid="uid://cldgl7m7pgfm6" path="res://effects/sword/field slash/剑士攻击5.png" id="5_kh8eh"]
+[ext_resource type="Texture2D" uid="uid://ctno34vg7g1s2" path="res://effects/sword/field slash/剑士攻击6.png" id="6_81d6w"]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_n386s"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("1_h7skm")
+}, {
+"duration": 1.0,
+"texture": ExtResource("2_qsnl3")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3_g1xpj")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_badm4")
+}, {
+"duration": 1.0,
+"texture": ExtResource("5_kh8eh")
+}, {
+"duration": 1.0,
+"texture": ExtResource("6_81d6w")
+}],
+"loop": false,
+"name": &"fieldslash",
+"speed": 16.0
+}]
+
+[node name="Fieldslash" type="Node2D" unique_id=755118403]
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=998349292]
+sprite_frames = SubResource("SpriteFrames_n386s")
+animation = &"fieldslash"
+frame = 5
+frame_progress = 1.0
+speed_scale = 2.0
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="AnimatedSprite2D" unique_id=1957920384]
+position = Vector2(11.999998, -27)
+rotation = -1.4963362
+sprite_frames = SubResource("SpriteFrames_n386s")
+animation = &"fieldslash"
+frame = 5
+frame_progress = 1.0
+speed_scale = 2.0
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="AnimatedSprite2D/AnimatedSprite2D" unique_id=1658185103]
+position = Vector2(17.564062, -33.39916)
+rotation = -2.2846181
+sprite_frames = SubResource("SpriteFrames_n386s")
+animation = &"fieldslash"
+frame = 5
+frame_progress = 1.0
+speed_scale = 2.0
+
+[node name="AnimatedSprite2D2" type="AnimatedSprite2D" parent="." unique_id=198189040]
+position = Vector2(-20, -25.000002)
+rotation = 1.3089969
+scale = Vector2(1.3328236, 0.5872302)
+sprite_frames = SubResource("SpriteFrames_n386s")
+animation = &"fieldslash"
+frame = 5
+frame_progress = 1.0
+
+[node name="AnimatedSprite2D2" type="AnimatedSprite2D" parent="AnimatedSprite2D2" unique_id=219191741]
+position = Vector2(-22.324207, -8.28772)
+rotation = 1.6793079
+scale = Vector2(2.3668282, 0.53869563)
+sprite_frames = SubResource("SpriteFrames_n386s")
+animation = &"fieldslash"
+frame = 5
+frame_progress = 1.0

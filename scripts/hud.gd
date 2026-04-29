@@ -1,4 +1,15 @@
-﻿extends CanvasLayer
+extends CanvasLayer
+
+const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
+const DEVELOPER_PANEL := preload("res://scripts/developer/developer_panel.gd")
+const COMBAT_SKILL_BAR := preload("res://scripts/ui/hud/combat_skill_bar.gd")
+const GAME_SETTINGS := preload("res://scripts/game_settings.gd")
+const PERFORMANCE_MONITOR := preload("res://scripts/game/performance_monitor.gd")
+
+signal developer_level_up_requested
+signal developer_boss_spawn_requested(archetype_id: String)
+signal developer_card_grant_requested(card_id: String)
+signal developer_small_boss_spawn_requested(archetype_id: String)
 
 var level_label: Label
 var role_label: Label
@@ -9,19 +20,22 @@ var health_label: Label
 var mana_bar: ProgressBar
 var mana_label: Label
 var ultimate_label: Label
-var advanced_label: Label
 var time_label: Label
 var boss_panel: Control
 var boss_name_label: Label
 var boss_health_bar: ProgressBar
 var boss_health_label: Label
-var difficulty_label: Label
 var team_panel: PanelContainer
 var team_role_labels: Array[Label] = []
 var switch_cd_label: Label
 var switch_power_label: Label
 var relay_label: Label
-var advanced_visible: bool = false
+var combat_skill_bar: Control
+var developer_panel: PanelContainer
+var performance_overlay_panel: PanelContainer
+var performance_overlay_label: Label
+var attack_mode_hint_panel: PanelContainer
+var attack_mode_hint_label: Label
 
 func _ready() -> void:
 	layer = 1
@@ -45,8 +59,8 @@ func _ready() -> void:
 	boss_panel = Control.new()
 	boss_panel.anchor_left = 0.0
 	boss_panel.anchor_right = 1.0
-	boss_panel.offset_left = 308.0
-	boss_panel.offset_right = -308.0
+	boss_panel.offset_left = 120.0
+	boss_panel.offset_right = -120.0
 	boss_panel.offset_top = 10.0
 	boss_panel.offset_bottom = 82.0
 	boss_panel.visible = false
@@ -82,76 +96,10 @@ func _ready() -> void:
 	boss_health_label.text = "0 / 0"
 	boss_panel.add_child(boss_health_label)
 
-	level_label = Label.new()
-	level_label.position = Vector2(20, 18)
-	level_label.size = Vector2(120, 24)
-	level_label.text = "等级 1"
-	root.add_child(level_label)
-
-	role_label = Label.new()
-	role_label.position = Vector2(150, 18)
-	role_label.size = Vector2(140, 24)
-	role_label.text = "角色 剑士"
-	root.add_child(role_label)
-
-	experience_bar = ProgressBar.new()
-	experience_bar.position = Vector2(20, 48)
-	experience_bar.custom_minimum_size = Vector2(260, 20)
-	experience_bar.show_percentage = false
-	root.add_child(experience_bar)
-
-	experience_label = Label.new()
-	experience_label.position = Vector2(20, 74)
-	experience_label.size = Vector2(220, 24)
-	experience_label.text = "0 / 30 XP"
-	root.add_child(experience_label)
-
-	health_bar = ProgressBar.new()
-	health_bar.position = Vector2(20, 108)
-	health_bar.custom_minimum_size = Vector2(260, 20)
-	health_bar.show_percentage = false
-	root.add_child(health_bar)
-
-	health_label = Label.new()
-	health_label.position = Vector2(20, 134)
-	health_label.size = Vector2(220, 24)
-	health_label.text = "HP 100 / 100"
-	root.add_child(health_label)
-
-	mana_bar = ProgressBar.new()
-	mana_bar.position = Vector2(20, 168)
-	mana_bar.custom_minimum_size = Vector2(260, 20)
-	mana_bar.show_percentage = false
-	root.add_child(mana_bar)
-
-	mana_label = Label.new()
-	mana_label.position = Vector2(20, 194)
-	mana_label.size = Vector2(260, 24)
-	mana_label.text = "符能 0 / 100"
-	root.add_child(mana_label)
-
-	ultimate_label = Label.new()
-	ultimate_label.position = Vector2(20, 220)
-	ultimate_label.size = Vector2(340, 28)
-	ultimate_label.text = "符印 0 / 2 | 符卡 未就绪"
-	ultimate_label.add_theme_font_size_override("font_size", 16)
-	root.add_child(ultimate_label)
-
-	difficulty_label = Label.new()
-	difficulty_label.position = Vector2(20, 254)
-	difficulty_label.size = Vector2(320, 24)
-	difficulty_label.text = "刷新 1.50秒 | 威胁 x1.00"
-	difficulty_label.visible = false
-	root.add_child(difficulty_label)
-
-	advanced_label = Label.new()
-	advanced_label.position = Vector2(20, 288)
-	advanced_label.size = Vector2(520, 180)
-	advanced_label.text = ""
-	advanced_label.visible = false
-	root.add_child(advanced_label)
-
-	_build_team_panel(root)
+	_build_skill_cooldown_panel(root)
+	_build_attack_mode_hint(root)
+	if DEVELOPER_MODE.is_enabled():
+		_build_developer_panel(root)
 
 func _build_team_panel(root: Control) -> void:
 	team_panel = PanelContainer.new()
@@ -195,7 +143,7 @@ func _build_team_panel(root: Control) -> void:
 		team_role_labels.append(label)
 
 	switch_cd_label = Label.new()
-	switch_cd_label.text = "切人CD 0.0秒"
+	switch_cd_label.text = "切人 CD 0.0 秒"
 	switch_cd_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	switch_cd_label.add_theme_font_size_override("font_size", 16)
 	content.add_child(switch_cd_label)
@@ -214,24 +162,142 @@ func _build_team_panel(root: Control) -> void:
 	relay_label.modulate = Color(0.8, 0.92, 1.0, 0.92)
 	content.add_child(relay_label)
 
+func _build_skill_cooldown_panel(root: Control) -> void:
+	combat_skill_bar = COMBAT_SKILL_BAR.new()
+	root.add_child(combat_skill_bar)
+
+func _build_attack_mode_hint(root: Control) -> void:
+	attack_mode_hint_panel = PanelContainer.new()
+	attack_mode_hint_panel.anchor_left = 1.0
+	attack_mode_hint_panel.anchor_top = 0.5
+	attack_mode_hint_panel.anchor_right = 1.0
+	attack_mode_hint_panel.anchor_bottom = 0.5
+	attack_mode_hint_panel.offset_left = -292.0
+	attack_mode_hint_panel.offset_top = -28.0
+	attack_mode_hint_panel.offset_right = -16.0
+	attack_mode_hint_panel.offset_bottom = 36.0
+
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.03, 0.05, 0.07, 0.72)
+	style.border_color = Color(0.75, 0.88, 1.0, 0.58)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(10)
+	style.content_margin_left = 12
+	style.content_margin_right = 12
+	style.content_margin_top = 8
+	style.content_margin_bottom = 8
+	attack_mode_hint_panel.add_theme_stylebox_override("panel", style)
+	root.add_child(attack_mode_hint_panel)
+
+	attack_mode_hint_label = Label.new()
+	attack_mode_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	attack_mode_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	attack_mode_hint_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	attack_mode_hint_label.add_theme_font_size_override("font_size", 15)
+	attack_mode_hint_label.modulate = Color(0.88, 0.96, 1.0, 0.96)
+	attack_mode_hint_panel.add_child(attack_mode_hint_label)
+	_update_attack_mode_hint(false)
+
+func _update_attack_mode_hint(auto_attack: bool) -> void:
+	if attack_mode_hint_label == null:
+		return
+	var key_name := GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(GAME_SETTINGS.ACTION_TOGGLE_ATTACK_MODE))
+	var mode_text := "自动攻击" if auto_attack else "鼠标跟随"
+	attack_mode_hint_label.text = "%s切换攻击方式：目前攻击为%s" % [key_name, mode_text]
+
+func _build_developer_panel(root: Control) -> void:
+	developer_panel = DEVELOPER_PANEL.new()
+	root.add_child(developer_panel)
+	developer_panel.level_up_requested.connect(func(): developer_level_up_requested.emit())
+	developer_panel.boss_spawn_requested.connect(func(archetype_id: String): developer_boss_spawn_requested.emit(archetype_id))
+	developer_panel.card_grant_requested.connect(func(card_id: String): developer_card_grant_requested.emit(card_id))
+	developer_panel.small_boss_spawn_requested.connect(func(archetype_id: String): developer_small_boss_spawn_requested.emit(archetype_id))
+
+func set_developer_invincibility_enabled(enabled: bool) -> void:
+	if developer_panel != null and developer_panel.has_method("set_invincibility_enabled"):
+		developer_panel.set_invincibility_enabled(enabled)
+
+func set_developer_boss_options(options: Array) -> void:
+	if developer_panel != null and developer_panel.has_method("set_boss_options"):
+		developer_panel.set_boss_options(options)
+
+func set_developer_dangzhen_build_options(options: Array) -> void:
+	if developer_panel != null and developer_panel.has_method("set_dangzhen_build_options"):
+		developer_panel.set_dangzhen_build_options(options)
+
+func set_developer_special_card_options(options: Array) -> void:
+	if developer_panel != null and developer_panel.has_method("set_special_card_options"):
+		developer_panel.set_special_card_options(options)
+
+func update_performance_metrics(metrics: Dictionary) -> void:
+	if developer_panel != null and developer_panel.has_method("update_performance_metrics"):
+		developer_panel.update_performance_metrics(metrics)
+		return
+	_ensure_performance_overlay()
+	if performance_overlay_label != null:
+		performance_overlay_label.text = PERFORMANCE_MONITOR.format_metrics(metrics)
+
+func _ensure_performance_overlay() -> void:
+	if performance_overlay_panel != null:
+		return
+	performance_overlay_panel = PanelContainer.new()
+	performance_overlay_panel.anchor_left = 1.0
+	performance_overlay_panel.anchor_top = 0.0
+	performance_overlay_panel.anchor_right = 1.0
+	performance_overlay_panel.anchor_bottom = 0.0
+	performance_overlay_panel.offset_left = -360.0
+	performance_overlay_panel.offset_top = 92.0
+	performance_overlay_panel.offset_right = -16.0
+	performance_overlay_panel.offset_bottom = 158.0
+
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.02, 0.04, 0.06, 0.68)
+	style.border_color = Color(0.45, 0.78, 1.0, 0.72)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(8)
+	style.content_margin_left = 10
+	style.content_margin_right = 10
+	style.content_margin_top = 8
+	style.content_margin_bottom = 8
+	performance_overlay_panel.add_theme_stylebox_override("panel", style)
+
+	performance_overlay_label = Label.new()
+	performance_overlay_label.text = "Performance: collecting..."
+	performance_overlay_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	performance_overlay_label.add_theme_font_size_override("font_size", 13)
+	performance_overlay_label.modulate = Color(0.82, 0.95, 1.0, 0.96)
+	performance_overlay_panel.add_child(performance_overlay_label)
+	add_child(performance_overlay_panel)
+
 func update_display(level: int, current_experience: int, required_experience: int) -> void:
-	level_label.text = "等级 %d" % level
-	experience_bar.max_value = max(required_experience, 1)
-	experience_bar.value = current_experience
-	experience_label.text = "%d / %d XP" % [current_experience, required_experience]
+	if level_label != null:
+		level_label.text = "等级 %d" % level
+	if experience_bar != null:
+		experience_bar.max_value = max(required_experience, 1)
+		experience_bar.value = current_experience
+	if experience_label != null:
+		experience_label.text = "%d / %d XP" % [current_experience, required_experience]
+	if combat_skill_bar != null and combat_skill_bar.has_method("update_experience"):
+		combat_skill_bar.update_experience(current_experience, required_experience)
 
 func update_health(current_health: float, max_health: float) -> void:
-	health_bar.max_value = max(max_health, 1.0)
-	health_bar.value = current_health
-	health_label.text = "HP %.0f / %.0f" % [current_health, max_health]
+	if health_bar != null:
+		health_bar.max_value = max(max_health, 1.0)
+		health_bar.value = current_health
+	if health_label != null:
+		health_label.text = "HP %.0f / %.0f" % [current_health, max_health]
 
 func update_mana(current_mana: float, max_mana: float) -> void:
-	mana_bar.max_value = max(max_mana, 1.0)
-	mana_bar.value = current_mana
-	mana_label.text = "符能 %.0f / %.0f" % [current_mana, max_mana]
+	if mana_bar != null:
+		mana_bar.max_value = max(max_mana, 1.0)
+		mana_bar.value = current_mana
+	if mana_label != null:
+		mana_label.text = "大招能量 %.0f / %.0f" % [current_mana, max_mana]
 
 func update_stats(summary: Dictionary) -> void:
-	role_label.text = "角色 %s" % summary.get("role_name", "剑士")
+	_update_attack_mode_hint(bool(summary.get("auto_attack_enabled", false)))
+	if role_label != null:
+		role_label.text = "角色 %s" % summary.get("role_name", "剑士")
 	var active_role_index := int(summary.get("active_role_index", 0))
 	var team_roles: Array = summary.get("team_roles", ["剑士", "枪手", "术师"])
 	for index in range(team_role_labels.size()):
@@ -245,10 +311,13 @@ func update_stats(summary: Dictionary) -> void:
 			label.modulate = Color(0.86, 0.86, 0.86, 1.0)
 
 	var switch_cooldown := float(summary.get("switch_cooldown", 0.0))
-	if switch_cooldown > 0.0:
-		switch_cd_label.text = "切人CD %.1f秒" % switch_cooldown
-	else:
-		switch_cd_label.text = "切人CD 已就绪"
+	if switch_cd_label != null:
+		if switch_cooldown > 0.0:
+			switch_cd_label.text = "切人 CD %.1f 秒" % switch_cooldown
+		else:
+			switch_cd_label.text = "切人 CD 就绪"
+	if combat_skill_bar != null and combat_skill_bar.has_method("update_switch_cooldown"):
+		combat_skill_bar.update_switch_cooldown(str(summary.get("role_id", "swordsman")), switch_cooldown, float(summary.get("switch_cooldown_base", 8.0)))
 
 	var switch_power_name := str(summary.get("switch_power_label", ""))
 	var switch_power_remaining := float(summary.get("switch_power_remaining", 0.0))
@@ -256,78 +325,48 @@ func update_stats(summary: Dictionary) -> void:
 	var entry_blessing_remaining := float(summary.get("entry_blessing_remaining", 0.0))
 	var switch_buff_parts: Array[String] = []
 	if switch_power_remaining > 0.0 and switch_power_name != "":
-		switch_buff_parts.append("%s %.1f秒" % [switch_power_name, switch_power_remaining])
+		switch_buff_parts.append("%s %.1f 秒" % [switch_power_name, switch_power_remaining])
 	if entry_blessing_remaining > 0.0 and entry_blessing_name != "":
-		switch_buff_parts.append("%s %.1f秒" % [entry_blessing_name, entry_blessing_remaining])
-	if not switch_buff_parts.is_empty():
-		switch_power_label.text = "切换增益 %s" % " / ".join(switch_buff_parts)
-		switch_power_label.modulate = Color(1.0, 0.9, 0.5, 0.98)
-	else:
-		switch_power_label.text = "切换增益 无"
-		switch_power_label.modulate = Color(0.86, 0.9, 0.98, 0.92)
+		switch_buff_parts.append("%s %.1f 秒" % [entry_blessing_name, entry_blessing_remaining])
+	if switch_power_label != null:
+		if not switch_buff_parts.is_empty():
+			switch_power_label.text = "切换增益 %s" % " / ".join(switch_buff_parts)
+			switch_power_label.modulate = Color(1.0, 0.9, 0.5, 0.98)
+		else:
+			switch_power_label.text = "切换增益 无"
+			switch_power_label.modulate = Color(0.86, 0.9, 0.98, 0.92)
 
 	var relay_window := float(summary.get("relay_window_remaining", 0.0))
 	var relay_name := str(summary.get("relay_label", ""))
 	var relay_pending := bool(summary.get("relay_bonus_pending", false))
-	if relay_pending and relay_window > 0.0 and relay_name != "":
-		relay_label.text = "接力窗口 %s %.1f秒" % [relay_name, relay_window]
-		relay_label.modulate = Color(1.0, 0.92, 0.56, 0.98)
-	else:
-		relay_label.text = "接力窗口 无"
-		relay_label.modulate = Color(0.8, 0.92, 1.0, 0.92)
+	if relay_label != null:
+		if relay_pending and relay_window > 0.0 and relay_name != "":
+			relay_label.text = "接力窗口 %s %.1f 秒" % [relay_name, relay_window]
+			relay_label.modulate = Color(1.0, 0.92, 0.56, 0.98)
+		else:
+			relay_label.text = "接力窗口 无"
+			relay_label.modulate = Color(0.8, 0.92, 1.0, 0.92)
 
 	var current_energy: float = float(summary.get("current_mana", 0.0))
 	var required_energy: float = float(summary.get("ultimate_energy_cost", 100.0))
-	var current_seals: int = int(summary.get("ultimate_seals", 0))
-	var max_seals: int = int(summary.get("ultimate_seal_max", 2))
 	var ultimate_ready: bool = bool(summary.get("ultimate_ready", false))
-	if ultimate_ready:
-		ultimate_label.text = "符印 %d / %d | 符卡 已就绪" % [current_seals, max_seals]
-		ultimate_label.modulate = Color(1.0, 0.9, 0.5, 1.0)
-	else:
-		ultimate_label.text = "符印 %d / %d | 释放大招需 %.0f 符能" % [current_seals, max_seals, required_energy]
-		ultimate_label.modulate = Color(0.88, 0.92, 0.98, 0.96)
+	if ultimate_label != null:
+		if ultimate_ready:
+			ultimate_label.text = "大招能量 %.0f / %.0f | 大招就绪" % [current_energy, required_energy]
+			ultimate_label.modulate = Color(1.0, 0.9, 0.5, 1.0)
+		else:
+			ultimate_label.text = "大招能量 %.0f / %.0f | 大招未就绪" % [current_energy, required_energy]
+			ultimate_label.modulate = Color(0.88, 0.92, 0.98, 0.96)
 	var max_energy: float = max(float(summary.get("max_mana", 1.0)), 1.0)
-	if mana_bar.max_value != max_energy:
+	if mana_bar != null and mana_bar.max_value != max_energy:
 		mana_bar.max_value = max_energy
-	if mana_bar.value != current_energy:
+	if mana_bar != null and mana_bar.value != current_energy:
 		mana_bar.value = current_energy
-
-	advanced_label.text = "移速 %.0f\n伤害 %.0f\n攻速 %.1f秒\n拾取范围 %.0f" % [
-		summary.get("move_speed", 0.0),
-		summary.get("bullet_damage", 0.0),
-		summary.get("fire_interval", 0.0),
-		summary.get("pickup_radius", 0.0)
-	]
-	advanced_label.text += "\n%s %d | %s %d | %s %d" % [
-		str(summary.get("body_slot_label", "战斗")),
-		int(summary.get("body_build_level", 0)),
-		str(summary.get("combat_slot_label", "连携")),
-		int(summary.get("combat_build_level", 0)),
-		str(summary.get("skill_slot_label", "大招")),
-		int(summary.get("skill_build_level", 0))
-	]
-	advanced_label.text += "\n属性 生命 %d | 机动 %d | 攻击 %d" % [
-		int(summary.get("attribute_vitality_level", 0)),
-		int(summary.get("attribute_agility_level", 0)),
-		int(summary.get("attribute_power_level", 0))
-	]
-	advanced_label.text += "\n受伤倍率 x%.2f | 切人基准 %.1f秒" % [
-		float(summary.get("damage_taken_multiplier", 1.0)),
-		float(summary.get("switch_cooldown_base", 8.0))
-	]
-	var role_detail := str(summary.get("role_detail_summary", ""))
-	var role_route := str(summary.get("role_route_summary", ""))
-	var role_core := str(summary.get("role_core_summary", ""))
-	var slot_resonance := str(summary.get("slot_resonance_summary", ""))
-	if role_core != "":
-		advanced_label.text += "\n%s" % role_core
-	if role_route != "":
-		advanced_label.text += "\n路线 %s" % role_route
-	if role_detail != "":
-		advanced_label.text += "\n专属 %s" % role_detail
-	if slot_resonance != "":
-		advanced_label.text += "\n%s" % slot_resonance
+	if combat_skill_bar != null and combat_skill_bar.has_method("update_ultimate_energy"):
+		combat_skill_bar.update_ultimate_energy(current_energy, required_energy)
+	var cooldown_slots: Array = summary.get("skill_cooldown_slots", [])
+	if combat_skill_bar != null and combat_skill_bar.has_method("update_skill_cooldown_slots"):
+		combat_skill_bar.update_skill_cooldown_slots(cooldown_slots)
 
 func update_time(seconds_elapsed: float) -> void:
 	var total_seconds: int = int(floor(seconds_elapsed))
@@ -355,12 +394,3 @@ func hide_boss_ui() -> void:
 		boss_panel.visible = false
 	if time_label != null:
 		time_label.visible = true
-
-func update_difficulty(current_spawn_interval: float, power_multiplier: float) -> void:
-	difficulty_label.text = "刷新 %.2f秒 | 威胁 x%.2f" % [current_spawn_interval, power_multiplier]
-
-func toggle_advanced_display() -> void:
-	advanced_visible = not advanced_visible
-	difficulty_label.visible = advanced_visible
-	advanced_label.visible = advanced_visible
-

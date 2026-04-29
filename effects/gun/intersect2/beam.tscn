@@ -1,0 +1,56 @@
+[gd_scene format=3]
+
+[ext_resource type="Texture2D" path="res://effects/gun/intersect2/1.png" id="1_1"]
+[ext_resource type="Texture2D" path="res://effects/gun/intersect2/2.png" id="2_2"]
+[ext_resource type="Texture2D" path="res://effects/gun/intersect2/3.png" id="3_3"]
+[ext_resource type="Texture2D" path="res://effects/gun/intersect2/4.png" id="4_4"]
+[ext_resource type="Texture2D" path="res://effects/gun/intersect2/5.png" id="5_5"]
+[ext_resource type="Texture2D" path="res://effects/gun/intersect2/6.png" id="6_6"]
+[ext_resource type="Texture2D" path="res://effects/gun/intersect2/7.png" id="7_7"]
+[ext_resource type="Texture2D" path="res://effects/gun/intersect2/8.png" id="8_8"]
+[ext_resource type="Texture2D" path="res://effects/gun/intersect2/9.png" id="9_9"]
+[ext_resource type="Texture2D" path="res://effects/gun/intersect2/10.png" id="10_10"]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_beam"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("1_1")
+}, {
+"duration": 1.0,
+"texture": ExtResource("2_2")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3_3")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_4")
+}, {
+"duration": 1.0,
+"texture": ExtResource("5_5")
+}, {
+"duration": 1.0,
+"texture": ExtResource("6_6")
+}, {
+"duration": 1.0,
+"texture": ExtResource("7_7")
+}, {
+"duration": 1.0,
+"texture": ExtResource("8_8")
+}, {
+"duration": 1.0,
+"texture": ExtResource("9_9")
+}, {
+"duration": 1.0,
+"texture": ExtResource("10_10")
+}],
+"loop": false,
+"name": &"beam",
+"speed": 16.0
+}]
+
+[node name="Beam" type="Node2D"]
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+sprite_frames = SubResource("SpriteFrames_beam")
+animation = &"beam"

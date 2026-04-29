@@ -1,4 +1,4 @@
-﻿extends CanvasLayer
+extends CanvasLayer
 
 const BGM_PLAYER_SCRIPT := preload("res://scripts/bgm_player.gd")
 

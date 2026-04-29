@@ -1,5 +1,7 @@
 extends RefCounted
 
+const STORY_MODE_ENABLED := false
+
 const PREP_SCENE_PATH := "res://scenes/story_prep.tscn"
 const BATTLE_SCENE_PATH := "res://scenes/main.tscn"
 const SAVE_SELECT_SCENE_PATH := "res://scenes/save_select.tscn"
@@ -112,6 +114,9 @@ static func build_default_story_profile(slot_id: int) -> Dictionary:
 		"created_unix": Time.get_unix_time_from_system(),
 		"last_updated_unix": Time.get_unix_time_from_system()
 	}
+
+static func is_story_mode_enabled() -> bool:
+	return STORY_MODE_ENABLED
 
 static func get_stage(stage_index: int) -> Dictionary:
 	if stage_index < 0 or stage_index >= STORY_STAGES.size():

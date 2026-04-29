@@ -1,0 +1,32 @@
+[gd_scene load_steps=5 format=3 uid="uid://dyt8vqqsrcr6m"]
+
+[ext_resource type="Texture2D" uid="uid://bmaeksahdeq4" path="res://enemies/boss1/1.png" id="1_0h6oq"]
+[ext_resource type="Texture2D" uid="uid://cblgdgea8vkw2" path="res://enemies/boss1/1.5.png" id="2_7k5a4"]
+[ext_resource type="Texture2D" uid="uid://jlpsnb5hhltv" path="res://enemies/boss1/2.png" id="3_4xvba"]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_e3t1u"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("1_0h6oq")
+}, {
+"duration": 1.0,
+"texture": ExtResource("2_7k5a4")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3_4xvba")
+}],
+"loop": true,
+"name": &"idle",
+"speed": 7.0
+}]
+
+[node name="Boss1" type="Node2D"]
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+position = Vector2(0, -6)
+scale = Vector2(0.06, 0.06)
+sprite_frames = SubResource("SpriteFrames_e3t1u")
+animation = &"idle"
+autoplay = "idle"
+centered = true
