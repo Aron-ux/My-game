@@ -37,6 +37,8 @@ static func start_bombard(enemy) -> void:
 			warning.queue_free()
 		if is_instance_valid(warning_fill):
 			warning_fill.queue_free()
+		if enemy == null or not is_instance_valid(enemy):
+			return
 		enemy._spawn_status_burst(Color(1.0, 0.42, 0.18, 0.24), 34.0 + enemy.scale.x * 8.0)
 		if enemy.target != null and is_instance_valid(enemy.target):
 			var target_center: Vector2 = enemy.target.global_position
