@@ -22,6 +22,8 @@ A Godot 4 2D survivor-like prototype focused on **three-character switching comb
 - 普通怪 / 精英 / Boss 基础框架
 - HUD / 暂停菜单 / 继续游戏 / BGM
 - 开发者模式
+- 本地成就系统与右上角成就提示
+- 显示设置：窗口 / 全屏、16:9 固定比例窗口尺寸
 
 ## Core Roles
 
@@ -42,7 +44,8 @@ A Godot 4 2D survivor-like prototype focused on **three-character switching comb
 - `E`: 切到下一位角色
 - `R`: 释放大招
 - `ESC`: 暂停菜单
-- ``~``: 切换高级信息显示
+- `TAB`: 切换攻击方式
+- `C`: 角色面板
 
 ## Run
 
@@ -104,6 +107,16 @@ A Godot 4 2D survivor-like prototype focused on **three-character switching comb
 4. 构筑系统与文案交互规范
 5. 当前实现状态与后续重点
 
+## Checks
+
+Run the local project health check with:
+
+```bash
+./scripts/check_project.sh
+```
+
+The script validates docs links, achievement data, key project settings, Godot script loading, a small achievement smoke test, and graphify update when available.
+
 ## Development Notes
 
 当前项目仍处于持续迭代阶段。
@@ -123,3 +136,11 @@ The current BGM files under `assets/` are non-commercial placeholder materials f
 ## Changelog
 
 - [CHANGELOG.md](CHANGELOG.md)
+
+## Project Governance
+
+- 版本路线：见 [ROADMAP.md](ROADMAP.md)
+- 已知问题：见 [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)
+- 发布检查：见 [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md)
+- 第三方素材与插件：见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+- 成就/Steam 适配：见 [docs/achievements/STEAM_ADAPTER.md](docs/achievements/STEAM_ADAPTER.md)

@@ -39,6 +39,7 @@ const PLAYER_RESOURCE_FLOW := preload("res://scripts/player/player_resource_flow
 const PLAYER_MAGE_BOMBARDMENT_FLOW := preload("res://scripts/player/player_mage_bombardment_flow.gd")
 const PLAYER_ATTACK_LOOP_FLOW := preload("res://scripts/player/player_attack_loop_flow.gd")
 const PLAYER_CAMERA_FEEDBACK := preload("res://scripts/player/player_camera_feedback.gd")
+const PLAYER_MAP_BOUNDS_FLOW := preload("res://scripts/player/player_map_bounds_flow.gd")
 const PLAYER_FIELD_EFFECT_FLOW := preload("res://scripts/player/player_field_effect_flow.gd")
 const PLAYER_BUILD_PROGRESS_FLOW := preload("res://scripts/player/player_build_progress_flow.gd")
 const PLAYER_ATTRIBUTE_FLOW := preload("res://scripts/player/player_attribute_flow.gd")
@@ -913,6 +914,7 @@ func _physics_process(delta: float) -> void:
 	direction = direction.normalized()
 	velocity = direction * _get_current_move_speed()
 	move_and_slide()
+	PLAYER_MAP_BOUNDS_FLOW.clamp_to_active_map_bounds(self)
 	gem_collection_elapsed += delta
 	if gem_collection_elapsed >= GEM_COLLECTION_INTERVAL:
 		gem_collection_elapsed = 0.0

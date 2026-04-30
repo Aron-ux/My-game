@@ -5,10 +5,16 @@ const GAME_SETTINGS := preload("res://scripts/game_settings.gd")
 
 const TEXT_SETTINGS := "\u8bbe\u7f6e"
 const TEXT_VOLUME_SETTINGS := "\u97f3\u91cf\u8bbe\u7f6e"
+const TEXT_DISPLAY_SETTINGS := "\u663e\u793a\u8bbe\u7f6e"
 const TEXT_KEY_SETTINGS := "\u6309\u952e\u8bbe\u7f6e"
 const TEXT_MUSIC_VOLUME := "\u80cc\u666f\u97f3\u4e50\u97f3\u91cf"
 const TEXT_CLOSE := "\u5173\u95ed"
 const TEXT_RESET_DEFAULTS := "\u6062\u590d\u9ed8\u8ba4\u952e\u4f4d"
+const TEXT_WINDOW_MODE := "\u7a97\u53e3\u6a21\u5f0f"
+const TEXT_WINDOWED := "\u7a97\u53e3"
+const TEXT_FULLSCREEN := "\u5168\u5c4f"
+const TEXT_WINDOW_SIZE := "\u7a97\u53e3\u5927\u5c0f"
+const TEXT_ASPECT_LOCKED := "\u753b\u9762\u6bd4\u4f8b\u5df2\u56fa\u5b9a\u4e3a 16:9\uff1b\u7a97\u53e3\u62d6\u62fd\u8c03\u6574\u65f6\u4f1a\u81ea\u52a8\u6821\u6b63\u6bd4\u4f8b\u3002"
 const TEXT_KEY_HELP := "\u70b9\u51fb\u53f3\u4fa7\u6309\u94ae\u540e\uff0c\u6309\u4e0b\u65b0\u6309\u952e\u3002"
 const TEXT_WAITING_KEY := "\u6309\u4e0b\u65b0\u6309\u952e\uff0cESC \u53d6\u6d88"
 const TEXT_KEY_CANCELLED := "\u5df2\u53d6\u6d88\u952e\u4f4d\u8bbe\u7f6e"
@@ -28,10 +34,13 @@ const KEYBIND_LABELS := {
 
 var settings_title_label: Label
 var volume_page: VBoxContainer
+var display_page: VBoxContainer
 var keybind_page: VBoxContainer
 var volume_slider: HSlider
 var volume_value_label: Label
 var mute_checkbox: CheckBox
+var window_mode_option: OptionButton
+var window_size_option: OptionButton
 var keybind_buttons: Dictionary = {}
 var keybind_status_label: Label
 var waiting_for_key_action: String = ""
@@ -42,11 +51,13 @@ func _ready() -> void:
 	visible = false
 	_show_volume_settings()
 	_refresh_audio_controls()
+	_refresh_display_controls()
 	_refresh_keybind_controls()
 
 func open() -> void:
 	waiting_for_key_action = ""
 	_refresh_audio_controls()
+	_refresh_display_controls()
 	_refresh_keybind_controls()
 	_show_volume_settings()
 	visible = true
@@ -123,6 +134,13 @@ func _build_panel() -> void:
 	volume_category_button.pressed.connect(_show_volume_settings)
 	category_column.add_child(volume_category_button)
 
+	var display_category_button := Button.new()
+	display_category_button.text = TEXT_DISPLAY_SETTINGS
+	display_category_button.custom_minimum_size = Vector2(170, 52)
+	display_category_button.add_theme_font_size_override("font_size", 20)
+	display_category_button.pressed.connect(_show_display_settings)
+	category_column.add_child(display_category_button)
+
 	var keybind_category_button := Button.new()
 	keybind_category_button.text = TEXT_KEY_SETTINGS
 	keybind_category_button.custom_minimum_size = Vector2(170, 52)
@@ -137,6 +155,10 @@ func _build_panel() -> void:
 	volume_page = _build_volume_page()
 	volume_page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	page_root.add_child(volume_page)
+
+	display_page = _build_display_page()
+	display_page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	page_root.add_child(display_page)
 
 	keybind_page = _build_keybind_page()
 	keybind_page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -173,6 +195,51 @@ func _build_volume_page() -> VBoxContainer:
 	mute_checkbox.text = ""
 	mute_checkbox.toggled.connect(_on_mute_toggled)
 	page.add_child(mute_checkbox)
+
+	return page
+
+func _build_display_page() -> VBoxContainer:
+	var page := VBoxContainer.new()
+	page.add_theme_constant_override("separation", 16)
+
+	var title := Label.new()
+	title.text = TEXT_DISPLAY_SETTINGS
+	title.add_theme_font_size_override("font_size", 24)
+	page.add_child(title)
+
+	var mode_label := Label.new()
+	mode_label.text = TEXT_WINDOW_MODE
+	mode_label.add_theme_font_size_override("font_size", 18)
+	page.add_child(mode_label)
+
+	window_mode_option = OptionButton.new()
+	window_mode_option.custom_minimum_size = Vector2(260, 40)
+	window_mode_option.add_item(TEXT_WINDOWED)
+	window_mode_option.set_item_metadata(0, GAME_SETTINGS.WINDOW_MODE_WINDOWED)
+	window_mode_option.add_item(TEXT_FULLSCREEN)
+	window_mode_option.set_item_metadata(1, GAME_SETTINGS.WINDOW_MODE_FULLSCREEN)
+	window_mode_option.item_selected.connect(_on_window_mode_selected)
+	page.add_child(window_mode_option)
+
+	var size_label := Label.new()
+	size_label.text = TEXT_WINDOW_SIZE
+	size_label.add_theme_font_size_override("font_size", 18)
+	page.add_child(size_label)
+
+	window_size_option = OptionButton.new()
+	window_size_option.custom_minimum_size = Vector2(260, 40)
+	for size_key in GAME_SETTINGS.get_window_size_labels():
+		window_size_option.add_item(size_key)
+		window_size_option.set_item_metadata(window_size_option.item_count - 1, size_key)
+	window_size_option.item_selected.connect(_on_window_size_selected)
+	page.add_child(window_size_option)
+
+	var help_label := Label.new()
+	help_label.text = TEXT_ASPECT_LOCKED
+	help_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	help_label.add_theme_font_size_override("font_size", 15)
+	help_label.modulate = Color(0.82, 0.88, 0.95, 0.96)
+	page.add_child(help_label)
 
 	return page
 
@@ -227,17 +294,38 @@ func _show_volume_settings() -> void:
 		settings_title_label.text = TEXT_VOLUME_SETTINGS
 	if volume_page != null:
 		volume_page.visible = true
+	if display_page != null:
+		display_page.visible = false
 	if keybind_page != null:
 		keybind_page.visible = false
+
+func _show_display_settings() -> void:
+	if settings_title_label != null:
+		settings_title_label.text = TEXT_DISPLAY_SETTINGS
+	if volume_page != null:
+		volume_page.visible = false
+	if display_page != null:
+		display_page.visible = true
+	if keybind_page != null:
+		keybind_page.visible = false
+	_refresh_display_controls()
 
 func _show_keybind_settings() -> void:
 	if settings_title_label != null:
 		settings_title_label.text = TEXT_KEY_SETTINGS
 	if volume_page != null:
 		volume_page.visible = false
+	if display_page != null:
+		display_page.visible = false
 	if keybind_page != null:
 		keybind_page.visible = true
 	_refresh_keybind_controls()
+
+func _refresh_display_controls() -> void:
+	if window_mode_option != null:
+		_select_option_by_metadata(window_mode_option, GAME_SETTINGS.load_window_mode())
+	if window_size_option != null:
+		_select_option_by_metadata(window_size_option, GAME_SETTINGS.load_window_size_key())
 
 func _refresh_audio_controls() -> void:
 	if volume_slider != null:
@@ -273,6 +361,12 @@ func _apply_saved_music_volume() -> void:
 	if menu_bgm != null and menu_bgm.has_method("apply_saved_volume"):
 		menu_bgm.apply_saved_volume()
 
+func _select_option_by_metadata(option: OptionButton, metadata: String) -> void:
+	for index in range(option.item_count):
+		if str(option.get_item_metadata(index)) == metadata:
+			option.select(index)
+			return
+
 func _on_keybind_button_pressed(action_id: String) -> void:
 	waiting_for_key_action = action_id
 	if keybind_status_label != null:
@@ -295,3 +389,25 @@ func _on_volume_changed(value: float) -> void:
 func _on_mute_toggled(toggled_on: bool) -> void:
 	BGM_PLAYER_SCRIPT.save_music_muted(toggled_on)
 	_apply_saved_music_volume()
+
+func _on_window_mode_selected(index: int) -> void:
+	if window_mode_option == null:
+		return
+	var mode := str(window_mode_option.get_item_metadata(index))
+	var manager := get_node_or_null("/root/WindowDisplayManager")
+	if manager != null and manager.has_method("apply_window_mode"):
+		manager.apply_window_mode(mode)
+	else:
+		GAME_SETTINGS.save_window_mode(mode)
+	_refresh_display_controls()
+
+func _on_window_size_selected(index: int) -> void:
+	if window_size_option == null:
+		return
+	var size_key := str(window_size_option.get_item_metadata(index))
+	var manager := get_node_or_null("/root/WindowDisplayManager")
+	if manager != null and manager.has_method("apply_window_size"):
+		manager.apply_window_size(size_key)
+	else:
+		GAME_SETTINGS.save_window_size_key(size_key)
+	_refresh_display_controls()

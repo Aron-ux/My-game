@@ -1,0 +1,32 @@
+name: Project Checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run Python checks
+        run: |
+          python3 scripts/tests/check_docs_links.py
+          python3 scripts/tests/check_achievements.py
+          python3 scripts/tests/check_project_config.py
+          python3 scripts/tests/check_architecture_contract.py
+
+      - name: Run Godot checks if available
+        run: |
+          if command -v godot >/dev/null 2>&1; then
+            ./scripts/check_project.sh
+          else
+            echo "Godot is not installed on this runner; Python checks completed."
+          fi
