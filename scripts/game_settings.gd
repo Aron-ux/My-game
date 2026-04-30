@@ -2,6 +2,18 @@ extends RefCounted
 
 const SETTINGS_PATH := "user://settings.cfg"
 const KEY_SECTION := "keybinds"
+const DISPLAY_SECTION := "display"
+
+const WINDOW_MODE_WINDOWED := "windowed"
+const WINDOW_MODE_FULLSCREEN := "fullscreen"
+const WINDOW_SIZE_1280X720 := "1280x720"
+const WINDOW_SIZE_1600X900 := "1600x900"
+const WINDOW_SIZE_1920X1080 := "1920x1080"
+const DEFAULT_WINDOW_MODE := WINDOW_MODE_WINDOWED
+const DEFAULT_WINDOW_SIZE := WINDOW_SIZE_1280X720
+const ASPECT_WIDTH := 16
+const ASPECT_HEIGHT := 9
+const MIN_WINDOW_WIDTH := 960
 
 const ACTION_MOVE_UP := "move_up"
 const ACTION_MOVE_DOWN := "move_down"
@@ -35,6 +47,12 @@ const DEFAULT_KEYS := {
 	"switch_next": KEY_E,
 	"toggle_attack_mode": KEY_TAB,
 	"character_panel": KEY_C
+}
+
+const WINDOW_SIZE_OPTIONS := {
+	"1280x720": Vector2i(1280, 720),
+	"1600x900": Vector2i(1600, 900),
+	"1920x1080": Vector2i(1920, 1080)
 }
 
 static func load_keycode(action_id: String) -> int:
@@ -84,3 +102,51 @@ static func get_key_display_name(keycode: int) -> String:
 	if display_name == "":
 		return str(keycode)
 	return display_name
+
+static func load_window_mode() -> String:
+	var config := ConfigFile.new()
+	var load_result: Error = config.load(SETTINGS_PATH)
+	if load_result != OK:
+		return DEFAULT_WINDOW_MODE
+	var mode := str(config.get_value(DISPLAY_SECTION, "window_mode", DEFAULT_WINDOW_MODE))
+	if mode not in [WINDOW_MODE_WINDOWED, WINDOW_MODE_FULLSCREEN]:
+		return DEFAULT_WINDOW_MODE
+	return mode
+
+static func save_window_mode(mode: String) -> void:
+	if mode not in [WINDOW_MODE_WINDOWED, WINDOW_MODE_FULLSCREEN]:
+		mode = DEFAULT_WINDOW_MODE
+	var config := ConfigFile.new()
+	config.load(SETTINGS_PATH)
+	config.set_value(DISPLAY_SECTION, "window_mode", mode)
+	config.save(SETTINGS_PATH)
+
+static func load_window_size_key() -> String:
+	var config := ConfigFile.new()
+	var load_result: Error = config.load(SETTINGS_PATH)
+	if load_result != OK:
+		return DEFAULT_WINDOW_SIZE
+	var size_key := str(config.get_value(DISPLAY_SECTION, "window_size", DEFAULT_WINDOW_SIZE))
+	if not WINDOW_SIZE_OPTIONS.has(size_key):
+		return DEFAULT_WINDOW_SIZE
+	return size_key
+
+static func save_window_size_key(size_key: String) -> void:
+	if not WINDOW_SIZE_OPTIONS.has(size_key):
+		size_key = DEFAULT_WINDOW_SIZE
+	var config := ConfigFile.new()
+	config.load(SETTINGS_PATH)
+	config.set_value(DISPLAY_SECTION, "window_size", size_key)
+	config.save(SETTINGS_PATH)
+
+static func get_window_size(size_key: String = "") -> Vector2i:
+	var resolved_key := size_key if size_key != "" else load_window_size_key()
+	return WINDOW_SIZE_OPTIONS.get(resolved_key, WINDOW_SIZE_OPTIONS[DEFAULT_WINDOW_SIZE])
+
+static func get_window_size_labels() -> Array[String]:
+	return [WINDOW_SIZE_1280X720, WINDOW_SIZE_1600X900, WINDOW_SIZE_1920X1080]
+
+static func normalize_16_9_size(size: Vector2i) -> Vector2i:
+	var width := maxi(MIN_WINDOW_WIDTH, size.x)
+	var height := int(round(float(width) * float(ASPECT_HEIGHT) / float(ASPECT_WIDTH)))
+	return Vector2i(width, height)

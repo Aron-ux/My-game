@@ -3,6 +3,7 @@ extends RefCounted
 const STORY_PREP_SCENE_PATH := "res://scenes/story_prep.tscn"
 const SAVE_MANAGER := preload("res://scripts/save_manager.gd")
 const BUILD_SYSTEM := preload("res://scripts/build/build_system.gd")
+const GAME_HUD_FLOW := preload("res://scripts/game/game_hud_flow.gd")
 
 static func show_level_up(main: Node, options: Array) -> void:
 	if main.game_over:
@@ -26,8 +27,7 @@ static func show_final_core(main: Node) -> void:
 	main.stage_cleared = true
 	main.reward_context = "final_core"
 	main.boss_enemy = null
-	if main.hud != null and main.hud.has_method("hide_boss_ui"):
-		main.hud.hide_boss_ui()
+	GAME_HUD_FLOW.hide_boss_ui(main)
 	if main.spawn_timer != null:
 		main.spawn_timer.stop()
 	main.get_tree().paused = true
@@ -41,8 +41,7 @@ static func finish_stage_clear(main: Node) -> void:
 		main.game_over = true
 		main.reward_context = ""
 		main.boss_enemy = null
-		if main.hud != null and main.hud.has_method("hide_boss_ui"):
-			main.hud.hide_boss_ui()
+		GAME_HUD_FLOW.hide_boss_ui(main)
 		if main.spawn_timer != null:
 			main.spawn_timer.stop()
 		var material_reward: int = int(main.story_stage.get("boss_material_reward", 0))
@@ -54,8 +53,7 @@ static func finish_stage_clear(main: Node) -> void:
 	main.game_over = true
 	main.reward_context = ""
 	main.boss_enemy = null
-	if main.hud != null and main.hud.has_method("hide_boss_ui"):
-		main.hud.hide_boss_ui()
+	GAME_HUD_FLOW.hide_boss_ui(main)
 	SAVE_MANAGER.clear_save()
 	if main.spawn_timer != null:
 		main.spawn_timer.stop()

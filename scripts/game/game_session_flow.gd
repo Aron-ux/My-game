@@ -2,6 +2,7 @@ extends RefCounted
 
 const MAIN_MENU_SCENE_PATH := "res://scenes/main_menu.tscn"
 const SAVE_MANAGER := preload("res://scripts/save_manager.gd")
+const GAME_HUD_FLOW := preload("res://scripts/game/game_hud_flow.gd")
 const CONTINUE_BGM_RESUME_DELAY := 0.25
 
 static func handle_escape_toggle(main: Node) -> void:
@@ -44,8 +45,7 @@ static func handle_player_died(main: Node) -> void:
 
 	main.game_over = true
 	SAVE_MANAGER.clear_save()
-	if main.hud != null and main.hud.has_method("hide_boss_ui"):
-		main.hud.hide_boss_ui()
+	GAME_HUD_FLOW.hide_boss_ui(main)
 
 	if main.pause_menu != null and main.pause_menu.has_method("hide_ui"):
 		main.pause_menu.hide_ui()

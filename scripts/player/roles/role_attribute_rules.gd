@@ -306,10 +306,10 @@ static func get_role_attribute_description(role_id: String, attribute_key: Strin
 		"mage":
 			if attribute_key == "vitality":
 				if level > THIRD_EVOLUTION_LEVEL:
-					return "III阶：普通攻击聚能一次轰炸3下；13级即时提升至162%，13-18级保守非线性提升，18级最终约180%。当前技能范围 %.1f%%" % (get_mage_arcane_focus_range_multiplier(level) * 100.0)
+					return "III阶：普通攻击聚能一次轰炸3下；13级即时提升至162%%，13-18级保守非线性提升，18级最终约180%%。当前技能范围 %.1f%%" % (get_mage_arcane_focus_range_multiplier(level) * 100.0)
 				if level > EVOLUTION_LEVEL:
-					return "II阶：普通攻击聚能一次轰炸2下；7级即时提升至132%，7-12级保守非线性提升，12级约150%。当前技能范围 %.1f%%" % (get_mage_arcane_focus_range_multiplier(level) * 100.0)
-				return "术师全技能范围保守提升；6级约118%。当前技能范围 %.1f%%" % (get_mage_arcane_focus_range_multiplier(level) * 100.0)
+					return "II阶：普通攻击聚能一次轰炸2下；7级即时提升至132%%，7-12级保守非线性提升，12级约150%%。当前技能范围 %.1f%%" % (get_mage_arcane_focus_range_multiplier(level) * 100.0)
+				return "术师全技能范围保守提升；6级约118%%。当前技能范围 %.1f%%" % (get_mage_arcane_focus_range_multiplier(level) * 100.0)
 			if attribute_key == "agility":
 				if level > THIRD_EVOLUTION_LEVEL:
 					return "III阶：站场自动回能继续增强；13-18级每级按原奥数光环的2倍提升能量获取。当前每秒 %.2f，术师获取 %.1f%%，其他角色 %.1f%%" % [get_mage_surplus_passive_energy_per_second(level), get_mage_surplus_energy_multiplier(level, "mage") * 100.0, get_mage_surplus_energy_multiplier(level, "swordsman") * 100.0]

@@ -1,0 +1,6 @@
+# Keep the project graph focused on game code and handoff documents.
+# Editor caches, generated graph output, and MCP editor tooling create high-degree
+# utility nodes that obscure the actual gameplay architecture.
+.godot/
+graphify-out/
+addons/godot_mcp/

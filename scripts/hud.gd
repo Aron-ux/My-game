@@ -36,6 +36,10 @@ var performance_overlay_panel: PanelContainer
 var performance_overlay_label: Label
 var attack_mode_hint_panel: PanelContainer
 var attack_mode_hint_label: Label
+var minimap_panel: PanelContainer
+var minimap_view: Control
+var minimap_bounds := Rect2(Vector2(-1600.0, -900.0), Vector2(3200.0, 1800.0))
+var minimap_payload: Dictionary = {}
 
 func _ready() -> void:
 	layer = 1
@@ -98,6 +102,7 @@ func _ready() -> void:
 
 	_build_skill_cooldown_panel(root)
 	_build_attack_mode_hint(root)
+	_build_minimap(root)
 	if DEVELOPER_MODE.is_enabled():
 		_build_developer_panel(root)
 
@@ -197,6 +202,105 @@ func _build_attack_mode_hint(root: Control) -> void:
 	attack_mode_hint_label.modulate = Color(0.88, 0.96, 1.0, 0.96)
 	attack_mode_hint_panel.add_child(attack_mode_hint_label)
 	_update_attack_mode_hint(false)
+
+func _build_minimap(root: Control) -> void:
+	minimap_panel = PanelContainer.new()
+	minimap_panel.anchor_left = 1.0
+	minimap_panel.anchor_top = 1.0
+	minimap_panel.anchor_right = 1.0
+	minimap_panel.anchor_bottom = 1.0
+	minimap_panel.offset_left = -236.0
+	minimap_panel.offset_top = -172.0
+	minimap_panel.offset_right = -18.0
+	minimap_panel.offset_bottom = -18.0
+
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.02, 0.04, 0.07, 0.72)
+	style.border_color = Color(0.42, 0.78, 1.0, 0.76)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(10)
+	style.content_margin_left = 8
+	style.content_margin_right = 8
+	style.content_margin_top = 8
+	style.content_margin_bottom = 8
+	minimap_panel.add_theme_stylebox_override("panel", style)
+	root.add_child(minimap_panel)
+
+	minimap_view = Control.new()
+	minimap_view.custom_minimum_size = Vector2(200.0, 138.0)
+	minimap_view.draw.connect(_draw_minimap)
+	minimap_panel.add_child(minimap_view)
+
+func configure_minimap(bounds: Rect2) -> void:
+	minimap_bounds = bounds
+	if minimap_view != null:
+		minimap_view.queue_redraw()
+
+func update_minimap(payload: Dictionary) -> void:
+	minimap_payload = payload.duplicate(true)
+	var bounds = minimap_payload.get("bounds", minimap_bounds)
+	if bounds is Rect2:
+		minimap_bounds = bounds
+	if minimap_view != null:
+		minimap_view.queue_redraw()
+
+func _draw_minimap() -> void:
+	if minimap_view == null:
+		return
+	var rect := Rect2(Vector2.ZERO, minimap_view.size)
+	minimap_view.draw_rect(rect, Color(0.0, 0.0, 0.0, 0.24), true)
+	minimap_view.draw_rect(rect, Color(0.42, 0.8, 1.0, 0.8), false, 1.0)
+	_draw_minimap_points(rect)
+
+func _draw_minimap_points(rect: Rect2) -> void:
+	var player_position = minimap_payload.get("player_position", null)
+	if player_position is Vector2:
+		minimap_view.draw_circle(_map_to_minimap(player_position, rect), 4.5, Color(0.42, 0.95, 1.0, 1.0))
+		minimap_view.draw_circle(_map_to_minimap(player_position, rect), 8.0, Color(0.42, 0.95, 1.0, 0.18))
+
+	var boss_position = minimap_payload.get("boss_position", null)
+	if boss_position is Vector2:
+		minimap_view.draw_circle(_map_to_minimap(boss_position, rect), 5.2, Color(1.0, 0.32, 0.28, 1.0))
+
+	for entry in minimap_payload.get("enemies", []):
+		if entry is not Dictionary:
+			continue
+		var position = entry.get("position", null)
+		if position is not Vector2:
+			continue
+		var kind := str(entry.get("kind", "normal"))
+		var color := Color(1.0, 0.42, 0.34, 0.78)
+		var radius := 2.3
+		if kind == "elite":
+			color = Color(1.0, 0.78, 0.25, 0.95)
+			radius = 3.0
+		elif kind == "small_boss":
+			color = Color(1.0, 0.46, 0.8, 0.95)
+			radius = 3.6
+		elif kind == "boss":
+			color = Color(1.0, 0.2, 0.2, 1.0)
+			radius = 4.8
+		minimap_view.draw_circle(_map_to_minimap(position, rect), radius, color)
+
+	for entry in minimap_payload.get("gems", []):
+		if entry is Dictionary and entry.get("position", null) is Vector2:
+			minimap_view.draw_circle(_map_to_minimap(entry["position"], rect), 1.6, Color(0.3, 1.0, 0.55, 0.58))
+
+	for entry in minimap_payload.get("hearts", []):
+		if entry is Dictionary and entry.get("position", null) is Vector2:
+			minimap_view.draw_circle(_map_to_minimap(entry["position"], rect), 2.2, Color(1.0, 0.34, 0.5, 0.85))
+
+func _map_to_minimap(world_position: Vector2, rect: Rect2) -> Vector2:
+	var bounds := minimap_bounds
+	if bounds.size.x <= 0.0 or bounds.size.y <= 0.0:
+		return rect.get_center()
+	var normalized := Vector2(
+		(world_position.x - bounds.position.x) / bounds.size.x,
+		(world_position.y - bounds.position.y) / bounds.size.y
+	)
+	normalized.x = clamp(normalized.x, 0.0, 1.0)
+	normalized.y = clamp(normalized.y, 0.0, 1.0)
+	return rect.position + Vector2(normalized.x * rect.size.x, normalized.y * rect.size.y)
 
 func _update_attack_mode_hint(auto_attack: bool) -> void:
 	if attack_mode_hint_label == null:

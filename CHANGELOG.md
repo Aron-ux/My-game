@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- 本地成就系统、成就定义表和右上角成就提示。
+- Steam 成就适配文档与 adapter 草稿。
+- 显示设置：窗口 / 全屏、预设窗口尺寸和 16:9 窗口比例校正。
+- 项目治理文档：路线图、已知问题、发布检查、贡献说明、第三方素材说明。
+- graphify Godot/GDScript 本地支持说明。
+- 本地一键检查脚本、轻量项目校验和最小 GitHub Actions 工作流。
+
+### Changed
+
+- 文档索引改为仓库相对路径。
+- README 同步当前成就、显示设置和治理文档入口。
+
+
 ## v0.1.0 - Current Prototype Baseline
 
 首个可公开整理的原型基线版本。
