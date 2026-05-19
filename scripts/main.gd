@@ -11,6 +11,7 @@ const REWARD_FLOW := preload("res://scripts/game/reward_flow.gd")
 const RUN_SAVE_FLOW := preload("res://scripts/game/run_save_flow.gd")
 const GAME_SESSION_FLOW := preload("res://scripts/game/game_session_flow.gd")
 const GAME_MAIN_FLOW := preload("res://scripts/game/game_main_flow.gd")
+const GAME_PHYSICS_FLOW := preload("res://scripts/game/game_physics_flow.gd")
 const GAME_ACHIEVEMENT_BRIDGE := preload("res://scripts/game/game_achievement_bridge.gd")
 const ENEMY_DEFEAT_FLOW := preload("res://scripts/game/enemy_defeat_flow.gd")
 const GAME_SCENE_WIRING := preload("res://scripts/game/game_scene_wiring.gd")
@@ -30,6 +31,7 @@ const ENEMY_HIT_FEEDBACK := preload("res://scripts/enemies/enemy_hit_feedback.gd
 const PLAYER_BULLET := preload("res://scripts/bullet.gd")
 
 const PICKUP_GRID_CELL_SIZE := 128.0
+const REWARD_MAINTENANCE_DEFER_SECONDS := 0.12
 
 @export var enemy_scene: PackedScene = preload("res://scenes/enemy.tscn")
 @export var enemy_bullet_scene: PackedScene = preload("res://scenes/enemy_bullet.tscn")
@@ -71,7 +73,7 @@ var defeated_boss_count: int = 0
 var exit_snapshot_saved: bool = false
 var performance_sample_elapsed: float = 0.0
 var minimap_update_elapsed: float = 0.0
-var minimap_update_interval: float = 0.18
+var minimap_update_interval: float = 1.0 / 30.0
 var pickup_compact_elapsed: float = 0.0
 var distant_enemy_maintenance_elapsed: float = 0.0
 var distant_enemy_maintenance_cursor: int = 0
@@ -109,6 +111,8 @@ var runtime_player_projectile_pool_nodes: Dictionary = {}
 var runtime_player_projectile_pool_cache: Dictionary = {}
 var runtime_player_projectile_pool_cache_dirty: Dictionary = {}
 var runtime_player_projectile_pool_limit: int = 96
+var reward_maintenance_scheduled: bool = false
+var reward_maintenance_resume_level_ups: bool = false
 
 func _ready() -> void:
 	GAME_MAIN_FLOW.ready(self)
@@ -127,6 +131,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	GAME_MAIN_FLOW.process(self, delta)
+
+func _physics_process(delta: float) -> void:
+	GAME_PHYSICS_FLOW.physics_process(self, delta)
 
 func _setup_spawn_timer() -> void:
 	ENEMY_SPAWN_FLOW.setup_spawn_timer(self)
@@ -150,6 +157,32 @@ func _connect_player_signals() -> void:
 
 func _refresh_hud() -> void:
 	GAME_HUD_FLOW.refresh_hud(self)
+
+func _schedule_reward_maintenance(resume_level_ups: bool = false) -> void:
+	reward_maintenance_resume_level_ups = reward_maintenance_resume_level_ups or resume_level_ups
+	if reward_maintenance_scheduled:
+		return
+	reward_maintenance_scheduled = true
+	call_deferred("_run_scheduled_reward_maintenance")
+
+func _run_scheduled_reward_maintenance() -> void:
+	if not is_inside_tree():
+		reward_maintenance_scheduled = false
+		return
+	var tree := get_tree()
+	if tree == null:
+		reward_maintenance_scheduled = false
+		return
+	await tree.create_timer(REWARD_MAINTENANCE_DEFER_SECONDS).timeout
+	reward_maintenance_scheduled = false
+	var should_resume_level_ups := reward_maintenance_resume_level_ups
+	reward_maintenance_resume_level_ups = false
+	if game_over or not is_inside_tree():
+		return
+	_refresh_hud()
+	_save_run_state()
+	if should_resume_level_ups and player != null and player.has_method("resume_pending_level_ups"):
+		player.resume_pending_level_ups()
 
 func _update_boss_hud() -> void:
 	GAME_HUD_FLOW.update_boss_hud(self)
@@ -419,6 +452,9 @@ func _clear_pending_enemy_spawn_requests_if_needed() -> void:
 func _get_enemy_spawn_process_limit() -> int:
 	return RUNTIME_ENEMY_REGISTRY_FLOW.get_enemy_spawn_process_limit(self)
 
+func get_pending_enemy_spawn_count() -> int:
+	return RUNTIME_ENEMY_REGISTRY_FLOW.get_pending_enemy_spawn_count(self)
+
 func take_runtime_enemy_from_pool() -> Node:
 	return RUNTIME_ENEMY_REGISTRY_FLOW.take_runtime_enemy_from_pool(self)
 
@@ -491,6 +527,9 @@ func _on_developer_boss_spawn_requested(archetype_id: String) -> void:
 func _on_developer_small_boss_spawn_requested(archetype_id: String) -> void:
 	DEVELOPER_ACTIONS.spawn_small_boss(self, archetype_id)
 
+func _on_developer_normal_enemy_batch_spawn_requested(archetype_id: String, count: int) -> void:
+	DEVELOPER_ACTIONS.spawn_normal_enemy_batch(self, archetype_id, count)
+
 func _on_developer_skill_unlock_requested(skill_id: String, tier: int) -> void:
 	DEVELOPER_ACTIONS.unlock_skill(self, skill_id, tier)
 
@@ -499,6 +538,9 @@ func _on_developer_blessing_grant_requested(blessing_id: String, tier: int) -> v
 
 func _get_developer_boss_options() -> Array:
 	return DEVELOPER_OPTION_PROVIDER.get_boss_options()
+
+func _get_developer_normal_enemy_options() -> Array:
+	return DEVELOPER_OPTION_PROVIDER.get_normal_enemy_options()
 
 func _get_developer_skill_options() -> Array:
 	return DEVELOPER_OPTION_PROVIDER.get_skill_options(player)
@@ -511,6 +553,9 @@ func _spawn_developer_boss(archetype_id: String = "boss_spellcore") -> void:
 
 func _spawn_developer_small_boss(archetype_id: String) -> void:
 	DEVELOPER_ACTIONS.spawn_small_boss(self, archetype_id)
+
+func _spawn_developer_normal_enemy_batch(archetype_id: String, count: int) -> void:
+	DEVELOPER_ACTIONS.spawn_normal_enemy_batch(self, archetype_id, count)
 
 func _has_active_special_enemy(kind: String) -> bool:
 	return ENEMY_SPAWN_FLOW.has_active_special_enemy(self, kind)

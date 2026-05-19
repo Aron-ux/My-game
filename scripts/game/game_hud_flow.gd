@@ -2,6 +2,12 @@ extends RefCounted
 
 const DEVELOPER_OPTION_PROVIDER := preload("res://scripts/developer/developer_option_provider.gd")
 const PERFORMANCE_MONITOR := preload("res://scripts/game/performance_monitor.gd")
+const PERFORMANCE_RECORDER := preload("res://scripts/game/performance_recorder.gd")
+const HUD_PRESENTATION_REFRESH_INTERVAL := 1.0 / 30.0
+const FRAME_TIME_REFRESH_INTERVAL := HUD_PRESENTATION_REFRESH_INTERVAL
+const FRAME_STATS_REFRESH_INTERVAL := HUD_PRESENTATION_REFRESH_INTERVAL
+const LAST_FRAME_TIME_REFRESH_META := "last_frame_time_refresh_time"
+const LAST_FRAME_STATS_REFRESH_META := "last_frame_stats_refresh_time"
 
 # Handoff note:
 # HUD projection lives here. main.gd should expose scene state and thin callback
@@ -9,11 +15,20 @@ const PERFORMANCE_MONITOR := preload("res://scripts/game/performance_monitor.gd"
 # into HUD methods.
 
 static func update_frame_hud(main: Node) -> void:
-	if main.hud != null and main.hud.has_method("update_time"):
+	if main.hud != null and main.hud.has_method("update_time") and _should_refresh_elapsed(main, LAST_FRAME_TIME_REFRESH_META, main.survival_time, FRAME_TIME_REFRESH_INTERVAL):
+		PERFORMANCE_RECORDER.begin_scope("hud_time_label_ms")
 		main.hud.update_time(main.survival_time)
-	if main.hud != null and main.hud.has_method("update_stats") and main.player != null and main.player.has_method("get_stat_summary"):
-		main.hud.update_stats(main.player.get_stat_summary())
+		PERFORMANCE_RECORDER.end_scope("hud_time_label_ms")
+	if main.hud != null and main.hud.has_method("update_stats") and main.player != null and main.player.has_method("get_stat_summary") and _should_refresh_elapsed(main, LAST_FRAME_STATS_REFRESH_META, main.survival_time, FRAME_STATS_REFRESH_INTERVAL):
+		PERFORMANCE_RECORDER.begin_scope("hud_stats_payload_ms")
+		var summary: Dictionary = main.player.get_frame_hud_summary() if main.player.has_method("get_frame_hud_summary") else main.player.get_stat_summary()
+		PERFORMANCE_RECORDER.end_scope("hud_stats_payload_ms")
+		PERFORMANCE_RECORDER.begin_scope("hud_update_stats_ms")
+		main.hud.update_stats(summary)
+		PERFORMANCE_RECORDER.end_scope("hud_update_stats_ms")
+	PERFORMANCE_RECORDER.begin_scope("boss_hud_ms")
 	update_boss_hud(main)
+	PERFORMANCE_RECORDER.end_scope("boss_hud_ms")
 
 static func refresh_hud(main: Node) -> void:
 	if main.hud == null or main.player == null:
@@ -30,6 +45,8 @@ static func refresh_hud(main: Node) -> void:
 		main.hud.update_time(main.survival_time)
 	if main.hud.has_method("set_developer_boss_options"):
 		main.hud.set_developer_boss_options(main._get_developer_boss_options())
+	if main.hud.has_method("set_developer_normal_enemy_options"):
+		main.hud.set_developer_normal_enemy_options(main._get_developer_normal_enemy_options())
 	if main.hud.has_method("set_developer_skill_options"):
 		main.hud.set_developer_skill_options(main._get_developer_skill_options())
 	if main.hud.has_method("set_developer_blessing_options"):
@@ -92,8 +109,15 @@ static func on_player_mana_changed(main: Node, current_mana: float, max_mana: fl
 		main.hud.update_stats(main.player.get_stat_summary())
 
 static func _should_refresh_mana_stats(main: Node) -> bool:
-	var current_frame := Engine.get_process_frames()
-	if int(main.get_meta("last_mana_stats_frame", -1)) == current_frame:
+	return _should_refresh_elapsed(main, LAST_FRAME_STATS_REFRESH_META, main.survival_time, FRAME_STATS_REFRESH_INTERVAL)
+
+static func _should_refresh_elapsed(owner: Node, meta_key: String, current_time: float, interval: float) -> bool:
+	if owner == null:
 		return false
-	main.set_meta("last_mana_stats_frame", current_frame)
+	if interval <= 0.0:
+		return true
+	var last_refresh_time := float(owner.get_meta(meta_key, -999999.0))
+	if current_time - last_refresh_time < interval:
+		return false
+	owner.set_meta(meta_key, current_time)
 	return true
