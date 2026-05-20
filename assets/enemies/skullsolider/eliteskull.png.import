@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bq1kf1f7y5hto"
-path="res://.godot/imported/skull小兵.png-505b849950381efb3bad2a3e0c742f1b.ctex"
+uid="uid://clg2p4l4yahp6"
+path="res://.godot/imported/eliteskull.png-da394ac9c7cedf82fcd8d9ac49c9352e.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/enemies/skull/skull小兵.png"
-dest_files=["res://.godot/imported/skull小兵.png-505b849950381efb3bad2a3e0c742f1b.ctex"]
+source_file="res://assets/enemies/skullsolider/eliteskull.png"
+dest_files=["res://.godot/imported/eliteskull.png-da394ac9c7cedf82fcd8d9ac49c9352e.ctex"]
 
 [params]
 

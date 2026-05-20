@@ -14,7 +14,8 @@ static func drop_experience_gem(enemy) -> void:
 	if current_scene == null:
 		return
 
-	if PICKUP_COMPACTOR.should_merge_new_exp_gem(current_scene):
+	var drop_absorber = _get_valid_drop_absorber(enemy)
+	if drop_absorber == null and PICKUP_COMPACTOR.should_merge_new_exp_gem(current_scene):
 		if PICKUP_COMPACTOR.merge_exp_value_into_existing(current_scene, enemy.global_position, enemy.experience_reward, enemy.reward_tier):
 			return
 
@@ -33,6 +34,7 @@ static func drop_experience_gem(enemy) -> void:
 	else:
 		gem.global_position = enemy.global_position
 		gem.value = enemy.experience_reward
+	_absorb_drop_if_requested(drop_absorber, gem, "exp_gems")
 
 static func maybe_drop_heart(enemy) -> void:
 	if enemy.heart_pickup_scene == null:
@@ -47,7 +49,8 @@ static func maybe_drop_heart(enemy) -> void:
 		return
 
 	var spawn_position: Vector2 = enemy.global_position + Vector2(randf_range(-10.0, 10.0), randf_range(-8.0, 8.0))
-	if PICKUP_COMPACTOR.should_merge_new_heart(current_scene):
+	var drop_absorber = _get_valid_drop_absorber(enemy)
+	if drop_absorber == null and PICKUP_COMPACTOR.should_merge_new_heart(current_scene):
 		if PICKUP_COMPACTOR.merge_heal_into_existing(current_scene, spawn_position, 50.0):
 			return
 
@@ -62,6 +65,7 @@ static func maybe_drop_heart(enemy) -> void:
 		heart_pickup.reset_pickup(spawn_position, 50.0)
 	else:
 		heart_pickup.global_position = spawn_position
+	_absorb_drop_if_requested(drop_absorber, heart_pickup, "heart_pickups")
 
 static func get_heart_drop_chance(enemy_kind: String) -> float:
 	match enemy_kind:
@@ -88,3 +92,19 @@ static func _get_enemy_current_scene(enemy) -> Node:
 	if tree == null:
 		return null
 	return tree.current_scene
+
+static func _get_valid_drop_absorber(enemy):
+	if enemy == null:
+		return null
+	var absorber = enemy.get("drop_absorber")
+	if absorber == null or not is_instance_valid(absorber):
+		return null
+	return absorber
+
+static func _absorb_drop_if_requested(absorber, pickup: Node, group_name: String) -> void:
+	if pickup == null or absorber == null:
+		return
+	if group_name == "exp_gems" and absorber.has_method("absorb_exp_gem"):
+		absorber.absorb_exp_gem(pickup)
+	elif group_name == "heart_pickups" and absorber.has_method("absorb_heart"):
+		absorber.absorb_heart(pickup)

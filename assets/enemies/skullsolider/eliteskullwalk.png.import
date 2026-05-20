@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cj1esi2nh1wtb"
-path="res://.godot/imported/skullelite.png-c0a57f88053ef04e5d2d0c1b6549cff6.ctex"
+uid="uid://vcc682ibryaf"
+path="res://.godot/imported/eliteskullwalk.png-439e8f7412c949937587e951f8b4a995.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/enemies/skull/skullelite.png"
-dest_files=["res://.godot/imported/skullelite.png-c0a57f88053ef04e5d2d0c1b6549cff6.ctex"]
+source_file="res://assets/enemies/skullsolider/eliteskullwalk.png"
+dest_files=["res://.godot/imported/eliteskullwalk.png-439e8f7412c949937587e951f8b4a995.ctex"]
 
 [params]
 

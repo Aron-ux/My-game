@@ -1,0 +1,112 @@
+[gd_scene load_steps=14 format=3 uid="uid://b8ef6fds1r6qr"]
+
+[ext_resource type="Texture2D" uid="uid://deprf4o05s8ol" path="res://assets/enemies/skullsolider/skull.png" id="1_oxjli"]
+[ext_resource type="Texture2D" uid="uid://ddb51r5npo7s5" path="res://assets/enemies/skullsolider/skullhit.png" id="2_fs0tv"]
+[ext_resource type="Texture2D" uid="uid://dahwlbm3gdwxo" path="res://assets/enemies/skullsolider/skullwalk.png" id="3_wum2l"]
+[ext_resource type="Script" path="res://assets/enemies/authored_enemy_visual.gd" id="4_visual"]
+[ext_resource type="Texture2D" uid="uid://d2osgj1g3ayin" path="res://assets/阴影.png" id="5_shadow"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_71fcv"]
+atlas = ExtResource("3_wum2l")
+region = Rect2(0, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_0u5ak"]
+atlas = ExtResource("3_wum2l")
+region = Rect2(256, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_y7tr5"]
+atlas = ExtResource("3_wum2l")
+region = Rect2(512, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_hl7x2"]
+atlas = ExtResource("3_wum2l")
+region = Rect2(768, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_al8pa"]
+atlas = ExtResource("3_wum2l")
+region = Rect2(1024, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_7kpls"]
+atlas = ExtResource("3_wum2l")
+region = Rect2(1280, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_scoab"]
+atlas = ExtResource("3_wum2l")
+region = Rect2(1536, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_p2l0w"]
+atlas = ExtResource("3_wum2l")
+region = Rect2(1792, 0, 256, 256)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_d7sme"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("1_oxjli")
+}, {
+"duration": 1.0,
+"texture": ExtResource("2_fs0tv")
+}, {
+"duration": 1.0,
+"texture": ExtResource("1_oxjli")
+}],
+"loop": false,
+"name": &"skullhit",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_71fcv")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_0u5ak")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_y7tr5")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_hl7x2")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_al8pa")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_7kpls")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_scoab")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_p2l0w")
+}, {
+"duration": 0.2,
+"texture": SubResource("AtlasTexture_p2l0w")
+}],
+"loop": true,
+"name": &"skullwalk",
+"speed": 7.0
+}]
+
+[node name="Skullsoilder" type="Node2D" unique_id=489180043]
+script = ExtResource("4_visual")
+move_animation = &"skullwalk"
+hit_animation = &"skullhit"
+visual_scale = Vector2(0.3472, 0.3472)
+sprite_position = Vector2(0, -20)
+shadow_scale = Vector2(0.6552, 0.336)
+shadow_position = Vector2(0, 1)
+
+[node name="Shadow" type="Sprite2D" parent="." unique_id=1939923670]
+modulate = Color(0.58, 0.58, 0.58, 1)
+position = Vector2(0, 1)
+scale = Vector2(0.6552, 0.336)
+z_index = -1
+texture = ExtResource("5_shadow")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=918602432]
+position = Vector2(0, -20)
+scale = Vector2(0.3472, 0.3472)
+z_index = 1
+sprite_frames = SubResource("SpriteFrames_d7sme")
+animation = &"skullwalk"
+frame_progress = 0.28251407

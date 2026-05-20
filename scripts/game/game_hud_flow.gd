@@ -47,6 +47,8 @@ static func refresh_hud(main: Node) -> void:
 		main.hud.set_developer_boss_options(main._get_developer_boss_options())
 	if main.hud.has_method("set_developer_normal_enemy_options"):
 		main.hud.set_developer_normal_enemy_options(main._get_developer_normal_enemy_options())
+	if main.hud.has_method("set_developer_enemy_options"):
+		main.hud.set_developer_enemy_options(main._get_developer_enemy_options())
 	if main.hud.has_method("set_developer_skill_options"):
 		main.hud.set_developer_skill_options(main._get_developer_skill_options())
 	if main.hud.has_method("set_developer_blessing_options"):

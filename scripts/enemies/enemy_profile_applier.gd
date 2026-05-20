@@ -1,5 +1,7 @@
 extends RefCounted
 
+const ENEMY_DIRECTOR := preload("res://scripts/enemy/enemy_director.gd")
+
 static func apply_profile(enemy, kind: String, profile: Dictionary) -> void:
 	enemy.enemy_kind = kind
 	enemy.archetype_id = str(profile.get("archetype", enemy.archetype_id))
@@ -11,7 +13,8 @@ static func apply_profile(enemy, kind: String, profile: Dictionary) -> void:
 	enemy.speed = float(profile.get("speed", enemy.speed))
 	enemy.touch_damage = float(profile.get("touch_damage", enemy.touch_damage))
 	enemy.contact_radius = float(profile.get("contact_radius", enemy.contact_radius))
-	enemy.body_collision_radius = float(profile.get("body_collision_radius", -1.0))
+	var raw_body_collision_radius: float = float(profile.get("body_collision_radius", -1.0))
+	enemy.body_collision_radius = raw_body_collision_radius * ENEMY_DIRECTOR.get_body_collision_radius_multiplier() if raw_body_collision_radius > 0.0 else raw_body_collision_radius
 	enemy.experience_reward = int(profile.get("experience_reward", enemy.experience_reward))
 	enemy.reward_tier = clamp(int(profile.get("reward_tier", enemy.reward_tier)), 1, 4)
 
@@ -49,11 +52,30 @@ static func apply_profile(enemy, kind: String, profile: Dictionary) -> void:
 	enemy.glutton_speed_gain_per_gem = float(profile.get("glutton_speed_gain_per_gem", 0.0))
 	enemy.glutton_scale_gain_per_gem = float(profile.get("glutton_scale_gain_per_gem", 0.0))
 	enemy.glutton_max_bonus_speed = float(profile.get("glutton_max_bonus_speed", 0.0))
+	enemy.glutton_aura_radius = float(profile.get("glutton_aura_radius", enemy.glutton_absorb_radius))
+	enemy.glutton_aura_damage = float(profile.get("glutton_aura_damage", 0.0))
+	enemy.glutton_heart_heal_scale = float(profile.get("glutton_heart_heal_scale", 1.0))
 	enemy.glutton_bonus_speed = 0.0
 	enemy.rebirth_lives_remaining = int(profile.get("rebirth_lives", 0))
 	enemy.rebirth_delay = float(profile.get("rebirth_delay", 2.0))
 	enemy.rebirth_slow_multiplier = float(profile.get("rebirth_slow_multiplier", 0.5))
 	enemy.rebirth_slow_duration = float(profile.get("rebirth_slow_duration", 6.0))
+	enemy.skulltomb_summon_interval = float(profile.get("skulltomb_summon_interval", 20.0))
+	enemy.skulltomb_summon_timer = enemy.skulltomb_summon_interval
+	enemy.skulltomb_summon_windup = float(profile.get("skulltomb_summon_windup", 1.2))
+	enemy.skulltomb_summon_windup_remaining = 0.0
+	enemy.skulltomb_min_soldiers = int(profile.get("skulltomb_min_soldiers", 10))
+	enemy.skulltomb_buff_duration = float(profile.get("skulltomb_buff_duration", 5.0))
+	enemy.skulltomb_death_player_slow_multiplier = float(profile.get("skulltomb_death_player_slow_multiplier", 0.5))
+	enemy.skulltomb_death_player_slow_duration = float(profile.get("skulltomb_death_player_slow_duration", 5.0))
+	enemy.skulltomb_death_soldier_speed_multiplier = float(profile.get("skulltomb_death_soldier_speed_multiplier", 1.2))
+	enemy.skulltomb_death_shot_frequency_multiplier = float(profile.get("skulltomb_death_shot_frequency_multiplier", 1.3))
+	enemy.skulltomb_tomb_scene = profile.get("skulltomb_tomb_scene", null) as PackedScene
+	enemy.skull_soldier_speed_multiplier = 1.0
+	enemy.skull_soldier_speed_timer = 0.0
+	enemy.skull_damage_immune_timer = 0.0
+	enemy.skullshot_attack_frequency_multiplier = 1.0
+	enemy.skullshot_attack_frequency_timer = 0.0
 	enemy.turret_bombard_interval = float(profile.get("turret_bombard_interval", 0.0))
 	enemy.turret_bombard_radius = float(profile.get("turret_bombard_radius", 96.0))
 	enemy.turret_bombard_projectiles = int(profile.get("turret_bombard_projectiles", 8))

@@ -1,6 +1,7 @@
 extends RefCounted
 
 const PLAYER_VISUAL_LAYOUT := preload("res://scripts/player/player_visual_layout.gd")
+const INVULNERABILITY_VISUAL_TINT := preload("res://scripts/visual/invulnerability_visual_tint.gd")
 const SWORDSMAN_VISUAL_SCENE := preload("res://assets/players/sword/sword.tscn")
 const SWORDSMAN_VISUAL_SCALE := Vector2(1.0, 1.0)
 const SWORDSMAN_VISUAL_BASE_POSITION := Vector2(0.0, 0.0)
@@ -150,13 +151,16 @@ static func update_role_idle_visual(owner: Node, role_id: String, facing_directi
 		return
 	if is_role_visual_hidden(role_id, owner.active_role_visual_hidden, owner.active_role_visual_hidden_role_id):
 		apply_active_role_visual_hidden(owner, role_id, owner.active_role_visual_hidden, owner.active_role_visual_hidden_role_id)
+		_update_invulnerability_tint(owner)
 		return
 	var scene_visual := visual_root.get_node_or_null("RoleSceneVisual") as Node2D
 	if scene_visual != null:
 		_update_role_scene_visual(owner, scene_visual, role_id, _get_visual_facing_direction(owner, facing_direction), role_visual_time)
+		_update_invulnerability_tint(owner)
 		return
 	var sprite := visual_root.get_node_or_null("RoleSprite") as Sprite2D
 	if sprite == null:
+		_update_invulnerability_tint(owner)
 		return
 
 	var base_position := Vector2(0.0, -4.0)
@@ -180,6 +184,7 @@ static func update_role_idle_visual(owner: Node, role_id: String, facing_directi
 	sprite.rotation = tilt
 	if role_id in ["swordsman", "gunner", "mage"]:
 		sprite.flip_h = _get_visual_facing_direction(owner, facing_direction).x < 0.0
+	_update_invulnerability_tint(owner)
 
 static func _update_role_scene_visual(owner: Node, scene_visual: Node2D, role_id: String, facing_direction: Vector2, role_visual_time: float) -> void:
 	var base_position := WIZARD_VISUAL_BASE_POSITION
@@ -265,6 +270,17 @@ static func update_visuals(owner: Node, role_data: Dictionary, active_role_visua
 		sprite.visible = not should_hide
 	if polygon != null and not should_hide:
 		polygon.visible = false
+	_update_invulnerability_tint(owner)
+
+static func _update_invulnerability_tint(owner: Node) -> void:
+	var targets: Array = []
+	var visual_root := owner.get_node_or_null("RoleVisualRoot") as Node
+	if visual_root != null:
+		targets.append(visual_root)
+	var polygon := owner.get_node_or_null("Polygon2D") as Polygon2D
+	if polygon != null:
+		targets.append(polygon)
+	INVULNERABILITY_VISUAL_TINT.apply_to_nodes(targets, float(owner.get("switch_invulnerability_remaining")) > 0.0)
 
 static func _create_swordsman_scene_visual() -> Node2D:
 	var scene_visual := SWORDSMAN_VISUAL_SCENE.instantiate() as Node2D

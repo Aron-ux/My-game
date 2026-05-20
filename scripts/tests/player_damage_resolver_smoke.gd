@@ -124,7 +124,7 @@ class DamageOwner:
 	var damage_calls := 0
 	var register_calls := 0
 
-	func _deal_damage_to_enemy(_enemy: Node, _damage_amount: float, _source_role_id: String, _vulnerability_bonus: float = 0.0, _vulnerability_duration: float = 2.0, _slow_multiplier: float = 1.0, _slow_duration: float = 0.0, _source_position: Variant = null) -> bool:
+	func _deal_damage_to_enemy(_enemy: Node, _damage_amount: float, _source_role_id: String, _vulnerability_bonus: float = 0.0, _vulnerability_duration: float = 2.0, _slow_multiplier: float = 1.0, _slow_duration: float = 0.0, _source_position: Variant = null, _suppress_status_visual: bool = false) -> bool:
 		damage_calls += 1
 		return false
 
@@ -147,7 +147,7 @@ class FreeingDamageOwner:
 
 	var enemy_to_free: Node
 
-	func _deal_damage_to_enemy(enemy: Node, _damage_amount: float, _source_role_id: String, _vulnerability_bonus: float = 0.0, _vulnerability_duration: float = 2.0, _slow_multiplier: float = 1.0, _slow_duration: float = 0.0, _source_position: Variant = null) -> bool:
+	func _deal_damage_to_enemy(enemy: Node, _damage_amount: float, _source_role_id: String, _vulnerability_bonus: float = 0.0, _vulnerability_duration: float = 2.0, _slow_multiplier: float = 1.0, _slow_duration: float = 0.0, _source_position: Variant = null, _suppress_status_visual: bool = false) -> bool:
 		damage_calls += 1
 		if enemy == enemy_to_free and is_instance_valid(enemy):
 			enemy.queue_free()

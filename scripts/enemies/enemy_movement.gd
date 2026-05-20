@@ -37,6 +37,7 @@ static func compute_velocity(enemy, delta: float) -> Vector2:
 		move_speed += enemy.glutton_bonus_speed
 	if enemy._is_swarm:
 		move_speed *= 1.1
+	move_speed *= max(0.0, float(enemy.skull_soldier_speed_multiplier))
 
 	return move_direction * move_speed * GLOBAL_UNIT_MOVE_SPEED_SCALE
 

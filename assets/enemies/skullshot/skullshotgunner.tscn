@@ -1,7 +1,7 @@
-[gd_scene load_steps=12 format=3 uid="uid://b20wvqhvr7qja"]
+[gd_scene format=3 uid="uid://b20wvqhvr7qja"]
 
-[ext_resource type="Script" path="res://assets/enemies/skull/skull_visual.gd" id="1_visual"]
-[ext_resource type="Texture2D" path="res://assets/enemies/skull/skull shotgunner.png" id="2_texture"]
+[ext_resource type="Script" uid="uid://b03o1vxajxosu" path="res://assets/enemies/skullshot/skull_visual.gd" id="1_visual"]
+[ext_resource type="Texture2D" uid="uid://cv0jsfeahbx5q" path="res://assets/enemies/skullshot/skull shotgunner.png" id="2_texture"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_0"]
 atlas = ExtResource("2_texture")
@@ -69,6 +69,8 @@ animations = [{
 
 [node name="SkullShotgunner" type="Node2D"]
 script = ExtResource("1_visual")
+shadow_scale = Vector2(0.78, 0.35)
+shadow_position = Vector2(0, 62)
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
 sprite_frames = SubResource("SpriteFrames_run")

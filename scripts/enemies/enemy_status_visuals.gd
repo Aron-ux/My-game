@@ -2,6 +2,7 @@ extends RefCounted
 
 const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
 const PERFORMANCE_COUNTERS := preload("res://scripts/game/performance_counters.gd")
+const INVULNERABILITY_VISUAL_TINT := preload("res://scripts/visual/invulnerability_visual_tint.gd")
 
 const ELITE_DASH_TRAIL_DAMAGE := 12.0
 const ELITE_DASH_TRAIL_DURATION := 3.4
@@ -84,6 +85,7 @@ static func ensure_status_visuals(enemy) -> void:
 	enemy.status_root.add_child(enemy.dash_warning_rect)
 
 static func update_status_visuals(enemy) -> void:
+	_update_invulnerability_tint(enemy)
 	if enemy.status_root == null:
 		if not enemy.has_method("_has_status_visual_pressure") or not bool(enemy._has_status_visual_pressure()):
 			return
@@ -151,6 +153,27 @@ static func update_status_visuals(enemy) -> void:
 				Vector2(-dash_length * 0.5, dash_width * 0.5)
 			])
 			enemy.dash_warning_rect.color = Color(1.0, 0.14, 0.08, 0.16 + 0.18 * (1.0 - clamp(enemy.dash_windup_remaining / max(enemy.dash_windup_duration, 0.001), 0.0, 1.0)))
+
+static func _update_invulnerability_tint(enemy) -> void:
+	var targets: Array = []
+	var polygon := enemy.get_node_or_null("Polygon2D") as Polygon2D
+	if polygon != null:
+		targets.append(polygon)
+	var profile_visual := enemy.get_node_or_null("ProfileVisual") as Node
+	if profile_visual != null:
+		targets.append(profile_visual)
+	if enemy.boss_visual_instance != null and is_instance_valid(enemy.boss_visual_instance):
+		targets.append(enemy.boss_visual_instance)
+	INVULNERABILITY_VISUAL_TINT.apply_to_nodes(targets, _has_damage_immunity(enemy))
+
+static func _has_damage_immunity(enemy) -> bool:
+	if float(enemy.skull_damage_immune_timer) > 0.0:
+		return true
+	if str(enemy.enemy_kind) == "boss" and int(enemy.boss_phase) >= 3 and float(enemy.boss_phase_three_intro_remaining) > 0.0:
+		return true
+	if float(enemy.rebirth_timer) > 0.0:
+		return true
+	return false
 
 static func spawn_status_burst(enemy, color: Color, radius: float) -> void:
 	var current_scene: Node = _get_enemy_current_scene(enemy)

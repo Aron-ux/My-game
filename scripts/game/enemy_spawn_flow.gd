@@ -86,6 +86,9 @@ static func reposition_distant_normal_enemies(main: Node) -> void:
 static func _get_runtime_enemy_limit(main: Node) -> int:
 	return SPAWN_PACK_FLOW.get_runtime_enemy_limit(main)
 
+static func get_runtime_enemy_limit(main: Node) -> int:
+	return SPAWN_PACK_FLOW.get_runtime_enemy_limit(main)
+
 static func _get_spawn_bounds(main: Node) -> Rect2:
 	return SPAWN_POSITION_FLOW.get_spawn_bounds(main)
 

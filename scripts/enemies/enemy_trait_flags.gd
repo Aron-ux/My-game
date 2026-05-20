@@ -9,7 +9,7 @@ static func sync_trait_flags(enemy) -> void:
 	enemy._is_glutton = (enemy.behavior_id == "glutton" or enemy.secondary_behavior_id == "glutton")
 	enemy._is_swarm = (enemy.behavior_id == "swarm" or enemy.secondary_behavior_id == "swarm")
 	enemy._is_boss = (enemy.behavior_id == "boss" or enemy.secondary_behavior_id == "boss")
-	enemy._is_rebirth = (enemy.behavior_id == "rebirth" or enemy.secondary_behavior_id == "rebirth")
+	enemy._is_rebirth = (enemy.behavior_id == "rebirth" or enemy.secondary_behavior_id == "rebirth" or enemy.behavior_id == "skulltomb" or enemy.secondary_behavior_id == "skulltomb")
 
 
 static func has_trait(enemy, trait_id: String) -> bool:
@@ -30,6 +30,8 @@ static func has_trait(enemy, trait_id: String) -> bool:
 			return bool(enemy._is_boss)
 		"rebirth":
 			return bool(enemy._is_rebirth)
+		"skulltomb":
+			return enemy.behavior_id == "skulltomb" or enemy.secondary_behavior_id == "skulltomb"
 		_:
 			return enemy.behavior_id == trait_id or enemy.secondary_behavior_id == trait_id
 

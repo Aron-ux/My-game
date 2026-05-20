@@ -20,11 +20,13 @@ const ENEMY_BODY_SEPARATION := preload("res://scripts/enemies/enemy_body_separat
 const ENEMY_MOTION_THROTTLE := preload("res://scripts/enemies/enemy_motion_throttle.gd")
 const ENEMY_POOL_LIFECYCLE := preload("res://scripts/enemies/enemy_pool_lifecycle.gd")
 const ENEMY_STATUS_VISUAL_THROTTLE := preload("res://scripts/enemies/enemy_status_visual_throttle.gd")
+const ENEMY_BATCH_ELIGIBILITY := preload("res://scripts/enemies/enemy_batch_eligibility.gd")
 const ENEMY_TRAIT_FLAGS := preload("res://scripts/enemies/enemy_trait_flags.gd")
 const ENEMY_TRAIT_BEHAVIOR := preload("res://scripts/enemies/enemy_trait_behavior.gd")
 const ENEMY_TURRET_BOMBARD := preload("res://scripts/enemies/enemy_turret_bombard.gd")
 const ENEMY_RUNTIME_PROCESS := preload("res://scripts/enemies/enemy_runtime_process.gd")
 const ENEMY_VISUALS := preload("res://scripts/enemies/enemy_visuals.gd")
+const ENEMY_GLUTTON_BEHAVIOR := preload("res://scripts/enemies/enemy_glutton_behavior.gd")
 
 @export var speed: float = 80.0
 @export var max_health: float = 20.0
@@ -95,11 +97,35 @@ var glutton_speed_gain_per_gem: float = 0.0
 var glutton_scale_gain_per_gem: float = 0.0
 var glutton_max_bonus_speed: float = 0.0
 var glutton_bonus_speed: float = 0.0
+var glutton_aura_radius: float = 0.0
+var glutton_aura_damage: float = 0.0
+var glutton_heart_heal_scale: float = 1.0
+var drop_absorber: Node = null
+var glutton_aura_hits_by_enemy_id: Dictionary = {}
 var rebirth_lives_remaining: int = 0
 var rebirth_delay: float = 2.0
 var rebirth_timer: float = 0.0
 var rebirth_slow_multiplier: float = 0.5
 var rebirth_slow_duration: float = 6.0
+var skulltomb_summon_interval: float = 20.0
+var skulltomb_summon_timer: float = 0.0
+var skulltomb_summon_windup: float = 1.2
+var skulltomb_summon_windup_remaining: float = 0.0
+var skulltomb_min_soldiers: int = 10
+var skulltomb_buff_duration: float = 5.0
+var skulltomb_death_player_slow_multiplier: float = 0.5
+var skulltomb_death_player_slow_duration: float = 5.0
+var skulltomb_death_soldier_speed_multiplier: float = 1.2
+var skulltomb_death_shot_frequency_multiplier: float = 1.3
+var skulltomb_tomb_scene: PackedScene
+var skulltomb_tomb_instance: Node2D
+var skulltomb_channel_ring: Line2D
+var skulltomb_death_ring: Line2D
+var skull_soldier_speed_multiplier: float = 1.0
+var skull_soldier_speed_timer: float = 0.0
+var skull_damage_immune_timer: float = 0.0
+var skullshot_attack_frequency_multiplier: float = 1.0
+var skullshot_attack_frequency_timer: float = 0.0
 var turret_bombard_interval: float = 0.0
 var turret_bombard_timer: float = 0.0
 var turret_bombard_radius: float = 96.0
@@ -199,17 +225,10 @@ func batch_physics_process(delta: float) -> void:
 	ENEMY_RUNTIME_PROCESS.physics_process(self, delta)
 
 func can_use_batch_simulation() -> bool:
-	if pooled_inactive:
-		return false
-	if enemy_kind != "normal":
-		return false
-	if behavior_id != "chaser" or secondary_behavior_id != "":
-		return false
-	if boss_visual_instance != null:
-		return false
-	if _has_timed_behavior_traits():
-		return false
-	return true
+	return ENEMY_BATCH_ELIGIBILITY.can_batch(self)
+
+func get_batch_ineligibility_reason() -> String:
+	return ENEMY_BATCH_ELIGIBILITY.get_ineligibility_reason(self)
 
 func apply_enemy_profile(kind: String, profile: Dictionary) -> void:
 	pooled_inactive = false
@@ -320,6 +339,9 @@ func _prepare_for_pool() -> void:
 func apply_slow(multiplier: float, duration: float) -> void:
 	ENEMY_STATUS_EFFECTS.apply_slow(self, multiplier, duration)
 
+func apply_slow_silent(multiplier: float, duration: float) -> void:
+	ENEMY_STATUS_EFFECTS.apply_slow_without_status_visuals(self, multiplier, duration)
+
 func apply_vulnerability(bonus: float, duration: float) -> void:
 	ENEMY_STATUS_EFFECTS.apply_vulnerability(self, bonus, duration)
 
@@ -349,6 +371,12 @@ func _drop_experience_gem() -> void:
 
 func _maybe_drop_heart() -> void:
 	ENEMY_DROPS.maybe_drop_heart(self)
+
+func absorb_exp_gem(gem) -> int:
+	return ENEMY_GLUTTON_BEHAVIOR.absorb_exp_gem(self, gem)
+
+func absorb_heart(heart) -> float:
+	return ENEMY_GLUTTON_BEHAVIOR.absorb_heart(self, heart)
 
 func get_save_data() -> Dictionary:
 	return ENEMY_SAVE_DATA.get_save_data(self)

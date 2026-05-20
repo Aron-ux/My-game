@@ -1,5 +1,12 @@
 extends RefCounted
 
+const MAX_DIRECT_SEPARATION_NEIGHBORS := 36
+const MAX_VELOCITY_SEPARATION_NEIGHBORS := 36
+const DIRECT_SEPARATION_OVERLAP_SCALE := 0.9
+const DIRECT_SEPARATION_PER_NEIGHBOR_LIMIT := 34.0
+const DIRECT_SEPARATION_TOTAL_LIMIT := 72.0
+const SEPARATION_VELOCITY_MIN_PUSH := 220.0
+const SEPARATION_VELOCITY_RADIUS_SCALE := 7.0
 
 static func apply_body_collision_separation(enemy) -> void:
 	if enemy == null or not is_instance_valid(enemy) or not enemy.is_inside_tree():
@@ -10,10 +17,7 @@ static func apply_body_collision_separation(enemy) -> void:
 	enemy.ENEMY_SPATIAL_GRID.for_each_neighbor(enemy, max(144.0, self_body_radius * 5.0), func(other: Variant) -> bool:
 		if other == null or other == enemy or not is_instance_valid(other) or not (other is Node2D):
 			return true
-		var other_radius: float = self_body_radius
-		var other_body_radius: Variant = other.get("body_collision_radius")
-		if other_body_radius != null:
-			other_radius = max(8.0, float(other_body_radius))
+		var other_radius: float = get_body_collision_radius(other)
 		var offset: Vector2 = enemy.global_position - (other as Node2D).global_position
 		var distance_sq: float = offset.length_squared()
 		var min_distance: float = self_body_radius + other_radius
@@ -25,12 +29,12 @@ static func apply_body_collision_separation(enemy) -> void:
 			distance_sq = 1.0
 		var distance: float = sqrt(distance_sq)
 		var overlap: float = min_distance - distance
-		push += offset / distance * min(overlap * 0.65, 18.0)
+		push += offset / distance * min(overlap * DIRECT_SEPARATION_OVERLAP_SCALE, DIRECT_SEPARATION_PER_NEIGHBOR_LIMIT)
 		processed += 1
-		return processed < 24
+		return processed < MAX_DIRECT_SEPARATION_NEIGHBORS
 	)
 	if push.length_squared() > 0.001:
-		enemy.global_position += push.limit_length(36.0)
+		enemy.global_position += push.limit_length(DIRECT_SEPARATION_TOTAL_LIMIT)
 
 
 static func get_separation_velocity(enemy) -> Vector2:
@@ -51,10 +55,7 @@ static func compute_separation_velocity(enemy) -> Vector2:
 		if other == null or other == enemy or not is_instance_valid(other) or not (other is Node2D):
 			return true
 		var offset: Vector2 = enemy.global_position - (other as Node2D).global_position
-		var other_radius: float = self_body_radius
-		var other_body_radius: Variant = other.get("body_collision_radius")
-		if other_body_radius != null:
-			other_radius = max(6.0, float(other_body_radius))
+		var other_radius: float = get_body_collision_radius(other)
 		var radius: float = max(12.0, self_body_radius + other_radius)
 		var radius_sq: float = radius * radius
 		var distance_sq: float = offset.length_squared()
@@ -64,11 +65,11 @@ static func compute_separation_velocity(enemy) -> Vector2:
 			offset = Vector2.RIGHT.rotated(float(enemy.get_instance_id() % 360) * PI / 180.0)
 			distance_sq = 1.0
 		var distance: float = sqrt(distance_sq)
-		var max_push: float = max(170.0, radius * 5.2)
+		var max_push: float = max(SEPARATION_VELOCITY_MIN_PUSH, radius * SEPARATION_VELOCITY_RADIUS_SCALE)
 		var strength: float = (radius - distance) / radius
 		push += offset.normalized() * strength * max_push
 		processed += 1
-		return processed < 20
+		return processed < MAX_VELOCITY_SEPARATION_NEIGHBORS
 	)
 	return push
 
@@ -97,5 +98,5 @@ static func should_refresh_separation(enemy, current_frame: int) -> bool:
 
 static func get_separation_refresh_interval(enemy) -> int:
 	if str(enemy.enemy_kind) == "normal" and str(enemy.secondary_behavior_id) == "" and not bool(enemy._has_timed_behavior_traits()) and bool(enemy._is_scene_under_enemy_pressure()):
-		return 4
+		return 1
 	return 2

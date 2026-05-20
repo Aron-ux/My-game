@@ -11,6 +11,9 @@ static func get_boss_options() -> Array:
 static func get_normal_enemy_options() -> Array:
 	return ENEMY_ARCHETYPE_DATABASE.get_normal_enemy_options()
 
+static func get_enemy_options() -> Array:
+	return ENEMY_ARCHETYPE_DATABASE.get_developer_enemy_options()
+
 static func get_skill_options(player) -> Array:
 	var options: Array = []
 	for skill_id_value in PLAYER_BLESSING_SKILL_STATE.ACTIVE_SKILL_IDS:

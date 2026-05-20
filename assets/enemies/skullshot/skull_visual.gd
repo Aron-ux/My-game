@@ -1,9 +1,14 @@
 extends Node2D
 
+const ENEMY_SHADOW_VISUAL := preload("res://assets/enemies/enemy_shadow_visual.gd")
 const RUN_ANIMATION := "run"
 const HIT_FLASH_DURATION := 0.14
 
+@export var shadow_scale: Vector2 = Vector2(0.62, 0.3)
+@export var shadow_position: Vector2 = Vector2(0.0, 18.0)
+
 var sprite: AnimatedSprite2D
+var shadow: Sprite2D
 var hit_flash_remaining: float = 0.0
 
 
@@ -47,6 +52,7 @@ func _update_facing(move_direction: Vector2) -> void:
 func _ensure_sprite() -> void:
 	if sprite != null:
 		return
+	_ensure_shadow()
 	sprite = get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
 	if sprite == null:
 		sprite = AnimatedSprite2D.new()
@@ -54,3 +60,6 @@ func _ensure_sprite() -> void:
 		add_child(sprite)
 	sprite.centered = true
 	sprite.z_index = 1
+
+func _ensure_shadow() -> void:
+	shadow = ENEMY_SHADOW_VISUAL.ensure_shadow(self, shadow, shadow_position, shadow_scale)

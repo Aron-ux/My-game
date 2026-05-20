@@ -1,5 +1,6 @@
 extends Node2D
 
+const ENEMY_SHADOW_VISUAL := preload("res://assets/enemies/enemy_shadow_visual.gd")
 const RUN_ANIMATION := "pumpkin-run"
 const HIT_ANIMATION := "pumpkin-hit"
 const HIT_TEXTURES := [
@@ -8,7 +9,11 @@ const HIT_TEXTURES := [
 ]
 const VISUAL_SCALE := Vector2(1.42, 1.42)
 
+@export var shadow_scale: Vector2 = Vector2(0.92, 0.42)
+@export var shadow_position: Vector2 = Vector2(0.0, 32.0)
+
 var sprite: AnimatedSprite2D
+var shadow: Sprite2D
 var hit_lock_remaining: float = 0.0
 var last_moving_state: bool = false
 
@@ -54,6 +59,7 @@ func _update_facing(move_direction: Vector2) -> void:
 func _ensure_sprite() -> void:
 	if sprite != null:
 		return
+	_ensure_shadow()
 	sprite = get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
 	if sprite == null:
 		sprite = AnimatedSprite2D.new()
@@ -66,6 +72,9 @@ func _ensure_sprite() -> void:
 	sprite.position = Vector2(0.0, -12.0)
 	sprite.scale = VISUAL_SCALE
 	sprite.z_index = 1
+
+func _ensure_shadow() -> void:
+	shadow = ENEMY_SHADOW_VISUAL.ensure_shadow(self, shadow, shadow_position, shadow_scale)
 
 
 func _ensure_hit_animation(frames: SpriteFrames) -> void:

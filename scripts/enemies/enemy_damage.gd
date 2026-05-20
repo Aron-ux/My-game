@@ -1,5 +1,7 @@
 extends RefCounted
 
+const ENEMY_SKULLTOMB_BEHAVIOR := preload("res://scripts/enemies/enemy_skulltomb_behavior.gd")
+
 static func take_damage(enemy, amount: float) -> bool:
 	return apply_damage(enemy, amount, true)
 
@@ -8,11 +10,16 @@ static func apply_damage(enemy, amount: float, show_feedback: bool = true) -> bo
 		return false
 	if enemy.rebirth_timer > 0.0:
 		return false
+	if enemy.skull_damage_immune_timer > 0.0:
+		return false
 	var adjusted_damage: float = amount * (1.0 + enemy.vulnerability_bonus)
 	enemy.current_health -= adjusted_damage
 	var killed: bool = enemy.current_health <= 0.0
 	if show_feedback:
 		enemy._play_hit_feedback(adjusted_damage, killed)
+	if enemy.enemy_kind == "small_boss" and enemy.behavior_id == "skulltomb" and killed:
+		if ENEMY_SKULLTOMB_BEHAVIOR.handle_lethal_damage(enemy):
+			return false
 	if enemy.enemy_kind == "small_boss" and enemy.behavior_id == "rebirth" and killed and enemy.rebirth_lives_remaining > 0:
 		enemy.rebirth_lives_remaining -= 1
 		enemy.current_health = enemy.max_health
@@ -29,6 +36,7 @@ static func apply_damage(enemy, amount: float, show_feedback: bool = true) -> bo
 		enemy.defeated.emit(enemy.enemy_kind)
 		enemy._drop_experience_gem()
 		enemy._maybe_drop_heart()
+		enemy.drop_absorber = null
 		if enemy.has_method("release_after_defeat") and bool(enemy.release_after_defeat()):
 			return true
 		enemy.queue_free()

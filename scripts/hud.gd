@@ -6,11 +6,14 @@ const COMBAT_SKILL_BAR := preload("res://scripts/ui/hud/combat_skill_bar.gd")
 const GAME_SETTINGS := preload("res://scripts/game_settings.gd")
 const PERFORMANCE_MONITOR := preload("res://scripts/game/performance_monitor.gd")
 const SURVIVORS_THEME := preload("res://scripts/ui/theme/survivors_ui_theme.gd")
+const ATTACK_MODE_HINT_VISIBLE_SECONDS := 10.0
+const ATTACK_MODE_HINT_FADE_SECONDS := 0.65
 
 signal developer_level_up_requested
 signal developer_boss_spawn_requested(archetype_id: String)
 signal developer_small_boss_spawn_requested(archetype_id: String)
 signal developer_normal_enemy_batch_spawn_requested(archetype_id: String, count: int)
+signal developer_enemy_spawn_requested(kind: String, archetype_id: String, count: int)
 signal developer_skill_unlock_requested(skill_id: String, tier: int)
 signal developer_blessing_grant_requested(blessing_id: String, tier: int)
 
@@ -36,9 +39,11 @@ var combat_skill_bar: Control
 var developer_panel: PanelContainer
 var performance_overlay_panel: PanelContainer
 var performance_overlay_label: Label
+var performance_overlay_visible: bool = true
 var attack_mode_hint_panel: PanelContainer
 var attack_mode_hint_label: Label
 var attack_mode_hint_key_name: String = ""
+var attack_mode_hint_tween: Tween
 var minimap_panel: PanelContainer
 var minimap_view: Control
 var minimap_bounds := Rect2(Vector2(-1600.0, -900.0), Vector2(3200.0, 1800.0))
@@ -109,6 +114,11 @@ func _ready() -> void:
 	if DEVELOPER_MODE.is_enabled():
 		_build_developer_panel(root)
 
+func _unhandled_input(event: InputEvent) -> void:
+	if GAME_SETTINGS.event_matches_action(event, GAME_SETTINGS.ACTION_TOGGLE_PERFORMANCE_OVERLAY):
+		toggle_performance_overlay()
+		get_viewport().set_input_as_handled()
+
 func _build_team_panel(root: Control) -> void:
 	team_panel = PanelContainer.new()
 	team_panel.anchor_left = 1.0
@@ -171,6 +181,7 @@ func _build_attack_mode_hint(root: Control) -> void:
 	attack_mode_hint_panel.offset_bottom = 36.0
 
 	attack_mode_hint_panel.add_theme_stylebox_override("panel", SURVIVORS_THEME.panel_style(Color(0.03, 0.05, 0.07, 0.72), Color(0.75, 0.88, 1.0, 0.58), 1, 10, 8.0))
+	attack_mode_hint_panel.modulate.a = 1.0
 	root.add_child(attack_mode_hint_panel)
 
 	attack_mode_hint_label = Label.new()
@@ -278,7 +289,26 @@ func _update_attack_mode_hint(auto_attack: bool) -> void:
 	if attack_mode_hint_key_name == "":
 		attack_mode_hint_key_name = GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(GAME_SETTINGS.ACTION_TOGGLE_ATTACK_MODE))
 	var mode_text := "自动攻击" if auto_attack else "鼠标跟随"
-	attack_mode_hint_label.text = "%s切换攻击方式：目前攻击为%s" % [attack_mode_hint_key_name, mode_text]
+	var next_text := "%s切换攻击方式：目前攻击为%s" % [attack_mode_hint_key_name, mode_text]
+	if attack_mode_hint_label.text == next_text:
+		return
+	attack_mode_hint_label.text = next_text
+	_schedule_attack_mode_hint_fade()
+
+func _schedule_attack_mode_hint_fade() -> void:
+	if attack_mode_hint_panel == null:
+		return
+	attack_mode_hint_panel.visible = true
+	attack_mode_hint_panel.modulate.a = 1.0
+	if attack_mode_hint_tween != null:
+		attack_mode_hint_tween.kill()
+	attack_mode_hint_tween = create_tween()
+	attack_mode_hint_tween.tween_interval(ATTACK_MODE_HINT_VISIBLE_SECONDS)
+	attack_mode_hint_tween.tween_property(attack_mode_hint_panel, "modulate:a", 0.0, ATTACK_MODE_HINT_FADE_SECONDS)
+	attack_mode_hint_tween.tween_callback(func() -> void:
+		if attack_mode_hint_panel != null:
+			attack_mode_hint_panel.visible = false
+	)
 
 func _build_developer_panel(root: Control) -> void:
 	developer_panel = DEVELOPER_PANEL.new()
@@ -287,6 +317,7 @@ func _build_developer_panel(root: Control) -> void:
 	developer_panel.boss_spawn_requested.connect(func(archetype_id: String): developer_boss_spawn_requested.emit(archetype_id))
 	developer_panel.small_boss_spawn_requested.connect(func(archetype_id: String): developer_small_boss_spawn_requested.emit(archetype_id))
 	developer_panel.normal_enemy_batch_spawn_requested.connect(func(archetype_id: String, count: int): developer_normal_enemy_batch_spawn_requested.emit(archetype_id, count))
+	developer_panel.enemy_spawn_requested.connect(func(kind: String, archetype_id: String, count: int): developer_enemy_spawn_requested.emit(kind, archetype_id, count))
 	developer_panel.skill_unlock_requested.connect(func(skill_id: String, tier: int): developer_skill_unlock_requested.emit(skill_id, tier))
 	developer_panel.blessing_grant_requested.connect(func(blessing_id: String, tier: int): developer_blessing_grant_requested.emit(blessing_id, tier))
 
@@ -302,6 +333,10 @@ func set_developer_normal_enemy_options(options: Array) -> void:
 	if developer_panel != null and developer_panel.has_method("set_normal_enemy_options"):
 		developer_panel.set_normal_enemy_options(options)
 
+func set_developer_enemy_options(options: Array) -> void:
+	if developer_panel != null and developer_panel.has_method("set_enemy_options"):
+		developer_panel.set_enemy_options(options)
+
 func set_developer_skill_options(options: Array) -> void:
 	if developer_panel != null and developer_panel.has_method("set_skill_options"):
 		developer_panel.set_skill_options(options)
@@ -311,12 +346,25 @@ func set_developer_blessing_options(options: Array) -> void:
 		developer_panel.set_blessing_options(options)
 
 func update_performance_metrics(metrics: Dictionary) -> void:
+	if not performance_overlay_visible:
+		return
 	if developer_panel != null and developer_panel.has_method("update_performance_metrics"):
 		developer_panel.update_performance_metrics(metrics)
 		return
 	_ensure_performance_overlay()
 	if performance_overlay_label != null:
 		performance_overlay_label.text = PERFORMANCE_MONITOR.format_metrics(metrics)
+
+func toggle_performance_overlay() -> void:
+	set_performance_overlay_visible(not performance_overlay_visible)
+
+func set_performance_overlay_visible(visible: bool) -> void:
+	performance_overlay_visible = visible
+	if performance_overlay_panel != null:
+		performance_overlay_panel.visible = visible
+	if developer_panel != null:
+		if developer_panel.has_method("set_performance_metrics_visible"):
+			developer_panel.set_performance_metrics_visible(visible)
 
 func _ensure_performance_overlay() -> void:
 	if performance_overlay_panel != null:

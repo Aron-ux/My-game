@@ -1,0 +1,112 @@
+[gd_scene load_steps=14 format=3 uid="uid://cpjv0qanyjo7f"]
+
+[ext_resource type="Texture2D" uid="uid://clg2p4l4yahp6" path="res://assets/enemies/skullsolider/eliteskull.png" id="1_n8m18"]
+[ext_resource type="Texture2D" uid="uid://b77aldcyk2hby" path="res://assets/enemies/skullsolider/eliteskullhit.png" id="2_7d0ao"]
+[ext_resource type="Texture2D" uid="uid://vcc682ibryaf" path="res://assets/enemies/skullsolider/eliteskullwalk.png" id="3_tciy8"]
+[ext_resource type="Script" path="res://assets/enemies/authored_enemy_visual.gd" id="4_visual"]
+[ext_resource type="Texture2D" uid="uid://d2osgj1g3ayin" path="res://assets/阴影.png" id="5_shadow"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_id0x2"]
+atlas = ExtResource("3_tciy8")
+region = Rect2(0, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_tjqwd"]
+atlas = ExtResource("3_tciy8")
+region = Rect2(256, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_tqyff"]
+atlas = ExtResource("3_tciy8")
+region = Rect2(512, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_hxiob"]
+atlas = ExtResource("3_tciy8")
+region = Rect2(768, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_jgcjl"]
+atlas = ExtResource("3_tciy8")
+region = Rect2(1024, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_4djh1"]
+atlas = ExtResource("3_tciy8")
+region = Rect2(1280, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_gy66x"]
+atlas = ExtResource("3_tciy8")
+region = Rect2(1536, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_6uvyx"]
+atlas = ExtResource("3_tciy8")
+region = Rect2(1792, 0, 256, 256)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_0488m"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("1_n8m18")
+}, {
+"duration": 1.0,
+"texture": ExtResource("2_7d0ao")
+}, {
+"duration": 1.0,
+"texture": ExtResource("1_n8m18")
+}],
+"loop": false,
+"name": &"eliteskull",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_id0x2")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_tjqwd")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_tqyff")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_hxiob")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_jgcjl")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_4djh1")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_gy66x")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_6uvyx")
+}, {
+"duration": 0.2,
+"texture": SubResource("AtlasTexture_6uvyx")
+}],
+"loop": true,
+"name": &"eliteskullwalk",
+"speed": 8.0
+}]
+
+[node name="Eliteskull" type="Node2D" unique_id=1536581292]
+script = ExtResource("4_visual")
+move_animation = &"eliteskullwalk"
+hit_animation = &"eliteskull"
+visual_scale = Vector2(0.496, 0.496)
+sprite_position = Vector2(0, -30)
+shadow_scale = Vector2(1.248, 0.64)
+shadow_position = Vector2(0, 4)
+
+[node name="Shadow" type="Sprite2D" parent="." unique_id=238210063]
+modulate = Color(0.58, 0.58, 0.58, 1)
+position = Vector2(0, 4)
+scale = Vector2(1.248, 0.64)
+z_index = -1
+texture = ExtResource("5_shadow")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=497427819]
+position = Vector2(0, -30)
+scale = Vector2(0.496, 0.496)
+z_index = 1
+sprite_frames = SubResource("SpriteFrames_0488m")
+animation = &"eliteskullwalk"
+frame_progress = 0.45293775

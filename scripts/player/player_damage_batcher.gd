@@ -14,6 +14,7 @@ var slow_multipliers: PackedFloat32Array = PackedFloat32Array()
 var slow_durations: PackedFloat32Array = PackedFloat32Array()
 var source_positions: Array = []
 var kill_energy_bonuses: PackedFloat32Array = PackedFloat32Array()
+var suppress_status_visuals: Array[bool] = []
 var indexes_by_enemy_id: Dictionary = {}
 var hit_count: int = 0
 
@@ -35,11 +36,12 @@ func reset(source_owner: Node) -> void:
 	slow_durations.clear()
 	source_positions.clear()
 	kill_energy_bonuses.clear()
+	suppress_status_visuals.clear()
 	indexes_by_enemy_id.clear()
 	hit_count = 0
 
 
-func add_enemy(enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, kill_energy_bonus: float = 0.0) -> void:
+func add_enemy(enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, kill_energy_bonus: float = 0.0, suppress_status_visual: bool = false) -> void:
 	if enemy == null or not is_instance_valid(enemy):
 		return
 	var enemy_id: int = enemy.get_instance_id()
@@ -57,6 +59,7 @@ func add_enemy(enemy: Node, damage_amount: float, source_role_id: String, vulner
 		slow_durations.append(slow_duration)
 		source_positions.append(source_position)
 		kill_energy_bonuses.append(kill_energy_bonus)
+		suppress_status_visuals.append(suppress_status_visual)
 		return
 	var existing_index: int = int(indexes_by_enemy_id[enemy_id])
 	damage_amounts[existing_index] = damage_amounts[existing_index] + damage_amount
@@ -66,6 +69,7 @@ func add_enemy(enemy: Node, damage_amount: float, source_role_id: String, vulner
 	slow_multipliers[existing_index] = min(slow_multipliers[existing_index], slow_multiplier)
 	slow_durations[existing_index] = max(slow_durations[existing_index], slow_duration)
 	kill_energy_bonuses[existing_index] = max(kill_energy_bonuses[existing_index], kill_energy_bonus)
+	suppress_status_visuals[existing_index] = suppress_status_visuals[existing_index] or suppress_status_visual
 
 
 func flush() -> int:
@@ -84,7 +88,8 @@ func flush() -> int:
 			slow_durations[index],
 			source_positions[index],
 			kill_energy_bonuses[index],
-			true
+			true,
+			suppress_status_visuals[index]
 		)
 	reset(owner)
 	return result

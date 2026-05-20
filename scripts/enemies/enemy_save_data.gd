@@ -2,6 +2,7 @@ extends RefCounted
 
 const ENEMY_BOSS_STATE := preload("res://scripts/enemies/enemy_boss_state.gd")
 const ENEMY_BOSS_VISUALS := preload("res://scripts/enemies/enemy_boss_visuals.gd")
+const ENEMY_PROFILE_RESTORE := preload("res://scripts/enemies/enemy_profile_restore.gd")
 
 static func get_save_data(enemy) -> Dictionary:
 	return {
@@ -57,11 +58,21 @@ static func get_save_data(enemy) -> Dictionary:
 		"glutton_scale_gain_per_gem": enemy.glutton_scale_gain_per_gem,
 		"glutton_max_bonus_speed": enemy.glutton_max_bonus_speed,
 		"glutton_bonus_speed": enemy.glutton_bonus_speed,
+		"glutton_aura_radius": enemy.glutton_aura_radius,
+		"glutton_aura_damage": enemy.glutton_aura_damage,
+		"glutton_heart_heal_scale": enemy.glutton_heart_heal_scale,
 		"rebirth_lives_remaining": enemy.rebirth_lives_remaining,
 		"rebirth_delay": enemy.rebirth_delay,
 		"rebirth_timer": enemy.rebirth_timer,
 		"rebirth_slow_multiplier": enemy.rebirth_slow_multiplier,
 		"rebirth_slow_duration": enemy.rebirth_slow_duration,
+		"skulltomb_summon_timer": enemy.skulltomb_summon_timer,
+		"skulltomb_summon_windup_remaining": enemy.skulltomb_summon_windup_remaining,
+		"skull_soldier_speed_multiplier": enemy.skull_soldier_speed_multiplier,
+		"skull_soldier_speed_timer": enemy.skull_soldier_speed_timer,
+		"skull_damage_immune_timer": enemy.skull_damage_immune_timer,
+		"skullshot_attack_frequency_multiplier": enemy.skullshot_attack_frequency_multiplier,
+		"skullshot_attack_frequency_timer": enemy.skullshot_attack_frequency_timer,
 		"turret_bombard_interval": enemy.turret_bombard_interval,
 		"turret_bombard_timer": enemy.turret_bombard_timer,
 		"turret_bombard_radius": enemy.turret_bombard_radius,
@@ -172,11 +183,22 @@ static func apply_save_data(enemy, data: Dictionary, target_node: Node2D) -> voi
 	enemy.glutton_scale_gain_per_gem = float(data.get("glutton_scale_gain_per_gem", enemy.glutton_scale_gain_per_gem))
 	enemy.glutton_max_bonus_speed = float(data.get("glutton_max_bonus_speed", enemy.glutton_max_bonus_speed))
 	enemy.glutton_bonus_speed = float(data.get("glutton_bonus_speed", enemy.glutton_bonus_speed))
+	enemy.glutton_aura_radius = float(data.get("glutton_aura_radius", enemy.glutton_absorb_radius))
+	enemy.glutton_aura_damage = float(data.get("glutton_aura_damage", enemy.glutton_aura_damage))
+	enemy.glutton_heart_heal_scale = float(data.get("glutton_heart_heal_scale", enemy.glutton_heart_heal_scale))
+	enemy.drop_absorber = null
 	enemy.rebirth_lives_remaining = int(data.get("rebirth_lives_remaining", enemy.rebirth_lives_remaining))
 	enemy.rebirth_delay = float(data.get("rebirth_delay", enemy.rebirth_delay))
 	enemy.rebirth_timer = float(data.get("rebirth_timer", enemy.rebirth_timer))
 	enemy.rebirth_slow_multiplier = float(data.get("rebirth_slow_multiplier", enemy.rebirth_slow_multiplier))
 	enemy.rebirth_slow_duration = float(data.get("rebirth_slow_duration", enemy.rebirth_slow_duration))
+	enemy.skulltomb_summon_timer = float(data.get("skulltomb_summon_timer", enemy.skulltomb_summon_timer))
+	enemy.skulltomb_summon_windup_remaining = float(data.get("skulltomb_summon_windup_remaining", 0.0))
+	enemy.skull_soldier_speed_multiplier = float(data.get("skull_soldier_speed_multiplier", 1.0))
+	enemy.skull_soldier_speed_timer = float(data.get("skull_soldier_speed_timer", 0.0))
+	enemy.skull_damage_immune_timer = float(data.get("skull_damage_immune_timer", 0.0))
+	enemy.skullshot_attack_frequency_multiplier = float(data.get("skullshot_attack_frequency_multiplier", 1.0))
+	enemy.skullshot_attack_frequency_timer = float(data.get("skullshot_attack_frequency_timer", 0.0))
 	enemy.turret_bombard_interval = float(data.get("turret_bombard_interval", enemy.turret_bombard_interval))
 	enemy.turret_bombard_timer = float(data.get("turret_bombard_timer", enemy.turret_bombard_interval))
 	enemy.turret_bombard_radius = float(data.get("turret_bombard_radius", enemy.turret_bombard_radius))
@@ -219,6 +241,7 @@ static func apply_save_data(enemy, data: Dictionary, target_node: Node2D) -> voi
 
 	enemy.target = target_node
 	enemy.profile_initialized = true
+	ENEMY_PROFILE_RESTORE.restore_profile_resources(enemy)
 	enemy._ensure_status_visuals()
 	enemy._apply_visuals(enemy.display_color)
 	if enemy.enemy_kind == "boss":

@@ -37,6 +37,16 @@ func _run() -> void:
 	if batched_enemy.global_position.x <= first_position.x:
 		failures.append("batch-simulated chaser should advance on the next physics frame")
 
+	var swarm_enemy := _create_enemy(scene, target, "swarm")
+	await physics_frame
+	ENEMY_BATCH_SIMULATION.update_simple_normal_enemies(scene, 0.1)
+	if not bool(swarm_enemy.get("batch_simulation_enabled")):
+		failures.append("simple swarm mover should be batch-simulated")
+	if swarm_enemy.is_physics_processing():
+		failures.append("batch-simulated swarm should disable per-node physics callback")
+	if swarm_enemy.global_position.x <= 0.0:
+		failures.append("batch-simulated swarm should still move toward the target")
+
 	var shooter_enemy := _create_enemy(scene, target, "shooter")
 	await physics_frame
 	ENEMY_BATCH_SIMULATION.update_simple_normal_enemies(scene, 0.1)

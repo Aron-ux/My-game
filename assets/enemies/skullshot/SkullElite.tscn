@@ -1,7 +1,7 @@
-[gd_scene load_steps=12 format=3 uid="uid://dspep48huy22i"]
+[gd_scene format=3 uid="uid://dspep48huy22i"]
 
-[ext_resource type="Script" path="res://assets/enemies/skull/skull_visual.gd" id="1_visual"]
-[ext_resource type="Texture2D" path="res://assets/enemies/skull/skullelite.png" id="2_texture"]
+[ext_resource type="Script" uid="uid://b03o1vxajxosu" path="res://assets/enemies/skullshot/skull_visual.gd" id="1_visual"]
+[ext_resource type="Texture2D" uid="uid://cj1esi2nh1wtb" path="res://assets/enemies/skullshot/skullelite.png" id="2_texture"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_0"]
 atlas = ExtResource("2_texture")
@@ -69,6 +69,8 @@ animations = [{
 
 [node name="SkullElite" type="Node2D"]
 script = ExtResource("1_visual")
+shadow_scale = Vector2(1.2, 0.54)
+shadow_position = Vector2(0, 66)
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
 sprite_frames = SubResource("SpriteFrames_run")

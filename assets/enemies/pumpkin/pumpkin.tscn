@@ -97,6 +97,8 @@ animations = [{
 
 [node name="Pumpkin" type="Node2D" unique_id=1176901061]
 script = ExtResource("2_6npps")
+shadow_scale = Vector2(0.98, 0.44)
+shadow_position = Vector2(0, 34)
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=2096078435]
 sprite_frames = SubResource("SpriteFrames_hpl4o")

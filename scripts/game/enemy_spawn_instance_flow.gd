@@ -8,7 +8,7 @@ const GLOBAL_ENEMY_PROJECTILE_DAMAGE_MULTIPLIER := 2.0
 
 
 static func spawn_configured_enemy_at_position(main: Node, kind: String, archetype: String, health_multiplier: float, speed_multiplier: float, spawn_position: Vector2, damage_multiplier: float = 1.0) -> Node2D:
-	if kind == "normal" and main.has_method("_can_spawn_runtime_group") and not bool(main._can_spawn_runtime_group("enemies", PERFORMANCE_GUARD.DEFAULT_ACTIVE_ENEMY_LIMIT)):
+	if kind == "normal" and main.has_method("_can_spawn_runtime_group") and not bool(main._can_spawn_runtime_group("enemies", main.ENEMY_SPAWN_FLOW.get_runtime_enemy_limit(main))):
 		return null
 	var enemy: Variant = take_enemy_from_pool(main, kind)
 	if enemy == null:

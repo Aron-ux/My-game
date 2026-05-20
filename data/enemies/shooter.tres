@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="EnemyProfile" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="EnemyProfile" format=3]
 
-[ext_resource type="Script" path="res://scripts/enemy/enemy_profile.gd" id="1_profile"]
-[ext_resource type="PackedScene" path="res://assets/enemies/skull/skull-soilder.tscn" id="2_visual"]
+[ext_resource type="Script" uid="uid://7ht5ujrwc8vb" path="res://scripts/enemy/enemy_profile.gd" id="1_profile"]
+[ext_resource type="PackedScene" uid="uid://cst04qoihcf1u" path="res://assets/enemies/skullshot/skull-soilder.tscn" id="2_visual"]
 
 [resource]
 script = ExtResource("1_profile")

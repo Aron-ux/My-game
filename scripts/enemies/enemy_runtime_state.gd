@@ -53,3 +53,20 @@ static func reset(enemy, randomize_timers: bool) -> void:
 	enemy.boss_peacock_charge_remaining = 0.0
 	enemy.rebirth_timer = 0.0
 	enemy.glutton_absorb_elapsed = 0.0
+	enemy.glutton_aura_hits_by_enemy_id.clear()
+	enemy.skulltomb_summon_timer = enemy.skulltomb_summon_interval
+	enemy.skulltomb_summon_windup_remaining = 0.0
+	enemy.skull_soldier_speed_multiplier = 1.0
+	enemy.skull_soldier_speed_timer = 0.0
+	enemy.skull_damage_immune_timer = 0.0
+	enemy.skullshot_attack_frequency_multiplier = 1.0
+	enemy.skullshot_attack_frequency_timer = 0.0
+	if enemy.skulltomb_tomb_instance != null and is_instance_valid(enemy.skulltomb_tomb_instance):
+		enemy.skulltomb_tomb_instance.queue_free()
+	enemy.skulltomb_tomb_instance = null
+	if enemy.skulltomb_channel_ring != null and is_instance_valid(enemy.skulltomb_channel_ring):
+		enemy.skulltomb_channel_ring.queue_free()
+	enemy.skulltomb_channel_ring = null
+	if enemy.skulltomb_death_ring != null and is_instance_valid(enemy.skulltomb_death_ring):
+		enemy.skulltomb_death_ring.queue_free()
+	enemy.skulltomb_death_ring = null

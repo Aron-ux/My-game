@@ -137,3 +137,6 @@ static func get_trait_ring_color(secondary_behavior_id: String) -> Color:
 			return Color(1.0, 0.82, 0.36, 0.7)
 		_:
 			return Color(1.0, 0.9, 0.52, 0.64)
+
+static func should_hide_trait_ring(enemy_kind: String, archetype_id: String) -> bool:
+	return (enemy_kind == "small_boss" and archetype_id == "smallboss_glutton") or (enemy_kind == "elite" and archetype_id == "elite_ram_trail")

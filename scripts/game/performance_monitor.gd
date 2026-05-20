@@ -78,7 +78,7 @@ static func _format_counter_snapshot(snapshot: Variant) -> String:
 	if peak.is_empty():
 		return ""
 	var current_frame: Dictionary = (snapshot as Dictionary).get("current_frame", {})
-	return "\nSpike peak: switch %d | dmgQueries %d | candidates %d | hits %d | queued %d | merged %d | applied %d | qSize %d | fx %d | pBatch %d | eBatch %d | eProjBatch %d | pickupBatch %d\nSave peak: calls %d | %.1fms | %dKB | enemy %d | eProj %d | gem %d | heart %d\nSuppressed: flash %d | status %d | burst %d | tempFX %d" % [
+	return "\nSpike peak: switch %d | dmgQueries %d | candidates %d | hits %d | queued %d | merged %d | applied %d | qSize %d | fx %d | pBatch %d | eBatch %d/%d | eProjBatch %d | pickupBatch %d\nBatch skip peak: timed %d | behavior %d | kind %d | secondary %d | bossVisual %d\nSave peak: calls %d | %.1fms | %dKB | enemy %d | eProj %d | gem %d | heart %d\nSuppressed: flash %d | status %d | burst %d | tempFX %d" % [
 		int(peak.get("switch_jobs", 0)),
 		int(peak.get("damage_queries", 0)),
 		int(peak.get("damage_candidates", 0)),
@@ -90,8 +90,14 @@ static func _format_counter_snapshot(snapshot: Variant) -> String:
 		int(peak.get("temporary_effect_spawns", 0)),
 		int(peak.get("batched_projectiles", 0)),
 		int(peak.get("batched_enemy_ticks", 0)),
+		int(peak.get("enemy_batch_scanned", 0)),
 		int(peak.get("batched_enemy_projectiles", 0)),
 		int(peak.get("batched_pickups", 0)),
+		int(peak.get("enemy_batch_skip_timed_traits", 0)),
+		int(peak.get("enemy_batch_skip_unsupported_behavior", 0)),
+		int(peak.get("enemy_batch_skip_unsupported_kind", 0)),
+		int(peak.get("enemy_batch_skip_secondary_behavior", 0)),
+		int(peak.get("enemy_batch_skip_boss_visual", 0)),
 		int(peak.get("save_run_calls", 0)),
 		float(peak.get("save_run_ms_x10", 0)) / 10.0,
 		int(peak.get("save_payload_kb", 0)),

@@ -18,6 +18,7 @@ const PROFILE_PATHS := {
 
 const BOSS_ARCHETYPES: Array[String] = ["boss_spellcore"]
 const SMALL_BOSS_ARCHETYPES: Array[String] = ["smallboss_glutton", "smallboss_rebirth", "smallboss_turret"]
+const ELITE_ARCHETYPES: Array[String] = ["elite_ram_trail", "elite_splitshot"]
 const NORMAL_ARCHETYPES: Array[String] = ["chaser", "runner", "swarm", "shooter", "brute", "dasher", "shotgunner"]
 const NORMAL_ARCHETYPE_LABELS := {
 	"chaser": "追击菇",
@@ -27,6 +28,10 @@ const NORMAL_ARCHETYPE_LABELS := {
 	"brute": "重甲南瓜",
 	"dasher": "冲锋怪",
 	"shotgunner": "散弹骷髅"
+}
+const ELITE_ARCHETYPE_LABELS := {
+	"elite_ram_trail": "精英冲锋骷髅",
+	"elite_splitshot": "精英分裂骷髅"
 }
 
 
@@ -64,6 +69,21 @@ static func get_normal_enemy_options() -> Array:
 	return options
 
 
+static func get_developer_enemy_options() -> Array:
+	var options: Array = []
+	for archetype_id in NORMAL_ARCHETYPES:
+		options.append(_build_developer_enemy_option("normal", archetype_id, str(NORMAL_ARCHETYPE_LABELS.get(archetype_id, archetype_id)), "普通怪"))
+	for archetype_id in ELITE_ARCHETYPES:
+		options.append(_build_developer_enemy_option("elite", archetype_id, str(ELITE_ARCHETYPE_LABELS.get(archetype_id, archetype_id)), "精英怪"))
+	for archetype_id in SMALL_BOSS_ARCHETYPES:
+		var profile := get_profile("small_boss", archetype_id)
+		options.append(_build_developer_enemy_option("small_boss", archetype_id, str(profile.get("boss_name", archetype_id)), "小 Boss"))
+	for archetype_id in BOSS_ARCHETYPES:
+		var profile := get_profile("boss", archetype_id)
+		options.append(_build_developer_enemy_option("boss", archetype_id, str(profile.get("boss_name", archetype_id)), "Boss"))
+	return options
+
+
 static func get_boss_archetypes() -> Array[String]:
 	return BOSS_ARCHETYPES.duplicate()
 
@@ -74,6 +94,22 @@ static func get_small_boss_archetypes() -> Array[String]:
 
 static func get_normal_archetypes() -> Array[String]:
 	return NORMAL_ARCHETYPES.duplicate()
+
+
+static func get_elite_archetypes() -> Array[String]:
+	return ELITE_ARCHETYPES.duplicate()
+
+
+static func get_enemy_kind_for_archetype(archetype: String) -> String:
+	if is_boss_archetype(archetype):
+		return "boss"
+	if is_small_boss_archetype(archetype):
+		return "small_boss"
+	if is_elite_archetype(archetype):
+		return "elite"
+	if is_normal_archetype(archetype):
+		return "normal"
+	return ""
 
 
 static func is_boss_archetype(archetype: String) -> bool:
@@ -88,6 +124,10 @@ static func is_normal_archetype(archetype: String) -> bool:
 	return get_normal_archetypes().has(archetype)
 
 
+static func is_elite_archetype(archetype: String) -> bool:
+	return get_elite_archetypes().has(archetype)
+
+
 static func _load_profile(archetype: String) -> Resource:
 	var path: String = str(PROFILE_PATHS.get(archetype, ""))
 	if path == "":
@@ -96,3 +136,14 @@ static func _load_profile(archetype: String) -> Resource:
 	if profile == null:
 		push_warning("Enemy profile not found: %s" % path)
 	return profile
+
+
+static func _build_developer_enemy_option(kind: String, archetype_id: String, title: String, category: String) -> Dictionary:
+	return {
+		"id": "%s:%s" % [kind, archetype_id],
+		"kind": kind,
+		"archetype": archetype_id,
+		"title": "%s｜%s" % [category, title],
+		"description": "开发者模式：生成 %s。Archetype: %s" % [category, archetype_id],
+		"enabled": true
+	}

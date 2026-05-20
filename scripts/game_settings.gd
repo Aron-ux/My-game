@@ -17,6 +17,7 @@ const DEFAULT_PERFORMANCE_TRACE_ENABLED := false
 const ASPECT_WIDTH := 16
 const ASPECT_HEIGHT := 9
 const MIN_WINDOW_WIDTH := 960
+const KEYBIND_SCHEMA_VERSION := 2
 
 static var cached_config: ConfigFile
 
@@ -30,6 +31,7 @@ const ACTION_SWITCH_NEXT := "switch_next"
 const ACTION_TOGGLE_ATTACK_MODE := "toggle_attack_mode"
 const ACTION_CHARACTER_PANEL := "character_panel"
 const ACTION_TOGGLE_HURT_CORE := "toggle_hurt_core"
+const ACTION_TOGGLE_PERFORMANCE_OVERLAY := "toggle_performance_overlay"
 
 const ACTION_ORDER := [
 	ACTION_MOVE_UP,
@@ -41,7 +43,8 @@ const ACTION_ORDER := [
 	ACTION_SWITCH_NEXT,
 	ACTION_TOGGLE_ATTACK_MODE,
 	ACTION_CHARACTER_PANEL,
-	ACTION_TOGGLE_HURT_CORE
+	ACTION_TOGGLE_HURT_CORE,
+	ACTION_TOGGLE_PERFORMANCE_OVERLAY
 ]
 
 const DEFAULT_KEYS := {
@@ -54,7 +57,8 @@ const DEFAULT_KEYS := {
 	"switch_next": KEY_E,
 	"toggle_attack_mode": KEY_TAB,
 	"character_panel": KEY_C,
-	"toggle_hurt_core": KEY_1
+	"toggle_hurt_core": KEY_F1,
+	"toggle_performance_overlay": KEY_F2
 }
 
 const WINDOW_SIZE_OPTIONS := {
@@ -159,4 +163,16 @@ static func _get_config() -> ConfigFile:
 	if cached_config == null:
 		cached_config = ConfigFile.new()
 		cached_config.load(SETTINGS_PATH)
+		_migrate_keybinds(cached_config)
 	return cached_config
+
+static func _migrate_keybinds(config: ConfigFile) -> void:
+	var schema_version := int(config.get_value(KEY_SECTION, "schema_version", 1))
+	if schema_version >= KEYBIND_SCHEMA_VERSION:
+		return
+	if int(config.get_value(KEY_SECTION, ACTION_TOGGLE_HURT_CORE, KEY_1)) == KEY_1:
+		config.set_value(KEY_SECTION, ACTION_TOGGLE_HURT_CORE, KEY_F1)
+	if not config.has_section_key(KEY_SECTION, ACTION_TOGGLE_PERFORMANCE_OVERLAY):
+		config.set_value(KEY_SECTION, ACTION_TOGGLE_PERFORMANCE_OVERLAY, KEY_F2)
+	config.set_value(KEY_SECTION, "schema_version", KEYBIND_SCHEMA_VERSION)
+	config.save(SETTINGS_PATH)

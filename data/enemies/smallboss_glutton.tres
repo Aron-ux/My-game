@@ -7,8 +7,8 @@
 script = ExtResource("1_profile")
 archetype = "smallboss_glutton"
 behavior = "glutton"
-boss_name = "吞晶巨核"
-max_health = 1320.0
+boss_name = "幽影树人"
+max_health = 1188.0
 speed = 40.0
 touch_damage = 24.0
 contact_radius = 62.0
@@ -20,7 +20,10 @@ display_color = Color(0.62, 0.92, 1, 1)
 visual_scene = ExtResource("2_visual")
 extra = {
 "glutton_absorb_radius": 190.0,
-"glutton_speed_gain_per_gem": 3.8,
-"glutton_scale_gain_per_gem": 0.018,
+"glutton_aura_damage": 9.0,
+"glutton_aura_radius": 190.0,
+"glutton_heart_heal_scale": 1.0,
+"glutton_speed_gain_per_gem": 2.28,
+"glutton_scale_gain_per_gem": 0.009,
 "glutton_max_bonus_speed": 120.0
 }

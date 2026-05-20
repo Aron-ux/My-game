@@ -8,18 +8,19 @@ signal level_up_requested
 signal boss_spawn_requested(archetype_id: String)
 signal small_boss_spawn_requested(archetype_id: String)
 signal normal_enemy_batch_spawn_requested(archetype_id: String, count: int)
+signal enemy_spawn_requested(kind: String, archetype_id: String, count: int)
 signal skill_unlock_requested(skill_id: String, tier: int)
 signal blessing_grant_requested(blessing_id: String, tier: int)
 
 var level_button: Button
 var invincibility_button: Button
 var no_cooldown_button: Button
-var boss_list: VBoxContainer
-var normal_enemy_list: VBoxContainer
+var enemy_menu_popup: PanelContainer
+var enemy_list: VBoxContainer
 var skill_list: VBoxContainer
 var blessing_list: VBoxContainer
 var performance_label: Label
-var normal_enemy_batch_spinbox: SpinBox
+
 
 func _ready() -> void:
 	anchor_left = 1.0
@@ -27,7 +28,7 @@ func _ready() -> void:
 	anchor_right = 1.0
 	anchor_bottom = 0.0
 	offset_left = -280.0
-	offset_top = 180.0
+	offset_top = 96.0
 	offset_right = -18.0
 	offset_bottom = 720.0
 
@@ -43,57 +44,82 @@ func _ready() -> void:
 	title.add_theme_font_size_override("font_size", 18)
 	content.add_child(title)
 
-	level_button = Button.new()
-	level_button.custom_minimum_size = Vector2(220, 40)
-	level_button.add_theme_font_size_override("font_size", 16)
-	level_button.text = "角色等级 +1"
-	SURVIVORS_THEME.apply_button_style(level_button, "primary")
+	_build_top_buttons(content)
+	_build_scroll_content(content)
+	refresh_mode_buttons()
+
+
+func refresh_mode_buttons() -> void:
+	if invincibility_button != null:
+		invincibility_button.text = "停用无敌模式" if DEVELOPER_MODE.is_ignore_damage_enabled() else "启用无敌模式"
+	if no_cooldown_button != null:
+		no_cooldown_button.text = "关闭无 CD" if DEVELOPER_MODE.is_no_cooldown_enabled() else "开启无 CD"
+
+
+func set_invincibility_enabled(enabled: bool) -> void:
+	DEVELOPER_MODE.set_ignore_damage_enabled(enabled)
+	refresh_mode_buttons()
+
+
+func set_boss_options(_options: Array) -> void:
+	pass
+
+
+func set_normal_enemy_options(_options: Array) -> void:
+	pass
+
+
+func set_enemy_options(options: Array) -> void:
+	_populate_enemy_option_list(options)
+
+
+func set_skill_options(options: Array) -> void:
+	_populate_option_list(skill_list, options, "暂无技能选项", Callable(self, "_on_skill_button_pressed"))
+
+
+func set_blessing_options(options: Array) -> void:
+	_populate_option_list(blessing_list, options, "暂无祝福选项", Callable(self, "_on_blessing_button_pressed"))
+
+
+func update_performance_metrics(metrics: Dictionary) -> void:
+	if performance_label != null:
+		performance_label.text = PERFORMANCE_MONITOR.format_metrics(metrics)
+
+
+func set_performance_metrics_visible(visible: bool) -> void:
+	if performance_label != null:
+		performance_label.visible = visible
+
+
+func _build_top_buttons(parent: Control) -> void:
+	level_button = _build_button("角色等级 +1", Vector2(220, 40), 16, "primary")
 	level_button.pressed.connect(_on_level_button_pressed)
-	content.add_child(level_button)
+	parent.add_child(level_button)
 
-	invincibility_button = Button.new()
-	invincibility_button.custom_minimum_size = Vector2(220, 40)
-	invincibility_button.add_theme_font_size_override("font_size", 16)
-	SURVIVORS_THEME.apply_button_style(invincibility_button)
+	invincibility_button = _build_button("", Vector2(220, 40), 16)
 	invincibility_button.pressed.connect(_on_invincibility_button_pressed)
-	content.add_child(invincibility_button)
+	parent.add_child(invincibility_button)
 
-	no_cooldown_button = Button.new()
-	no_cooldown_button.custom_minimum_size = Vector2(220, 40)
-	no_cooldown_button.add_theme_font_size_override("font_size", 16)
-	SURVIVORS_THEME.apply_button_style(no_cooldown_button)
+	no_cooldown_button = _build_button("", Vector2(220, 40), 16)
 	no_cooldown_button.pressed.connect(_on_no_cooldown_button_pressed)
-	content.add_child(no_cooldown_button)
+	parent.add_child(no_cooldown_button)
 
+
+func _build_scroll_content(parent: Control) -> void:
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(230.0, 400.0)
+	scroll.custom_minimum_size = Vector2(230.0, 480.0)
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	content.add_child(scroll)
+	parent.add_child(scroll)
 
 	var menu_content := VBoxContainer.new()
 	menu_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	menu_content.add_theme_constant_override("separation", 8)
 	scroll.add_child(menu_content)
 
-	boss_list = _add_menu_section(menu_content, "Boss +1")
-	_build_normal_enemy_batch_controls(menu_content)
+	_build_enemy_menu_button(menu_content)
 	blessing_list = _add_menu_section(menu_content, "添加祝福")
 	skill_list = _add_menu_section(menu_content, "添加技能")
-
-	var small_boss_title := Label.new()
-	small_boss_title.text = "小 Boss 生成"
-	small_boss_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	small_boss_title.add_theme_font_size_override("font_size", 16)
-	menu_content.add_child(small_boss_title)
-
-	var small_boss_row := HBoxContainer.new()
-	small_boss_row.add_theme_constant_override("separation", 6)
-	menu_content.add_child(small_boss_row)
-
-	_add_small_boss_button(small_boss_row, "A", "smallboss_glutton")
-	_add_small_boss_button(small_boss_row, "B", "smallboss_rebirth")
-	_add_small_boss_button(small_boss_row, "C", "smallboss_turret")
 
 	performance_label = Label.new()
 	performance_label.text = "Performance: collecting..."
@@ -102,88 +128,77 @@ func _ready() -> void:
 	performance_label.modulate = Color(0.8, 0.95, 1.0, 0.95)
 	menu_content.add_child(performance_label)
 
-	refresh_mode_buttons()
 
-func refresh_mode_buttons() -> void:
-	if invincibility_button != null:
-		invincibility_button.text = "停用无敌模式" if DEVELOPER_MODE.is_ignore_damage_enabled() else "启用无敌模式"
-	if no_cooldown_button != null:
-		no_cooldown_button.text = "关闭无 CD" if DEVELOPER_MODE.is_no_cooldown_enabled() else "开启无 CD"
-
-func set_invincibility_enabled(enabled: bool) -> void:
-	DEVELOPER_MODE.set_ignore_damage_enabled(enabled)
-	refresh_mode_buttons()
-
-func set_boss_options(options: Array) -> void:
-	_populate_option_list(boss_list, options, "暂无 Boss 选项", Callable(self, "_on_boss_button_pressed"))
-
-func set_normal_enemy_options(options: Array) -> void:
-	_populate_option_list(normal_enemy_list, options, "暂无小怪选项", Callable(self, "_on_normal_enemy_button_pressed"))
-
-func set_skill_options(options: Array) -> void:
-	_populate_option_list(skill_list, options, "暂无技能选项", Callable(self, "_on_skill_button_pressed"))
-
-func set_blessing_options(options: Array) -> void:
-	_populate_option_list(blessing_list, options, "暂无祝福选项", Callable(self, "_on_blessing_button_pressed"))
-
-func update_performance_metrics(metrics: Dictionary) -> void:
-	if performance_label != null:
-		performance_label.text = PERFORMANCE_MONITOR.format_metrics(metrics)
-
-func _on_level_button_pressed() -> void:
-	level_up_requested.emit()
-
-func _on_invincibility_button_pressed() -> void:
-	DEVELOPER_MODE.set_ignore_damage_enabled(not DEVELOPER_MODE.is_ignore_damage_enabled())
-	refresh_mode_buttons()
-
-func _on_no_cooldown_button_pressed() -> void:
-	DEVELOPER_MODE.set_no_cooldown_enabled(not DEVELOPER_MODE.is_no_cooldown_enabled())
-	refresh_mode_buttons()
-
-func _build_normal_enemy_batch_controls(parent: Control) -> void:
-	var batch_row := HBoxContainer.new()
-	batch_row.add_theme_constant_override("separation", 6)
-	parent.add_child(batch_row)
-
-	var batch_label := Label.new()
-	batch_label.text = "小怪批量"
-	batch_label.custom_minimum_size = Vector2(86.0, 32.0)
-	batch_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	batch_label.add_theme_font_size_override("font_size", 15)
-	batch_row.add_child(batch_label)
-
-	normal_enemy_batch_spinbox = SpinBox.new()
-	normal_enemy_batch_spinbox.min_value = 1.0
-	normal_enemy_batch_spinbox.max_value = 999.0
-	normal_enemy_batch_spinbox.step = 1.0
-	normal_enemy_batch_spinbox.value = 10.0
-	normal_enemy_batch_spinbox.custom_minimum_size = Vector2(128.0, 32.0)
-	normal_enemy_batch_spinbox.tooltip_text = "点击下面的小怪按钮时一次生成的数量；开发者模式不受普通敌人运行时上限限制。"
-	batch_row.add_child(normal_enemy_batch_spinbox)
-
-	normal_enemy_list = _add_menu_section(parent, "小怪批量生成")
-
-func _add_small_boss_button(parent: Control, label: String, archetype_id: String) -> void:
-	var button := Button.new()
-	button.custom_minimum_size = Vector2(68, 36)
-	button.text = label
-	button.tooltip_text = archetype_id
-	button.add_theme_font_size_override("font_size", 15)
-	SURVIVORS_THEME.apply_button_style(button)
-	button.pressed.connect(_on_small_boss_button_pressed.bind(archetype_id))
+func _build_enemy_menu_button(parent: Control) -> void:
+	var button := _build_button("添加敌人  <", Vector2(220.0, 40.0), 16, "primary")
+	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.pressed.connect(_toggle_enemy_menu)
 	parent.add_child(button)
+	_ensure_enemy_menu_popup()
 
-func _on_small_boss_button_pressed(archetype_id: String) -> void:
-	small_boss_spawn_requested.emit(archetype_id)
 
-func _on_normal_enemy_button_pressed(archetype_id: String) -> void:
-	if archetype_id == "":
+func _build_button(text: String, minimum_size: Vector2, font_size: int, style: String = "") -> Button:
+	var button := Button.new()
+	button.custom_minimum_size = minimum_size
+	button.add_theme_font_size_override("font_size", font_size)
+	button.text = text
+	SURVIVORS_THEME.apply_button_style(button, style)
+	return button
+
+
+func _ensure_enemy_menu_popup() -> void:
+	if enemy_menu_popup != null:
 		return
-	var count := 1
-	if normal_enemy_batch_spinbox != null:
-		count = int(round(normal_enemy_batch_spinbox.value))
-	normal_enemy_batch_spawn_requested.emit(archetype_id, count)
+	enemy_menu_popup = PanelContainer.new()
+	enemy_menu_popup.visible = false
+	enemy_menu_popup.anchor_left = 0.0
+	enemy_menu_popup.anchor_top = 0.0
+	enemy_menu_popup.anchor_right = 0.0
+	enemy_menu_popup.anchor_bottom = 0.0
+	enemy_menu_popup.offset_left = -250.0
+	enemy_menu_popup.offset_top = 24.0
+	enemy_menu_popup.offset_right = -10.0
+	enemy_menu_popup.offset_bottom = 540.0
+	enemy_menu_popup.add_theme_stylebox_override("panel", SURVIVORS_THEME.panel_style(Color(0.08, 0.06, 0.05, 0.9), Color(1.0, 0.72, 0.42, 0.92), 2, 10, 10.0))
+	add_child(enemy_menu_popup)
+
+	var popup_content := VBoxContainer.new()
+	popup_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	popup_content.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	popup_content.add_theme_constant_override("separation", 8)
+	enemy_menu_popup.add_child(popup_content)
+
+	var back_button := _build_button("返回一级菜单", Vector2(220.0, 36.0), 15)
+	back_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	back_button.pressed.connect(_hide_enemy_menu)
+	popup_content.add_child(back_button)
+
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(230.0, 440.0)
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	popup_content.add_child(scroll)
+
+	enemy_list = VBoxContainer.new()
+	enemy_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	enemy_list.add_theme_constant_override("separation", 6)
+	scroll.add_child(enemy_list)
+
+
+func _toggle_enemy_menu() -> void:
+	_ensure_enemy_menu_popup()
+	enemy_menu_popup.visible = not enemy_menu_popup.visible
+
+
+func _hide_enemy_menu() -> void:
+	if enemy_menu_popup != null:
+		enemy_menu_popup.visible = false
+
+
+func _populate_enemy_option_list(options: Array) -> void:
+	_ensure_enemy_menu_popup()
+	_populate_option_list(enemy_list, options, "暂无敌人选项", Callable(self, "_on_enemy_button_pressed"))
+
 
 func _add_menu_section(parent: Control, title: String) -> VBoxContainer:
 	var section := VBoxContainer.new()
@@ -207,9 +222,11 @@ func _add_menu_section(parent: Control, title: String) -> VBoxContainer:
 	toggle_button.pressed.connect(_toggle_section.bind(list, toggle_button, title))
 	return list
 
+
 func _toggle_section(list: VBoxContainer, toggle_button: Button, title: String) -> void:
 	list.visible = not list.visible
 	toggle_button.text = "%s  %s" % [title, "v" if list.visible else ">"]
+
 
 func _populate_option_list(list: VBoxContainer, options: Array, empty_text: String, callback: Callable) -> void:
 	if list == null:
@@ -241,9 +258,46 @@ func _populate_option_list(list: VBoxContainer, options: Array, empty_text: Stri
 		empty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		list.add_child(empty_label)
 
+
+func _on_level_button_pressed() -> void:
+	level_up_requested.emit()
+
+
+func _on_invincibility_button_pressed() -> void:
+	DEVELOPER_MODE.set_ignore_damage_enabled(not DEVELOPER_MODE.is_ignore_damage_enabled())
+	refresh_mode_buttons()
+
+
+func _on_no_cooldown_button_pressed() -> void:
+	DEVELOPER_MODE.set_no_cooldown_enabled(not DEVELOPER_MODE.is_no_cooldown_enabled())
+	refresh_mode_buttons()
+
+
+func _on_enemy_button_pressed(option_id: String) -> void:
+	var parts := option_id.split(":")
+	if parts.size() < 2:
+		return
+	var kind := str(parts[0])
+	var archetype_id := str(parts[1])
+	var count := 1
+	enemy_spawn_requested.emit(kind, archetype_id, count)
+
+
 func _on_boss_button_pressed(archetype_id: String) -> void:
 	if archetype_id != "":
 		boss_spawn_requested.emit(archetype_id)
+
+
+func _on_small_boss_button_pressed(archetype_id: String) -> void:
+	if archetype_id != "":
+		small_boss_spawn_requested.emit(archetype_id)
+
+
+func _on_normal_enemy_button_pressed(archetype_id: String) -> void:
+	if archetype_id == "":
+		return
+	normal_enemy_batch_spawn_requested.emit(archetype_id, 1)
+
 
 func _on_skill_button_pressed(option_id: String) -> void:
 	var parts: PackedStringArray = option_id.split(":")
@@ -253,6 +307,7 @@ func _on_skill_button_pressed(option_id: String) -> void:
 	var tier: int = max(1, int(parts[1]))
 	if skill_id != "":
 		skill_unlock_requested.emit(skill_id, tier)
+
 
 func _on_blessing_button_pressed(option_id: String) -> void:
 	var parts: PackedStringArray = option_id.split(":")

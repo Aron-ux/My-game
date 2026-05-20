@@ -2,13 +2,17 @@ extends Node2D
 
 const FLY_TEXTURE := preload("res://assets/enemies/flyingeye/Flight.png")
 const HIT_TEXTURE := preload("res://assets/enemies/flyingeye/Take Hit.png")
+const ENEMY_SHADOW_VISUAL := preload("res://assets/enemies/enemy_shadow_visual.gd")
 const FLY_FRAME_SIZE := Vector2i(150, 150)
 const HIT_FRAME_SIZE := Vector2i(150, 150)
 const VISUAL_SCALE := Vector2(1.8, 1.8)
+const SHADOW_SCALE := Vector2(0.84, 0.32)
+const SHADOW_POSITION := Vector2(-0.5, 46.0)
 
 static var shared_sprite_frames: SpriteFrames
 
 var sprite: AnimatedSprite2D
+var shadow: Sprite2D
 var current_animation: String = ""
 var hit_lock_remaining: float = 0.0
 var last_moving_state: bool = false
@@ -55,6 +59,7 @@ func _update_facing(move_direction: Vector2) -> void:
 func _ensure_sprite() -> void:
 	if sprite != null:
 		return
+	_ensure_shadow()
 	sprite = get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
 	if sprite == null:
 		sprite = AnimatedSprite2D.new()
@@ -65,6 +70,9 @@ func _ensure_sprite() -> void:
 	sprite.position = Vector2(0.0, -18.0)
 	sprite.scale = VISUAL_SCALE
 	sprite.z_index = 1
+
+func _ensure_shadow() -> void:
+	shadow = ENEMY_SHADOW_VISUAL.ensure_shadow(self, shadow, SHADOW_POSITION, SHADOW_SCALE)
 
 static func _get_shared_frames() -> SpriteFrames:
 	if shared_sprite_frames == null:

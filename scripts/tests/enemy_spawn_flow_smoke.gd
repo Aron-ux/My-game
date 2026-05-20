@@ -17,6 +17,7 @@ func _init() -> void:
 func _run() -> void:
 	_check_spawn_positions_stay_inside_map()
 	_check_wave_plan_batches_multiple_packs()
+	_check_late_game_spawn_timing()
 	if failures.is_empty():
 		print("ENEMY_SPAWN_FLOW_SMOKE_OK")
 		quit(0)
@@ -61,3 +62,18 @@ func _check_wave_plan_batches_multiple_packs() -> void:
 		total_count += int((pack as Dictionary).get("count", 0))
 	if total_count <= 1:
 		failures.append("spawn wave plan should spawn a visible wave, got total count %d" % total_count)
+
+func _check_late_game_spawn_timing() -> void:
+	var elite_times: Array = EnemyDirector.get_default_elite_spawn_times()
+	if elite_times.is_empty():
+		failures.append("elite spawn times should not be empty")
+	elif float(elite_times[0]) < 360.0:
+		failures.append("first elite should not spawn before 360s, got %.2f" % float(elite_times[0]))
+	if EnemyDirector.get_active_enemy_limit(359.9) != 40:
+		failures.append("early active enemy limit should be 40")
+	if EnemyDirector.get_active_enemy_limit(360.0) != 60:
+		failures.append("late active enemy limit should be 60")
+	if EnemyDirector.get_cycle_active_enemy_limit(120.0) != 40:
+		failures.append("cycle first half active enemy limit should reset to 40")
+	if EnemyDirector.get_cycle_active_enemy_limit(480.0) != 60:
+		failures.append("cycle second half active enemy limit should be 60")

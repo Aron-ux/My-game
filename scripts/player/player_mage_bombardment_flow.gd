@@ -2,6 +2,10 @@ extends RefCounted
 
 const PLAYER_TARGETING := preload("res://scripts/player/player_targeting.gd")
 
+const BOOM_DAMAGE_HORIZONTAL_RADIUS_SCALE := 2.04
+const BOOM_VISUAL_VERTICAL_RADIUS_SCALE := 2.45
+const BOOM_VISUAL_MIN_VERTICAL_RADIUS := 92.0
+
 
 static func start_basic_mage_bombardment(owner, center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, gravity_level: int, echo_level: int, frost_level: int, role_id: String, use_boom_effect: bool = false, advance_attack_chain: bool = true) -> void:
 	if not use_boom_effect:
@@ -72,8 +76,8 @@ static func resolve_basic_mage_bombardment_damage(owner, center: Vector2, radius
 		owner._spawn_frost_sigils_effect(center, max(20.0, radius * 0.58), Color(0.86, 0.98, 1.0, 0.76), 0.18)
 	var hits: int = 0
 	if use_boom_effect:
-		var ellipse_horizontal_radius: float = radius * 2.04
-		var ellipse_vertical_radius: float = max(32.0, radius * 0.84)
+		var ellipse_horizontal_radius: float = radius * BOOM_DAMAGE_HORIZONTAL_RADIUS_SCALE
+		var ellipse_vertical_radius: float = _get_boom_visual_vertical_radius(radius)
 		hits += owner._damage_enemies_in_ellipse(center, ellipse_horizontal_radius, ellipse_vertical_radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, role_id)
 	else:
 		hits += owner._damage_enemies_in_radius(center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, role_id)
@@ -102,6 +106,10 @@ static func get_enemy_nearest_to_position(owner, position: Vector2) -> Node2D:
 	if position == Vector2.ZERO:
 		return owner._get_closest_enemy()
 	return PLAYER_TARGETING.get_enemy_nearest_to_position(owner._get_live_enemies(), position)
+
+
+static func _get_boom_visual_vertical_radius(radius: float) -> float:
+	return max(BOOM_VISUAL_MIN_VERTICAL_RADIUS, radius * BOOM_VISUAL_VERTICAL_RADIUS_SCALE)
 
 
 static func get_enemy_near_position(owner, position: Vector2, max_distance: float) -> Node2D:

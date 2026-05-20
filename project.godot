@@ -12,12 +12,12 @@ config_version=5
 
 config/name="survivor_like"
 run/main_scene="res://scenes/main_menu.tscn"
+config/features=PackedStringArray("4.6", "Forward Plus")
 run/max_fps=120
+config/icon="res://icon.svg"
 run/performance_flags/enemy_batch=true
 run/performance_flags/enemy_projectile_batch=true
 run/performance_flags/pickup_batch=true
-config/features=PackedStringArray("4.6", "Forward Plus")
-config/icon="res://icon.svg"
 
 [autoload]
 
@@ -29,9 +29,7 @@ WindowDisplayManager="*res://scripts/window_display_manager.gd"
 
 window/size/viewport_width=1280
 window/size/viewport_height=720
-window/size/resizable=true
 window/stretch/mode="canvas_items"
-window/stretch/aspect="keep"
 window/vsync/vsync_mode=0
 
 [editor_plugins]

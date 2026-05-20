@@ -83,7 +83,8 @@ const EXPECTED := {
 		"dash_interval": 3.1,
 		"dash_duration": 0.42,
 		"dash_speed_multiplier": 3.2,
-		"dash_windup_duration": 0.6
+		"dash_windup_duration": 0.6,
+		"visual_scene": "res://assets/enemies/skullsolider/skullsoilder.tscn"
 	},
 	"shotgunner": {
 		"behavior": "shooter",
@@ -115,10 +116,11 @@ const EXPECTED := {
 		"reward_tier": 4,
 		"experience_reward": 45,
 		"scale": 1.84,
-		"dash_interval": 2.4,
-		"dash_duration": 0.58,
-		"dash_speed_multiplier": 3.45,
-		"dash_windup_duration": 0.72
+		"dash_interval": 1.8,
+		"dash_duration": 0.5026666667,
+		"dash_speed_multiplier": 5.175,
+		"dash_windup_duration": 0.72,
+		"visual_scene": "res://assets/enemies/skullsolider/eliteskull.tscn"
 	},
 	"elite_splitshot": {
 		"behavior": "shooter",
@@ -145,8 +147,8 @@ const EXPECTED := {
 	},
 	"smallboss_glutton": {
 		"behavior": "glutton",
-		"boss_name": "吞晶巨核",
-		"max_health": 1320.0,
+		"boss_name": "幽影树人",
+		"max_health": 1188.0,
 		"speed": 40.0,
 		"touch_damage": 24.0,
 		"contact_radius": 62.0,
@@ -155,8 +157,11 @@ const EXPECTED := {
 		"experience_reward": 60,
 		"scale": 2.05,
 		"glutton_absorb_radius": 190.0,
-		"glutton_speed_gain_per_gem": 3.8,
-		"glutton_scale_gain_per_gem": 0.018,
+		"glutton_aura_damage": 9.0,
+		"glutton_aura_radius": 190.0,
+		"glutton_heart_heal_scale": 1.0,
+		"glutton_speed_gain_per_gem": 2.28,
+		"glutton_scale_gain_per_gem": 0.009,
 		"glutton_max_bonus_speed": 120.0,
 		"visual_scene": "res://assets/enemies/treeboss/treeboss.tscn"
 	},

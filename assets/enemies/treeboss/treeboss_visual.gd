@@ -2,8 +2,11 @@ extends Node2D
 
 const RUN_ANIMATION := "treewalk"
 const VISUAL_SCALE := Vector2(0.48, 0.48)
+const SHADOW_SCALE := Vector2(1.656, 0.828)
+const SHADOW_COLOR := Color(0.58, 0.58, 0.58, 1.0)
 
 var sprite: AnimatedSprite2D
+var shadow: Sprite2D
 var last_moving_state: bool = false
 
 
@@ -26,6 +29,15 @@ func play_hit() -> void:
 		sprite.play(RUN_ANIMATION)
 
 
+func get_shadow_world_radius() -> float:
+	_ensure_sprite()
+	if shadow == null or shadow.texture == null:
+		return 0.0
+	var texture_size: Vector2 = shadow.texture.get_size()
+	var world_scale: Vector2 = shadow.global_scale
+	return max(texture_size.x * abs(world_scale.x), texture_size.y * abs(world_scale.y)) * 0.5
+
+
 func _update_facing(move_direction: Vector2) -> void:
 	if abs(move_direction.x) <= 0.01:
 		return
@@ -35,6 +47,13 @@ func _update_facing(move_direction: Vector2) -> void:
 func _ensure_sprite() -> void:
 	if sprite != null:
 		return
+	shadow = get_node_or_null("Shadow") as Sprite2D
+	if shadow != null:
+		shadow.centered = true
+		shadow.position = Vector2(0.0, 8.0)
+		shadow.scale = SHADOW_SCALE
+		shadow.modulate = SHADOW_COLOR
+		shadow.z_index = -1
 	sprite = get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
 	if sprite == null:
 		return

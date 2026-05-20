@@ -26,7 +26,7 @@ func _run() -> void:
 	enemy.apply_enemy_profile("small_boss", ENEMY_ARCHETYPE_DATABASE.get_profile("small_boss", "smallboss_rebirth"))
 	enemy.global_position = Vector2.ZERO
 
-	_force_rebirth(enemy, 1, "first lethal hit should start first rebirth")
+	_force_rebirth(enemy, 0, "first lethal hit should start skulltomb rebirth")
 	enemy.target = null
 	enemy._physics_process(enemy.rebirth_delay + 0.1)
 	if enemy.rebirth_timer != 0.0:
@@ -37,24 +37,16 @@ func _run() -> void:
 		failures.append("rebirth enemy should become damageable after timer expires")
 
 	enemy.target = target
-	_force_rebirth(enemy, 0, "second lethal hit should start final-life rebirth")
-	enemy.target = null
-	enemy._physics_process(enemy.rebirth_delay + 0.1)
-	if enemy.rebirth_timer != 0.0:
-		failures.append("final-life rebirth timer should expire without a valid target")
-
-	enemy.target = target
 	var selected_enemy: Node2D = PLAYER_TARGETING.get_closest_enemy(scene.get_runtime_enemies(), target.global_position)
 	if selected_enemy != enemy:
-		failures.append("final-life rebirth enemy should remain selectable in runtime targeting")
+		failures.append("reborn skulltomb should remain selectable in runtime targeting")
 	var position_before_move: Vector2 = enemy.global_position
 	enemy._physics_process(0.2)
 	if enemy.global_position == position_before_move:
-		failures.append("final-life rebirth enemy should resume movement after rebirth timer")
-	var final_health: float = enemy.current_health
-	enemy.take_batched_damage(1.0)
-	if enemy.current_health >= final_health:
-		failures.append("final-life rebirth enemy should be damageable")
+		failures.append("reborn skulltomb should resume movement after rebirth timer")
+	enemy.take_batched_damage(enemy.max_health + 100.0)
+	if is_instance_valid(enemy) and int(enemy.get("rebirth_lives_remaining")) == 0 and float(enemy.get("rebirth_timer")) > 0.0:
+		failures.append("skulltomb should only rebirth once")
 
 	scene.queue_free()
 	await process_frame

@@ -1,7 +1,11 @@
 extends RefCounted
 
 const DEFAULT_STAGE_DURATION := 720.0
-const DEFAULT_ELITE_SPAWN_TIMES := [78.0, 138.0, 255.0, 318.0, 438.0, 498.0, 618.0, 684.0]
+const LATE_GAME_START_TIME := 360.0
+const EARLY_ACTIVE_ENEMY_LIMIT := 40
+const LATE_ACTIVE_ENEMY_LIMIT := 60
+const BODY_COLLISION_RADIUS_MULTIPLIER := 1.8
+const DEFAULT_ELITE_SPAWN_TIMES := [360.0, 438.0, 498.0, 618.0, 684.0]
 const DEFAULT_SMALL_BOSS_SPAWN_TIMES := [180.0, 360.0, 540.0]
 const DEFAULT_BOSS_SPAWN_TIME := 720.0
 const DEFAULT_STARTING_SPAWN_INTERVAL := 1.02
@@ -22,6 +26,18 @@ static func get_default_stage_duration() -> float:
 
 static func get_default_elite_spawn_times() -> Array:
 	return DEFAULT_ELITE_SPAWN_TIMES.duplicate()
+
+static func is_late_game(survival_time: float) -> bool:
+	return survival_time >= LATE_GAME_START_TIME
+
+static func get_active_enemy_limit(survival_time: float) -> int:
+	return LATE_ACTIVE_ENEMY_LIMIT if is_late_game(survival_time) else EARLY_ACTIVE_ENEMY_LIMIT
+
+static func get_cycle_active_enemy_limit(cycle_elapsed_time: float) -> int:
+	return get_active_enemy_limit(cycle_elapsed_time)
+
+static func get_body_collision_radius_multiplier() -> float:
+	return BODY_COLLISION_RADIUS_MULTIPLIER
 
 static func get_default_small_boss_spawn_times() -> Array:
 	return DEFAULT_SMALL_BOSS_SPAWN_TIMES.duplicate()

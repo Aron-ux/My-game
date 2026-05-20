@@ -4,7 +4,7 @@ const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
 const GAME_SETTINGS := preload("res://scripts/game_settings.gd")
 const PLAYER_LEVEL_CURVE := preload("res://scripts/player/player_level_curve.gd")
 
-const EXPERIENCE_GAIN_MULTIPLIER := 2.025
+const EXPERIENCE_GAIN_MULTIPLIER := 2.43
 const EXPERIENCE_FRACTION_CARRY_KEY := "__experience_fraction_carry"
 const PICKUP_SCAN_CURSOR_KEY := "__pickup_scan_cursor"
 const HEART_SCAN_CURSOR_KEY := "__heart_scan_cursor"

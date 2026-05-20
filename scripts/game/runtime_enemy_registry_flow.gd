@@ -1,5 +1,7 @@
 extends RefCounted
 
+const ENEMY_SPAWN_STATUS_PAYLOAD := preload("res://scripts/game/enemy_spawn_status_payload.gd")
+
 # Enemy scene instantiation/activation is a heavy spike source. Keep burst
 # density unchanged by draining the queue over several render frames instead
 # of allowing a whole warning wave to materialize in one frame.
@@ -70,7 +72,9 @@ static func spawn_queued_enemy_request(main: Node, request: Dictionary) -> void:
 	var speed_multiplier: float = float(request.get("speed_multiplier", 1.0))
 	var damage_multiplier: float = float(request.get("damage_multiplier", 1.0))
 	var spawn_position: Vector2 = request.get("spawn_position", Vector2.ZERO)
-	main.ENEMY_SPAWN_FLOW.spawn_configured_enemy_at(main, kind, archetype, health_multiplier, speed_multiplier, spawn_position, damage_multiplier)
+	var enemy: Node2D = main.ENEMY_SPAWN_FLOW.spawn_configured_enemy_at(main, kind, archetype, health_multiplier, speed_multiplier, spawn_position, damage_multiplier)
+	if enemy != null:
+		ENEMY_SPAWN_STATUS_PAYLOAD.apply_to_spawned_enemy(enemy, request)
 
 
 static func clear_pending_enemy_spawn_requests_if_needed(main: Node) -> void:

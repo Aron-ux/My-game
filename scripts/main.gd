@@ -530,6 +530,9 @@ func _on_developer_small_boss_spawn_requested(archetype_id: String) -> void:
 func _on_developer_normal_enemy_batch_spawn_requested(archetype_id: String, count: int) -> void:
 	DEVELOPER_ACTIONS.spawn_normal_enemy_batch(self, archetype_id, count)
 
+func _on_developer_enemy_spawn_requested(kind: String, archetype_id: String, count: int) -> void:
+	DEVELOPER_ACTIONS.spawn_enemy(self, kind, archetype_id, count)
+
 func _on_developer_skill_unlock_requested(skill_id: String, tier: int) -> void:
 	DEVELOPER_ACTIONS.unlock_skill(self, skill_id, tier)
 
@@ -541,6 +544,9 @@ func _get_developer_boss_options() -> Array:
 
 func _get_developer_normal_enemy_options() -> Array:
 	return DEVELOPER_OPTION_PROVIDER.get_normal_enemy_options()
+
+func _get_developer_enemy_options() -> Array:
+	return DEVELOPER_OPTION_PROVIDER.get_enemy_options()
 
 func _get_developer_skill_options() -> Array:
 	return DEVELOPER_OPTION_PROVIDER.get_skill_options(player)

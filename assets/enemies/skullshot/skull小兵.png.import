@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cv0jsfeahbx5q"
-path="res://.godot/imported/skull shotgunner.png-b96ef19ffdf54d296ef2b233a1260551.ctex"
+uid="uid://bq1kf1f7y5hto"
+path="res://.godot/imported/skull小兵.png-c44aa9bc46bf10d6df3d3adad73d7a22.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/enemies/skull/skull shotgunner.png"
-dest_files=["res://.godot/imported/skull shotgunner.png-b96ef19ffdf54d296ef2b233a1260551.ctex"]
+source_file="res://assets/enemies/skullshot/skull小兵.png"
+dest_files=["res://.godot/imported/skull小兵.png-c44aa9bc46bf10d6df3d3adad73d7a22.ctex"]
 
 [params]
 

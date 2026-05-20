@@ -31,6 +31,7 @@ static func prepare_for_pool(enemy) -> void:
 	enemy.vulnerability_timer = 0.0
 	enemy.bleed_damage_per_second = 0.0
 	enemy.bleed_timer = 0.0
+	enemy.drop_absorber = null
 	enemy.hit_flash_remaining = 0.0
 	enemy.status_visual_time = 0.0
 	enemy.status_visual_refresh_frame = -1

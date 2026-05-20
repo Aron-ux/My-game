@@ -26,6 +26,8 @@ static func get_status_visual_refresh_interval(enemy) -> int:
 static func has_status_visual_pressure(enemy) -> bool:
 	if str(enemy.enemy_kind) != "normal" or str(enemy.secondary_behavior_id) != "" or bool(enemy._is_dasher) or enemy.boss_visual_instance != null:
 		return true
+	if float(enemy.skull_damage_immune_timer) > 0.0:
+		return true
 	if enemy.status_root == null and bool(enemy._is_scene_under_enemy_pressure()):
 		return false
 	return float(enemy.slow_timer) > 0.0 or float(enemy.vulnerability_timer) > 0.0

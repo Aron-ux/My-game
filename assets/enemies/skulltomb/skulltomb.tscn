@@ -1,0 +1,110 @@
+[gd_scene load_steps=16 format=3 uid="uid://tn3wjmuhonqu"]
+
+[ext_resource type="Texture2D" uid="uid://bffjtgtf2lyyd" path="res://assets/enemies/skulltomb/skulltombwalk.png" id="1_l4jes"]
+[ext_resource type="Script" path="res://assets/enemies/authored_enemy_visual.gd" id="2_visual_script"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_42g37"]
+atlas = ExtResource("1_l4jes")
+region = Rect2(0, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_jntcy"]
+atlas = ExtResource("1_l4jes")
+region = Rect2(256, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_3ltf5"]
+atlas = ExtResource("1_l4jes")
+region = Rect2(512, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_fsykj"]
+atlas = ExtResource("1_l4jes")
+region = Rect2(768, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_vtmqj"]
+atlas = ExtResource("1_l4jes")
+region = Rect2(0, 256, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_1vdd3"]
+atlas = ExtResource("1_l4jes")
+region = Rect2(256, 256, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_5cn3u"]
+atlas = ExtResource("1_l4jes")
+region = Rect2(512, 256, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_xuple"]
+atlas = ExtResource("1_l4jes")
+region = Rect2(768, 256, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_jn4uf"]
+atlas = ExtResource("1_l4jes")
+region = Rect2(0, 512, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_n6b26"]
+atlas = ExtResource("1_l4jes")
+region = Rect2(256, 512, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_mgvok"]
+atlas = ExtResource("1_l4jes")
+region = Rect2(512, 512, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ldi44"]
+atlas = ExtResource("1_l4jes")
+region = Rect2(768, 512, 256, 256)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_bfu1x"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_42g37")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_jntcy")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_3ltf5")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_fsykj")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_vtmqj")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_1vdd3")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_5cn3u")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_xuple")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_jn4uf")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_n6b26")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_mgvok")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ldi44")
+}],
+"loop": true,
+"name": &"skulltombwalk",
+"speed": 6.0
+}]
+
+[node name="Skulltomb" type="Node2D" unique_id=1284390599]
+script = ExtResource("2_visual_script")
+move_animation = &"skulltombwalk"
+visual_scale = Vector2(0.96, 0.96)
+sprite_position = Vector2(0, -72)
+sprite_faces_left_by_default = false
+shadow_scale = Vector2(3.312, 1.656)
+shadow_position = Vector2(0, 16)
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1325189330]
+sprite_frames = SubResource("SpriteFrames_bfu1x")
+animation = &"skulltombwalk"
+frame_progress = 0.6156409

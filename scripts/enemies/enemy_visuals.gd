@@ -64,7 +64,7 @@ static func update_motion_visual(enemy) -> void:
 	visual.set_moving(is_moving, enemy.velocity)
 
 static func _should_hide_trait_ring(enemy) -> bool:
-	return enemy.enemy_kind == "small_boss" and enemy.archetype_id == "smallboss_glutton"
+	return ENEMY_VISUAL_DATA.should_hide_trait_ring(enemy.enemy_kind, enemy.archetype_id)
 
 static func _ensure_profile_visual(enemy) -> void:
 	var existing_visual: Node = enemy.get_node_or_null(PROFILE_VISUAL_NAME)
