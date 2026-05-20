@@ -12,6 +12,7 @@ const QUEUED_HIT_THRESHOLD := 16
 const LOW_FPS_QUEUED_HIT_THRESHOLD := 8
 const CRITICAL_FPS_QUEUED_HIT_THRESHOLD := 4
 const DAMAGE_QUERY_BOUNDS_GROW := 48.0
+const ENEMY_TOUCH_DAMAGE_RADIUS_SCALE := 0.78
 
 static var cached_live_enemies: Array = []
 static var cached_live_enemies_frame: int = -1
@@ -255,6 +256,12 @@ static func get_touching_enemy_damage(owner, center: Vector2, radius: float, que
 			contact_radius = float(enemy_contact_radius)
 		if enemy_touch_damage != null:
 			touch_damage = float(enemy_touch_damage)
+		if str(enemy.get("behavior_id")) == "glutton" and enemy.has_method("get_glutton_player_touch_shape"):
+			if _is_center_inside_enemy_touch_shape(center, radius, enemy.get_glutton_player_touch_shape()):
+				return touch_damage
+			continue
+		if str(enemy.get("behavior_id")) != "glutton":
+			contact_radius *= ENEMY_TOUCH_DAMAGE_RADIUS_SCALE
 		var combined_radius: float = contact_radius + radius
 		if center.distance_squared_to((enemy as Node2D).global_position) <= combined_radius * combined_radius:
 			return touch_damage
@@ -594,6 +601,16 @@ static func _get_enemy_hit_radius(owner, enemy: Node) -> float:
 	if owner.has_method("_get_enemy_hit_radius"):
 		return float(owner._get_enemy_hit_radius(enemy))
 	return 12.0
+
+static func _is_center_inside_enemy_touch_shape(center: Vector2, player_radius: float, shape: Dictionary) -> bool:
+	if shape.is_empty():
+		return false
+	var shape_center: Vector2 = shape.get("center", Vector2.ZERO)
+	var horizontal_radius: float = max(1.0, float(shape.get("horizontal_radius", 0.0)) + player_radius)
+	var vertical_radius: float = max(1.0, float(shape.get("vertical_radius", 0.0)) + player_radius)
+	var relative: Vector2 = center - shape_center
+	var ellipse_value: float = pow(relative.x / horizontal_radius, 2.0) + pow(relative.y / vertical_radius, 2.0)
+	return ellipse_value <= 1.0
 
 static func _resolve_role_id(owner, source_role_id: String) -> String:
 	if source_role_id != "":

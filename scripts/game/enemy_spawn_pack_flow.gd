@@ -52,6 +52,16 @@ static func spawn_telegraphed_wave_plan(main: Node, spawn_plan: Array, health_mu
 
 
 static func spawn_configured_enemy(main: Node, kind: String, archetype: String, health_multiplier: float, speed_multiplier: float, spawn_angle: float = INF, distance_offset: float = 0.0, damage_multiplier: float = 1.0) -> Node2D:
+	if _should_spawn_at_map_center(kind, archetype):
+		return SPAWN_INSTANCE_FLOW.spawn_configured_enemy_at_position(
+			main,
+			kind,
+			archetype,
+			health_multiplier,
+			speed_multiplier,
+			SPAWN_POSITION_FLOW.get_spawn_bounds_center(main),
+			damage_multiplier
+		)
 	var angle: float = spawn_angle if is_finite(spawn_angle) else main.rng.randf_range(0.0, TAU)
 	var distance: float = ENEMY_DIRECTOR.get_spawn_distance(kind, main.spawn_distance, distance_offset)
 	return SPAWN_INSTANCE_FLOW.spawn_configured_enemy_at_position(main, kind, archetype, health_multiplier, speed_multiplier, SPAWN_POSITION_FLOW.get_spawn_position(main, angle, distance), damage_multiplier)
@@ -69,3 +79,7 @@ static func get_runtime_enemy_limit(main: Node) -> int:
 	if main != null and main.has_method("_get_runtime_group_limit"):
 		return min(fallback_limit, int(main._get_runtime_group_limit("enemies", fallback_limit)))
 	return fallback_limit
+
+
+static func _should_spawn_at_map_center(kind: String, archetype: String) -> bool:
+	return kind == "small_boss" and archetype == "smallboss_turret"

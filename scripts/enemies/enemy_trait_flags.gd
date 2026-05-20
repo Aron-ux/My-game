@@ -32,9 +32,11 @@ static func has_trait(enemy, trait_id: String) -> bool:
 			return bool(enemy._is_rebirth)
 		"skulltomb":
 			return enemy.behavior_id == "skulltomb" or enemy.secondary_behavior_id == "skulltomb"
+		"rose":
+			return enemy.behavior_id == "rose" or enemy.secondary_behavior_id == "rose"
 		_:
 			return enemy.behavior_id == trait_id or enemy.secondary_behavior_id == trait_id
 
 
 static func has_timed_behavior_traits(enemy) -> bool:
-	return bool(enemy._is_shooter) or bool(enemy._is_accelerator) or bool(enemy._is_dasher) or bool(enemy._is_glutton) or bool(enemy._is_turret) or bool(enemy._is_boss) or bool(enemy._is_rebirth)
+	return bool(enemy._is_shooter) or bool(enemy._is_accelerator) or bool(enemy._is_dasher) or bool(enemy._is_glutton) or bool(enemy._is_turret) or bool(enemy._is_boss) or bool(enemy._is_rebirth) or enemy.behavior_id == "rose" or enemy.secondary_behavior_id == "rose"

@@ -16,6 +16,7 @@ func _init() -> void:
 
 func _run() -> void:
 	_check_spawn_positions_stay_inside_map()
+	_check_spawn_bounds_center()
 	_check_wave_plan_batches_multiple_packs()
 	_check_late_game_spawn_timing()
 	if failures.is_empty():
@@ -39,6 +40,15 @@ func _check_spawn_positions_stay_inside_map() -> void:
 		if not safe_bounds.has_point(position):
 			failures.append("spawn position should stay inside map bounds: %s" % str(position))
 			break
+	main.queue_free()
+
+func _check_spawn_bounds_center() -> void:
+	var main := MainStub.new()
+	get_root().add_child(main)
+	var center: Vector2 = EnemySpawnFlow.SPAWN_POSITION_FLOW.get_spawn_bounds_center(main)
+	var safe_bounds: Rect2 = main.map_bounds.grow(-36.0)
+	if center != safe_bounds.get_center():
+		failures.append("spawn bounds center should be safe map center, got %s" % str(center))
 	main.queue_free()
 
 func _check_wave_plan_batches_multiple_packs() -> void:

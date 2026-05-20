@@ -1,13 +1,16 @@
 extends RefCounted
 
 const ENEMY_DEATH_EFFECTS := preload("res://scripts/enemies/enemy_death_effects.gd")
+const ENEMY_DROPS := preload("res://scripts/enemies/enemy_drops.gd")
 const ENEMY_SPATIAL_GRID := preload("res://scripts/enemies/enemy_spatial_grid.gd")
 
 const ABSORB_INTERVAL := 0.18
 const GEM_GRID_CELL_SIZE := 128.0
 const AURA_EXECUTE_HITS := 6
 const AURA_QUERY_PADDING := 96.0
-const SHADOW_AURA_RADIUS_RATIO := 1.1
+const SHADOW_AURA_RADIUS_RATIO := 1.2
+const PLAYER_TOUCH_SHADOW_RADIUS_RATIO := 0.8
+const KILL_HEAL_MAX_HEALTH_RATIO := 0.01
 
 static var cached_exp_gem_grid_frame: int = -1
 static var cached_exp_gem_grid: Dictionary = {}
@@ -45,20 +48,26 @@ static func damage_nearby_enemies(enemy) -> void:
 	var damage: float = enemy.glutton_aura_damage
 	if damage <= 0.0:
 		return
-	var radius: float = _get_aura_radius(enemy)
-	for other in ENEMY_SPATIAL_GRID.get_neighbors(enemy, radius + AURA_QUERY_PADDING):
+	var aura_shape: Dictionary = _get_aura_shape(enemy)
+	var query_radius: float = max(float(aura_shape.get("horizontal_radius", 0.0)), float(aura_shape.get("vertical_radius", 0.0)))
+	if query_radius <= 0.0:
+		return
+	for other in ENEMY_SPATIAL_GRID.get_neighbors(enemy, query_radius + AURA_QUERY_PADDING):
 		if not _can_damage_enemy(enemy, other):
 			continue
-		if not _is_inside_aura(enemy, other, radius):
+		if not _is_inside_aura(other, aura_shape):
 			continue
 		var aura_hits: int = _register_aura_hit(enemy, other)
 		var hit_damage: float = _get_aura_hit_damage(other, damage, aura_hits)
-		if _will_kill_enemy(other, hit_damage):
+		var will_kill_enemy: bool = _will_kill_enemy(other, hit_damage)
+		if will_kill_enemy:
 			ENEMY_DEATH_EFFECTS.spawn_glutton_squash(other)
 		other.set("drop_absorber", enemy)
 		other.take_damage(hit_damage)
 		if is_instance_valid(other):
 			other.set("drop_absorber", null)
+		if will_kill_enemy:
+			_try_heal_from_killed_enemy(enemy, other)
 
 
 static func absorb_exp_gem(enemy, gem) -> int:
@@ -78,6 +87,29 @@ static func absorb_heart(enemy, heart) -> float:
 		enemy.current_health = min(enemy.max_health, enemy.current_health + heal_amount * heal_scale)
 		enemy._spawn_status_burst(Color(1.0, 0.36, 0.48, 0.16), 24.0 + enemy.scale.x * 5.0)
 	return heal_amount
+
+
+static func get_player_touch_radius(enemy) -> float:
+	var touch_shape := get_player_touch_shape(enemy)
+	if not touch_shape.is_empty():
+		return max(float(touch_shape.get("horizontal_radius", 0.0)), float(touch_shape.get("vertical_radius", 0.0)))
+	return max(0.0, float(enemy.contact_radius))
+
+
+static func get_player_touch_shape(enemy) -> Dictionary:
+	var shadow_ellipse := _get_shadow_world_ellipse(enemy)
+	if not shadow_ellipse.is_empty():
+		return {
+			"center": shadow_ellipse.get("center", enemy.global_position),
+			"horizontal_radius": float(shadow_ellipse.get("horizontal_radius", 0.0)) * PLAYER_TOUCH_SHADOW_RADIUS_RATIO,
+			"vertical_radius": float(shadow_ellipse.get("vertical_radius", 0.0)) * PLAYER_TOUCH_SHADOW_RADIUS_RATIO
+		}
+	var fallback_radius: float = max(0.0, float(enemy.contact_radius))
+	return {
+		"center": enemy.global_position,
+		"horizontal_radius": fallback_radius,
+		"vertical_radius": fallback_radius
+	}
 
 
 static func _apply_glutton_growth(enemy, absorbed_count: int) -> void:
@@ -109,35 +141,50 @@ static func _is_damageable_enemy_kind(target) -> bool:
 	return kind == "normal" or kind == "elite"
 
 
-static func _is_inside_aura(source, target, aura_radius: float) -> bool:
-	var target_radius: float = _get_target_contact_radius(target)
-	var total_radius: float = aura_radius + target_radius
-	return source.global_position.distance_squared_to((target as Node2D).global_position) <= total_radius * total_radius
+static func _is_inside_aura(target, aura_shape: Dictionary) -> bool:
+	if target == null or target is not Node2D:
+		return false
+	var center: Vector2 = aura_shape.get("center", Vector2.ZERO)
+	var horizontal_radius: float = max(1.0, float(aura_shape.get("horizontal_radius", 0.0)))
+	var vertical_radius: float = max(1.0, float(aura_shape.get("vertical_radius", 0.0)))
+	var relative: Vector2 = (target as Node2D).global_position - center
+	var ellipse_value: float = pow(relative.x / horizontal_radius, 2.0) + pow(relative.y / vertical_radius, 2.0)
+	return ellipse_value <= 1.0
 
 
-static func _get_aura_radius(enemy) -> float:
-	var shadow_radius := _get_shadow_world_radius(enemy)
-	if shadow_radius > 0.0:
-		return shadow_radius * SHADOW_AURA_RADIUS_RATIO
-	if enemy.glutton_aura_radius > 0.0:
-		return enemy.glutton_aura_radius
-	return enemy.glutton_absorb_radius
+static func _get_aura_shape(enemy) -> Dictionary:
+	var shadow_ellipse := _get_shadow_world_ellipse(enemy)
+	if not shadow_ellipse.is_empty():
+		return {
+			"center": shadow_ellipse.get("center", enemy.global_position),
+			"horizontal_radius": float(shadow_ellipse.get("horizontal_radius", 0.0)) * SHADOW_AURA_RADIUS_RATIO,
+			"vertical_radius": float(shadow_ellipse.get("vertical_radius", 0.0)) * SHADOW_AURA_RADIUS_RATIO
+		}
+	var fallback_radius: float = enemy.glutton_aura_radius if enemy.glutton_aura_radius > 0.0 else enemy.glutton_absorb_radius
+	return {
+		"center": enemy.global_position,
+		"horizontal_radius": fallback_radius,
+		"vertical_radius": fallback_radius
+	}
 
 
-static func _get_shadow_world_radius(enemy) -> float:
+static func _get_shadow_world_ellipse(enemy) -> Dictionary:
 	if enemy == null or not is_instance_valid(enemy):
-		return 0.0
+		return {}
 	var visual: Node = enemy.get_node_or_null("ProfileVisual")
+	if visual != null and visual.has_method("get_shadow_world_ellipse"):
+		var ellipse: Variant = visual.call("get_shadow_world_ellipse")
+		if ellipse is Dictionary and not (ellipse as Dictionary).is_empty():
+			return ellipse
 	if visual != null and visual.has_method("get_shadow_world_radius"):
-		return max(0.0, float(visual.call("get_shadow_world_radius")))
-	return 0.0
-
-
-static func _get_target_contact_radius(target) -> float:
-	var radius_value: Variant = target.get("contact_radius")
-	if radius_value != null:
-		return max(0.0, float(radius_value))
-	return 0.0
+		var radius: float = max(0.0, float(visual.call("get_shadow_world_radius")))
+		if radius > 0.0:
+			return {
+				"center": enemy.global_position,
+				"horizontal_radius": radius,
+				"vertical_radius": radius
+			}
+	return {}
 
 
 static func _register_aura_hit(source, target) -> int:
@@ -159,6 +206,22 @@ static func _will_kill_enemy(target, raw_damage: float) -> bool:
 	var current_health: float = float(target.get("current_health"))
 	var vulnerability_bonus: float = float(target.get("vulnerability_bonus"))
 	return current_health <= raw_damage * (1.0 + vulnerability_bonus)
+
+
+static func _try_heal_from_killed_enemy(enemy, killed_enemy) -> void:
+	if enemy == null or not is_instance_valid(enemy):
+		return
+	if killed_enemy == null:
+		return
+	var killed_kind: String = str(killed_enemy.get("enemy_kind"))
+	var heal_chance: float = ENEMY_DROPS.get_heart_drop_chance(killed_kind)
+	if randf() > heal_chance:
+		return
+	var heal_amount: float = max(0.0, float(enemy.max_health)) * KILL_HEAL_MAX_HEALTH_RATIO
+	if heal_amount <= 0.0:
+		return
+	enemy.current_health = min(float(enemy.max_health), float(enemy.current_health) + heal_amount)
+	enemy._spawn_status_burst(Color(1.0, 0.36, 0.48, 0.16), 24.0 + enemy.scale.x * 5.0)
 
 
 static func _get_exp_gem_candidates(enemy, center: Vector2, radius: float) -> Array:

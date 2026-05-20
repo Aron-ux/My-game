@@ -3,6 +3,7 @@ extends RefCounted
 const BOSS_PROJECTILE_SPEED_SCALE := 0.588
 const BOSS_PROJECTILE_LIFETIME_SCALE := 1.5
 const BOSS_LASER_LENGTH := 980.0
+const BOSS_LASER_COLOR := Color(39.0 / 255.0, 39.0 / 255.0, 39.0 / 255.0, 1.0)
 
 static func fire_radial_burst(enemy, count: int = -1) -> void:
 	var bullet_count: int = max(10, count if count > 0 else enemy.boss_radial_bullets)
@@ -18,7 +19,7 @@ static func fire_radial_burst(enemy, count: int = -1) -> void:
 			5.0 * BOSS_PROJECTILE_LIFETIME_SCALE,
 			Color(1.0, 0.38, 0.12, 1.0),
 			"straight",
-			{"size_scale": 1.15}
+			{"size_scale": 1.15, "visual_style": "boss_dark_orb"}
 		)
 	var rotation_step: float = TAU / float(max(1, bullet_count)) * 0.5
 	enemy.boss_pattern_rotation = wrapf(base_angle + rotation_step + randf_range(-0.06, 0.06), 0.0, TAU)
@@ -43,7 +44,8 @@ static func fire_quarter_sine_ring(enemy, count: int = 12) -> void:
 				"sine_amplitude": 54.0,
 				"quarter_sine_distance": 165.0,
 				"quarter_sine_side": side,
-				"size_scale": 1.3
+				"size_scale": 1.3,
+				"visual_style": "boss_dark_core_orb"
 			}
 		)
 	enemy.boss_turning_sign *= -1.0
@@ -78,7 +80,9 @@ static func fire_recall_split(enemy) -> void:
 				"split_damage_scale": 0.45,
 				"split_lifetime": 3.8 * BOSS_PROJECTILE_LIFETIME_SCALE,
 				"split_motion_mode": "quarter_sine",
-				"size_scale": 1.45
+				"size_scale": 1.45,
+				"visual_style": "boss_dark_core_orb",
+				"split_visual_style": "boss_dark_core_orb"
 			}
 		)
 	enemy._spawn_status_burst(Color(0.46, 1.0, 1.0, 0.22), 46.0 + enemy.scale.x * 8.0)
@@ -118,12 +122,12 @@ static func update_lasers(enemy, delta: float) -> void:
 		var outer = enemy.boss_laser_lines[index]
 		outer.visible = true
 		outer.points = PackedVector2Array([start_point, end_point])
-		outer.default_color = Color(1.0, 0.44, 0.12, alpha)
+		outer.default_color = Color(BOSS_LASER_COLOR.r, BOSS_LASER_COLOR.g, BOSS_LASER_COLOR.b, alpha)
 
 		var core = enemy.boss_laser_core_lines[index]
 		core.visible = true
 		core.points = PackedVector2Array([start_point, end_point])
-		core.default_color = Color(1.0, 0.92, 0.58, min(1.0, alpha + 0.4))
+		core.default_color = Color(BOSS_LASER_COLOR.r, BOSS_LASER_COLOR.g, BOSS_LASER_COLOR.b, min(1.0, alpha + 0.4))
 
 		if enemy.boss_laser_hit_timer <= 0.0 and enemy.target != null and is_instance_valid(enemy.target):
 			var target_center: Vector2 = enemy.target.global_position
@@ -164,14 +168,14 @@ static func update_orbit_bomb(enemy, delta: float) -> void:
 		var shot_angle: float = randf() * TAU
 		var shot_direction: Vector2 = Vector2.RIGHT.rotated(shot_angle)
 		var origin: Vector2 = enemy.global_position + orbit_offset
-		enemy._spawn_projectile(origin, shot_direction, 215.0 * BOSS_PROJECTILE_SPEED_SCALE, enemy.projectile_damage * 0.5, 4.2 * BOSS_PROJECTILE_LIFETIME_SCALE, Color(1.0, 0.76, 0.3, 1.0), "straight", {"size_scale": 0.86})
+		enemy._spawn_projectile(origin, shot_direction, 215.0 * BOSS_PROJECTILE_SPEED_SCALE, enemy.projectile_damage * 0.5, 4.2 * BOSS_PROJECTILE_LIFETIME_SCALE, Color(1.0, 0.76, 0.3, 1.0), "straight", {"size_scale": 0.86, "visual_style": "boss_dark_orb"})
 
 	if enemy.boss_orbit_bomb_remaining <= 0.0:
 		var burst_origin: Vector2 = enemy.global_position + orbit_offset
 		for index in range(26):
 			var burst_angle: float = TAU * float(index) / 26.0
 			var burst_direction: Vector2 = Vector2.RIGHT.rotated(burst_angle)
-			enemy._spawn_projectile(burst_origin, burst_direction, 250.0 * BOSS_PROJECTILE_SPEED_SCALE, enemy.projectile_damage * 0.66, 4.4 * BOSS_PROJECTILE_LIFETIME_SCALE, Color(1.0, 0.86, 0.52, 1.0), "straight", {"size_scale": 1.0})
+			enemy._spawn_projectile(burst_origin, burst_direction, 250.0 * BOSS_PROJECTILE_SPEED_SCALE, enemy.projectile_damage * 0.66, 4.4 * BOSS_PROJECTILE_LIFETIME_SCALE, Color(1.0, 0.86, 0.52, 1.0), "straight", {"size_scale": 1.0, "visual_style": "boss_dark_orb"})
 		enemy._spawn_status_burst(Color(1.0, 0.84, 0.46, 0.22), 58.0)
 		enemy._clear_boss_orbit_ball()
 
@@ -227,7 +231,8 @@ static func update_peacock_attack(enemy, delta: float) -> void:
 						"turn_interval": 0.16,
 						"turn_angle_step": 0.08,
 						"turn_direction_sign": -1.0 if index < bullet_count / 2 else 1.0,
-						"size_scale": 0.96 + row_ratio * 0.16
+						"size_scale": 0.96 + row_ratio * 0.16,
+						"visual_style": "boss_turning_hex"
 					}
 				)
 		enemy._spawn_status_burst(Color(1.0, 0.86, 0.44, 0.22), 52.0 + enemy.scale.x * 8.0)

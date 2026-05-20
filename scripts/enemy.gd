@@ -130,6 +130,7 @@ var turret_bombard_interval: float = 0.0
 var turret_bombard_timer: float = 0.0
 var turret_bombard_radius: float = 96.0
 var turret_bombard_projectiles: int = 8
+var rose_split_timer: float = 15.0
 
 var boss_radial_interval: float = 0.95
 var boss_radial_timer: float = 0.0
@@ -377,6 +378,12 @@ func absorb_exp_gem(gem) -> int:
 
 func absorb_heart(heart) -> float:
 	return ENEMY_GLUTTON_BEHAVIOR.absorb_heart(self, heart)
+
+func get_glutton_player_touch_radius() -> float:
+	return ENEMY_GLUTTON_BEHAVIOR.get_player_touch_radius(self)
+
+func get_glutton_player_touch_shape() -> Dictionary:
+	return ENEMY_GLUTTON_BEHAVIOR.get_player_touch_shape(self)
 
 func get_save_data() -> Dictionary:
 	return ENEMY_SAVE_DATA.get_save_data(self)

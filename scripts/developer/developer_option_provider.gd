@@ -4,6 +4,8 @@ const ENEMY_ARCHETYPE_DATABASE := preload("res://scripts/enemy/enemy_archetype_d
 const PLAYER_BLESSING_SYSTEM := preload("res://scripts/player/player_blessing_system.gd")
 const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
 
+const ALL_BLESSINGS_OPTION_ID := "__all_blessings__"
+
 
 static func get_boss_options() -> Array:
 	return ENEMY_ARCHETYPE_DATABASE.get_boss_options()
@@ -33,7 +35,13 @@ static func get_skill_options(player) -> Array:
 	return options
 
 static func get_blessing_options(player) -> Array:
-	var options: Array = []
+	var options: Array = [{
+		"id": ALL_BLESSINGS_OPTION_ID,
+		"title": "一键添加所有祝福",
+		"description": "开发者模式：给所有祝福的 I 级和 II 级各添加 1 次。已经达到上限的祝福会自动跳过。",
+		"enabled": true,
+		"is_bulk_action": true
+	}]
 	for blessing_id_value in PLAYER_BLESSING_SYSTEM.DEFINITIONS.keys():
 		var blessing_id := str(blessing_id_value)
 		var definition: Dictionary = PLAYER_BLESSING_SYSTEM.DEFINITIONS.get(blessing_id, {})
@@ -53,6 +61,7 @@ static func get_blessing_options(player) -> Array:
 				],
 				"enabled": current_count < max_count
 			})
+	var bulk_option: Dictionary = options.pop_front()
 	options.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		var a_tier := int(a.get("tier", 1))
 		var b_tier := int(b.get("tier", 1))
@@ -60,6 +69,7 @@ static func get_blessing_options(player) -> Array:
 			return a_tier < b_tier
 		return str(a.get("title", "")) < str(b.get("title", ""))
 	)
+	options.push_front(bulk_option)
 	return options
 
 static func _get_blessing_count(player, blessing_id: String, tier: int, binding: String) -> int:

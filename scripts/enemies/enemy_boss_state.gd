@@ -11,9 +11,9 @@ const BOSS_PHASE_THREE_SHAKE_DURATION := 2.0
 
 static func get_boss_phase(enemy) -> int:
 	var health_ratio: float = enemy.current_health / max(enemy.max_health, 1.0)
-	if health_ratio <= 0.11:
+	if health_ratio <= 0.25:
 		return 3
-	if health_ratio <= 0.67:
+	if health_ratio <= 0.5:
 		return 2
 	return 1
 

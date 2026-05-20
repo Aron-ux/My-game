@@ -19,6 +19,10 @@ static func get_spawn_position(main: Node, angle: float, distance: float) -> Vec
 	return clamp_position_to_spawn_bounds(main, main.player.global_position + Vector2.RIGHT.rotated(base_angle) * target_distance)
 
 
+static func get_spawn_bounds_center(main: Node) -> Vector2:
+	return get_spawn_bounds(main).get_center()
+
+
 static func get_spawn_bounds(main: Node) -> Rect2:
 	if main != null and main.get("map_bounds") != null:
 		var bounds: Variant = main.get("map_bounds")

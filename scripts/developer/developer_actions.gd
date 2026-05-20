@@ -107,6 +107,21 @@ static func grant_blessing(main: Node, blessing_id: String, tier: int) -> void:
 		main.player.stats_changed.emit(main.player.get_stat_summary())
 	main._refresh_hud()
 
+static func grant_all_blessings(main: Node) -> void:
+	if main == null or main.player == null:
+		return
+	var granted_any := false
+	for blessing_id_value in PLAYER_BLESSING_SYSTEM.DEFINITIONS.keys():
+		var blessing_id := str(blessing_id_value)
+		for tier in [1, 2]:
+			if PLAYER_BLESSING_SYSTEM.apply_blessing(main.player, blessing_id, tier):
+				granted_any = true
+	if not granted_any:
+		return
+	if main.player.has_signal("stats_changed") and main.player.has_method("get_stat_summary"):
+		main.player.stats_changed.emit(main.player.get_stat_summary())
+	main._refresh_hud()
+
 static func _clear_skill_cooldown(player, skill_id: String) -> void:
 	var property_name := _get_skill_ability_property(skill_id)
 	if property_name == "":

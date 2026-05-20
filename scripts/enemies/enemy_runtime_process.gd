@@ -57,6 +57,10 @@ static func physics_process(enemy, delta: float) -> void:
 		enemy._update_behavior_state(delta + enemy.throttled_motion_delta)
 	var motion_delta: float = delta + enemy.throttled_motion_delta
 	enemy.throttled_motion_delta = 0.0
+	if enemy.behavior_id == "rose" or enemy.secondary_behavior_id == "rose":
+		enemy.velocity = Vector2.ZERO
+		enemy._update_motion_visual()
+		return
 	enemy.velocity = enemy._compute_velocity(motion_delta)
 	enemy.velocity += enemy.ENEMY_BODY_SEPARATION.get_separation_velocity(enemy) * 2.6
 	enemy._apply_direct_motion(motion_delta)

@@ -13,6 +13,7 @@ static func reset(enemy, randomize_timers: bool) -> void:
 		enemy.boss_orbit_bomb_timer = randf_range(4.0, max(4.2, enemy.boss_orbit_bomb_interval))
 		enemy.boss_peacock_timer = randf_range(4.0, max(4.2, enemy.boss_peacock_interval))
 		enemy.turret_bombard_timer = randf_range(1.2, max(1.3, enemy.turret_bombard_interval)) if enemy.turret_bombard_interval > 0.0 else 0.0
+		enemy.rose_split_timer = randf_range(6.0, 15.0)
 		enemy.strafe_sign = -1.0 if randi() % 2 == 0 else 1.0
 		enemy.boss_turning_sign = -1.0 if randi() % 2 == 0 else 1.0
 		enemy.boss_orbit_sign = -1.0 if randi() % 2 == 0 else 1.0
@@ -28,6 +29,7 @@ static func reset(enemy, randomize_timers: bool) -> void:
 		enemy.boss_orbit_bomb_timer = enemy.boss_orbit_bomb_interval
 		enemy.boss_peacock_timer = enemy.boss_peacock_interval
 		enemy.turret_bombard_timer = enemy.turret_bombard_interval
+		enemy.rose_split_timer = 15.0
 		enemy.strafe_sign = 1.0
 		enemy.boss_turning_sign = 1.0
 		enemy.boss_orbit_sign = 1.0

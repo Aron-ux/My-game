@@ -29,13 +29,24 @@ func play_hit() -> void:
 		sprite.play(RUN_ANIMATION)
 
 
-func get_shadow_world_radius() -> float:
+func get_shadow_world_ellipse() -> Dictionary:
 	_ensure_sprite()
 	if shadow == null or shadow.texture == null:
-		return 0.0
+		return {}
 	var texture_size: Vector2 = shadow.texture.get_size()
 	var world_scale: Vector2 = shadow.global_scale
-	return max(texture_size.x * abs(world_scale.x), texture_size.y * abs(world_scale.y)) * 0.5
+	return {
+		"center": shadow.global_position,
+		"horizontal_radius": texture_size.x * abs(world_scale.x) * 0.5,
+		"vertical_radius": texture_size.y * abs(world_scale.y) * 0.5
+	}
+
+
+func get_shadow_world_radius() -> float:
+	var ellipse := get_shadow_world_ellipse()
+	if ellipse.is_empty():
+		return 0.0
+	return max(float(ellipse.get("horizontal_radius", 0.0)), float(ellipse.get("vertical_radius", 0.0)))
 
 
 func _update_facing(move_direction: Vector2) -> void:

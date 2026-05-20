@@ -1,0 +1,81 @@
+[gd_scene load_steps=12 format=3 uid="uid://ceacg2yjtxdi7"]
+
+[ext_resource type="Texture2D" uid="uid://b7yi4obbur8t7" path="res://assets/enemies/Unas/UnasFloat.png" id="1_e5md3"]
+[ext_resource type="Script" path="res://assets/enemies/Unas/unas_boss_visual.gd" id="2_script"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_65yme"]
+atlas = ExtResource("1_e5md3")
+region = Rect2(0, 0, 512, 640)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_l7esa"]
+atlas = ExtResource("1_e5md3")
+region = Rect2(512, 0, 512, 640)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_wuouy"]
+atlas = ExtResource("1_e5md3")
+region = Rect2(1024, 0, 512, 640)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_31u4x"]
+atlas = ExtResource("1_e5md3")
+region = Rect2(1536, 0, 512, 640)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pldno"]
+atlas = ExtResource("1_e5md3")
+region = Rect2(2048, 0, 512, 640)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ow531"]
+atlas = ExtResource("1_e5md3")
+region = Rect2(2560, 0, 512, 640)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_8vgx6"]
+atlas = ExtResource("1_e5md3")
+region = Rect2(3072, 0, 512, 640)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ppcnq"]
+atlas = ExtResource("1_e5md3")
+region = Rect2(3584, 0, 512, 640)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_ujj83"]
+animations = [{
+"frames": [{
+"duration": 0.3,
+"texture": SubResource("AtlasTexture_65yme")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_l7esa")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_wuouy")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_31u4x")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_pldno")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ow531")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_8vgx6")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ppcnq")
+}, {
+"duration": 0.2,
+"texture": SubResource("AtlasTexture_65yme")
+}, {
+"duration": 0.7,
+"texture": SubResource("AtlasTexture_65yme")
+}],
+"loop": true,
+"name": &"default",
+"speed": 6.0
+}]
+
+[node name="Unas" type="Node2D" unique_id=1741055561]
+script = ExtResource("2_script")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=983365325]
+sprite_frames = SubResource("SpriteFrames_ujj83")
+frame_progress = 0.116665624

@@ -77,8 +77,8 @@ func _run() -> void:
 	scene.add_enemy(edge_target)
 	await physics_frame
 	ENEMY_GLUTTON_BEHAVIOR.damage_nearby_enemies(glutton)
-	if edge_target.current_health >= 100.0:
-		failures.append("glutton aura should include target contact radius at the edge")
+	if edge_target.current_health < 100.0:
+		failures.append("glutton aura should not expand beyond its own range by target contact radius")
 
 	var shadow_glutton := EnemyStub.new()
 	shadow_glutton.enemy_kind = "small_boss"
@@ -100,7 +100,56 @@ func _run() -> void:
 	await physics_frame
 	ENEMY_GLUTTON_BEHAVIOR.damage_nearby_enemies(shadow_glutton)
 	if shadow_target.current_health >= 100.0:
-		failures.append("glutton aura should use 110 percent of visual shadow radius when available")
+		failures.append("glutton aura should use 120 percent of visual shadow radius when available")
+
+	var ellipse_glutton := EnemyStub.new()
+	ellipse_glutton.enemy_kind = "small_boss"
+	ellipse_glutton.global_position = Vector2(720.0, 0.0)
+	ellipse_glutton.glutton_aura_radius = 40.0
+	ellipse_glutton.glutton_aura_damage = 9.0
+	var ellipse_visual := ShadowVisualStub.new()
+	ellipse_visual.shadow_world_ellipse = {
+		"center": ellipse_glutton.global_position,
+		"horizontal_radius": 120.0,
+		"vertical_radius": 40.0
+	}
+	ellipse_visual.name = "ProfileVisual"
+	ellipse_glutton.add_child(ellipse_visual)
+	scene.add_enemy(ellipse_glutton)
+
+	var ellipse_horizontal_target := EnemyStub.new()
+	ellipse_horizontal_target.global_position = Vector2(720.0 + 128.0, 0.0)
+	ellipse_horizontal_target.current_health = 100.0
+	ellipse_horizontal_target.max_health = 100.0
+	scene.add_enemy(ellipse_horizontal_target)
+
+	var ellipse_vertical_target := EnemyStub.new()
+	ellipse_vertical_target.global_position = Vector2(720.0, 54.0)
+	ellipse_vertical_target.current_health = 100.0
+	ellipse_vertical_target.max_health = 100.0
+	scene.add_enemy(ellipse_vertical_target)
+	var ellipse_outer_vertical_target := EnemyStub.new()
+	ellipse_outer_vertical_target.global_position = Vector2(720.0, 50.0)
+	ellipse_outer_vertical_target.current_health = 100.0
+	ellipse_outer_vertical_target.max_health = 100.0
+	scene.add_enemy(ellipse_outer_vertical_target)
+	await physics_frame
+	ENEMY_GLUTTON_BEHAVIOR.damage_nearby_enemies(ellipse_glutton)
+	if ellipse_horizontal_target.current_health >= 100.0:
+		failures.append("glutton aura should follow visual shadow horizontal ellipse radius")
+	if ellipse_vertical_target.current_health < 100.0:
+		failures.append("glutton aura should follow visual shadow vertical ellipse radius")
+	if ellipse_outer_vertical_target.current_health < 100.0:
+		failures.append("glutton aura should stay near 120 percent of the visual shadow vertical radius")
+
+	var player_touch_radius := ENEMY_GLUTTON_BEHAVIOR.get_player_touch_radius(ellipse_glutton)
+	if abs(player_touch_radius - 96.0) > 0.01:
+		failures.append("glutton player touch radius should use 80 percent of max shadow radius")
+	var player_touch_shape := ENEMY_GLUTTON_BEHAVIOR.get_player_touch_shape(ellipse_glutton)
+	if abs(float(player_touch_shape.get("horizontal_radius", 0.0)) - 96.0) > 0.01:
+		failures.append("glutton player touch shape should use 80 percent of shadow horizontal radius")
+	if abs(float(player_touch_shape.get("vertical_radius", 0.0)) - 32.0) > 0.01:
+		failures.append("glutton player touch shape should use 80 percent of shadow vertical radius")
 
 	scene.queue_free()
 	await process_frame
@@ -173,6 +222,10 @@ class ShadowVisualStub:
 	extends Node2D
 
 	var shadow_world_radius: float = 0.0
+	var shadow_world_ellipse: Dictionary = {}
+
+	func get_shadow_world_ellipse() -> Dictionary:
+		return shadow_world_ellipse
 
 	func get_shadow_world_radius() -> float:
 		return shadow_world_radius

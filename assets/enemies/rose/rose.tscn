@@ -1,0 +1,138 @@
+[gd_scene load_steps=22 format=3 uid="uid://b751cj5iapvrw"]
+
+[ext_resource type="Texture2D" uid="uid://bdw7hq3i2g8ad" path="res://assets/enemies/rose/rose attack.png" id="1_8mps6"]
+[ext_resource type="Texture2D" uid="uid://dcwk6pe8t1ubm" path="res://assets/enemies/rose/rose idle.png" id="2_iaxqt"]
+[ext_resource type="Script" path="res://assets/enemies/rose/rose_visual.gd" id="3_visual"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_8ocm3"]
+atlas = ExtResource("1_8mps6")
+region = Rect2(0, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_i6x2a"]
+atlas = ExtResource("1_8mps6")
+region = Rect2(256, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_swnck"]
+atlas = ExtResource("1_8mps6")
+region = Rect2(512, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ck2m8"]
+atlas = ExtResource("1_8mps6")
+region = Rect2(768, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_xuvt1"]
+atlas = ExtResource("1_8mps6")
+region = Rect2(1024, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_6eq6v"]
+atlas = ExtResource("1_8mps6")
+region = Rect2(1280, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_o84cs"]
+atlas = ExtResource("1_8mps6")
+region = Rect2(1536, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_cmf2k"]
+atlas = ExtResource("1_8mps6")
+region = Rect2(1792, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_d5q83"]
+atlas = ExtResource("2_iaxqt")
+region = Rect2(0, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_5f4w8"]
+atlas = ExtResource("2_iaxqt")
+region = Rect2(256, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_2n5le"]
+atlas = ExtResource("2_iaxqt")
+region = Rect2(512, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_si4wb"]
+atlas = ExtResource("2_iaxqt")
+region = Rect2(768, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_udh2s"]
+atlas = ExtResource("2_iaxqt")
+region = Rect2(1024, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_r413x"]
+atlas = ExtResource("2_iaxqt")
+region = Rect2(1280, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_a1o6n"]
+atlas = ExtResource("2_iaxqt")
+region = Rect2(1536, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_yqn60"]
+atlas = ExtResource("2_iaxqt")
+region = Rect2(1792, 0, 256, 256)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_qjvur"]
+animations = [{
+"frames": [{
+"duration": 1.3,
+"texture": SubResource("AtlasTexture_8ocm3")
+}, {
+"duration": 1.6,
+"texture": SubResource("AtlasTexture_i6x2a")
+}, {
+"duration": 1.8,
+"texture": SubResource("AtlasTexture_swnck")
+}, {
+"duration": 3.0,
+"texture": SubResource("AtlasTexture_ck2m8")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_xuvt1")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_6eq6v")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_o84cs")
+}, {
+"duration": 1.8,
+"texture": SubResource("AtlasTexture_cmf2k")
+}],
+"loop": true,
+"name": &"roseattack",
+"speed": 8.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_d5q83")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_5f4w8")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_2n5le")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_si4wb")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_udh2s")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_r413x")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_a1o6n")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_yqn60")
+}],
+"loop": true,
+"name": &"roseidle",
+"speed": 5.0
+}]
+
+[node name="Rose" type="Node2D" unique_id=588740959]
+script = ExtResource("3_visual")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1491990522]
+sprite_frames = SubResource("SpriteFrames_qjvur")
+animation = &"roseidle"
+frame_progress = 0.6711668

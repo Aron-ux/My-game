@@ -16,6 +16,7 @@ signal developer_normal_enemy_batch_spawn_requested(archetype_id: String, count:
 signal developer_enemy_spawn_requested(kind: String, archetype_id: String, count: int)
 signal developer_skill_unlock_requested(skill_id: String, tier: int)
 signal developer_blessing_grant_requested(blessing_id: String, tier: int)
+signal developer_all_blessings_grant_requested
 
 var level_label: Label
 var role_label: Label
@@ -320,6 +321,7 @@ func _build_developer_panel(root: Control) -> void:
 	developer_panel.enemy_spawn_requested.connect(func(kind: String, archetype_id: String, count: int): developer_enemy_spawn_requested.emit(kind, archetype_id, count))
 	developer_panel.skill_unlock_requested.connect(func(skill_id: String, tier: int): developer_skill_unlock_requested.emit(skill_id, tier))
 	developer_panel.blessing_grant_requested.connect(func(blessing_id: String, tier: int): developer_blessing_grant_requested.emit(blessing_id, tier))
+	developer_panel.all_blessings_grant_requested.connect(func(): developer_all_blessings_grant_requested.emit())
 
 func set_developer_invincibility_enabled(enabled: bool) -> void:
 	if developer_panel != null and developer_panel.has_method("set_invincibility_enabled"):

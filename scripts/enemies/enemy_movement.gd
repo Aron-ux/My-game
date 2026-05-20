@@ -12,7 +12,7 @@ static func compute_velocity(enemy, delta: float) -> Vector2:
 
 	if enemy._is_boss:
 		return compute_boss_velocity(enemy, direction_to_target, distance_to_target, delta)
-	if enemy._is_turret or enemy.rebirth_timer > 0.0:
+	if enemy._is_turret or enemy.behavior_id == "rose" or enemy.secondary_behavior_id == "rose" or enemy.rebirth_timer > 0.0:
 		return Vector2.ZERO
 
 	if enemy._is_shooter:

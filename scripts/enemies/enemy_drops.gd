@@ -39,6 +39,8 @@ static func drop_experience_gem(enemy) -> void:
 static func maybe_drop_heart(enemy) -> void:
 	if enemy.heart_pickup_scene == null:
 		return
+	if _get_valid_drop_absorber(enemy) != null:
+		return
 
 	var drop_chance := get_heart_drop_chance(enemy.enemy_kind)
 	if randf() > drop_chance:
@@ -49,8 +51,7 @@ static func maybe_drop_heart(enemy) -> void:
 		return
 
 	var spawn_position: Vector2 = enemy.global_position + Vector2(randf_range(-10.0, 10.0), randf_range(-8.0, 8.0))
-	var drop_absorber = _get_valid_drop_absorber(enemy)
-	if drop_absorber == null and PICKUP_COMPACTOR.should_merge_new_heart(current_scene):
+	if PICKUP_COMPACTOR.should_merge_new_heart(current_scene):
 		if PICKUP_COMPACTOR.merge_heal_into_existing(current_scene, spawn_position, 50.0):
 			return
 
@@ -65,7 +66,6 @@ static func maybe_drop_heart(enemy) -> void:
 		heart_pickup.reset_pickup(spawn_position, 50.0)
 	else:
 		heart_pickup.global_position = spawn_position
-	_absorb_drop_if_requested(drop_absorber, heart_pickup, "heart_pickups")
 
 static func get_heart_drop_chance(enemy_kind: String) -> float:
 	match enemy_kind:

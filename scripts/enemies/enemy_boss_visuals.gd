@@ -1,6 +1,6 @@
 extends RefCounted
 
-const BOSS_VISUAL_SCENE := preload("res://enemies/boss1/boss1.tscn")
+const BOSS_VISUAL_SCENE := preload("res://assets/enemies/Unas/Unas.tscn")
 const BOSS_PHASE_THREE_CHARGE_DURATION := 5.0
 const ENEMY_GEOMETRY := preload("res://scripts/enemies/enemy_geometry.gd")
 

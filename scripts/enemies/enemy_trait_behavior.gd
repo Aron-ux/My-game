@@ -4,6 +4,7 @@ const ENEMY_PROJECTILES := preload("res://scripts/enemies/enemy_projectiles.gd")
 const ENEMY_TURRET_BOMBARD := preload("res://scripts/enemies/enemy_turret_bombard.gd")
 const ENEMY_GLUTTON_BEHAVIOR := preload("res://scripts/enemies/enemy_glutton_behavior.gd")
 const ENEMY_SKULLTOMB_BEHAVIOR := preload("res://scripts/enemies/enemy_skulltomb_behavior.gd")
+const ENEMY_ROSE_BEHAVIOR := preload("res://scripts/enemies/enemy_rose_behavior.gd")
 const NON_BOSS_RANGED_ATTACK_FREQUENCY_MULTIPLIER := 0.4
 
 static func update_behavior_state(enemy, delta: float, skip_rebirth: bool = false) -> void:
@@ -26,6 +27,8 @@ static func _tick_trait(enemy, trait_id: String, delta: float, skip_rebirth: boo
 				_update_rebirth_trait(enemy, delta)
 		"skulltomb":
 			_update_skulltomb_trait(enemy, delta)
+		"rose":
+			_update_rose_trait(enemy, delta)
 		"turret":
 			_update_turret_trait(enemy, delta)
 		"boss":
@@ -85,6 +88,9 @@ static func _update_glutton_trait(enemy, delta: float) -> void:
 
 static func _update_skulltomb_trait(enemy, delta: float) -> void:
 	ENEMY_SKULLTOMB_BEHAVIOR.update(enemy, delta)
+
+static func _update_rose_trait(enemy, delta: float) -> void:
+	ENEMY_ROSE_BEHAVIOR.update(enemy, delta)
 
 static func _update_rebirth_trait(enemy, delta: float) -> void:
 	if enemy.rebirth_timer <= 0.0:

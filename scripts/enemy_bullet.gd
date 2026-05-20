@@ -36,7 +36,9 @@ const POOL_SOFT_LIMIT := 96
 @export var split_after_time: float = 0.0
 @export var split_pattern: String = "radial"
 @export var split_spread: float = 1.2
+@export var split_visual_style: String = ""
 @export var size_scale: float = 1.0
+@export var visual_style: String = ""
 
 var direction: Vector2 = Vector2.RIGHT
 var target: Node2D
@@ -99,7 +101,9 @@ func reset_projectile(config: Dictionary) -> void:
 	split_after_time = float(config.get("split_after_time", split_after_time))
 	split_pattern = str(config.get("split_pattern", split_pattern))
 	split_spread = float(config.get("split_spread", split_spread))
+	split_visual_style = str(config.get("split_visual_style", ""))
 	size_scale = float(config.get("size_scale", size_scale))
+	visual_style = str(config.get("visual_style", ""))
 	_initialize_runtime_state()
 
 func recycle() -> void:
@@ -307,6 +311,7 @@ func _spawn_split_bullets() -> void:
 				"quarter_sine_distance": max(120.0, quarter_sine_distance * 0.72),
 				"quarter_sine_side": -1.0 if index % 2 == 0 else 1.0,
 				"size_scale": max(0.7, size_scale * 0.75),
+				"visual_style": split_visual_style if split_visual_style != "" else visual_style,
 				"target": target
 			})
 
@@ -314,6 +319,15 @@ func _apply_visuals() -> void:
 	var polygon := get_node_or_null("Polygon2D") as Polygon2D
 	if polygon == null:
 		return
+	if visual_style == "rose_flower":
+		_clear_boss_projectile_visuals()
+		_apply_rose_flower_visual(polygon)
+		return
+	_clear_rose_flower_visuals()
+	if visual_style.begins_with("boss_"):
+		_apply_boss_projectile_visual(polygon)
+		return
+	_clear_boss_projectile_visuals()
 
 	var glow := get_node_or_null("Glow") as Polygon2D
 	if glow == null:
@@ -353,6 +367,88 @@ func _apply_visuals() -> void:
 	ring.width = 2.5 * max(size_scale, 0.8)
 	ring.default_color = Color(0.05, 0.02, 0.04, 0.7)
 	ring.points = ENEMY_GEOMETRY.build_circle_points(12.0 * polygon.scale.x, 14)
+
+func _apply_rose_flower_visual(polygon: Polygon2D) -> void:
+	_clear_extra_visual("Glow")
+	_clear_extra_visual("Outline")
+	_clear_extra_visual("Ring")
+	polygon.color = Color(0.9, 0.08, 0.18, 1.0)
+	polygon.polygon = ENEMY_GEOMETRY.build_circle_points(8.0, 18)
+	polygon.scale = Vector2.ONE * size_scale
+
+	for index in range(4):
+		var petal_name := "RosePetal%d" % index
+		var petal := get_node_or_null(petal_name) as Polygon2D
+		if petal == null:
+			petal = Polygon2D.new()
+			petal.name = petal_name
+			petal.z_index = -1
+			add_child(petal)
+		var angle: float = TAU * float(index) / 4.0
+		petal.position = Vector2.RIGHT.rotated(angle) * 10.0 * size_scale
+		petal.color = Color(0.14, 0.72, 0.22, 1.0)
+		petal.polygon = ENEMY_GEOMETRY.build_circle_points(2.0, 12)
+		petal.scale = Vector2.ONE * size_scale
+
+
+func _apply_boss_projectile_visual(polygon: Polygon2D) -> void:
+	_clear_extra_visual("Glow")
+	_clear_extra_visual("Ring")
+	_clear_extra_visual("BossCore")
+	if visual_style == "boss_turning_hex":
+		_clear_extra_visual("Outline")
+		polygon.color = Color(0.16, 0.05, 0.24, 1.0)
+		polygon.polygon = ENEMY_GEOMETRY.build_circle_points(9.0, 20)
+		polygon.scale = Vector2.ONE * size_scale
+		return
+	polygon.color = Color(0.16, 0.05, 0.24, 1.0)
+	polygon.polygon = ENEMY_GEOMETRY.build_circle_points(8.0, 20)
+	polygon.scale = Vector2.ONE * size_scale
+
+	var outline := get_node_or_null("Outline") as Polygon2D
+	if outline == null:
+		outline = Polygon2D.new()
+		outline.name = "Outline"
+		add_child(outline)
+	outline.z_index = -1
+	outline.color = Color(0.0, 0.0, 0.0, 0.9)
+	outline.polygon = ENEMY_GEOMETRY.build_circle_points(8.0, 20)
+	outline.scale = Vector2.ONE * size_scale * 1.2
+
+	if visual_style == "boss_dark_core_orb":
+		var core := Polygon2D.new()
+		core.name = "BossCore"
+		core.z_index = 1
+		core.color = Color(1.0, 1.0, 1.0, 0.96)
+		core.polygon = ENEMY_GEOMETRY.build_circle_points(4.0, 16)
+		core.scale = Vector2.ONE * size_scale
+		add_child(core)
+
+
+func _get_boss_hex_shape() -> PackedVector2Array:
+	var shape_key := "boss_hex"
+	if visual_shape_cache.has(shape_key):
+		return visual_shape_cache[shape_key] as PackedVector2Array
+	var shape := PackedVector2Array()
+	for index in range(6):
+		shape.append(Vector2.RIGHT.rotated(TAU * float(index) / 6.0) * 9.0)
+	visual_shape_cache[shape_key] = shape
+	return shape
+
+
+func _clear_extra_visual(node_name: String) -> void:
+	var node := get_node_or_null(node_name)
+	if node != null:
+		node.queue_free()
+
+
+func _clear_rose_flower_visuals() -> void:
+	for index in range(4):
+		_clear_extra_visual("RosePetal%d" % index)
+
+
+func _clear_boss_projectile_visuals() -> void:
+	_clear_extra_visual("BossCore")
 
 func _get_shape_for_mode() -> PackedVector2Array:
 	var shape_key: String = "straight"
@@ -438,6 +534,8 @@ func get_save_data() -> Dictionary:
 		"split_after_time": split_after_time,
 		"split_pattern": split_pattern,
 		"split_spread": split_spread,
+		"split_visual_style": split_visual_style,
+		"visual_style": visual_style,
 		"size_scale": size_scale,
 		"travel_time": travel_time,
 		"forward_distance": forward_distance,
@@ -489,6 +587,8 @@ func apply_save_data(data: Dictionary, target_node: Node2D) -> void:
 	split_after_time = float(data.get("split_after_time", split_after_time))
 	split_pattern = str(data.get("split_pattern", split_pattern))
 	split_spread = float(data.get("split_spread", split_spread))
+	split_visual_style = str(data.get("split_visual_style", split_visual_style))
+	visual_style = str(data.get("visual_style", visual_style))
 	size_scale = float(data.get("size_scale", size_scale))
 	travel_time = float(data.get("travel_time", 0.0))
 	forward_distance = float(data.get("forward_distance", 0.0))

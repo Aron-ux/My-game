@@ -539,6 +539,9 @@ func _on_developer_skill_unlock_requested(skill_id: String, tier: int) -> void:
 func _on_developer_blessing_grant_requested(blessing_id: String, tier: int) -> void:
 	DEVELOPER_ACTIONS.grant_blessing(self, blessing_id, tier)
 
+func _on_developer_all_blessings_grant_requested() -> void:
+	DEVELOPER_ACTIONS.grant_all_blessings(self)
+
 func _get_developer_boss_options() -> Array:
 	return DEVELOPER_OPTION_PROVIDER.get_boss_options()
 

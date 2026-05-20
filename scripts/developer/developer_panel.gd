@@ -1,6 +1,7 @@
 extends PanelContainer
 
 const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
+const DEVELOPER_OPTION_PROVIDER := preload("res://scripts/developer/developer_option_provider.gd")
 const PERFORMANCE_MONITOR := preload("res://scripts/game/performance_monitor.gd")
 const SURVIVORS_THEME := preload("res://scripts/ui/theme/survivors_ui_theme.gd")
 
@@ -11,6 +12,7 @@ signal normal_enemy_batch_spawn_requested(archetype_id: String, count: int)
 signal enemy_spawn_requested(kind: String, archetype_id: String, count: int)
 signal skill_unlock_requested(skill_id: String, tier: int)
 signal blessing_grant_requested(blessing_id: String, tier: int)
+signal all_blessings_grant_requested
 
 var level_button: Button
 var invincibility_button: Button
@@ -310,6 +312,9 @@ func _on_skill_button_pressed(option_id: String) -> void:
 
 
 func _on_blessing_button_pressed(option_id: String) -> void:
+	if option_id == DEVELOPER_OPTION_PROVIDER.ALL_BLESSINGS_OPTION_ID:
+		all_blessings_grant_requested.emit()
+		return
 	var parts: PackedStringArray = option_id.split(":")
 	if parts.size() < 2:
 		return
