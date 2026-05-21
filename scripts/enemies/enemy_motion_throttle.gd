@@ -2,7 +2,7 @@ extends RefCounted
 
 const CACHE_FRAME_KEY := "__enemy_pressure_frame"
 const CACHE_VALUE_KEY := "__enemy_pressure_value"
-const ENEMY_PRESSURE_THRESHOLD := 110
+const ENEMY_PRESSURE_THRESHOLD := 52
 
 
 static func should_skip_motion_frame(enemy, delta: float) -> bool:

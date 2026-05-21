@@ -13,15 +13,18 @@ signal enemy_spawn_requested(kind: String, archetype_id: String, count: int)
 signal skill_unlock_requested(skill_id: String, tier: int)
 signal blessing_grant_requested(blessing_id: String, tier: int)
 signal all_blessings_grant_requested
+signal enemy_detail_display_toggled(enabled: bool)
 
 var level_button: Button
 var invincibility_button: Button
 var no_cooldown_button: Button
+var enemy_detail_button: Button
 var enemy_menu_popup: PanelContainer
 var enemy_list: VBoxContainer
 var skill_list: VBoxContainer
 var blessing_list: VBoxContainer
 var performance_label: Label
+var enemy_detail_display_enabled: bool = false
 
 
 func _ready() -> void:
@@ -58,9 +61,17 @@ func refresh_mode_buttons() -> void:
 		no_cooldown_button.text = "关闭无 CD" if DEVELOPER_MODE.is_no_cooldown_enabled() else "开启无 CD"
 
 
+	_refresh_enemy_detail_button_text()
+
+
 func set_invincibility_enabled(enabled: bool) -> void:
 	DEVELOPER_MODE.set_ignore_damage_enabled(enabled)
 	refresh_mode_buttons()
+
+
+func set_enemy_detail_display_enabled(enabled: bool) -> void:
+	enemy_detail_display_enabled = enabled
+	_refresh_enemy_detail_button_text()
 
 
 func set_boss_options(_options: Array) -> void:
@@ -106,6 +117,11 @@ func _build_top_buttons(parent: Control) -> void:
 	no_cooldown_button.pressed.connect(_on_no_cooldown_button_pressed)
 	parent.add_child(no_cooldown_button)
 
+	enemy_detail_button = _build_button("", Vector2(220, 40), 16)
+	enemy_detail_button.pressed.connect(_on_enemy_detail_button_pressed)
+	parent.add_child(enemy_detail_button)
+	_refresh_enemy_detail_button_text()
+
 
 func _build_scroll_content(parent: Control) -> void:
 	var scroll := ScrollContainer.new()
@@ -146,6 +162,12 @@ func _build_button(text: String, minimum_size: Vector2, font_size: int, style: S
 	button.text = text
 	SURVIVORS_THEME.apply_button_style(button, style)
 	return button
+
+
+func _refresh_enemy_detail_button_text() -> void:
+	if enemy_detail_button == null:
+		return
+	enemy_detail_button.text = "关闭怪物详细显示" if enemy_detail_display_enabled else "开启怪物详细显示"
 
 
 func _ensure_enemy_menu_popup() -> void:
@@ -273,6 +295,12 @@ func _on_invincibility_button_pressed() -> void:
 func _on_no_cooldown_button_pressed() -> void:
 	DEVELOPER_MODE.set_no_cooldown_enabled(not DEVELOPER_MODE.is_no_cooldown_enabled())
 	refresh_mode_buttons()
+
+
+func _on_enemy_detail_button_pressed() -> void:
+	enemy_detail_display_enabled = not enemy_detail_display_enabled
+	_refresh_enemy_detail_button_text()
+	enemy_detail_display_toggled.emit(enemy_detail_display_enabled)
 
 
 func _on_enemy_button_pressed(option_id: String) -> void:

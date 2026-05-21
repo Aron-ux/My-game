@@ -1,0 +1,13 @@
+[gd_scene format=3 uid="uid://dgrm2ohpx2a1r"]
+
+[node name="Control" type="Control" unique_id=1580026132]
+layout_mode = 3
+anchors_preset = 0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1568442751]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="Button" type="Button" parent="VBoxContainer" unique_id=1175553224]
+layout_mode = 2

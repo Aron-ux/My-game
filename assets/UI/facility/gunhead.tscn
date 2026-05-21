@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://cxas5di273rry"]
+
+[ext_resource type="Texture2D" uid="uid://c5ika54esl07n" path="res://assets/UI/facility/枪.png" id="1_c2cjb"]
+
+[node name="Gunhead" type="Node2D" unique_id=1413840142]
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1337101935]
+texture = ExtResource("1_c2cjb")

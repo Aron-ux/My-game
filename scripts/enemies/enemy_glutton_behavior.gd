@@ -112,6 +112,10 @@ static func get_player_touch_shape(enemy) -> Dictionary:
 	}
 
 
+static func get_debug_aura_shape(enemy) -> Dictionary:
+	return _get_aura_shape(enemy)
+
+
 static func _apply_glutton_growth(enemy, absorbed_count: int) -> void:
 	if absorbed_count <= 0:
 		return
@@ -153,19 +157,7 @@ static func _is_inside_aura(target, aura_shape: Dictionary) -> bool:
 
 
 static func _get_aura_shape(enemy) -> Dictionary:
-	var shadow_ellipse := _get_shadow_world_ellipse(enemy)
-	if not shadow_ellipse.is_empty():
-		return {
-			"center": shadow_ellipse.get("center", enemy.global_position),
-			"horizontal_radius": float(shadow_ellipse.get("horizontal_radius", 0.0)) * SHADOW_AURA_RADIUS_RATIO,
-			"vertical_radius": float(shadow_ellipse.get("vertical_radius", 0.0)) * SHADOW_AURA_RADIUS_RATIO
-		}
-	var fallback_radius: float = enemy.glutton_aura_radius if enemy.glutton_aura_radius > 0.0 else enemy.glutton_absorb_radius
-	return {
-		"center": enemy.global_position,
-		"horizontal_radius": fallback_radius,
-		"vertical_radius": fallback_radius
-	}
+	return get_player_touch_shape(enemy)
 
 
 static func _get_shadow_world_ellipse(enemy) -> Dictionary:

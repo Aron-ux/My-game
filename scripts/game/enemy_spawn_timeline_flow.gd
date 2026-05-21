@@ -5,6 +5,9 @@ const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
 
 const SPAWN_CURVE_REFRESH_INTERVAL := 0.25
 const LAST_SPAWN_CURVE_REFRESH_META := "last_spawn_curve_refresh_time"
+const SPECIAL_EVENT_QUEUE_META := "pending_special_spawn_events"
+const SPECIAL_EVENT_QUEUE_NEXT_TIME_META := "next_special_spawn_event_time"
+const SPECIAL_EVENT_QUEUE_GAP := 0.35
 
 static func setup_spawn_timer(main: Node) -> void:
 	main.spawn_timer = Timer.new()
@@ -21,7 +24,7 @@ static func update_spawn_curve(main: Node) -> void:
 	if main._is_developer_mode():
 		main.spawn_timer.stop()
 		return
-	if main.boss_spawned and is_instance_valid(main.boss_enemy):
+	if main.boss_spawned and (is_instance_valid(main.boss_enemy) or _has_queued_special_event(main, "boss")):
 		main.spawn_timer.stop()
 		return
 	if not main.spawn_timer.is_stopped() and not _should_refresh_spawn_curve(main):
@@ -57,6 +60,7 @@ static func _should_refresh_spawn_curve(main: Node) -> bool:
 static func handle_stage_events(main: Node) -> void:
 	if main._is_developer_mode():
 		return
+	_process_queued_special_events(main)
 	var stage_events: Array = ENEMY_DIRECTOR.collect_stage_events(
 		main.survival_time,
 		ENEMY_DIRECTOR.get_default_elite_spawn_times(),
@@ -78,20 +82,86 @@ static func handle_stage_events(main: Node) -> void:
 				main._on_stage_cleared()
 				return
 			"elite":
-				main.ENEMY_SPAWN_FLOW.spawn_special_enemy(main, "elite")
-				main.spawned_elite_count += 1
+				_queue_special_event(main, "elite")
 			"small_boss":
-				main.boss_enemy = main.ENEMY_SPAWN_FLOW.spawn_special_enemy(main, "small_boss")
-				main.spawned_small_boss_count += 1
+				_queue_special_event(main, "small_boss")
 			"boss":
-				main.boss_spawned = true
-				main.boss_enemy = main.ENEMY_SPAWN_FLOW.spawn_special_enemy(main, "boss")
-				if main.spawn_timer != null:
-					main.spawn_timer.stop()
+				_queue_special_event(main, "boss")
+
+
+static func _queue_special_event(main: Node, event_type: String) -> void:
+	var queue: Array = _get_special_event_queue(main)
+	var event := {
+		"type": event_type,
+		"archetype": ENEMY_DIRECTOR.pick_special_archetype(event_type, main.survival_time, main.spawned_small_boss_count, main.rng)
+	}
+	queue.append(event)
+	main.set_meta(SPECIAL_EVENT_QUEUE_META, queue)
+	match event_type:
+		"elite":
+			main.spawned_elite_count += 1
+		"small_boss":
+			main.spawned_small_boss_count += 1
+		"boss":
+			main.boss_spawned = true
+			if main.spawn_timer != null:
+				main.spawn_timer.stop()
+	if not main.has_meta(SPECIAL_EVENT_QUEUE_NEXT_TIME_META):
+		main.set_meta(SPECIAL_EVENT_QUEUE_NEXT_TIME_META, float(main.survival_time))
+
+
+static func _process_queued_special_events(main: Node) -> void:
+	var queue: Array = _get_special_event_queue(main)
+	if queue.is_empty():
+		_remove_special_event_queue_time(main)
+		return
+	var next_time: float = float(main.get_meta(SPECIAL_EVENT_QUEUE_NEXT_TIME_META, float(main.survival_time)))
+	if float(main.survival_time) < next_time:
+		return
+	var event: Dictionary = queue.pop_front()
+	main.set_meta(SPECIAL_EVENT_QUEUE_META, queue)
+	_spawn_queued_special_event(main, str(event.get("type", "")), str(event.get("archetype", "")))
+	if queue.is_empty():
+		_remove_special_event_queue_time(main)
+	else:
+		main.set_meta(SPECIAL_EVENT_QUEUE_NEXT_TIME_META, float(main.survival_time) + SPECIAL_EVENT_QUEUE_GAP)
+
+
+static func _spawn_queued_special_event(main: Node, event_type: String, archetype: String) -> void:
+	match event_type:
+		"elite":
+			main.ENEMY_SPAWN_FLOW.spawn_special_enemy_with_archetype(main, "elite", archetype)
+		"small_boss":
+			main.boss_enemy = main.ENEMY_SPAWN_FLOW.spawn_special_enemy_with_archetype(main, "small_boss", archetype)
+		"boss":
+			main.boss_enemy = main.ENEMY_SPAWN_FLOW.spawn_special_enemy_with_archetype(main, "boss", archetype)
+			if main.spawn_timer != null:
+				main.spawn_timer.stop()
+
+
+static func _get_special_event_queue(main: Node) -> Array:
+	if main == null:
+		return []
+	var queue_variant: Variant = main.get_meta(SPECIAL_EVENT_QUEUE_META, [])
+	if queue_variant is Array:
+		return (queue_variant as Array).duplicate()
+	return []
+
+
+static func _has_queued_special_event(main: Node, event_type: String) -> bool:
+	for event in _get_special_event_queue(main):
+		if event is Dictionary and str((event as Dictionary).get("type", "")) == event_type:
+			return true
+	return false
+
+
+static func _remove_special_event_queue_time(main: Node) -> void:
+	if main != null and main.has_meta(SPECIAL_EVENT_QUEUE_NEXT_TIME_META):
+		main.remove_meta(SPECIAL_EVENT_QUEUE_NEXT_TIME_META)
 
 
 static func spawn_enemy(main: Node) -> void:
-	if main.game_over or main.enemy_scene == null or main.player == null or main._is_developer_mode() or (main.boss_spawned and is_instance_valid(main.boss_enemy)):
+	if main.game_over or main.enemy_scene == null or main.player == null or main._is_developer_mode() or (main.boss_spawned and (is_instance_valid(main.boss_enemy) or _has_queued_special_event(main, "boss"))):
 		return
 
 	var health_multiplier: float = main._get_spawn_enemy_health_multiplier("normal")

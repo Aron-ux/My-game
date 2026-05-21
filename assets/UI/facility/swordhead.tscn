@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://dbx5duevhu6cn"]
+
+[ext_resource type="Texture2D" uid="uid://ceqewh3hel6d6" path="res://assets/UI/facility/剑.png" id="1_spboa"]
+
+[node name="Swordhead" type="Node2D" unique_id=71439546]
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1806656223]
+texture = ExtResource("1_spboa")

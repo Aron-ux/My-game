@@ -10,7 +10,9 @@ const REASON_TIMED_TRAITS := "timed_traits"
 
 const SIMPLE_MOVEMENT_BEHAVIORS := {
 	"chaser": true,
-	"swarm": true
+	"swarm": true,
+	"shooter": true,
+	"dash": true
 }
 
 
@@ -31,6 +33,10 @@ static func get_ineligibility_reason(enemy) -> String:
 		return REASON_UNSUPPORTED_BEHAVIOR
 	if enemy.boss_visual_instance != null:
 		return REASON_BOSS_VISUAL
-	if enemy._has_timed_behavior_traits():
+	if enemy._has_timed_behavior_traits() and not _can_batch_timed_behavior(str(enemy.behavior_id)):
 		return REASON_TIMED_TRAITS
 	return REASON_ELIGIBLE
+
+
+static func _can_batch_timed_behavior(behavior_id: String) -> bool:
+	return behavior_id == "shooter" or behavior_id == "dash"

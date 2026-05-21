@@ -50,10 +50,22 @@ func _run() -> void:
 	var shooter_enemy := _create_enemy(scene, target, "shooter")
 	await physics_frame
 	ENEMY_BATCH_SIMULATION.update_simple_normal_enemies(scene, 0.1)
-	if bool(shooter_enemy.get("batch_simulation_enabled")):
-		failures.append("timed/special behavior enemy should not be batch-simulated")
-	if not shooter_enemy.is_physics_processing():
-		failures.append("non-batched special enemy should keep its physics callback")
+	if not bool(shooter_enemy.get("batch_simulation_enabled")):
+		failures.append("normal shooter should be batch-simulated")
+	if shooter_enemy.is_physics_processing():
+		failures.append("batch-simulated shooter should disable per-node physics callback")
+
+	var dash_enemy := _create_enemy(scene, target, "dash")
+	dash_enemy.set("dash_interval", 0.05)
+	dash_enemy.set("dash_timer", 0.0)
+	await physics_frame
+	ENEMY_BATCH_SIMULATION.update_simple_normal_enemies(scene, 0.1)
+	if not bool(dash_enemy.get("batch_simulation_enabled")):
+		failures.append("normal dash enemy should be batch-simulated")
+	if dash_enemy.is_physics_processing():
+		failures.append("batch-simulated dash enemy should disable per-node physics callback")
+	if float(dash_enemy.get("dash_windup_remaining")) <= 0.0:
+		failures.append("batch-simulated dash enemy should keep dash timing behavior")
 
 	scene.queue_free()
 	await process_frame

@@ -81,7 +81,7 @@ const DEFINITIONS := {
 		"binding": SKILL_BOUND,
 		"stat": "combo_skill_extra",
 		"tier_values": {1: 0.5, 2: 1.0},
-		"description": "连段技能 +1。I 级每级给一个 50% 效果的额外连段；II 级每级给一个 100% 效果的额外连段。当前作用于普通攻击。"
+		"description": "技能连段+1"
 	},
 	"phantom": {
 		"title": "幻影",

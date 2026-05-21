@@ -26,6 +26,9 @@ static func _get_current_pack_interval(main: Node, wave_profile: Dictionary) -> 
 static func spawn_special_enemy(main: Node, kind: String) -> Node2D:
 	return SPAWN_PACK_FLOW.spawn_special_enemy(main, kind)
 
+static func spawn_special_enemy_with_archetype(main: Node, kind: String, archetype: String) -> Node2D:
+	return SPAWN_PACK_FLOW.spawn_special_enemy_with_archetype(main, kind, archetype)
+
 static func spawn_wave_pack(main: Node, kind: String, archetype: String, count: int, health_multiplier: float, speed_multiplier: float, damage_multiplier: float = 1.0) -> void:
 	SPAWN_PACK_FLOW.spawn_wave_pack(main, kind, archetype, count, health_multiplier, speed_multiplier, damage_multiplier)
 

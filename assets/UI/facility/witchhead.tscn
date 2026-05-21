@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://wcwcd55a7yac"]
+
+[ext_resource type="Texture2D" uid="uid://osgxy4dr8k6l" path="res://assets/UI/facility/术师.png" id="1_hcuxg"]
+
+[node name="Witchhead" type="Node2D" unique_id=1787889776]
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=2142515773]
+texture = ExtResource("1_hcuxg")

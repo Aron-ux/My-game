@@ -2,6 +2,7 @@ extends RefCounted
 
 const DEFAULT_STAGE_DURATION := 720.0
 const LATE_GAME_START_TIME := 360.0
+const LATE_GAME_ACTIVE_ENEMY_LIMIT_RAMP_TIME := 30.0
 const EARLY_ACTIVE_ENEMY_LIMIT := 40
 const LATE_ACTIVE_ENEMY_LIMIT := 60
 const BODY_COLLISION_RADIUS_MULTIPLIER := 1.8
@@ -31,7 +32,10 @@ static func is_late_game(survival_time: float) -> bool:
 	return survival_time >= LATE_GAME_START_TIME
 
 static func get_active_enemy_limit(survival_time: float) -> int:
-	return LATE_ACTIVE_ENEMY_LIMIT if is_late_game(survival_time) else EARLY_ACTIVE_ENEMY_LIMIT
+	if not is_late_game(survival_time):
+		return EARLY_ACTIVE_ENEMY_LIMIT
+	var ramp_ratio: float = clamp((survival_time - LATE_GAME_START_TIME) / LATE_GAME_ACTIVE_ENEMY_LIMIT_RAMP_TIME, 0.0, 1.0)
+	return int(round(lerpf(float(EARLY_ACTIVE_ENEMY_LIMIT), float(LATE_ACTIVE_ENEMY_LIMIT), ramp_ratio)))
 
 static func get_cycle_active_enemy_limit(cycle_elapsed_time: float) -> int:
 	return get_active_enemy_limit(cycle_elapsed_time)

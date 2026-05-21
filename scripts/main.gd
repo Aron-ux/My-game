@@ -542,6 +542,20 @@ func _on_developer_blessing_grant_requested(blessing_id: String, tier: int) -> v
 func _on_developer_all_blessings_grant_requested() -> void:
 	DEVELOPER_ACTIONS.grant_all_blessings(self)
 
+func _on_developer_enemy_detail_display_toggled(enabled: bool) -> void:
+	set_enemy_debug_ranges_visible(enabled)
+
+func set_enemy_debug_ranges_visible(enabled: bool) -> void:
+	var overlay := get_node_or_null("EnemyDebugRangeOverlay")
+	if overlay != null and overlay.has_method("set_debug_enabled"):
+		overlay.set_debug_enabled(enabled)
+
+func is_enemy_debug_ranges_visible() -> bool:
+	var overlay := get_node_or_null("EnemyDebugRangeOverlay")
+	if overlay == null:
+		return false
+	return bool(overlay.get("debug_enabled"))
+
 func _get_developer_boss_options() -> Array:
 	return DEVELOPER_OPTION_PROVIDER.get_boss_options()
 

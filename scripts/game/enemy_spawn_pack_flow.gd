@@ -8,10 +8,14 @@ const SPAWN_INSTANCE_FLOW := preload("res://scripts/game/enemy_spawn_instance_fl
 
 
 static func spawn_special_enemy(main: Node, kind: String) -> Node2D:
+	var archetype: String = ENEMY_DIRECTOR.pick_special_archetype(kind, main.survival_time, main.spawned_small_boss_count, main.rng)
+	return spawn_special_enemy_with_archetype(main, kind, archetype)
+
+
+static func spawn_special_enemy_with_archetype(main: Node, kind: String, archetype: String) -> Node2D:
 	var health_multiplier: float = main._get_spawn_enemy_health_multiplier(kind)
 	var speed_multiplier: float = main._get_spawn_enemy_speed_multiplier()
 	var damage_multiplier: float = main._get_spawn_enemy_damage_multiplier()
-	var archetype: String = ENEMY_DIRECTOR.pick_special_archetype(kind, main.survival_time, main.spawned_small_boss_count, main.rng)
 	return spawn_configured_enemy(main, kind, archetype, health_multiplier, speed_multiplier, INF, 0.0, damage_multiplier)
 
 
