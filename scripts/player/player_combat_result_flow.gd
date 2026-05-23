@@ -3,7 +3,7 @@ extends RefCounted
 const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
 const PLAYER_DAMAGE_RESOLVER := preload("res://scripts/player/player_damage_resolver.gd")
 
-const ULTIMATE_ENERGY_GAIN_GLOBAL_MULTIPLIER := 0.55
+const ULTIMATE_ENERGY_GAIN_GLOBAL_MULTIPLIER := 0.715
 const SMALL_ENEMY_KILL_ENERGY_MULTIPLIER := 0.75
 const BACKGROUND_ULTIMATE_ENERGY_GAIN_RATIO := 0.3
 const LIFESTEAL_PROC_HEAL_AMOUNT := 1.0
