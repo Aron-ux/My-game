@@ -2,6 +2,11 @@ extends RefCounted
 
 const MAP_BOUNDARY_VIEW := preload("res://scripts/map/map_boundary_view.gd")
 const BATTLE_MAP_SCENE := preload("res://assets/tile/map.tscn")
+const RUNTIME_BACKGROUND_PATHS: Array[String] = [
+	"res://assets/maps/grassland_4.png",
+	"res://assets/maps/temp_reference_map.png",
+	"res://assets/maps/battle_map.png"
+]
 
 const EDITOR_ONLY_MAP_NODES := {
 	"BorderGuide_3200x1800": true
@@ -57,7 +62,7 @@ static func prepare_battle_map_scene(map_scene: Node) -> void:
 
 
 static func add_grassland_background(map_scene: Node) -> void:
-	var texture := load("res://assets/maps/temp_reference_map.png") as Texture2D
+	var texture: Texture2D = load_first_runtime_background()
 	if texture == null:
 		return
 	var sprite := Sprite2D.new()
@@ -70,6 +75,16 @@ static func add_grassland_background(map_scene: Node) -> void:
 		sprite.scale = Vector2(3200.0, 1800.0) / tex_size
 	map_scene.add_child(sprite)
 	map_scene.move_child(sprite, 0)
+
+
+static func load_first_runtime_background() -> Texture2D:
+	for path in RUNTIME_BACKGROUND_PATHS:
+		if not ResourceLoader.exists(path, "Texture2D"):
+			continue
+		var texture := load(path) as Texture2D
+		if texture != null:
+			return texture
+	return null
 
 
 static func apply_tile_map_bounds_to_main(main: Node, map_scene: Node2D) -> void:
