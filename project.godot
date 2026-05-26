@@ -29,14 +29,16 @@ WindowDisplayManager="*res://scripts/window_display_manager.gd"
 
 window/size/viewport_width=1280
 window/size/viewport_height=720
-window/size/resizable=true
 window/stretch/mode="canvas_items"
-window/stretch/aspect="keep"
 window/vsync/vsync_mode=0
 
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/godot_mcp/plugin.cfg")
+
+[gui]
+
+common/snap_controls_to_pixels=false
 
 [physics]
 
@@ -47,6 +49,4 @@ enabled=PackedStringArray("res://addons/godot_mcp/plugin.cfg")
 textures/canvas_textures/default_texture_filter=0
 rendering_device/driver.windows="d3d12"
 renderer/rendering_method="mobile"
-2d/snap/snap_2d_transforms_to_pixel=true
-2d/snap/snap_2d_vertices_to_pixel=true
-2d/snap/use_gpu_pixel_snap=true
+2d/snap/use_gpu_pixel_snap=false

@@ -95,10 +95,10 @@ func _spawn_wave(owner, origin: Vector2, fire_direction: Vector2, damage_amount:
 	)
 	if wave == null:
 		return null
-	var safe_scale: float = max(0.05, effect_scale)
-	var range_multiplier: float = float(owner._get_story_style_range_multiplier("mage")) * float(owner._get_role_attribute_range_multiplier("mage")) * _get_visual_range_multiplier(owner) * safe_scale
+	var distance_scale: float = max(0.05, effect_scale)
+	var range_multiplier: float = float(owner._get_story_style_range_multiplier("mage")) * float(owner._get_role_attribute_range_multiplier("mage")) * _get_visual_range_multiplier(owner)
 	wave.speed = WAVE_SPEED
-	wave.lifetime = WAVE_LIFETIME * _get_lifetime_multiplier(owner)
+	wave.lifetime = _get_lifetime(owner) * distance_scale
 	wave.hit_radius = WAVE_HIT_RADIUS * range_multiplier * WAVE_WIDTH_MULTIPLIER
 	wave.pierce_count = 999
 	wave.visual_scale_multiplier = WAVE_VISUAL_SCALE * range_multiplier * WAVE_WIDTH_MULTIPLIER
@@ -112,7 +112,10 @@ func _get_scale_multiplier(owner) -> float:
 	return BASE_SCALE_MULTIPLIER * (1.0 + quantity_bonus)
 
 func _get_visual_range_multiplier(owner) -> float:
-	return _get_scale_multiplier(owner) * TIDAL_SURGE_RANGE_MULTIPLIER
+	var range_multiplier: float = 1.0
+	if owner != null and is_instance_valid(owner) and owner.has_method("_get_kebiru_magic_range_multiplier"):
+		range_multiplier *= float(owner._get_kebiru_magic_range_multiplier(SURGE_SKILL_ID))
+	return _get_scale_multiplier(owner) * TIDAL_SURGE_RANGE_MULTIPLIER * range_multiplier
 
 func _get_cardinal_directions() -> Array[Vector2]:
 	return [Vector2.RIGHT, Vector2.DOWN, Vector2.LEFT, Vector2.UP]
@@ -148,9 +151,12 @@ func _get_cooldown(owner) -> float:
 		base_cooldown = TIER_THREE_COOLDOWN
 	elif tier >= 2:
 		base_cooldown = TIER_TWO_COOLDOWN
+	var cooldown_multiplier: float = 1.0
 	if owner != null and is_instance_valid(owner) and owner.has_method("_get_equipment_cooldown_multiplier"):
-		return base_cooldown * owner._get_equipment_cooldown_multiplier()
-	return base_cooldown
+		cooldown_multiplier *= float(owner._get_equipment_cooldown_multiplier())
+	if owner != null and is_instance_valid(owner) and owner.has_method("_get_kebiru_magic_cooldown_multiplier"):
+		cooldown_multiplier *= float(owner._get_kebiru_magic_cooldown_multiplier(SURGE_SKILL_ID))
+	return base_cooldown * cooldown_multiplier
 
 func _has_required_unlock(owner) -> bool:
 	if owner == null or not owner.has_method("_is_blessing_skill_unlocked"):
@@ -185,6 +191,12 @@ func _get_lifetime_multiplier(owner) -> float:
 	if owner != null and owner.has_method("_get_blessing_skill_duration_multiplier"):
 		multiplier *= float(owner._get_blessing_skill_duration_multiplier(SURGE_SKILL_ID))
 	return multiplier
+
+func _get_lifetime(owner) -> float:
+	var lifetime := WAVE_LIFETIME * _get_lifetime_multiplier(owner)
+	if owner != null and owner.has_method("_get_blessing_skill_duration_flat_bonus"):
+		lifetime += float(owner._get_blessing_skill_duration_flat_bonus(SURGE_SKILL_ID))
+	return lifetime
 
 func _get_damage_multiplier(owner) -> float:
 	var tier: int = _get_tier(owner)

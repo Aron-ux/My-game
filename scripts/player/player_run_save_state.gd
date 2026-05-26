@@ -37,6 +37,7 @@ static func get_save_data(player) -> Dictionary:
 		"switch_invulnerability_remaining": player.switch_invulnerability_remaining,
 		"level_up_delay_remaining": player.level_up_delay_remaining,
 		"switch_cooldown_remaining": player.switch_cooldown_remaining,
+		"greed_heal_cooldown_remaining": player.greed_heal_cooldown_remaining,
 		"enemy_move_slow_multiplier": player.enemy_move_slow_multiplier,
 		"enemy_move_slow_remaining": player.enemy_move_slow_remaining,
 		"gunner_infinite_reload_cooldown_remaining": player.gunner_infinite_reload_ability.cooldown_remaining if player.gunner_infinite_reload_ability != null else 0.0,
@@ -117,6 +118,7 @@ static func get_save_data(player) -> Dictionary:
 		"attribute_training_levels": player.attribute_training_levels.duplicate(true),
 		"role_blessing_levels": player.role_blessing_levels.duplicate(true),
 		"skill_blessing_levels": player.skill_blessing_levels.duplicate(true),
+		"owned_magic_stones": player.owned_magic_stones.duplicate(true),
 		"blessing_skill_state": player.blessing_skill_state.duplicate(true),
 		"role_special_states": player.role_special_states.duplicate(true),
 		"roles": player._serialize_roles_for_save(),
@@ -167,6 +169,7 @@ static func apply_save_data(player, data: Dictionary) -> void:
 	player.switch_invulnerability_remaining = max(0.0, float(data.get("switch_invulnerability_remaining", 0.0)))
 	player.level_up_delay_remaining = max(0.0, float(data.get("level_up_delay_remaining", 0.0)))
 	player.switch_cooldown_remaining = max(0.0, float(data.get("switch_cooldown_remaining", 0.0)))
+	player.greed_heal_cooldown_remaining = max(0.0, float(data.get("greed_heal_cooldown_remaining", 0.0)))
 	player.enemy_move_slow_multiplier = float(data.get("enemy_move_slow_multiplier", 1.0))
 	player.enemy_move_slow_remaining = max(0.0, float(data.get("enemy_move_slow_remaining", 0.0)))
 	_apply_ability_save_data(player, data)
@@ -196,11 +199,11 @@ static func apply_save_data(player, data: Dictionary) -> void:
 		player.equipment_energy_gain_bonus = float(active_equipment_summary.get("energy_gain_bonus", 0.0))
 	player.elite_relics_unlocked = data.get("elite_relics_unlocked", player.elite_relics_unlocked).duplicate(true)
 	player.attribute_training_levels = player._normalize_attribute_training_data(data.get("attribute_training_levels", player.attribute_training_levels))
-	player._sync_swordsman_trait_health_bonus()
 	player.role_special_states = data.get("role_special_states", player.role_special_states).duplicate(true)
 	player.role_blessing_levels = PLAYER_BLESSING_SYSTEM.normalize_role_state(data.get("role_blessing_levels", player.role_blessing_levels), player.roles)
 	PLAYER_BLESSING_SYSTEM.sync_shared_role_blessings(player)
 	player.skill_blessing_levels = PLAYER_BLESSING_SYSTEM.normalize_skill_state(data.get("skill_blessing_levels", player.skill_blessing_levels))
+	player.owned_magic_stones = _normalize_owned_magic_stones(data.get("owned_magic_stones", player.owned_magic_stones))
 	player.blessing_skill_state = PLAYER_BLESSING_SKILL_STATE.normalize_state(data.get("blessing_skill_state", player.blessing_skill_state))
 	player.story_equipped_styles = data.get("story_equipped_styles", player.story_equipped_styles).duplicate(true)
 	_apply_saved_role_health_data(player, saved_role_health_values, saved_current_health, saved_active_role_index)
@@ -222,6 +225,17 @@ static func apply_save_data(player, data: Dictionary) -> void:
 	player.stats_changed.emit(player.get_stat_summary())
 	player.health_changed.emit(player.current_health, player.max_health)
 	player._emit_active_mana_changed()
+
+
+static func _normalize_owned_magic_stones(value: Variant) -> Array:
+	var result: Array = []
+	if not value is Array:
+		return result
+	for stone_value in value:
+		var stone_id: String = str(stone_value)
+		if stone_id != "" and not result.has(stone_id):
+			result.append(stone_id)
+	return result
 
 
 static func _apply_saved_role_health_data(player, saved_role_health_values: Variant, saved_current_health: float, saved_active_role_index: int) -> void:

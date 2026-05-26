@@ -7,9 +7,9 @@
 script = ExtResource("1_profile")
 archetype = "dasher"
 behavior = "dash"
-max_health = 54.0
+max_health = 55.296
 speed = 80.0
-touch_damage = 16.0
+touch_damage = 26.0
 contact_radius = 42.0
 body_collision_radius = 42.0
 reward_tier = 2

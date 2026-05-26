@@ -6,12 +6,16 @@ const ROLE_RESOURCE_STATE := preload("res://scripts/player/roles/role_resource_s
 
 static func update_timers(owner, delta: float) -> void:
 	owner.role_visual_time += delta
+	if owner.has_method("_tick_duration_statuses"):
+		owner._tick_duration_statuses(delta)
 	ROLE_RESOURCE_STATE.tick_locks(owner.role_ultimate_energy_lock_remaining, owner.roles, delta)
 	owner._sync_active_role_ultimate_state()
 	if owner.hurt_cooldown_remaining > 0.0:
 		owner.hurt_cooldown_remaining = max(0.0, owner.hurt_cooldown_remaining - delta)
 	if owner.switch_invulnerability_remaining > 0.0:
 		owner.switch_invulnerability_remaining = max(0.0, owner.switch_invulnerability_remaining - delta)
+	if owner.has_method("_sync_invulnerability_status"):
+		owner._sync_invulnerability_status()
 	if owner.level_up_delay_remaining > 0.0:
 		owner.level_up_delay_remaining = max(0.0, owner.level_up_delay_remaining - delta)
 		if owner.level_up_delay_remaining <= 0.0:
@@ -20,6 +24,10 @@ static func update_timers(owner, delta: float) -> void:
 		owner.switch_cooldown_remaining = max(0.0, owner.switch_cooldown_remaining - delta)
 	if owner.lifesteal_proc_cooldown_remaining > 0.0:
 		owner.lifesteal_proc_cooldown_remaining = max(0.0, owner.lifesteal_proc_cooldown_remaining - delta)
+	if owner.swordsman_trait_heal_cooldown_remaining > 0.0:
+		owner.swordsman_trait_heal_cooldown_remaining = max(0.0, owner.swordsman_trait_heal_cooldown_remaining - delta)
+	if owner.greed_heal_cooldown_remaining > 0.0:
+		owner.greed_heal_cooldown_remaining = max(0.0, owner.greed_heal_cooldown_remaining - delta)
 	var swordsman_special: Dictionary = owner._get_role_special_state("swordsman")
 	if float(swordsman_special.get("ultimate_lifesteal_multiplier_remaining", 0.0)) > 0.0:
 		swordsman_special["ultimate_lifesteal_multiplier_remaining"] = max(0.0, float(swordsman_special.get("ultimate_lifesteal_multiplier_remaining", 0.0)) - delta)
@@ -61,6 +69,11 @@ static func update_timers(owner, delta: float) -> void:
 		owner.entry_blessing_remaining = max(0.0, owner.entry_blessing_remaining - delta)
 		if owner.entry_blessing_remaining <= 0.0:
 			owner._clear_entry_blessing()
+	if owner.ultimate_haste_remaining > 0.0:
+		owner.ultimate_haste_remaining = max(0.0, owner.ultimate_haste_remaining - delta)
+		if owner.ultimate_haste_remaining <= 0.0:
+			owner.ultimate_haste_move_speed_multiplier = 1.0
+			owner.ultimate_haste_dodge_chance = 0.0
 	if owner.entry_rescue_remaining > 0.0:
 		owner.entry_rescue_remaining = max(0.0, owner.entry_rescue_remaining - delta)
 		if owner.entry_rescue_regen_per_second > 0.0:
@@ -91,6 +104,8 @@ static func update_timers(owner, delta: float) -> void:
 		owner.ultimate_guard_remaining = max(0.0, owner.ultimate_guard_remaining - delta)
 		if owner.ultimate_guard_remaining <= 0.0:
 			owner.ultimate_guard_damage_multiplier = 1.0
+	if owner.player_action_lock_remaining > 0.0:
+		owner.player_action_lock_remaining = max(0.0, owner.player_action_lock_remaining - delta)
 	if owner.frenzy_remaining > 0.0:
 		owner.frenzy_remaining = max(0.0, owner.frenzy_remaining - delta)
 		if owner.frenzy_remaining <= 0.0:

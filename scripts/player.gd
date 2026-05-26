@@ -227,6 +227,7 @@ var skill_blessing_levels: Dictionary = {}
 var blessing_skill_state: Dictionary = {}
 var pending_blessing_binding_choices: Array = []
 var current_blessing_offer: Dictionary = {}
+var owned_magic_stones: Array = []
 var elite_relics_unlocked: Dictionary = {}
 var equipment_levels: Dictionary = {}
 var role_equipment_levels: Dictionary = {}
@@ -263,8 +264,13 @@ var entry_lifesteal_ratio: float = 0.0
 var entry_rescue_remaining: float = 0.0
 var entry_rescue_regen_per_second: float = 0.0
 var lifesteal_proc_cooldown_remaining: float = 0.0
+var swordsman_trait_heal_cooldown_remaining: float = 0.0
+var greed_heal_cooldown_remaining: float = 0.0
 var entry_haste_interval_bonus: float = 0.0
 var entry_haste_move_speed_multiplier: float = 1.0
+var ultimate_haste_remaining: float = 0.0
+var ultimate_haste_move_speed_multiplier: float = 1.0
+var ultimate_haste_dodge_chance: float = 0.0
 var standby_entry_role_id: String = ""
 var standby_entry_label: String = ""
 var standby_entry_remaining: float = 0.0
@@ -281,6 +287,7 @@ var post_ultimate_flow_remaining: float = 0.0
 var post_ultimate_flow_background_multiplier: float = 1.0
 var ultimate_guard_remaining: float = 0.0
 var ultimate_guard_damage_multiplier: float = 1.0
+var player_action_lock_remaining: float = 0.0
 var perpetual_motion_cooldown_remaining: float = 0.0
 var frenzy_remaining: float = 0.0
 var frenzy_stacks: int = 0
@@ -312,6 +319,7 @@ var gem_collection_elapsed: float = 0.0
 var contact_check_elapsed: float = 0.0
 var execution_pact_burst_active: bool = false
 var final_set_unlock_announced: Dictionary = {}
+var active_duration_statuses: Dictionary = {}
 var story_equipped_styles: Dictionary = {
 	"swordsman": "default",
 	"gunner": "default",
@@ -478,9 +486,6 @@ func _build_role_special_state_data() -> Dictionary:
 func _build_attribute_training_data() -> Dictionary:
 	return PLAYER_STATE_FACTORY.build_attribute_training_data()
 
-func _get_role_attribute_key(role_id: String, attribute_key: String) -> String:
-	return PLAYER_ATTRIBUTE_FLOW.get_role_attribute_key(role_id, attribute_key)
-
 func _get_role_attribute_level(role_id: String, attribute_key: String) -> float:
 	return PLAYER_ATTRIBUTE_FLOW.get_role_attribute_level(self, role_id, attribute_key)
 
@@ -489,9 +494,6 @@ func _increase_role_attribute_level(role_id: String, attribute_key: String) -> f
 
 func _normalize_attribute_training_data(data: Variant) -> Dictionary:
 	return PLAYER_ATTRIBUTE_FLOW.normalize_attribute_training_data(data)
-
-func _sync_swordsman_trait_health_bonus() -> void:
-	PLAYER_ATTRIBUTE_FLOW.sync_swordsman_trait_health_bonus(self)
 
 func _get_attribute_level(attribute_key: String) -> float:
 	return PLAYER_ATTRIBUTE_FLOW.get_attribute_level(self, attribute_key)
@@ -514,71 +516,23 @@ func _get_attribute_dodge_chance() -> float:
 func _get_attribute_pickup_range_bonus() -> float:
 	return PLAYER_ATTRIBUTE_FLOW.get_attribute_pickup_range_bonus(self)
 
-func _get_swordsman_low_health_flat_heal() -> float:
-	return PLAYER_ATTRIBUTE_FLOW.get_swordsman_low_health_flat_heal(self)
+func _get_swordsman_trait_heal_amount() -> float:
+	return PLAYER_ATTRIBUTE_FLOW.get_swordsman_trait_heal_amount(self)
 
-func _get_swordsman_low_health_threshold() -> float:
-	return PLAYER_ATTRIBUTE_FLOW.get_swordsman_low_health_threshold(self)
+func _get_swordsman_trait_heal_proc_chance() -> float:
+	return PLAYER_ATTRIBUTE_FLOW.get_swordsman_trait_heal_proc_chance(self)
 
-func _get_gunner_distance_damage_bonus() -> float:
-	return PLAYER_ATTRIBUTE_FLOW.get_gunner_distance_damage_bonus(self)
+func _get_mage_kill_energy_proc_chance() -> float:
+	return PLAYER_ATTRIBUTE_FLOW.get_mage_kill_energy_proc_chance(self)
 
-func _get_mage_skill_range_multiplier() -> float:
-	return PLAYER_ATTRIBUTE_FLOW.get_mage_skill_range_multiplier(self)
-
-func _get_mage_kill_energy_multiplier() -> float:
-	return PLAYER_ATTRIBUTE_FLOW.get_mage_kill_energy_multiplier(self)
+func _get_mage_kill_energy_proc_multiplier() -> float:
+	return PLAYER_ATTRIBUTE_FLOW.get_mage_kill_energy_proc_multiplier(self)
 
 func _get_primary_attribute_damage_bonus(role_id: String) -> float:
 	return PLAYER_ATTRIBUTE_FLOW.get_primary_attribute_damage_bonus(self, role_id)
 
 func _get_role_trait_level(role_id: String) -> float:
 	return PLAYER_ATTRIBUTE_FLOW.get_role_trait_level(self, role_id)
-
-func _get_role_entry_damage_multiplier(role_id: String) -> float:
-	return PLAYER_ATTRIBUTE_FLOW.get_role_entry_damage_multiplier(self, role_id)
-
-func _get_swordsman_entry_distance_multiplier() -> float:
-	return PLAYER_ATTRIBUTE_FLOW.get_swordsman_entry_distance_multiplier(self)
-
-func _get_swordsman_entry_invulnerability_bonus() -> float:
-	return PLAYER_ATTRIBUTE_FLOW.get_swordsman_entry_invulnerability_bonus(self)
-
-func _get_swordsman_exit_lifesteal_bonus() -> float:
-	return PLAYER_ATTRIBUTE_FLOW.get_swordsman_exit_lifesteal_bonus(self)
-
-func _get_swordsman_exit_lifesteal_duration_bonus() -> float:
-	return PLAYER_ATTRIBUTE_FLOW.get_swordsman_exit_lifesteal_duration_bonus(self)
-
-func _get_gunner_entry_bullet_speed_bonus() -> float:
-	return PLAYER_ATTRIBUTE_FLOW.get_gunner_entry_bullet_speed_bonus(self)
-
-func _get_gunner_entry_wave_count() -> int:
-	return PLAYER_ATTRIBUTE_FLOW.get_gunner_entry_wave_count(self)
-
-func _get_gunner_exit_haste_interval_bonus() -> float:
-	return PLAYER_ATTRIBUTE_FLOW.get_gunner_exit_haste_interval_bonus(self)
-
-func _get_gunner_exit_move_speed_multiplier_bonus() -> float:
-	return PLAYER_ATTRIBUTE_FLOW.get_gunner_exit_move_speed_multiplier_bonus(self)
-
-func _get_gunner_exit_haste_duration_bonus() -> float:
-	return PLAYER_ATTRIBUTE_FLOW.get_gunner_exit_haste_duration_bonus(self)
-
-func _get_mage_entry_radius_multiplier() -> float:
-	return PLAYER_ATTRIBUTE_FLOW.get_mage_entry_radius_multiplier(self)
-
-func _get_mage_entry_bombard_count() -> int:
-	return PLAYER_ATTRIBUTE_FLOW.get_mage_entry_bombard_count(self)
-
-func _get_mage_exit_energy_bonus() -> float:
-	return PLAYER_ATTRIBUTE_FLOW.get_mage_exit_energy_bonus(self)
-
-func _get_mage_exit_slow_field_radius_bonus() -> float:
-	return PLAYER_ATTRIBUTE_FLOW.get_mage_exit_slow_field_radius_bonus(self)
-
-func _get_mage_exit_slow_field_damage_ratio() -> float:
-	return PLAYER_ATTRIBUTE_FLOW.get_mage_exit_slow_field_damage_ratio(self)
 
 func _get_balanced_attribute_description(added_amount: float) -> String:
 	return PLAYER_ATTRIBUTE_FLOW.get_balanced_attribute_description(self, added_amount)
@@ -651,9 +605,6 @@ func _get_role_attribute_range_multiplier(role_id: String) -> float:
 
 func _get_role_attribute_move_speed_multiplier(role_id: String) -> float:
 	return PLAYER_ATTRIBUTE_FLOW.get_role_attribute_move_speed_multiplier(self, role_id)
-
-func _get_role_attribute_flat_move_speed_bonus(role_id: String) -> float:
-	return PLAYER_ATTRIBUTE_FLOW.get_role_attribute_flat_move_speed_bonus(self, role_id)
 
 func _get_role_attack_interval_multiplier(role_id: String) -> float:
 	return PLAYER_ATTRIBUTE_FLOW.get_role_attack_interval_multiplier(self, role_id)
@@ -805,6 +756,24 @@ func _get_blessing_skill_combo_scales(skill_id: String) -> Array[float]:
 func _get_blessing_skill_duration_multiplier(skill_id: String) -> float:
 	return PLAYER_BLESSING_SKILL_BRIDGE.get_duration_multiplier(self, skill_id)
 
+func _get_blessing_skill_duration_flat_bonus(skill_id: String) -> float:
+	return PLAYER_BLESSING_SKILL_BRIDGE.get_duration_flat_bonus(self, skill_id)
+
+func _get_blessing_ultimate_damage_multiplier(skill_id: String) -> float:
+	return PLAYER_BLESSING_SKILL_BRIDGE.get_ultimate_damage_multiplier(self, skill_id)
+
+func _get_blessing_ultimate_special_effect_multiplier(skill_id: String) -> float:
+	return PLAYER_BLESSING_SKILL_BRIDGE.get_ultimate_special_effect_multiplier(self, skill_id)
+
+func _get_kebiru_magic_cooldown_multiplier(skill_id: String) -> float:
+	return PLAYER_BLESSING_SKILL_BRIDGE.get_kebiru_magic_cooldown_multiplier(self, skill_id)
+
+func _get_kebiru_magic_range_multiplier(skill_id: String) -> float:
+	return PLAYER_BLESSING_SKILL_BRIDGE.get_kebiru_magic_range_multiplier(self, skill_id)
+
+func _get_invoker_magic_range_multiplier(skill_id: String) -> float:
+	return PLAYER_BLESSING_SKILL_BRIDGE.get_invoker_magic_range_multiplier(self, skill_id)
+
 func get_skill_next_requirement_text(skill_id: String) -> String:
 	return PLAYER_BLESSING_SKILL_BRIDGE.get_skill_next_requirement_text(self, skill_id)
 
@@ -888,6 +857,13 @@ func _apply_equipment_passives(delta: float) -> void:
 
 func _try_equipment_dodge() -> bool:
 	return PLAYER_EQUIPMENT_FLOW.try_dodge(self)
+
+func _lock_player_actions(duration: float) -> void:
+	player_action_lock_remaining = max(player_action_lock_remaining, max(0.0, duration))
+	velocity = Vector2.ZERO
+
+func _is_player_action_locked() -> bool:
+	return player_action_lock_remaining > 0.0
 
 func _unhandled_input(event: InputEvent) -> void:
 	PLAYER_SURVIVAL_FLOW.unhandled_input(self, event)
@@ -1122,13 +1098,13 @@ func _apply_role_damage_lifesteal(source_role_id: String, damage_amount: float) 
 	PLAYER_DAMAGE_HELPERS.apply_role_damage_lifesteal(self, source_role_id, damage_amount)
 
 func _get_gunner_distance_damage_multiplier(distance: float) -> float:
-	return PLAYER_DAMAGE_HELPERS.get_gunner_distance_damage_multiplier(distance, _get_gunner_distance_damage_bonus())
+	return PLAYER_DAMAGE_HELPERS.get_gunner_distance_damage_multiplier(distance)
 
 func _get_enemy_hit_radius(enemy: Node) -> float:
 	return PLAYER_DAMAGE_HELPERS.get_enemy_hit_radius(enemy)
 
-func _deal_damage_to_enemy(enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, suppress_status_visual: bool = false) -> bool:
-	return PLAYER_DAMAGE_RESOLVER.deal_damage_to_enemy(self, enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, suppress_status_visual)
+func _deal_damage_to_enemy(enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, suppress_status_visual: bool = false, kill_energy_bonus: float = 0.0) -> bool:
+	return PLAYER_DAMAGE_RESOLVER.deal_damage_to_enemy(self, enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, suppress_status_visual, kill_energy_bonus)
 
 func _damage_enemies_in_radius(center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "") -> int:
 	return PLAYER_DAMAGE_RESOLVER.damage_enemies_in_radius(self, center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id)
@@ -1205,6 +1181,65 @@ func _setup_player_health_bar() -> void:
 
 func _update_player_health_bar(role_data: Dictionary = {}) -> void:
 	PLAYER_HEALTH_VISUALS.update_player_health_bar(self, role_data, PLAYER_HEALTH_BAR_HEIGHT, PLAYER_HEALTH_BAR_Y_OFFSET)
+
+func _start_duration_status(status_id: String, label: String, duration: float, priority: int = 0, color: Color = Color(0.56, 0.56, 0.56, 0.95)) -> void:
+	var safe_duration: float = max(0.001, duration)
+	active_duration_statuses[status_id] = {
+		"remaining": safe_duration,
+		"duration": safe_duration,
+		"label": label,
+		"priority": priority,
+		"color": color
+	}
+	PLAYER_HEALTH_VISUALS.setup_player_duration_status_bar(self)
+	PLAYER_HEALTH_VISUALS.update_player_duration_status_bar(self)
+
+func _sync_duration_status(status_id: String, label: String, remaining: float, priority: int = 0, color: Color = Color(0.56, 0.56, 0.56, 0.95)) -> void:
+	if remaining <= 0.0:
+		_clear_duration_status(status_id)
+		return
+	var current_data: Dictionary = active_duration_statuses.get(status_id, {})
+	var duration: float = max(remaining, float(current_data.get("duration", remaining)))
+	active_duration_statuses[status_id] = {
+		"remaining": remaining,
+		"duration": max(0.001, duration),
+		"label": label,
+		"priority": priority,
+		"color": color
+	}
+	PLAYER_HEALTH_VISUALS.setup_player_duration_status_bar(self)
+	PLAYER_HEALTH_VISUALS.update_player_duration_status_bar(self)
+
+func _clear_duration_status(status_id: String) -> void:
+	if active_duration_statuses.has(status_id):
+		active_duration_statuses.erase(status_id)
+	PLAYER_HEALTH_VISUALS.update_player_duration_status_bar(self)
+
+func _start_entangled_status(duration: float) -> void:
+	_start_duration_status("entangled", "缠绕", duration, 100, Color(0.56, 0.56, 0.56, 0.95))
+
+func _sync_invulnerability_status() -> void:
+	if switch_invulnerability_remaining > 0.0:
+		_sync_duration_status("invulnerable", "无敌", switch_invulnerability_remaining, 90, Color(0.95, 0.82, 0.22, 0.96))
+	else:
+		_clear_duration_status("invulnerable")
+
+func _tick_duration_statuses(delta: float) -> void:
+	if active_duration_statuses.is_empty():
+		PLAYER_HEALTH_VISUALS.update_player_duration_status_bar(self)
+		return
+	var expired_ids: Array[String] = []
+	for status_id_value in active_duration_statuses.keys():
+		var status_id: String = str(status_id_value)
+		var status_data: Dictionary = active_duration_statuses.get(status_id, {})
+		var remaining: float = max(0.0, float(status_data.get("remaining", 0.0)) - delta)
+		status_data["remaining"] = remaining
+		active_duration_statuses[status_id] = status_data
+		if remaining <= 0.0:
+			expired_ids.append(status_id)
+	for status_id in expired_ids:
+		active_duration_statuses.erase(status_id)
+	PLAYER_HEALTH_VISUALS.update_player_duration_status_bar(self)
 
 func _get_role_health_bar_width(role_id: String) -> float:
 	return PLAYER_VISUAL_LAYOUT.get_player_role_health_bar_width(self, role_id)
@@ -1314,6 +1349,9 @@ func _get_enemy_targets(count: int, prefer_farthest: bool = false) -> Array:
 func _get_low_health_enemy() -> Node2D:
 	return PLAYER_TARGETING.get_owner_low_health_enemy(self)
 
+func _get_priority_boss_target(origin: Vector2) -> Node2D:
+	return PLAYER_TARGETING.get_owner_priority_boss_target(self, origin)
+
 func _get_enemy_in_aim_cone(max_angle_degrees: float, max_distance: float = INF) -> Node2D:
 	return PLAYER_TARGETING.get_owner_enemy_in_aim_cone(self, max_angle_degrees, max_distance)
 
@@ -1344,11 +1382,14 @@ func apply_enemy_slow(multiplier: float, duration: float) -> void:
 func _add_energy(amount: float) -> void:
 	PLAYER_RESOURCE_FLOW.add_energy(self, amount)
 
-func _add_kill_energy(amount: float) -> void:
-	PLAYER_COMBAT_RESULT_FLOW.add_kill_energy(self, amount)
+func _add_kill_energy(amount: float, bypass_lock_role_id: String = "") -> void:
+	PLAYER_COMBAT_RESULT_FLOW.add_kill_energy(self, amount, bypass_lock_role_id)
 
 func _get_kill_energy_from_enemy(enemy: Node) -> float:
 	return PLAYER_COMBAT_RESULT_FLOW.get_kill_energy_from_enemy(enemy)
+
+func _try_apply_mage_kill_energy_proc(source_role_id: String, base_energy: float, bypass_lock_role_id: String = "") -> void:
+	PLAYER_COMBAT_RESULT_FLOW.try_apply_mage_kill_energy_proc(self, source_role_id, base_energy, bypass_lock_role_id)
 
 func _get_boss_damage_energy(damage_amount: float) -> float:
 	return PLAYER_COMBAT_RESULT_FLOW.get_boss_damage_energy(damage_amount)
@@ -1365,15 +1406,12 @@ func _build_ultimate_cast_payload() -> Dictionary:
 func _get_ultimate_level_damage_multiplier() -> float:
 	return PLAYER_ULTIMATE_FLOW.get_ultimate_level_damage_multiplier(self)
 
-func _register_attack_result(role_id: String, hit_count: int, killed: bool) -> void:
-	PLAYER_COMBAT_RESULT_FLOW.register_attack_result(self, role_id, hit_count, killed)
+func _register_attack_result(role_id: String, hit_count: int, killed: bool, kill_count: int = 0) -> void:
+	PLAYER_COMBAT_RESULT_FLOW.register_attack_result(self, role_id, hit_count, killed, kill_count)
 
 
 func _apply_theme_hit_returns(role_id: String, hit_count: int, killed: bool) -> void:
 	return
-
-func _apply_swordsman_low_health_flat_heal(role_id: String, hit_count: int) -> void:
-	PLAYER_COMBAT_RESULT_FLOW.apply_swordsman_low_health_flat_heal(self, role_id, hit_count)
 
 func _apply_role_flat_heal_on_hit(role_id: String, hit_count: int) -> void:
 	PLAYER_COMBAT_RESULT_FLOW.apply_role_flat_heal_on_hit(self, role_id, hit_count)
@@ -1490,6 +1528,9 @@ func _spawn_guard_effect(center: Vector2, radius: float, color: Color, duration:
 
 func _spawn_combat_tag(position: Vector2, text: String, color: Color) -> void:
 	PLAYER_EFFECT_PRIMITIVES.spawn_combat_tag(self, position, text, color, SHOW_GAMEPLAY_TEXT_HINTS)
+
+func _spawn_forced_combat_tag(position: Vector2, text: String, color: Color) -> void:
+	PLAYER_EFFECT_PRIMITIVES.spawn_combat_tag(self, position, text, color, true)
 
 func _spawn_ring_effect(center: Vector2, radius: float, color: Color, width: float, duration: float) -> void:
 	PLAYER_EFFECT_PRIMITIVES.spawn_owner_ring_effect(self, center, radius, color, width, duration)

@@ -7,7 +7,7 @@ const COOLDOWN := 6.0
 const SLASH_LENGTH := 122.0
 const SLASH_WIDTH := 52.0
 const WAVE_LENGTH := 430.0
-const WAVE_WIDTH := 58.0
+const WAVE_WIDTH := 74.0
 const TIER_TWO_WIDTH_MULTIPLIER := 1.2
 const TIER_TWO_DAMAGE_MULTIPLIER := 1.45
 const TIER_TWO_SPEED_MULTIPLIER := 1.3
@@ -107,7 +107,7 @@ func _cast_once(owner, direction: Vector2, damage_scale: float) -> void:
 	var wave_length: float = WAVE_LENGTH * _get_range_multiplier(owner)
 	var slash_center: Vector2 = owner.global_position + direction * (slash_length * 0.42)
 	owner._spawn_sword_fan_scene_effect(slash_center, direction, visual_hit_multiplier)
-	var slash_hits: int = owner._damage_enemies_in_oriented_rect(slash_center, direction, slash_length, slash_width, _get_damage(owner) * SLASH_DAMAGE_RATIO * damage_scale, 0.02, 1.0, 0.0, "swordsman")
+	var slash_hits: int = owner._damage_enemies_in_oriented_rect(slash_center, direction, slash_length, slash_width, _get_damage(owner) * SLASH_DAMAGE_RATIO * damage_scale, 0.0, 1.0, 0.0, "swordsman")
 	var wave_origin: Vector2 = owner.global_position + direction * max(24.0, slash_length * 0.72)
 	_spawn_crescent_projectile(owner, wave_origin, direction, wave_length, wave_width, visual_hit_multiplier, _get_damage(owner) * WAVE_DAMAGE_RATIO * damage_scale)
 	if slash_hits > 0 and not _uses_batched_damage(owner):
@@ -182,7 +182,7 @@ func _update_crescent_projectiles(delta: float) -> void:
 			data["damage_elapsed"] = 0.0
 			var sample_length: float = max(52.0 * VISUAL_AND_HIT_SCALE, length * WAVE_DAMAGE_SAMPLE_INTERVAL / duration + 52.0 * VISUAL_AND_HIT_SCALE)
 			var hit_registry: Dictionary = data.get("hit_registry", {})
-			var hit_count: int = owner._damage_enemies_in_oriented_rect_unique(current_position, direction, sample_length, float(data.get("width", 1.0)), float(data.get("damage_amount", 0.0)), 0.03, 1.0, 0.0, hit_registry, "swordsman")
+			var hit_count: int = owner._damage_enemies_in_oriented_rect_unique(current_position, direction, sample_length, float(data.get("width", 1.0)), float(data.get("damage_amount", 0.0)), 0.0, 1.0, 0.0, hit_registry, "swordsman")
 			data["hit_registry"] = hit_registry
 			if hit_count > 0 and not _uses_batched_damage(owner):
 				owner._register_attack_result("swordsman", hit_count, false)
@@ -319,9 +319,12 @@ func _get_tier(owner) -> int:
 
 
 func _get_cooldown(owner) -> float:
+	var cooldown_multiplier: float = 1.0
 	if owner != null and is_instance_valid(owner) and owner.has_method("_get_equipment_cooldown_multiplier"):
-		return COOLDOWN * owner._get_equipment_cooldown_multiplier()
-	return COOLDOWN
+		cooldown_multiplier *= float(owner._get_equipment_cooldown_multiplier())
+	if owner != null and is_instance_valid(owner) and owner.has_method("_get_kebiru_magic_cooldown_multiplier"):
+		cooldown_multiplier *= float(owner._get_kebiru_magic_cooldown_multiplier(SKILL_ID))
+	return COOLDOWN * cooldown_multiplier
 
 
 func _get_width_multiplier(owner) -> float:
@@ -331,11 +334,20 @@ func _get_width_multiplier(owner) -> float:
 		tier_multiplier = TIER_THREE_WIDTH_MULTIPLIER
 	elif tier >= 2:
 		tier_multiplier = TIER_TWO_WIDTH_MULTIPLIER
-	return tier_multiplier * float(owner._get_equipment_skill_range_multiplier())
+	return tier_multiplier * _get_external_range_multiplier(owner)
 
 
 func _get_range_multiplier(owner) -> float:
-	return float(owner._get_equipment_skill_range_multiplier())
+	return _get_external_range_multiplier(owner)
+
+
+func _get_external_range_multiplier(owner) -> float:
+	var range_multiplier: float = 1.0
+	if owner != null and is_instance_valid(owner) and owner.has_method("_get_equipment_skill_range_multiplier"):
+		range_multiplier *= float(owner._get_equipment_skill_range_multiplier())
+	if owner != null and is_instance_valid(owner) and owner.has_method("_get_kebiru_magic_range_multiplier"):
+		range_multiplier *= float(owner._get_kebiru_magic_range_multiplier(SKILL_ID))
+	return range_multiplier
 
 
 func _get_wave_speed(owner) -> float:

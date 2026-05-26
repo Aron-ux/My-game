@@ -159,7 +159,7 @@ static func spawn_sword_slash_scene_effect(owner, center: Vector2, direction: Ve
 		owner.SWORD_SLASH_SCENE_VISIBLE_BOUNDS,
 		center,
 		playback_direction.angle() - Vector2.DOWN.angle(),
-		Vector2(max(18.0, thickness * 2.0), max(72.0, radius * 2.0)),
+		Vector2(22.0, 77.0),
 		13,
 		max(0.24, duration),
 		mirror_horizontal

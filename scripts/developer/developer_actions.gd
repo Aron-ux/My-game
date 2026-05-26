@@ -2,6 +2,7 @@ extends RefCounted
 
 const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
 const ENEMY_ARCHETYPE_DATABASE := preload("res://scripts/enemy/enemy_archetype_database.gd")
+const ENEMY_GLUTTON_SKILL_BEHAVIOR := preload("res://scripts/enemies/enemy_glutton_skill_behavior.gd")
 const PLAYER_BLESSING_SYSTEM := preload("res://scripts/player/player_blessing_system.gd")
 const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
 
@@ -113,7 +114,11 @@ static func grant_all_blessings(main: Node) -> void:
 	var granted_any := false
 	for blessing_id_value in PLAYER_BLESSING_SYSTEM.DEFINITIONS.keys():
 		var blessing_id := str(blessing_id_value)
-		for tier in [1, 2]:
+		var definition: Dictionary = PLAYER_BLESSING_SYSTEM.DEFINITIONS.get(blessing_id, {})
+		var tier_values: Dictionary = definition.get("tier_values", {})
+		for tier in range(1, PLAYER_BLESSING_SYSTEM.MAX_BLESSING_TIER + 1):
+			if not tier_values.has(tier):
+				continue
 			if PLAYER_BLESSING_SYSTEM.apply_blessing(main.player, blessing_id, tier):
 				granted_any = true
 	if not granted_any:
@@ -121,6 +126,39 @@ static func grant_all_blessings(main: Node) -> void:
 	if main.player.has_signal("stats_changed") and main.player.has_method("get_stat_summary"):
 		main.player.stats_changed.emit(main.player.get_stat_summary())
 	main._refresh_hud()
+
+
+static func force_glutton_skill(main: Node, skill_id: String) -> void:
+	if main == null:
+		return
+	var glutton_enemy: Node = _get_or_spawn_glutton_enemy(main)
+	if glutton_enemy == null or not is_instance_valid(glutton_enemy):
+		return
+	ENEMY_GLUTTON_SKILL_BEHAVIOR.force_start_skill(glutton_enemy, skill_id)
+
+
+static func _get_or_spawn_glutton_enemy(main: Node) -> Node:
+	for enemy in _get_runtime_or_group_nodes(main, "enemies"):
+		if _is_glutton_enemy(enemy):
+			return enemy
+	if main.player == null:
+		return null
+	var health_multiplier: float = main._get_spawn_enemy_health_multiplier("small_boss")
+	var speed_multiplier: float = main._get_spawn_enemy_speed_multiplier()
+	var damage_multiplier: float = main._get_spawn_enemy_damage_multiplier()
+	return main._spawn_configured_enemy("small_boss", "smallboss_glutton", health_multiplier, speed_multiplier, INF, 0.0, damage_multiplier)
+
+
+static func _is_glutton_enemy(enemy: Variant) -> bool:
+	if enemy == null or not is_instance_valid(enemy):
+		return false
+	if enemy is Node and (enemy as Node).is_queued_for_deletion():
+		return false
+	if enemy.get("behavior_id") != null and str(enemy.get("behavior_id")) == "glutton":
+		return true
+	if enemy.get("archetype_id") != null and str(enemy.get("archetype_id")) == "smallboss_glutton":
+		return true
+	return false
 
 static func _clear_skill_cooldown(player, skill_id: String) -> void:
 	var property_name := _get_skill_ability_property(skill_id)

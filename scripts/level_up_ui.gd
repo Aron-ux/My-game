@@ -10,6 +10,14 @@ const SURVIVORS_HOVER_DETAIL := preload("res://scripts/ui/components/survivors_h
 const GAME_SETTINGS := preload("res://scripts/game_settings.gd")
 const BUILD_CARD_TEXTURE := preload("res://assets/UI/card/card.png")
 const BUILD_CARD_SCENE := preload("res://assets/UI/card/card.tscn")
+const BUILD_CARD_BLUE_SCENE := preload("res://assets/UI/card/bluecard.tscn")
+const BUILD_CARD_PURPLE_SCENE := preload("res://assets/UI/card/purplecard.tscn")
+const BUILD_CARD_GOLD_SCENE := preload("res://assets/UI/card/goldcard.tscn")
+const MAGIC_STONE_BUILD_CARD_SCENE := preload("res://assets/UI/card/magicstone.tscn")
+const MAGIC_STONE_BLESSING_CARD_SCENE := preload("res://assets/UI/card/stone.tscn")
+const MAGIC_STONE_BUILD_CARD_BLUE_SCENE := preload("res://assets/UI/card/bluestonecard.tscn")
+const MAGIC_STONE_BUILD_CARD_PURPLE_SCENE := preload("res://assets/UI/card/purplestonecard.tscn")
+const MAGIC_STONE_BUILD_CARD_GOLD_SCENE := preload("res://assets/UI/card/goldstonecard.tscn")
 const BUILD_REFRESH_TEXTURE := preload("res://assets/UI/循环.png")
 const TRAIT_HEAD_SCENES := {
 	"level_trait_swordsman": preload("res://assets/UI/facility/swordhead.tscn"),
@@ -19,6 +27,9 @@ const TRAIT_HEAD_SCENES := {
 const BUILD_CARD_DISPLAY_SCALE := 1.0
 const BUILD_CARD_VISUAL_OFFSET := Vector2(52.0, 98.0)
 const TRAIT_BUTTON_SCALE := 2.0
+const OPENING_TRAIT_BUTTON_SCALE := TRAIT_BUTTON_SCALE * 2.0
+const OPENING_TRAIT_IDLE_MODULATE := Color(0.58, 0.58, 0.58, 0.86)
+const OPENING_TRAIT_HOVER_MODULATE := Color(1.24, 1.24, 1.24, 1.0)
 const BUILD_DETAIL_HIDE_DELAY := 0.3
 const BUILD_CARD_SELECT_ANIM_TIME := 0.32
 const BUILD_CARD_SELECT_SHAKE_TIME := 0.10
@@ -29,6 +40,39 @@ const BUILD_REFRESH_BUTTON_VISUAL_OFFSET := Vector2(-5.0, -43.0)
 const TRAIT_BUTTON_VISUAL_OFFSETS := {
 	"level_trait_mage": Vector2(0.0, -10.0)
 }
+const OPENING_TRAIT_BUTTON_VISUAL_OFFSETS := {
+	"level_trait_swordsman": Vector2(80.0, 0.0),
+	"level_trait_gunner": Vector2.ZERO,
+	"level_trait_mage": Vector2(-80.0, -30.0)
+}
+const TRAIT_OPENING_DESCRIPTIONS := {
+	"level_trait_swordsman": "剑士击杀怪物后有10％几率回复血量，每级提供5点血量回复。当前血量回复为5\n为站场角色提供30％的本特性效果。",
+	"level_trait_gunner": "枪手受到攻击时有几率闪避当前攻击，每级提供2％。当前闪避几率为15％\n为站场角色提供30％的本特性效果。",
+	"level_trait_mage": "术师造成击杀后有几率回复3倍大招能量，每级提供2％。当前几率为10％\n为站场角色提供30％的本特性效果。"
+}
+const TRAIT_DETAIL_DESCRIPTIONS := {
+	"level_trait_swordsman": "提供5点血量回复。\n为站场角色提供30％的本特性效果。",
+	"level_trait_gunner": "提供2％的闪避。\n为站场角色提供30％的本特性效果。",
+	"level_trait_mage": "提供2％的击杀3倍回能。\n为站场角色提供30％的本特性效果。"
+}
+const TRAIT_BUTTON_DESCRIPTION_GAP := 4.0
+const OPENING_TRAIT_DESCRIPTION_OFFSETS := {
+	"level_trait_swordsman": Vector2(0.0, -80.0),
+	"level_trait_gunner": Vector2(0.0, -80.0),
+	"level_trait_mage": Vector2(0.0, -50.0)
+}
+const BUILD_DETAIL_HOVER_DELAY := 1.5
+const BUILD_REFRESH_ANIMATION_TIME := 0.5
+const BUILD_REFRESH_COLLAPSE_RATIO := 0.42
+const BUILD_REFRESH_COLLAPSED_SCALE := 0.72
+const BUILD_REFRESH_COLLAPSED_ALPHA := 0.62
+const BUILD_REFRESH_TEXT_HIDDEN_HOLD := 0.08
+const BUILD_REFRESH_BUTTON_ROTATION_TIME := 0.3
+const BUILD_REFRESH_BUTTON_ROTATION_DEGREES := 45.0
+const BUILD_CARD_SUMMARY_CHARS_PER_LINE := 8
+const BUILD_CARD_SUMMARY_MAX_LINES := 4
+const TIER_FOUR_CARD_SHAKE_TIME := 0.16
+const TIER_FOUR_CARD_SHAKE_DISTANCE := 8.0
 
 class BuildCardSelectRing:
 	extends Control
@@ -75,13 +119,20 @@ var build_dimmer: ColorRect
 var build_card_layer: Control
 var trait_button_layer: Control
 var build_refresh_button: Button
+var opening_prompt_label: Label
 var build_detail_hide_timer: Timer
+var build_detail_hover_timer: Timer
 var build_card_entries: Array = []
 var trait_button_entries: Array = []
 var build_card_hover_tweens: Dictionary = {}
+var build_refresh_button_rotation_tween: Tween
 var active_build_detail_control: Control
 var active_build_detail_option_id := ""
+var pending_build_detail_control: Control
+var pending_build_detail_item: Dictionary = {}
 var build_selection_in_progress := false
+var build_refresh_animation_in_progress := false
+var build_refresh_expand_pending := false
 
 var current_mode: String = "direct"
 var current_options: Array = []
@@ -132,6 +183,13 @@ func _ready() -> void:
 	build_detail_hide_timer.timeout.connect(_on_build_detail_hide_timer_timeout)
 	add_child(build_detail_hide_timer)
 
+	build_detail_hover_timer = Timer.new()
+	build_detail_hover_timer.one_shot = true
+	build_detail_hover_timer.wait_time = BUILD_DETAIL_HOVER_DELAY
+	build_detail_hover_timer.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+	build_detail_hover_timer.timeout.connect(_on_build_detail_hover_timer_timeout)
+	add_child(build_detail_hover_timer)
+
 	var viewport := get_viewport()
 	if viewport != null and not viewport.size_changed.is_connected(_on_viewport_size_changed):
 		viewport.size_changed.connect(_on_viewport_size_changed)
@@ -165,6 +223,26 @@ func show_options(options: Array, attribute_options: Array = [], offer_context: 
 	_clear_modal_footer()
 	_ensure_build_overlay()
 	_select_default_attribute_option()
+	if current_mode == "blessing" and not build_refresh_expand_pending:
+		build_refresh_expand_pending = true
+	_rebuild_build_overlay()
+	if build_refresh_expand_pending:
+		build_refresh_expand_pending = false
+		_play_build_refresh_expand_animation()
+
+func show_opening_trait_choice(attribute_options: Array) -> void:
+	current_mode = "opening_trait"
+	current_options = []
+	current_attribute_options = attribute_options
+	current_offer_context = {}
+	option_groups = {}
+	_reset_pending_selection()
+	build_selection_in_progress = false
+	visible = true
+	if modal != null:
+		modal.visible = false
+	_clear_modal_footer()
+	_ensure_build_overlay()
 	_rebuild_build_overlay()
 
 func show_menu(title: String, options: Array) -> void:
@@ -214,6 +292,8 @@ func hide_ui() -> void:
 	visible = false
 	if build_root != null:
 		build_root.visible = false
+	if opening_prompt_label != null:
+		opening_prompt_label.visible = false
 	build_selection_in_progress = false
 	_reset_pending_selection()
 	if hover_detail != null and hover_detail.has_method("hide_detail"):
@@ -229,7 +309,7 @@ func hide_ui() -> void:
 	_clear_modal_footer()
 
 func _apply_responsive_state() -> void:
-	if current_mode == "blessing" and build_root != null and build_root.visible:
+	if ["blessing", "opening_trait"].has(current_mode) and build_root != null and build_root.visible:
 		_layout_build_overlay()
 	_prepare_modal_layout()
 	_refresh_selected_cards()
@@ -279,6 +359,15 @@ func _ensure_build_overlay() -> void:
 	build_root.add_child(build_refresh_button)
 	_apply_refresh_button_style()
 
+	opening_prompt_label = Label.new()
+	opening_prompt_label.visible = false
+	opening_prompt_label.text = "请选择你倾向的角色特性作为开局，可在后续升级中进行切换"
+	opening_prompt_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	opening_prompt_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	opening_prompt_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.48, 1.0))
+	opening_prompt_label.add_theme_font_size_override("font_size", 28)
+	build_root.add_child(opening_prompt_label)
+
 func _fill_rect(control: Control) -> void:
 	control.anchor_left = 0.0
 	control.anchor_top = 0.0
@@ -306,20 +395,23 @@ func _rebuild_build_overlay() -> void:
 	build_card_entries = []
 	trait_button_entries = []
 
-	var displayed_options := current_options.slice(0, min(3, current_options.size()))
-	for raw_option in displayed_options:
-		if raw_option is not Dictionary:
-			continue
-		var option: Dictionary = raw_option
-		var button := _make_build_card_button(option)
-		build_card_layer.add_child(button)
-		build_card_entries.append({
-			"button": button,
-			"option": option
-		})
+	if build_card_layer != null:
+		build_card_layer.visible = current_mode != "opening_trait"
+	if current_mode != "opening_trait":
+		var displayed_options := current_options.slice(0, min(3, current_options.size()))
+		for raw_option in displayed_options:
+			if raw_option is not Dictionary:
+				continue
+			var option: Dictionary = raw_option
+			var button := _make_build_card_button(option)
+			build_card_layer.add_child(button)
+			build_card_entries.append({
+				"button": button,
+				"option": option
+			})
 
 	for raw_trait_option in _get_trait_options():
-		var option: Dictionary = raw_trait_option
+		var option: Dictionary = _with_trait_display_overrides(raw_trait_option)
 		var button := _make_trait_button(option)
 		trait_button_layer.add_child(button)
 		trait_button_entries.append({
@@ -330,9 +422,11 @@ func _rebuild_build_overlay() -> void:
 	_update_trait_button_styles()
 	_update_build_refresh_button()
 	_layout_build_overlay()
+	if not build_refresh_expand_pending:
+		_play_pending_tier_four_card_intro_effects()
 
 func _make_build_card_button(option: Dictionary) -> TextureButton:
-	var button := BUILD_CARD_SCENE.instantiate() as TextureButton
+	var button := _get_build_card_scene(option).instantiate() as TextureButton
 	if button == null:
 		button = TextureButton.new()
 		button.texture_normal = BUILD_CARD_TEXTURE
@@ -348,16 +442,51 @@ func _make_build_card_button(option: Dictionary) -> TextureButton:
 	if button.get_node_or_null("HoverFrame") == null:
 		button.add_child(_make_build_card_hover_frame())
 	button.set_meta("build_card_base_scale", button.scale)
+	button.set_meta("build_card_intro_pending", int(option.get("blessing_tier", 0)) >= 4)
 	_populate_build_card_scene(button, option)
 	return button
 
+func _get_build_card_scene(option: Dictionary) -> PackedScene:
+	var tier: int = clamp(int(option.get("blessing_tier", 1)), 1, 4)
+	var option_category: String = str(option.get("option_category", option.get("blessing_category", "")))
+	if option_category == "magic_stone":
+		return MAGIC_STONE_BUILD_CARD_SCENE
+	var is_magic_stone_blessing := str(option.get("blessing_category", "")) == "magic_stone_blessing"
+	if is_magic_stone_blessing:
+		match tier:
+			2:
+				return MAGIC_STONE_BUILD_CARD_BLUE_SCENE
+			3:
+				return MAGIC_STONE_BUILD_CARD_PURPLE_SCENE
+			4:
+				return MAGIC_STONE_BUILD_CARD_GOLD_SCENE
+			_:
+				return MAGIC_STONE_BLESSING_CARD_SCENE
+	match tier:
+		2:
+			return BUILD_CARD_BLUE_SCENE
+		3:
+			return BUILD_CARD_PURPLE_SCENE
+		4:
+			return BUILD_CARD_GOLD_SCENE
+		_:
+			return BUILD_CARD_SCENE
+
 func _populate_build_card_scene(button: TextureButton, option: Dictionary) -> void:
+	var tier_color: Color = option.get("tier_text_font_color", Color(0.0, 0.0, 0.0, 1.0))
 	var title_label := button.get_node_or_null("Margin/Content/TitleLabel") as Label
 	if title_label != null:
 		title_label.text = str(option.get("title", option.get("name", "选项")))
+		title_label.add_theme_color_override("font_color", tier_color)
+		title_label.add_theme_constant_override("outline_size", int(option.get("tier_text_outline_size", 0)))
+		title_label.add_theme_color_override("font_outline_color", option.get("tier_text_outline_color", Color(0.0, 0.0, 0.0, 0.0)))
 	var summary_label := button.get_node_or_null("Margin/Content/SummaryLabel") as Label
 	if summary_label != null:
-		summary_label.text = _get_summary_text(option)
+		summary_label.add_theme_color_override("font_color", option.get("tier_description_color", tier_color))
+		summary_label.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+		summary_label.clip_text = true
+		summary_label.max_lines_visible = BUILD_CARD_SUMMARY_MAX_LINES
+		summary_label.text = _get_card_summary_text(option)
 
 func _make_build_card_hover_frame() -> Panel:
 	var panel := Panel.new()
@@ -393,10 +522,10 @@ func _make_trait_button(option: Dictionary) -> Button:
 	var option_id := str(option.get("id", ""))
 	var button := Button.new()
 	button.text = ""
-	button.tooltip_text = str(option.get("title", option.get("name", "特性训练")))
+	button.tooltip_text = str(option.get("title", option.get("name", "特性")))
 	button.focus_mode = Control.FOCUS_NONE
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	button.clip_contents = true
+	button.clip_contents = false
 	var head_scene: PackedScene = TRAIT_HEAD_SCENES.get(option_id)
 	if head_scene != null:
 		var head := head_scene.instantiate() as Node2D
@@ -404,10 +533,23 @@ func _make_trait_button(option: Dictionary) -> Button:
 			head.name = "TraitHead"
 			head.set_meta("base_scale", head.scale)
 			button.add_child(head)
-	button.mouse_entered.connect(_on_build_item_mouse_entered.bind(button, option))
-	button.mouse_exited.connect(_on_build_item_mouse_exited.bind(button, option))
+	var description := Label.new()
+	description.name = "OpeningDescription"
+	description.visible = false
+	description.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	description.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	description.add_theme_color_override("font_color", Color(0.92, 0.90, 0.82, 0.95))
+	description.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.65))
+	description.add_theme_constant_override("shadow_offset_x", 1)
+	description.add_theme_constant_override("shadow_offset_y", 1)
+	description.add_theme_font_size_override("font_size", 18)
+	button.add_child(description)
+	button.mouse_entered.connect(_on_trait_button_mouse_entered.bind(button, option))
+	button.mouse_exited.connect(_on_trait_button_mouse_exited.bind(button, option))
 	button.gui_input.connect(_on_build_item_gui_input.bind(button, option))
-	button.pressed.connect(_on_trait_button_pressed.bind(option))
+	button.pressed.connect(_on_trait_button_pressed.bind(button, option))
 	return button
 
 func _layout_build_overlay() -> void:
@@ -417,6 +559,10 @@ func _layout_build_overlay() -> void:
 	var card_count := build_card_entries.size()
 	var base_card_y: float = clamp(viewport.y * 0.055, 42.0, 64.0)
 	var card_y: float = base_card_y + BUILD_CARD_VISUAL_OFFSET.y
+	if opening_prompt_label != null:
+		opening_prompt_label.visible = current_mode == "opening_trait"
+		opening_prompt_label.position = Vector2(0.0, viewport.y * 0.18)
+		opening_prompt_label.size = Vector2(viewport.x, 48.0)
 	if card_count > 0:
 		var fit_scale := _get_build_card_fit_scale(viewport, card_y)
 		for entry in build_card_entries:
@@ -452,8 +598,12 @@ func _layout_build_overlay() -> void:
 			x += card_size.x + card_gap
 
 	var trait_count := trait_button_entries.size()
-	var icon_size: float = clamp(viewport.y * 0.115, 92.0, 122.0) * TRAIT_BUTTON_SCALE
-	var icon_gap: float = clamp(viewport.x * 0.035, 36.0, 54.0) * TRAIT_BUTTON_SCALE
+	var trait_scale: float = OPENING_TRAIT_BUTTON_SCALE if current_mode == "opening_trait" else TRAIT_BUTTON_SCALE
+	var icon_size: float = clamp(viewport.y * 0.115, 92.0, 122.0) * trait_scale
+	var icon_gap: float = clamp(viewport.x * 0.035, 36.0, 54.0) * trait_scale
+	var description_height: float = 0.0
+	if current_mode == "opening_trait":
+		description_height = clamp(viewport.y * 0.13, 92.0, 132.0)
 	var middle_trait_center_x := viewport.x * 0.5
 	if trait_button_layer != null:
 		trait_button_layer.visible = trait_count > 0
@@ -465,10 +615,12 @@ func _layout_build_overlay() -> void:
 			var trait_size := _get_trait_button_size(button, icon_size)
 			trait_sizes.append(trait_size)
 			trait_width += trait_size.x
-			trait_height = max(trait_height, trait_size.y)
+			trait_height = max(trait_height, trait_size.y + description_height)
 		trait_width += icon_gap * float(max(0, trait_count - 1))
 		var cards_bottom := base_card_y + _get_cards_height()
-		var trait_y: float = cards_bottom + clamp(viewport.y * 0.045, 38.0, 56.0)
+		var trait_y: float = viewport.y * 0.5 - trait_height * 0.5
+		if current_mode != "opening_trait":
+			trait_y = cards_bottom + clamp(viewport.y * 0.045, 38.0, 56.0)
 		trait_button_layer.position = Vector2((viewport.x - trait_width) * 0.5, trait_y)
 		trait_button_layer.size = Vector2(trait_width, trait_height)
 		var trait_x := 0.0
@@ -480,22 +632,30 @@ func _layout_build_overlay() -> void:
 			var trait_size: Vector2 = trait_sizes[index]
 			var option: Dictionary = entry.get("option", {})
 			var option_id := str(option.get("id", ""))
-			var visual_offset: Vector2 = TRAIT_BUTTON_VISUAL_OFFSETS.get(option_id, Vector2.ZERO)
-			button.position = Vector2(trait_x, (trait_height - trait_size.y) * 0.5) + visual_offset
+			var visual_offset: Vector2 = _get_trait_button_visual_offset(option_id)
+			var trait_button_y := 0.0 if current_mode == "opening_trait" else (trait_height - trait_size.y) * 0.5
+			button.position = Vector2(trait_x, trait_button_y) + visual_offset
 			button.custom_minimum_size = trait_size
 			button.size = trait_size
+			button.set_meta("build_card_layout_position", button.position)
+			button.set_meta("trait_option_id", option_id)
 			_layout_trait_head(button, option_id == pending_attribute_option_id)
+			_layout_opening_trait_description(button, option_id, trait_size, description_height)
 			if index == int(trait_count / 2):
 				middle_trait_center_x = trait_button_layer.position.x + button.position.x + trait_size.x * 0.5
 			trait_x += trait_size.x + icon_gap
 
 	if build_refresh_button != null:
+		if current_mode == "opening_trait":
+			build_refresh_button.visible = false
+			return
 		var refresh_size: float = clamp(viewport.y * 0.055, 50.0, 62.0)
 		var trait_bottom := trait_button_layer.position.y + trait_button_layer.size.y if trait_button_layer != null and trait_button_layer.visible else base_card_y + _get_cards_height()
 		var refresh_y: float = min(viewport.y - refresh_size - 28.0, trait_bottom + clamp(viewport.y * 0.060, 48.0, 66.0))
 		build_refresh_button.position = Vector2(middle_trait_center_x - refresh_size * 0.5, refresh_y) + BUILD_REFRESH_BUTTON_VISUAL_OFFSET
 		build_refresh_button.size = Vector2(refresh_size, refresh_size)
 		build_refresh_button.custom_minimum_size = Vector2(refresh_size, refresh_size)
+		build_refresh_button.pivot_offset = build_refresh_button.size * 0.5
 
 func _get_cards_bottom() -> float:
 	var bottom := 0.0
@@ -588,18 +748,40 @@ func _apply_refresh_button_style() -> void:
 func _update_build_refresh_button() -> void:
 	if build_refresh_button == null:
 		return
+	if current_mode == "opening_trait":
+		build_refresh_button.visible = false
+		build_refresh_button.disabled = true
+		return
 	var refresh_limit := int(current_offer_context.get("refresh_limit", 0))
 	var refresh_remaining := int(current_offer_context.get("refresh_remaining", 0))
-	build_refresh_button.visible = refresh_limit > 0
-	build_refresh_button.disabled = refresh_remaining <= 0
-	build_refresh_button.tooltip_text = "刷新 %d/%d" % [refresh_remaining, refresh_limit] if refresh_limit > 0 else "刷新"
+	var refresh_unlimited := _is_upgrade_refresh_unlimited()
+	build_refresh_button.visible = refresh_unlimited or refresh_limit > 0
+	build_refresh_button.disabled = not _can_refresh_current_offer()
+	build_refresh_button.tooltip_text = "开发者模式：无限刷新" if refresh_unlimited else ("刷新 %d/%d" % [refresh_remaining, refresh_limit] if refresh_limit > 0 else "刷新")
+
+func _is_upgrade_refresh_unlimited() -> bool:
+	return bool(current_offer_context.get("refresh_unlimited", false))
+
+func _can_refresh_current_offer() -> bool:
+	if _is_upgrade_refresh_unlimited():
+		return true
+	return int(current_offer_context.get("refresh_remaining", 0)) > 0
+
+func _with_trait_display_overrides(raw_option: Dictionary) -> Dictionary:
+	var option := raw_option.duplicate(true)
+	var option_id := str(option.get("id", ""))
+	if TRAIT_DETAIL_DESCRIPTIONS.has(option_id):
+		option["description"] = str(TRAIT_DETAIL_DESCRIPTIONS.get(option_id, ""))
+		option["preview_description"] = str(TRAIT_DETAIL_DESCRIPTIONS.get(option_id, ""))
+		option["exact_description"] = str(TRAIT_DETAIL_DESCRIPTIONS.get(option_id, ""))
+	return option
 
 func _get_trait_options() -> Array:
 	var trait_options: Array = []
 	for raw_option in current_attribute_options:
 		if raw_option is not Dictionary:
 			continue
-		var option: Dictionary = raw_option
+		var option: Dictionary = _with_trait_display_overrides(raw_option)
 		if TRAIT_HEAD_SCENES.has(str(option.get("id", ""))):
 			trait_options.append(option)
 	return trait_options
@@ -643,7 +825,10 @@ func _apply_trait_button_style(button: Button, selected: bool) -> void:
 	button.add_theme_stylebox_override("pressed", empty)
 	button.add_theme_stylebox_override("focus", empty)
 	button.add_theme_stylebox_override("disabled", empty)
-	button.modulate = Color(1.0, 1.0, 1.0, 1.0) if selected else Color(0.72, 0.76, 0.80, 0.88)
+	if current_mode == "opening_trait":
+		button.modulate = OPENING_TRAIT_IDLE_MODULATE
+	else:
+		button.modulate = Color(1.0, 1.0, 1.0, 1.0) if selected else Color(0.72, 0.76, 0.80, 0.88)
 	_layout_trait_head(button, selected)
 
 func _layout_trait_head(button: Button, selected: bool) -> void:
@@ -665,6 +850,23 @@ func _layout_trait_head(button: Button, selected: bool) -> void:
 	head.position = button.size * 0.5
 	head.scale = base_scale * fit_scale
 
+func _get_trait_button_visual_offset(option_id: String) -> Vector2:
+	if current_mode == "opening_trait":
+		return OPENING_TRAIT_BUTTON_VISUAL_OFFSETS.get(option_id, Vector2.ZERO)
+	return TRAIT_BUTTON_VISUAL_OFFSETS.get(option_id, Vector2.ZERO)
+
+func _layout_opening_trait_description(button: Button, option_id: String, trait_size: Vector2, description_height: float) -> void:
+	var description := button.get_node_or_null("OpeningDescription") as Label
+	if description == null:
+		return
+	description.visible = current_mode == "opening_trait"
+	if not description.visible:
+		return
+	description.text = str(TRAIT_OPENING_DESCRIPTIONS.get(option_id, ""))
+	var description_width := trait_size.x * 0.86
+	description.position = Vector2((trait_size.x - description_width) * 0.5, trait_size.y + TRAIT_BUTTON_DESCRIPTION_GAP) + OPENING_TRAIT_DESCRIPTION_OFFSETS.get(option_id, Vector2.ZERO)
+	description.size = Vector2(description_width, description_height)
+
 func _get_trait_button_size(button: Button, fallback_size: float) -> Vector2:
 	return Vector2(fallback_size, fallback_size)
 
@@ -679,10 +881,26 @@ func _on_build_card_pressed(card: TextureButton, option: Dictionary) -> void:
 	await _play_build_card_select_animation(card)
 	upgrade_selected.emit(pending_blessing_option_id, pending_attribute_option_id)
 
-func _on_trait_button_pressed(option: Dictionary) -> void:
+func _on_trait_button_pressed(button: Button, option: Dictionary) -> void:
 	if build_selection_in_progress:
 		return
+	if current_mode == "opening_trait":
+		build_selection_in_progress = true
+		_hide_build_item_detail()
+		_set_build_overlay_input_enabled(false, button)
+		await _play_trait_button_select_animation(button)
+		_set_attribute_selection(option, true)
+		upgrade_selected.emit("", str(option.get("id", "")))
+		return
 	_set_attribute_selection(option, true)
+
+func _on_trait_button_mouse_entered(button: Button, item: Dictionary) -> void:
+	_animate_trait_button_hover(button, true)
+	_on_build_item_mouse_entered(button, item)
+
+func _on_trait_button_mouse_exited(button: Button, item: Dictionary) -> void:
+	_animate_trait_button_hover(button, false)
+	_on_build_item_mouse_exited(button, item)
 
 func _on_build_card_mouse_entered(card: TextureButton, item: Dictionary) -> void:
 	_animate_build_card_hover(card, true)
@@ -695,7 +913,7 @@ func _on_build_card_mouse_exited(card: TextureButton) -> void:
 func _animate_build_card_hover(card: TextureButton, hovered: bool) -> void:
 	if card == null:
 		return
-	if build_selection_in_progress:
+	if build_selection_in_progress or build_refresh_animation_in_progress:
 		return
 	var key := card.get_instance_id()
 	var old_tween := build_card_hover_tweens.get(key) as Tween
@@ -724,6 +942,248 @@ func _animate_build_card_hover(card: TextureButton, hovered: bool) -> void:
 	tween.tween_property(card, "scale", target_scale, 0.12)
 	tween.tween_property(card, "modulate", target_modulate, 0.12)
 	build_card_hover_tweens[key] = tween
+
+func _play_build_refresh_collapse_animation() -> void:
+	var cards := _get_visible_build_cards()
+	if cards.is_empty():
+		return
+	var center := _get_build_cards_layout_center(cards)
+	var duration := BUILD_REFRESH_ANIMATION_TIME * BUILD_REFRESH_COLLAPSE_RATIO
+	var tween := create_tween()
+	tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	tween.set_parallel(true)
+	tween.set_trans(Tween.TRANS_CUBIC)
+	tween.set_ease(Tween.EASE_IN_OUT)
+	for card in cards:
+		_kill_build_card_tween(card)
+		var layout_position := _get_build_card_layout_position(card)
+		var layout_scale := _get_build_card_layout_scale(card)
+		var collapsed_position := _get_build_card_position_for_center(card, center)
+		card.z_index = 10
+		card.modulate = Color(1.0, 1.0, 1.0, 1.0)
+		tween.tween_property(card, "position", collapsed_position, duration)
+		tween.tween_property(card, "modulate", Color(1.0, 1.0, 1.0, BUILD_REFRESH_COLLAPSED_ALPHA), duration)
+		tween.tween_property(card, "scale", layout_scale * BUILD_REFRESH_COLLAPSED_SCALE, duration)
+	await tween.finished
+	for card in cards:
+		_set_build_card_text_visible(card, false)
+	var hold_timer := get_tree().create_timer(BUILD_REFRESH_TEXT_HIDDEN_HOLD, true)
+	await hold_timer.timeout
+
+func _play_build_refresh_expand_animation() -> void:
+	var cards := _get_visible_build_cards()
+	if cards.is_empty():
+		build_refresh_animation_in_progress = false
+		_update_build_refresh_button()
+		return
+	build_refresh_animation_in_progress = true
+	_set_build_overlay_input_enabled(false)
+	var center := _get_build_cards_layout_center(cards)
+	var duration := BUILD_REFRESH_ANIMATION_TIME * (1.0 - BUILD_REFRESH_COLLAPSE_RATIO)
+	for card in cards:
+		_kill_build_card_tween(card)
+		_set_build_card_text_visible(card, false)
+		card.position = _get_build_card_position_for_center(card, center)
+		card.scale = _get_build_card_layout_scale(card) * BUILD_REFRESH_COLLAPSED_SCALE
+		card.modulate = Color(1.0, 1.0, 1.0, BUILD_REFRESH_COLLAPSED_ALPHA)
+		card.z_index = 10
+	var tween := create_tween()
+	tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	tween.set_parallel(true)
+	tween.set_trans(Tween.TRANS_BACK)
+	tween.set_ease(Tween.EASE_OUT)
+	for card in cards:
+		tween.tween_property(card, "position", _get_build_card_layout_position(card), duration)
+		tween.tween_property(card, "scale", _get_build_card_layout_scale(card), duration)
+		tween.tween_property(card, "modulate", Color(1.0, 1.0, 1.0, 1.0), duration)
+	await tween.finished
+	for card in cards:
+		if card != null and is_instance_valid(card):
+			card.z_index = 0
+			_set_build_card_text_visible(card, true)
+	build_refresh_animation_in_progress = false
+	_set_build_overlay_input_enabled(true)
+	_update_build_refresh_button()
+	_play_pending_tier_four_card_intro_effects()
+
+func _play_pending_tier_four_card_intro_effects() -> void:
+	for entry in build_card_entries:
+		if entry is not Dictionary:
+			continue
+		var card := entry.get("button") as TextureButton
+		if card == null or not is_instance_valid(card):
+			continue
+		if not bool(card.get_meta("build_card_intro_pending", false)):
+			continue
+		card.set_meta("build_card_intro_pending", false)
+		_play_tier_four_card_intro_effect(card)
+
+func _play_tier_four_card_intro_effect(card: TextureButton) -> void:
+	if card == null or not is_instance_valid(card):
+		return
+	_kill_build_card_tween(card)
+	var layout_position := _get_build_card_layout_position(card)
+	var key := card.get_instance_id()
+	var tween := create_tween()
+	tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	tween.set_trans(Tween.TRANS_SINE)
+	tween.set_ease(Tween.EASE_OUT)
+	var shake_motion_time: float = TIER_FOUR_CARD_SHAKE_TIME * 0.75
+	var return_time: float = TIER_FOUR_CARD_SHAKE_TIME * 0.25
+	var shake_step: float = shake_motion_time / 4.0
+	tween.tween_property(card, "position", layout_position + Vector2(TIER_FOUR_CARD_SHAKE_DISTANCE, 0.0), shake_step)
+	tween.tween_property(card, "position", layout_position + Vector2(0.0, -TIER_FOUR_CARD_SHAKE_DISTANCE), shake_step)
+	tween.tween_property(card, "position", layout_position + Vector2(-TIER_FOUR_CARD_SHAKE_DISTANCE, 0.0), shake_step)
+	tween.tween_property(card, "position", layout_position + Vector2(0.0, TIER_FOUR_CARD_SHAKE_DISTANCE), shake_step)
+	tween.tween_property(card, "position", layout_position, return_time)
+	build_card_hover_tweens[key] = tween
+
+func _play_build_refresh_button_click_animation() -> void:
+	if build_refresh_button == null:
+		return
+	if build_refresh_button_rotation_tween != null and build_refresh_button_rotation_tween.is_valid():
+		build_refresh_button_rotation_tween.kill()
+	build_refresh_button.rotation = 0.0
+	build_refresh_button.pivot_offset = build_refresh_button.size * 0.5
+	build_refresh_button_rotation_tween = create_tween()
+	build_refresh_button_rotation_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	build_refresh_button_rotation_tween.set_trans(Tween.TRANS_QUAD)
+	build_refresh_button_rotation_tween.set_ease(Tween.EASE_OUT)
+	build_refresh_button_rotation_tween.tween_property(
+		build_refresh_button,
+		"rotation",
+		deg_to_rad(BUILD_REFRESH_BUTTON_ROTATION_DEGREES),
+		BUILD_REFRESH_BUTTON_ROTATION_TIME
+	)
+	build_refresh_button_rotation_tween.tween_callback(Callable(self, "_reset_build_refresh_button_rotation"))
+
+func _reset_build_refresh_button_rotation() -> void:
+	if build_refresh_button != null:
+		build_refresh_button.rotation = 0.0
+
+func _get_visible_build_cards() -> Array[Control]:
+	var cards: Array[Control] = []
+	for entry in build_card_entries:
+		if entry is not Dictionary:
+			continue
+		var card := entry.get("button") as Control
+		if card != null and is_instance_valid(card) and card.visible:
+			cards.append(card)
+	return cards
+
+func _get_build_cards_layout_center(cards: Array[Control]) -> Vector2:
+	var bounds := Rect2()
+	var has_bounds := false
+	for card in cards:
+		var rect := _get_build_card_scaled_rect(card, _get_build_card_layout_position(card), _get_build_card_layout_scale(card))
+		if has_bounds:
+			bounds = bounds.merge(rect)
+		else:
+			bounds = rect
+			has_bounds = true
+	return bounds.get_center() if has_bounds else Vector2.ZERO
+
+func _get_build_card_position_for_center(card: Control, center: Vector2) -> Vector2:
+	if card == null:
+		return center
+	return center - card.pivot_offset
+
+func _get_build_card_layout_position(card: Control) -> Vector2:
+	if card != null and card.has_meta("build_card_layout_position"):
+		var value: Variant = card.get_meta("build_card_layout_position")
+		if value is Vector2:
+			return value
+	return card.position if card != null else Vector2.ZERO
+
+func _get_build_card_layout_scale(card: Control) -> Vector2:
+	if card != null and card.has_meta("build_card_layout_scale"):
+		var value: Variant = card.get_meta("build_card_layout_scale")
+		if value is Vector2:
+			return value
+	return card.scale if card != null else Vector2.ONE
+
+func _kill_build_card_tween(card: Control) -> void:
+	if card == null:
+		return
+	var key := card.get_instance_id()
+	var old_tween := build_card_hover_tweens.get(key) as Tween
+	if old_tween != null and old_tween.is_valid():
+		old_tween.kill()
+	build_card_hover_tweens.erase(key)
+
+func _set_build_card_text_visible(card: Control, text_visible: bool) -> void:
+	if card == null:
+		return
+	var content := card.get_node_or_null("Margin/Content") as Control
+	if content != null:
+		content.visible = text_visible
+	for child in card.get_children():
+		_set_label_subtree_visible(child, text_visible)
+
+func _set_label_subtree_visible(node: Node, text_visible: bool) -> void:
+	if node is Label:
+		(node as Label).visible = text_visible
+	for child in node.get_children():
+		_set_label_subtree_visible(child, text_visible)
+
+func _animate_trait_button_hover(button: Button, hovered: bool) -> void:
+	if button == null:
+		return
+	if build_selection_in_progress:
+		return
+	var key := button.get_instance_id()
+	var old_tween := build_card_hover_tweens.get(key) as Tween
+	if old_tween != null and old_tween.is_valid():
+		old_tween.kill()
+	var layout_position: Vector2 = button.position
+	if button.has_meta("build_card_layout_position"):
+		var position_value: Variant = button.get_meta("build_card_layout_position")
+		if position_value is Vector2:
+			layout_position = position_value
+	button.z_index = 20 if hovered else 0
+	var target_position := layout_position + Vector2(0.0, -10.0) if hovered else layout_position
+	var selected := str(button.get_meta("trait_option_id", "")) == pending_attribute_option_id
+	var base_modulate := Color(1.0, 1.0, 1.0, 1.0) if selected else Color(0.72, 0.76, 0.80, 0.88)
+	if current_mode == "opening_trait":
+		base_modulate = OPENING_TRAIT_IDLE_MODULATE
+	var target_modulate := OPENING_TRAIT_HOVER_MODULATE if current_mode == "opening_trait" and hovered else (Color(1.08, 1.08, 1.08, 1.0) if hovered else base_modulate)
+	var tween := create_tween()
+	tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	tween.set_parallel(true)
+	tween.set_trans(Tween.TRANS_QUAD)
+	tween.set_ease(Tween.EASE_OUT)
+	tween.tween_property(button, "position", target_position, 0.12)
+	tween.tween_property(button, "modulate", target_modulate, 0.12)
+	build_card_hover_tweens[key] = tween
+
+func _play_trait_button_select_animation(button: Button) -> void:
+	if button == null or not is_instance_valid(button):
+		return
+	var key := button.get_instance_id()
+	var old_tween := build_card_hover_tweens.get(key) as Tween
+	if old_tween != null and old_tween.is_valid():
+		old_tween.kill()
+	var layout_position: Vector2 = button.position
+	if button.has_meta("build_card_layout_position"):
+		var position_value: Variant = button.get_meta("build_card_layout_position")
+		if position_value is Vector2:
+			layout_position = position_value
+	button.position = layout_position
+	button.modulate = Color(1.0, 1.0, 1.0, 1.0)
+	button.z_index = 50
+	_hide_unselected_trait_overlay_parts(button)
+	var tween := create_tween()
+	tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	tween.set_trans(Tween.TRANS_SINE)
+	tween.set_ease(Tween.EASE_OUT)
+	var shake_step := BUILD_CARD_SELECT_SHAKE_TIME / 4.0
+	tween.tween_property(button, "position", layout_position + Vector2(6.0, 0.0), shake_step)
+	tween.tween_property(button, "position", layout_position + Vector2(-6.0, 0.0), shake_step)
+	tween.tween_property(button, "position", layout_position + Vector2(3.0, 0.0), shake_step)
+	tween.tween_property(button, "position", layout_position, shake_step)
+	tween.tween_property(button, "modulate", Color(1.0, 1.0, 1.0, 0.0), BUILD_CARD_SELECT_ANIM_TIME)
+	var hold_timer := get_tree().create_timer(BUILD_CARD_SELECT_SHAKE_TIME + BUILD_CARD_SELECT_ANIM_TIME, true)
+	await hold_timer.timeout
 
 func _play_build_card_select_animation(card: TextureButton) -> void:
 	if card == null or not is_instance_valid(card):
@@ -789,6 +1249,28 @@ func _hide_unselected_build_overlay_parts(selected_card: Control) -> void:
 		if card != null and card != selected_card:
 			card.visible = false
 
+func _hide_unselected_trait_overlay_parts(selected_button: Control) -> void:
+	if build_dimmer != null:
+		build_dimmer.visible = false
+	if opening_prompt_label != null:
+		opening_prompt_label.visible = false
+	if build_refresh_button != null:
+		build_refresh_button.visible = false
+	for entry in build_card_entries:
+		if entry is not Dictionary:
+			continue
+		var card := entry.get("button") as Control
+		if card != null:
+			card.visible = false
+	if trait_button_layer != null:
+		trait_button_layer.visible = true
+	for entry in trait_button_entries:
+		if entry is not Dictionary:
+			continue
+		var button := entry.get("button") as Control
+		if button != null and button != selected_button:
+			button.visible = false
+
 func _get_build_card_scaled_rect(card: Control, card_position: Vector2, card_scale: Vector2) -> Rect2:
 	var base_size := _get_build_card_base_size(card)
 	var pivot := card.pivot_offset
@@ -810,13 +1292,22 @@ func _set_build_overlay_input_enabled(enabled: bool, selected_card: BaseButton =
 		if button != null:
 			button.disabled = not enabled
 	if build_refresh_button != null:
-		build_refresh_button.disabled = not enabled or int(current_offer_context.get("refresh_remaining", 0)) <= 0
+		build_refresh_button.disabled = not enabled or not _can_refresh_current_offer()
 
 func _on_build_item_mouse_entered(control: Control, item: Dictionary) -> void:
 	if control == active_build_detail_control:
 		_cancel_build_detail_hide()
+	pending_build_detail_control = control
+	pending_build_detail_item = item.duplicate(true)
+	if build_detail_hover_timer != null:
+		build_detail_hover_timer.start(BUILD_DETAIL_HOVER_DELAY)
 
 func _on_build_item_mouse_exited(control: Control, item: Dictionary) -> void:
+	if control == pending_build_detail_control:
+		pending_build_detail_control = null
+		pending_build_detail_item = {}
+		if build_detail_hover_timer != null:
+			build_detail_hover_timer.stop()
 	if control == active_build_detail_control:
 		_schedule_build_detail_hide()
 
@@ -837,6 +1328,10 @@ func _toggle_build_item_detail(control: Control, item: Dictionary) -> void:
 func _show_build_item_detail(control: Control, item: Dictionary) -> void:
 	active_build_detail_control = control
 	active_build_detail_option_id = str(item.get("id", ""))
+	pending_build_detail_control = null
+	pending_build_detail_item = {}
+	if build_detail_hover_timer != null:
+		build_detail_hover_timer.stop()
 	_cancel_build_detail_hide()
 	if hover_detail != null and hover_detail.has_method("show_item"):
 		hover_detail.show_item(item, get_viewport().get_mouse_position(), Rect2(control.global_position, control.size))
@@ -849,7 +1344,11 @@ func _hide_build_item_detail() -> void:
 func _clear_active_build_detail() -> void:
 	active_build_detail_control = null
 	active_build_detail_option_id = ""
+	pending_build_detail_control = null
+	pending_build_detail_item = {}
 	_cancel_build_detail_hide()
+	if build_detail_hover_timer != null:
+		build_detail_hover_timer.stop()
 
 func _schedule_build_detail_hide() -> void:
 	if build_detail_hide_timer == null:
@@ -868,6 +1367,18 @@ func _on_build_detail_hide_timer_timeout() -> void:
 		return
 	_hide_build_item_detail()
 
+func _on_build_detail_hover_timer_timeout() -> void:
+	if pending_build_detail_control == null or not is_instance_valid(pending_build_detail_control):
+		return
+	var viewport := get_viewport()
+	if viewport == null:
+		return
+	if not pending_build_detail_control.get_global_rect().has_point(viewport.get_mouse_position()):
+		pending_build_detail_control = null
+		pending_build_detail_item = {}
+		return
+	_show_build_item_detail(pending_build_detail_control, pending_build_detail_item)
+
 func _get_summary_text(item: Dictionary) -> String:
 	for key in ["summary", "short_description", "preview_description"]:
 		var value := str(item.get(key, ""))
@@ -875,12 +1386,31 @@ func _get_summary_text(item: Dictionary) -> String:
 			return _first_line(value)
 	return _first_line(str(item.get("description", "")))
 
+func _get_card_summary_text(item: Dictionary) -> String:
+	return _wrap_card_text(_get_summary_text(item), BUILD_CARD_SUMMARY_CHARS_PER_LINE, BUILD_CARD_SUMMARY_MAX_LINES)
+
 func _first_line(text_value: String) -> String:
 	var normalized := text_value.replace("\r", "")
 	var newline_index := normalized.find("\n")
 	if newline_index >= 0:
 		return normalized.substr(0, newline_index)
 	return normalized
+
+func _wrap_card_text(text_value: String, max_chars_per_line: int, max_lines: int) -> String:
+	var normalized := text_value.replace("\r", "").replace("\n", "")
+	var lines: Array[String] = []
+	var current := ""
+	for index in range(normalized.length()):
+		var next_char := normalized.substr(index, 1)
+		current += next_char
+		if current.length() >= max_chars_per_line:
+			lines.append(current)
+			current = ""
+			if lines.size() >= max_lines:
+				break
+	if lines.size() < max_lines and current != "":
+		lines.append(current)
+	return "\n".join(lines)
 
 func _prepare_modal_layout() -> void:
 	if modal != null and modal.has_method("apply_layout"):
@@ -898,14 +1428,15 @@ func _configure_level_up_footer() -> void:
 	if modal == null or not modal.has_method("add_footer_button"):
 		return
 	var refresh_limit := int(current_offer_context.get("refresh_limit", 0))
-	if refresh_limit <= 0:
+	var refresh_unlimited := _is_upgrade_refresh_unlimited()
+	if refresh_limit <= 0 and not refresh_unlimited:
 		return
 	var refresh_remaining := int(current_offer_context.get("refresh_remaining", 0))
 	var label := str(current_offer_context.get("refresh_button_label", ""))
 	if label == "":
-		label = "刷新祝福 %d/%d" % [refresh_remaining, refresh_limit] if refresh_remaining > 0 else "刷新已用完"
+		label = "刷新" if refresh_unlimited else ("刷新祝福 %d/%d" % [refresh_remaining, refresh_limit] if refresh_remaining > 0 else "刷新已用完")
 	var button: Button = modal.add_footer_button(label, Callable(self, "_on_refresh_pressed"), "normal")
-	button.disabled = refresh_remaining <= 0
+	button.disabled = not _can_refresh_current_offer()
 
 func _clear_modal_footer() -> void:
 	if modal != null and modal.has_method("clear_footer"):
@@ -914,18 +1445,27 @@ func _clear_modal_footer() -> void:
 func _on_refresh_pressed() -> void:
 	if current_mode != "blessing":
 		return
-	if int(current_offer_context.get("refresh_remaining", 0)) <= 0:
+	if build_refresh_animation_in_progress or build_selection_in_progress:
 		return
-	current_offer_context["refresh_remaining"] = 0
+	if not _can_refresh_current_offer():
+		return
+	build_refresh_animation_in_progress = true
+	_hide_build_item_detail()
+	_play_build_refresh_button_click_animation()
+	_set_build_overlay_input_enabled(false)
+	await _play_build_refresh_collapse_animation()
+	if not _is_upgrade_refresh_unlimited():
+		current_offer_context["refresh_remaining"] = 0
 	_configure_level_up_footer()
 	_update_build_refresh_button()
+	build_refresh_expand_pending = true
 	upgrade_refresh_requested.emit()
 
 func _rebuild_level_up_list() -> void:
 	card_list.clear()
 	_add_unified_blessing_options()
 	if not current_attribute_options.is_empty():
-		card_list.add_section("英雄特性训练")
+		card_list.add_section("英雄特性")
 		card_list.columns = 2
 		card_list.add_card_grid(current_attribute_options, 2)
 	_refresh_selected_cards()

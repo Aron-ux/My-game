@@ -36,7 +36,7 @@ var pending_by_enemy_id: Dictionary = {}
 var last_processed_render_frame: int = -1
 var feedback_jobs_used_this_frame: int = 0
 var attack_results_by_role: Dictionary = {}
-var pending_kill_energy: float = 0.0
+var pending_kill_energy_by_lock_bypass: Dictionary = {}
 
 
 func _ready() -> void:
@@ -101,7 +101,7 @@ func _physics_process(_delta: float) -> void:
 	last_processed_render_frame = render_frame
 	feedback_jobs_used_this_frame = 0
 	attack_results_by_role.clear()
-	pending_kill_energy = 0.0
+	pending_kill_energy_by_lock_bypass.clear()
 	var queue_size := _queue_size()
 	if queue_size <= 0:
 		_compact_processed_jobs(true)
@@ -154,9 +154,7 @@ func _apply_job_at_index(index: int) -> void:
 		if prefer_silent and enemy.has_method("take_batched_damage"):
 			killed = bool(_deal_batched_damage_to_enemy(enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, kill_energy_bonus, suppress_status_visual))
 		else:
-			killed = bool(source_player._deal_damage_to_enemy(enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, suppress_status_visual))
-			if killed and kill_energy_bonus > 0.0 and source_player.has_method("_add_kill_energy"):
-				_queue_kill_energy(kill_energy_bonus)
+			killed = bool(source_player._deal_damage_to_enemy(enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, suppress_status_visual, kill_energy_bonus))
 	elif enemy.has_method("take_damage"):
 		killed = bool(enemy.take_damage(damage_amount))
 	_queue_attack_result(source_role_id, hit_counts[index], killed)
@@ -180,11 +178,14 @@ func _queue_attack_result(role_id: String, hit_count: int, killed: bool) -> void
 	if not attack_results_by_role.has(role_id):
 		attack_results_by_role[role_id] = {
 			"hit_count": 0,
-			"killed": false
+			"killed": false,
+			"kill_count": 0
 		}
 	var result: Dictionary = attack_results_by_role[role_id]
 	result["hit_count"] = int(result.get("hit_count", 0)) + hit_count
 	result["killed"] = bool(result.get("killed", false)) or killed
+	if killed:
+		result["kill_count"] = int(result.get("kill_count", 0)) + 1
 	attack_results_by_role[role_id] = result
 
 
@@ -196,22 +197,23 @@ func _flush_attack_results() -> void:
 		return
 	for role_id in attack_results_by_role.keys():
 		var result: Dictionary = attack_results_by_role[role_id]
-		source_player._register_attack_result(str(role_id), int(result.get("hit_count", 0)), bool(result.get("killed", false)))
+		source_player._register_attack_result(str(role_id), int(result.get("hit_count", 0)), bool(result.get("killed", false)), int(result.get("kill_count", 0)))
 	attack_results_by_role.clear()
 
 
-func _queue_kill_energy(amount: float) -> void:
+func _queue_kill_energy(amount: float, bypass_lock_role_id: String = "") -> void:
 	if amount <= 0.0:
 		return
-	pending_kill_energy += amount
+	pending_kill_energy_by_lock_bypass[bypass_lock_role_id] = float(pending_kill_energy_by_lock_bypass.get(bypass_lock_role_id, 0.0)) + amount
 
 
 func _flush_pending_kill_energy() -> void:
-	if pending_kill_energy <= 0.0:
+	if pending_kill_energy_by_lock_bypass.is_empty():
 		return
 	if source_player != null and is_instance_valid(source_player) and source_player.has_method("_add_kill_energy"):
-		source_player._add_kill_energy(pending_kill_energy)
-	pending_kill_energy = 0.0
+		for bypass_lock_role_id in pending_kill_energy_by_lock_bypass.keys():
+			source_player._add_kill_energy(float(pending_kill_energy_by_lock_bypass.get(bypass_lock_role_id, 0.0)), str(bypass_lock_role_id))
+	pending_kill_energy_by_lock_bypass.clear()
 
 
 func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float, vulnerability_duration: float, slow_multiplier: float, slow_duration: float, source_position: Variant, kill_energy_bonus: float, suppress_status_visual: bool) -> bool:
@@ -236,9 +238,16 @@ func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_rol
 	if str(enemy.get("enemy_kind")) == "boss" and source_player.has_method("_get_boss_damage_energy"):
 		_queue_kill_energy(source_player._get_boss_damage_energy(final_damage))
 	if killed and source_player.has_method("_get_kill_energy_from_enemy"):
-		_queue_kill_energy(source_player._get_kill_energy_from_enemy(enemy))
+		var kill_energy: float = source_player._get_kill_energy_from_enemy(enemy)
+		var bypass_lock_role_id: String = source_role_id if source_role_id == "mage" and kill_energy_bonus > 0.0 else ""
+		_queue_kill_energy(kill_energy, bypass_lock_role_id)
+		if source_player.has_method("_try_apply_mage_kill_energy_proc"):
+			source_player._try_apply_mage_kill_energy_proc(source_role_id, kill_energy, bypass_lock_role_id)
 		if kill_energy_bonus > 0.0:
-			_queue_kill_energy(kill_energy_bonus)
+			var bonus_energy: float = kill_energy * kill_energy_bonus
+			_queue_kill_energy(bonus_energy, bypass_lock_role_id)
+			if source_player.has_method("_try_apply_mage_kill_energy_proc"):
+				source_player._try_apply_mage_kill_energy_proc(source_role_id, bonus_energy, bypass_lock_role_id)
 	if vulnerability_bonus > 0.0 and enemy.has_method("apply_vulnerability"):
 		enemy.apply_vulnerability(vulnerability_bonus, vulnerability_duration)
 	if slow_duration > 0.0:

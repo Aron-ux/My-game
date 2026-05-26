@@ -9,7 +9,6 @@ const PLAYER_REWARD_APPLIER := preload("res://scripts/player/player_reward_appli
 
 
 static func get_attribute_upgrade_options(owner) -> Array:
-	owner._sync_swordsman_trait_health_bonus()
 	var trait_options: Array = []
 	for definition in PLAYER_ATTRIBUTE_FLOW.get_trait_definitions_for_owner(owner):
 		if definition is not Dictionary:

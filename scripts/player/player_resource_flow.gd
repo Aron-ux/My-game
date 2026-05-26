@@ -104,6 +104,13 @@ static func die(owner) -> void:
 	if owner.is_dead:
 		return
 
+	owner.current_health = 0.0
+	if owner.has_method("_save_active_role_health"):
+		owner._save_active_role_health()
+	owner.health_changed.emit(owner.current_health, owner.max_health)
+	if owner.has_method("_update_player_health_bar"):
+		owner._update_player_health_bar(owner._get_active_role())
+
 	owner.is_dead = true
 	owner.level_up_active = false
 	owner.fire_timer.stop()

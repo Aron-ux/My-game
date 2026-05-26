@@ -26,7 +26,7 @@ static var reusable_candidates: Array = []
 static var reusable_seen_enemy_ids: Dictionary = {}
 static var reusable_bounds_list: Array[Rect2] = []
 
-static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, suppress_status_visual: bool = false) -> bool:
+static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, suppress_status_visual: bool = false, kill_energy_bonus: float = 0.0) -> bool:
 	if enemy == null or not is_instance_valid(enemy):
 		return false
 	var final_damage := damage_amount
@@ -44,7 +44,16 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 		if owner != null and enemy.get("enemy_kind") != null and str(enemy.get("enemy_kind")) == "boss" and owner.has_method("_add_kill_energy") and owner.has_method("_get_boss_damage_energy"):
 			owner._add_kill_energy(owner._get_boss_damage_energy(final_damage))
 		if killed and owner != null and owner.has_method("_add_kill_energy") and owner.has_method("_get_kill_energy_from_enemy"):
-			owner._add_kill_energy(owner._get_kill_energy_from_enemy(enemy))
+			var kill_energy: float = owner._get_kill_energy_from_enemy(enemy)
+			var bypass_lock_role_id: String = source_role_id if source_role_id == "mage" and kill_energy_bonus > 0.0 else ""
+			owner._add_kill_energy(kill_energy, bypass_lock_role_id)
+			if owner.has_method("_try_apply_mage_kill_energy_proc"):
+				owner._try_apply_mage_kill_energy_proc(source_role_id, kill_energy, bypass_lock_role_id)
+			if kill_energy_bonus > 0.0:
+				var bonus_energy: float = kill_energy * kill_energy_bonus
+				owner._add_kill_energy(bonus_energy, bypass_lock_role_id)
+				if owner.has_method("_try_apply_mage_kill_energy_proc"):
+					owner._try_apply_mage_kill_energy_proc(source_role_id, bonus_energy, bypass_lock_role_id)
 	if vulnerability_bonus > 0.0 and enemy.has_method("apply_vulnerability"):
 		enemy.apply_vulnerability(vulnerability_bonus, vulnerability_duration)
 	if slow_duration > 0.0:
@@ -100,7 +109,8 @@ static func apply_or_queue_damage_values(owner, enemy_ref: WeakRef, enemy_id: in
 			slow_multiplier,
 			slow_duration,
 			source_position,
-			suppress_status_visual
+			suppress_status_visual,
+			kill_energy_bonus
 		)
 		return
 	queue.enqueue_values(enemy_ref, enemy_id, damage_amount, hit_count, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, kill_energy_bonus, prefer_silent_feedback, suppress_status_visual)

@@ -8,9 +8,9 @@ script = ExtResource("1_profile")
 archetype = "smallboss_glutton"
 behavior = "glutton"
 boss_name = "幽影树人"
-max_health = 1188.0
-speed = 40.0
-touch_damage = 24.0
+max_health = 1995.84
+speed = 30.4
+touch_damage = 29.0
 contact_radius = 62.0
 body_collision_radius = 68.0
 reward_tier = 4
@@ -23,7 +23,7 @@ extra = {
 "glutton_aura_damage": 9.0,
 "glutton_aura_radius": 190.0,
 "glutton_heart_heal_scale": 1.0,
-"glutton_speed_gain_per_gem": 2.78,
-"glutton_scale_gain_per_gem": 0.009,
+"glutton_speed_gain_per_gem": 1.946,
+"glutton_scale_gain_per_gem": 0.0063,
 "glutton_max_bonus_speed": 120.0
 }

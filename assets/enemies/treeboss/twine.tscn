@@ -1,0 +1,76 @@
+[gd_scene format=3 uid="uid://djrilivhfrc8j"]
+
+[ext_resource type="Texture2D" uid="uid://bpikxutl0c3xg" path="res://assets/enemies/treeboss/twine.png" id="1_cc8ph"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_uiyuv"]
+atlas = ExtResource("1_cc8ph")
+region = Rect2(0, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_t1c30"]
+atlas = ExtResource("1_cc8ph")
+region = Rect2(256, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_qi20j"]
+atlas = ExtResource("1_cc8ph")
+region = Rect2(512, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f1b7r"]
+atlas = ExtResource("1_cc8ph")
+region = Rect2(768, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_wvmt2"]
+atlas = ExtResource("1_cc8ph")
+region = Rect2(1024, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_asofn"]
+atlas = ExtResource("1_cc8ph")
+region = Rect2(1280, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_jhuuf"]
+atlas = ExtResource("1_cc8ph")
+region = Rect2(1536, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_8dpfy"]
+atlas = ExtResource("1_cc8ph")
+region = Rect2(1792, 0, 256, 256)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_n5ukc"]
+animations = [{
+"frames": [{
+"duration": 0.6,
+"texture": SubResource("AtlasTexture_uiyuv")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_t1c30")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_qi20j")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_f1b7r")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_wvmt2")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_asofn")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_jhuuf")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_8dpfy")
+}],
+"loop": false,
+"name": &"twine",
+"speed": 10.0
+}]
+
+[node name="Twine" type="Node2D" unique_id=1505303355]
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=848256120]
+sprite_frames = SubResource("SpriteFrames_n5ukc")
+animation = &"twine"
+frame = 7
+frame_progress = 1.0
+speed_scale = 1.5

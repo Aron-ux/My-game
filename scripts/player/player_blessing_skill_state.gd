@@ -98,16 +98,16 @@ const BLESSING_TITLES := {
 const SKILL_TAGS := {
 	SKILL_META_FIELD: {SKILL_TAG_DURATION: true},
 	SKILL_CRESCENT_WAVE: {SKILL_TAG_COMBO: true, SKILL_TAG_QUANTITY: true},
-	SKILL_SHRAPNEL_FIELD: {SKILL_TAG_DURATION: true, SKILL_TAG_QUANTITY: true},
+	SKILL_SHRAPNEL_FIELD: {SKILL_TAG_DURATION: true, SKILL_TAG_QUANTITY: true, SKILL_TAG_COMBO: true},
 	SKILL_BLADE_STORM: {SKILL_TAG_DURATION: true, SKILL_TAG_QUANTITY: true},
 	SKILL_INFINITE_RELOAD: {SKILL_TAG_DURATION: true, SKILL_TAG_COMBO: true},
 	SKILL_SURGING_WAVE: {SKILL_TAG_DURATION: true, SKILL_TAG_COMBO: true, SKILL_TAG_QUANTITY: true},
 	SKILL_SWORDSMAN_BASIC_ATTACK: {SKILL_TAG_COMBO: true, SKILL_TAG_QUANTITY: true},
 	SKILL_GUNNER_BASIC_ATTACK: {SKILL_TAG_COMBO: true, SKILL_TAG_QUANTITY: true},
 	SKILL_MAGE_BASIC_ATTACK: {SKILL_TAG_COMBO: true, SKILL_TAG_QUANTITY: true},
-	SKILL_SWORDSMAN_ULTIMATE: {SKILL_TAG_COMBO: true},
+	SKILL_SWORDSMAN_ULTIMATE: {SKILL_TAG_COMBO: true, SKILL_TAG_DURATION: true},
 	SKILL_GUNNER_ULTIMATE: {SKILL_TAG_DURATION: true},
-	SKILL_MAGE_ULTIMATE: {SKILL_TAG_COMBO: true},
+	SKILL_MAGE_ULTIMATE: {SKILL_TAG_COMBO: true, SKILL_TAG_DURATION: true},
 	SKILL_ENTRY_RESCUE: {},
 	SKILL_HERO_ENTRY: {}
 }
@@ -433,14 +433,14 @@ static func apply_recipe_candidate(owner, candidate: Dictionary) -> Array[Dictio
 	var events: Array[Dictionary] = []
 	if owner == null:
 		return events
-	var skill_id := str(candidate.get("skill_id", ""))
+	var skill_id: String = str(candidate.get("skill_id", ""))
 	if not _is_known_skill_id(skill_id):
 		return events
 	var recipe: Dictionary = candidate.get("recipe", {})
 	if recipe.is_empty() or not _can_apply_recipe(owner, skill_id, recipe):
 		return events
 	var target_tier: int = max(1, int(candidate.get("tier", 1)))
-	var action := str(candidate.get("action", "unlock"))
+	var action: String = str(candidate.get("action", "unlock"))
 	var material_lines: Array[String] = _build_recipe_progress(owner, skill_id, recipe)
 	_unlock_skill(owner, skill_id, target_tier)
 	if not INHERENT_SKILL_IDS.has(skill_id) and not SHARED_ENTRY_SKILL_IDS.has(skill_id):
@@ -458,7 +458,7 @@ static func lock_one_blessing_material(owner, binding: String, blessing_id: Stri
 	if owner == null or blessing_id == "" or tier <= 0:
 		return
 	var state: Dictionary = normalize_state(owner.blessing_skill_state)
-	var lock_key := "skill_recipe_locks" if binding == SKILL_BOUND else "role_recipe_locks"
+	var lock_key: String = "skill_recipe_locks" if binding == SKILL_BOUND else "role_recipe_locks"
 	var locks: Dictionary = (state.get(lock_key, {}) as Dictionary).duplicate(true)
 	var lock_levels: Dictionary = (locks.get(blessing_id, {}) as Dictionary).duplicate(true)
 	lock_levels[tier] = int(lock_levels.get(tier, 0)) + 1
@@ -512,7 +512,7 @@ static func _try_evolve_skill(owner, skill_id: String, events: Array[Dictionary]
 
 
 static func _make_skill_event(skill_id: String, tier: int, action: String, material_lines: Array, recipe: Dictionary) -> Dictionary:
-	var consumes_material := not INHERENT_SKILL_IDS.has(skill_id) and not SHARED_ENTRY_SKILL_IDS.has(skill_id) and not recipe.is_empty() and not bool(recipe.get("always", false))
+	var consumes_material: bool = not INHERENT_SKILL_IDS.has(skill_id) and not SHARED_ENTRY_SKILL_IDS.has(skill_id) and not recipe.is_empty() and not bool(recipe.get("always", false))
 	return {
 		"skill_id": skill_id,
 		"tier": tier,
@@ -595,12 +595,12 @@ static func get_skill_graph_entries(owner, role_context: String = "") -> Array[D
 static func get_skill_graph_text(owner, role_id_filter: String = "") -> String:
 	var lines: Array[String] = []
 	for entry in get_skill_graph_entries(owner, role_id_filter):
-		var role_id := str(entry.get("role_id", ""))
+		var role_id: String = str(entry.get("role_id", ""))
 		if role_id_filter != "" and role_id != "" and role_id != role_id_filter:
 			continue
 		var current_tier: int = int(entry.get("current_tier", 0))
-		var action := str(entry.get("action", "complete"))
-		var status := "已完成" if action == "complete" else ("待解锁" if action == "unlock" else "待进化")
+		var action: String = str(entry.get("action", "complete"))
+		var status: String = "已完成" if action == "complete" else ("待解锁" if action == "unlock" else "待进化")
 		if current_tier > 0 and action != "complete":
 			status = "I -> II" if int(entry.get("target_tier", 0)) == 2 else "II -> III"
 		elif current_tier > 0:
@@ -670,7 +670,7 @@ static func get_blessing_unlock_detail(blessing_id: String, tier: int) -> String
 static func get_available_blessing_count(owner, binding: String, blessing_id: String, tier: int) -> int:
 	if owner == null:
 		return 0
-	var lock_key := "skill_recipe_locks" if binding == SKILL_BOUND else "role_recipe_locks"
+	var lock_key: String = "skill_recipe_locks" if binding == SKILL_BOUND else "role_recipe_locks"
 	var state: Dictionary = normalize_state(owner.blessing_skill_state)
 	var locks: Dictionary = state.get(lock_key, {})
 	var levels: Dictionary = {}
@@ -702,21 +702,34 @@ static func get_skill_bound_blessing_level(owner, skill_id: String, blessing_id:
 
 static func get_quantity_extra_count(owner, skill_id: String) -> int:
 	var level := get_skill_bound_blessing_level(owner, skill_id, "trick")
-	return max(0, int(level))
+	var global_scales := _get_global_quantity_extra_scales(owner, skill_id)
+	var kingdom_scales := _build_magic_stone_tier_scales(owner, skill_id, "kingdom_trick", {2: 0.5, 3: 1.0})
+	return max(0, int(level)) + global_scales.size() + kingdom_scales.size()
 
 static func get_combo_extra_scales(owner, skill_id: String) -> Array[float]:
 	if not _skill_has_tag(skill_id, SKILL_TAG_COMBO):
 		return []
-	return _build_tier_scales(owner, skill_id, "reprise", 0.5, 1.0)
+	var result: Array[float] = _build_tier_scales(owner, skill_id, "reprise", 0.5, 1.0)
+	result.append_array(_build_magic_stone_tier_scales(owner, skill_id, "kingdom_reprise", {2: 0.5, 3: 1.0}))
+	result.append_array(_build_magic_stone_tier_scales(owner, skill_id, "kebiru_reprise", {2: 0.5, 3: 1.0}))
+	result.append_array(_get_global_combo_extra_scales(owner, skill_id))
+	return result
 
 static func get_skill_effect_scales(owner, skill_id: String, stat: String) -> Array[float]:
 	match stat:
 		"combo_skill_extra":
 			if _skill_has_tag(skill_id, SKILL_TAG_COMBO):
-				return _build_tier_scales(owner, skill_id, "reprise", 0.5, 1.0)
+				var result: Array[float] = _build_tier_scales(owner, skill_id, "reprise", 0.5, 1.0)
+				result.append_array(_build_magic_stone_tier_scales(owner, skill_id, "kingdom_reprise", {2: 0.5, 3: 1.0}))
+				result.append_array(_build_magic_stone_tier_scales(owner, skill_id, "kebiru_reprise", {2: 0.5, 3: 1.0}))
+				result.append_array(_get_global_combo_extra_scales(owner, skill_id))
+				return result
 		"quantity_skill_count":
 			if _skill_has_tag(skill_id, SKILL_TAG_QUANTITY):
-				return _build_tier_scales(owner, skill_id, "trick", 0.5, 1.0)
+				var result: Array[float] = _build_tier_scales(owner, skill_id, "trick", 0.5, 1.0)
+				result.append_array(_build_magic_stone_tier_scales(owner, skill_id, "kingdom_trick", {2: 0.5, 3: 1.0}))
+				result.append_array(_get_global_quantity_extra_scales(owner, skill_id))
+				return result
 	return []
 
 static func get_duration_multiplier(owner, skill_id: String) -> float:
@@ -724,6 +737,53 @@ static func get_duration_multiplier(owner, skill_id: String) -> float:
 		return 1.0
 	var blessing_levels: Dictionary = _get_effective_skill_blessing_levels(owner, skill_id, "tide_rain")
 	return pow(1.12, float(blessing_levels.get(1, 0))) * pow(1.20, float(blessing_levels.get(2, 0)))
+
+static func get_duration_flat_bonus(owner, skill_id: String) -> float:
+	if not _skill_has_tag(skill_id, SKILL_TAG_DURATION):
+		return 0.0
+	if owner == null or not owner.has_method("_get_role_blessing_stat_bonus"):
+		return 0.0
+	var result: float = max(0.0, float(owner._get_role_blessing_stat_bonus("", "global_duration_skill_seconds")))
+	if ULTIMATE_SKILL_IDS.has(skill_id):
+		result += _sum_magic_stone_tier_values(owner, skill_id, "kingdom_tide_rain", {2: 0.5, 3: 1.0})
+	if _is_invoker_magic_skill(skill_id):
+		result += get_invoker_magic_duration_bonus(owner, skill_id)
+	return result
+
+static func get_ultimate_damage_multiplier(owner, skill_id: String) -> float:
+	if not ULTIMATE_SKILL_IDS.has(skill_id):
+		return 1.0
+	return 1.0 + _sum_magic_stone_tier_values(owner, skill_id, "kingdom_blazing_sun", {3: 1.0, 4: 2.0})
+
+static func get_ultimate_special_effect_multiplier(owner, skill_id: String) -> float:
+	if not ULTIMATE_SKILL_IDS.has(skill_id):
+		return 1.0
+	return 1.0 + _sum_magic_stone_tier_values(owner, skill_id, "kingdom_coronation", {3: 0.20, 4: 1.0})
+
+
+static func get_kebiru_magic_cooldown_multiplier(owner, skill_id: String) -> float:
+	if not _is_kebiru_magic_skill(skill_id):
+		return 1.0
+	return max(0.2, _multiply_magic_stone_tier_values(owner, skill_id, "kebiru_prayer", {1: 0.95, 2: 0.90, 3: 0.85, 4: 0.80}))
+
+
+static func get_kebiru_magic_range_multiplier(owner, skill_id: String) -> float:
+	if not _is_kebiru_magic_skill(skill_id):
+		return 1.0
+	return _multiply_magic_stone_tier_values(owner, skill_id, "kebiru_formation_break", {1: 1.05, 2: 1.10, 3: 1.15, 4: 1.30})
+
+
+static func get_invoker_magic_duration_bonus(owner, skill_id: String) -> float:
+	if not _is_invoker_magic_skill(skill_id):
+		return 0.0
+	return _sum_magic_stone_tier_values(owner, skill_id, "invoker_tide_rain", {2: 0.5, 3: 1.0})
+
+
+static func get_invoker_magic_range_multiplier(owner, skill_id: String) -> float:
+	if not _is_invoker_magic_skill(skill_id):
+		return 1.0
+	return _multiply_magic_stone_tier_values(owner, skill_id, "invoker_formation_break", {1: 1.05, 2: 1.10, 3: 1.15, 4: 1.30})
+
 
 static func get_basic_attack_range_multiplier(owner, skill_id: String) -> float:
 	var tier := get_skill_tier(owner, skill_id)
@@ -752,7 +812,22 @@ static func get_basic_attack_projectile_speed_multiplier(owner, skill_id: String
 static func _get_quantity_extra_scales(owner, skill_id: String) -> Array[float]:
 	if not _skill_has_tag(skill_id, SKILL_TAG_QUANTITY):
 		return []
-	return _build_tier_scales(owner, skill_id, "trick", 0.5, 1.0)
+	var result: Array[float] = _build_tier_scales(owner, skill_id, "trick", 0.5, 1.0)
+	result.append_array(_build_magic_stone_tier_scales(owner, skill_id, "kingdom_trick", {2: 0.5, 3: 1.0}))
+	result.append_array(_get_global_quantity_extra_scales(owner, skill_id))
+	return result
+
+
+static func _get_global_combo_extra_scales(owner, skill_id: String) -> Array[float]:
+	if not _skill_has_tag(skill_id, SKILL_TAG_COMBO):
+		return []
+	return _build_role_stat_scales(owner, "global_combo_skill_extra", 1.0)
+
+
+static func _get_global_quantity_extra_scales(owner, skill_id: String) -> Array[float]:
+	if not _skill_has_tag(skill_id, SKILL_TAG_QUANTITY):
+		return []
+	return _build_role_stat_scales(owner, "global_quantity_skill_count", 1.0)
 
 static func _can_read_blessing_for_skill(_owner, skill_id: String, blessing_id: String) -> bool:
 	return _skill_can_read_blessing(skill_id, blessing_id)
@@ -767,11 +842,33 @@ static func _skill_can_read_blessing(skill_id: String, blessing_id: String) -> b
 			return _skill_has_tag(skill_id, SKILL_TAG_DURATION)
 		"trick":
 			return _skill_has_tag(skill_id, SKILL_TAG_QUANTITY)
+		"kingdom_trick":
+			return BASIC_ATTACK_SKILL_IDS.has(skill_id) and _skill_has_tag(skill_id, SKILL_TAG_QUANTITY)
+		"kingdom_reprise":
+			return BASIC_ATTACK_SKILL_IDS.has(skill_id) and _skill_has_tag(skill_id, SKILL_TAG_COMBO)
+		"kingdom_tide_rain":
+			return ULTIMATE_SKILL_IDS.has(skill_id) and _skill_has_tag(skill_id, SKILL_TAG_DURATION)
+		"kingdom_blazing_sun":
+			return ULTIMATE_SKILL_IDS.has(skill_id)
+		"kingdom_coronation":
+			return ULTIMATE_SKILL_IDS.has(skill_id)
+		"kebiru_prayer", "kebiru_formation_break", "kebiru_reprise":
+			return _is_kebiru_magic_skill(skill_id)
+		"invoker_tide_rain", "invoker_formation_break":
+			return _is_invoker_magic_skill(skill_id)
 	return false
 
 static func _skill_has_tag(skill_id: String, tag: String) -> bool:
 	var tags: Dictionary = SKILL_TAGS.get(skill_id, {})
 	return bool(tags.get(tag, false))
+
+
+static func _is_kebiru_magic_skill(skill_id: String) -> bool:
+	return skill_id == SKILL_CRESCENT_WAVE or skill_id == SKILL_SURGING_WAVE or skill_id == SKILL_SHRAPNEL_FIELD
+
+
+static func _is_invoker_magic_skill(skill_id: String) -> bool:
+	return skill_id == SKILL_BLADE_STORM or skill_id == SKILL_INFINITE_RELOAD or skill_id == SKILL_META_FIELD
 
 static func _build_tier_scales(owner, skill_id: String, blessing_id: String, tier_one_scale: float, tier_two_scale: float) -> Array[float]:
 	var blessing_levels: Dictionary = _get_effective_skill_blessing_levels(owner, skill_id, blessing_id)
@@ -782,16 +879,66 @@ static func _build_tier_scales(owner, skill_id: String, blessing_id: String, tie
 		result.append(tier_two_scale)
 	return result
 
+
+static func _build_magic_stone_tier_scales(owner, skill_id: String, blessing_id: String, tier_scales: Dictionary) -> Array[float]:
+	var blessing_levels: Dictionary = _get_effective_skill_blessing_levels(owner, skill_id, blessing_id)
+	var result: Array[float] = []
+	for tier_value in blessing_levels.keys():
+		var tier := int(tier_value)
+		var scale: float = float(tier_scales.get(tier, 0.0))
+		if scale <= 0.0:
+			continue
+		for _index in range(max(0, int(blessing_levels.get(tier_value, 0)))):
+			result.append(scale)
+	return result
+
+
+static func _sum_magic_stone_tier_values(owner, skill_id: String, blessing_id: String, tier_values: Dictionary) -> float:
+	var blessing_levels: Dictionary = _get_effective_skill_blessing_levels(owner, skill_id, blessing_id)
+	var result: float = 0.0
+	for tier_value in blessing_levels.keys():
+		var tier := int(tier_value)
+		var value: float = float(tier_values.get(tier, 0.0))
+		if value <= 0.0:
+			continue
+		result += value * float(max(0, int(blessing_levels.get(tier_value, 0))))
+	return result
+
+
+static func _multiply_magic_stone_tier_values(owner, skill_id: String, blessing_id: String, tier_values: Dictionary) -> float:
+	var blessing_levels: Dictionary = _get_effective_skill_blessing_levels(owner, skill_id, blessing_id)
+	var result: float = 1.0
+	for tier_value in blessing_levels.keys():
+		var tier := int(tier_value)
+		var value: float = float(tier_values.get(tier, 1.0))
+		if value <= 0.0:
+			continue
+		for _index in range(max(0, int(blessing_levels.get(tier_value, 0)))):
+			result *= value
+	return result
+
+
+static func _build_role_stat_scales(owner, stat: String, scale: float) -> Array[float]:
+	var result: Array[float] = []
+	if owner == null or not owner.has_method("_get_role_blessing_stat_bonus"):
+		return result
+	var count: int = int(round(float(owner._get_role_blessing_stat_bonus("", stat))))
+	for _index in range(max(0, count)):
+		result.append(scale)
+	return result
+
 static func _get_effective_skill_blessing_levels(owner, skill_id: String, blessing_id: String) -> Dictionary:
 	var result: Dictionary = {}
 	if owner == null or not owner.has_method("get_skill_blessing_levels"):
+		return result
+	if not _skill_can_read_blessing(skill_id, blessing_id):
 		return result
 	var levels: Dictionary = owner.get_skill_blessing_levels()
 	var blessing_levels: Dictionary = levels.get(blessing_id, {})
 	if INHERENT_SKILL_IDS.has(skill_id):
 		return blessing_levels.duplicate(true)
 	var baseline_levels: Dictionary = _get_skill_blessing_baseline(owner, skill_id, blessing_id)
-	for tier in [1, 2]:
+	for tier in range(1, 5):
 		var amount: int = max(0, int(blessing_levels.get(tier, 0)) - int(baseline_levels.get(tier, 0)))
 		if amount > 0:
 			result[tier] = amount
@@ -801,7 +948,7 @@ static func _get_effective_skill_blessing_levels(owner, skill_id: String, blessi
 		if credit_amount > 0:
 			result[tier] = int(result.get(tier, 0)) + credit_amount
 	var recipe_credit_levels: Dictionary = _get_skill_evolution_recipe_credit(owner, skill_id, blessing_id, blessing_levels)
-	for tier in [1, 2]:
+	for tier in range(1, 5):
 		var recipe_credit_amount: int = int(recipe_credit_levels.get(tier, 0))
 		if recipe_credit_amount > 0:
 			result[tier] = int(result.get(tier, 0)) + recipe_credit_amount
@@ -816,7 +963,7 @@ static func _get_skill_evolution_recipe_credit(owner, skill_id: String, blessing
 	for recipe in [EVOLVE_RECIPES.get(skill_id, {}), THIRD_TIER_RECIPES.get(skill_id, {})]:
 		if recipe is not Dictionary or (recipe as Dictionary).is_empty():
 			continue
-		var target_tier := int((recipe as Dictionary).get("tier", 0))
+		var target_tier: int = int((recipe as Dictionary).get("tier", 0))
 		if target_tier <= 1 or current_tier < target_tier:
 			continue
 		var skill_exact: Variant = (recipe as Dictionary).get("skill_exact", {})
@@ -864,7 +1011,7 @@ static func _snapshot_skill_blessing_baseline(owner, skill_id: String, tiers: Ar
 		var baseline_levels: Dictionary = (skill_baselines.get(blessing_id, {}) as Dictionary).duplicate(true)
 		for tier_value in tiers:
 			var tier := int(tier_value)
-			var amount := int(source_levels.get(tier, 0))
+			var amount: int = int(source_levels.get(tier, 0))
 			if amount > 0:
 				baseline_levels[tier] = max(int(baseline_levels.get(tier, 0)), amount)
 		if not baseline_levels.is_empty():
@@ -918,7 +1065,7 @@ static func _can_apply_recipe(owner, skill_id: String, recipe: Dictionary, role_
 		return true
 	if not _skill_matches_role_context(skill_id, _resolve_role_context(owner, role_context)):
 		return false
-	var subtract_locks := not INHERENT_SKILL_IDS.has(skill_id) and not SHARED_ENTRY_SKILL_IDS.has(skill_id)
+	var subtract_locks: bool = not INHERENT_SKILL_IDS.has(skill_id) and not SHARED_ENTRY_SKILL_IDS.has(skill_id)
 	var role_requirements: Dictionary = recipe.get("role", {})
 	for blessing_id in role_requirements.keys():
 		if not _meets_role_requirement(owner, skill_id, str(blessing_id), role_requirements.get(blessing_id, 0), subtract_locks):
@@ -965,8 +1112,8 @@ static func _skill_matches_active_role(owner, skill_id: String) -> bool:
 static func _recipe_uses_blessing_tier(recipe: Dictionary, binding: String, blessing_id: String, tier: int) -> bool:
 	if recipe.is_empty() or blessing_id == "":
 		return false
-	var equivalent_key := "skill" if binding == SKILL_BOUND else "role"
-	var exact_key := "skill_exact" if binding == SKILL_BOUND else "role_exact"
+	var equivalent_key: String = "skill" if binding == SKILL_BOUND else "role"
+	var exact_key: String = "skill_exact" if binding == SKILL_BOUND else "role_exact"
 	var equivalent_requirements: Dictionary = recipe.get(equivalent_key, {})
 	if equivalent_requirements.has(blessing_id):
 		return true
@@ -1253,7 +1400,7 @@ static func _append_exact_recipe_progress(result: Array[String], owner, skill_id
 
 static func _get_available_progress_levels(owner, skill_id: String, binding: String, blessing_id: String) -> Dictionary:
 	var levels: Dictionary = {}
-	var lock_key := "skill_recipe_locks" if binding == SKILL_BOUND else "role_recipe_locks"
+	var lock_key: String = "skill_recipe_locks" if binding == SKILL_BOUND else "role_recipe_locks"
 	if binding == SKILL_BOUND:
 		levels = owner.get_skill_blessing_levels() if owner != null and owner.has_method("get_skill_blessing_levels") else {}
 	else:
@@ -1285,8 +1432,8 @@ static func _get_graph_blessing_tier_label(tier: int) -> String:
 
 static func _format_skill_enhancement_levels(levels: Dictionary) -> String:
 	var parts: Array[String] = []
-	var tier_one_count := int(levels.get(1, 0))
-	var tier_two_count := int(levels.get(2, 0))
+	var tier_one_count: int = int(levels.get(1, 0))
+	var tier_two_count: int = int(levels.get(2, 0))
 	if tier_one_count > 0:
 		parts.append("I x%d" % tier_one_count)
 	if tier_two_count > 0:
@@ -1300,7 +1447,7 @@ static func _meets_exact_tier_requirement(levels_value: Variant, requirement: Va
 		return false
 	for tier_value in (requirement as Dictionary).keys():
 		var tier := int(tier_value)
-		var required_count := int((requirement as Dictionary).get(tier_value, 0))
+		var required_count: int = int((requirement as Dictionary).get(tier_value, 0))
 		if tier <= 1:
 			if _get_equivalent_count_for_tier_one_unlock(levels_value) < required_count:
 				return false
@@ -1347,10 +1494,10 @@ static func _get_recipe_blessing_requirement_text(recipe: Dictionary, blessing_i
 		var exact_requirements: Dictionary = recipe.get(key, {})
 		if exact_requirements.has(blessing_id):
 			var tier_requirements: Dictionary = exact_requirements.get(blessing_id, {})
-			var required_count := int(tier_requirements.get(tier, 0))
+			var required_count: int = int(tier_requirements.get(tier, 0))
 			if required_count > 0:
 				return "%s x%d" % [_get_blessing_tier_label(blessing_id, tier), required_count]
-			var tier_one_required_count := int(tier_requirements.get(1, 0))
+			var tier_one_required_count: int = int(tier_requirements.get(1, 0))
 			if tier >= 2 and tier_one_required_count > 0:
 				return "%s x1（等效 %s x%d）" % [
 					_get_blessing_tier_label(blessing_id, tier),
@@ -1360,7 +1507,7 @@ static func _get_recipe_blessing_requirement_text(recipe: Dictionary, blessing_i
 	for key in ["role", "skill"]:
 		var requirements: Dictionary = recipe.get(key, {})
 		if requirements.has(blessing_id):
-			var required_equivalent_count := int(requirements.get(blessing_id, 0))
+			var required_equivalent_count: int = int(requirements.get(blessing_id, 0))
 			if required_equivalent_count <= 0:
 				continue
 			if tier >= 2:
@@ -1369,5 +1516,5 @@ static func _get_recipe_blessing_requirement_text(recipe: Dictionary, blessing_i
 	return ""
 
 static func _get_blessing_tier_label(blessing_id: String, tier: int) -> String:
-	var suffix := "II" if tier >= 2 else "I"
+	var suffix: String = "II" if tier >= 2 else "I"
 	return "%s%s" % [blessing_id, suffix]

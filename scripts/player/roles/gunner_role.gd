@@ -1,5 +1,7 @@
 extends RefCounted
 
+const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
+
 const ULTIMATE_BULLET_HIT_SCAN_INTERVAL := 0.035
 const BASIC_COMBO_INTERVAL := 0.12
 const GUNNER_BULLET_VISUAL_SCALE := 0.4
@@ -7,6 +9,9 @@ const GUNNER_BATCHED_BULLET_VISUAL_MIN_DIAMETER := 3.2
 const GUNNER_TRICK_ANGLE_STEP_DEGREES := 10.0
 const ULTIMATE_SKILL_ID := "gunner_ultimate"
 const ULTIMATE_DURATION := 4.0
+const ULTIMATE_RANGE := 600.0
+const ULTIMATE_HASTE_MOVE_SPEED_MULTIPLIER := 1.3
+const ULTIMATE_HASTE_DODGE_CHANCE := 0.3
 const ULTIMATE_TIER_ONE_CONE_DEGREES := 45.0
 const ULTIMATE_TIER_TWO_CONE_DEGREES := 60.0
 const ULTIMATE_TIER_THREE_CONE_DEGREES := 90.0
@@ -17,7 +22,10 @@ const ULTIMATE_TIER_ONE_DAMAGE_WAVES_PER_SECOND := 4.7
 const ULTIMATE_TIER_TWO_DAMAGE_WAVES_PER_SECOND := 5.3
 const ULTIMATE_TIER_THREE_DAMAGE_WAVES_PER_SECOND := 6.0
 const ULTIMATE_VISUAL_INTERVAL := 0.07
+const ULTIMATE_LOW_FPS_VISUAL_INTERVAL := 0.11
+const ULTIMATE_CRITICAL_FPS_VISUAL_INTERVAL := 0.16
 const ULTIMATE_VISUAL_BULLETS_PER_PULSE := 7
+const ULTIMATE_DAMAGE_OUTPUT_MULTIPLIER := 0.8
 const ULTIMATE_DAMAGE_BASE_RATIO := 2.1
 const ULTIMATE_DAMAGE_BARRAGE_RATIO := 0.16
 const ULTIMATE_DAMAGE_FOCUS_RATIO := 0.11
@@ -31,8 +39,9 @@ const ULTIMATE_VISUAL_BULLET_OUTLINE_COLOR := Color(1.0, 1.0, 1.0, 0.96)
 const ULTIMATE_VISUAL_BULLET_OUTLINE_WIDTH := 2.0
 const BASIC_BULLET_BASE_SPEED := 760.0
 const BASIC_BULLET_FOCUS_SPEED_BONUS := 72.0
-const BASIC_BULLET_LIFETIME := 1.65
+const BASIC_BULLET_TRAVEL_DISTANCE := 350.0
 const BASIC_BULLET_VISUAL_RADIUS := 3.4
+const GUNNER_REPRISE_BULLET_SIDE_OFFSET := 4.0
 
 var ultimate_attack_locked: bool = false
 var ultimate_attack_lock_id: int = 0
@@ -43,14 +52,15 @@ func perform_attack(owner) -> void:
 	if owner.is_gunner_infinite_reload_active():
 		return
 	var base_direction: Vector2 = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
-	_perform_combo_segment(owner, base_direction, 1.0)
-	_schedule_reprise_segments(owner, base_direction)
+	var combo_scales := _get_skill_effect_scales(owner, "combo_skill_extra")
+	_perform_combo_segment(owner, base_direction, 1.0, true, true, combo_scales)
 
-func _perform_combo_segment(owner, base_direction: Vector2, combo_scale: float) -> void:
-	_perform_attack_variant(owner, base_direction, combo_scale, true, true)
-	_apply_trick_variants(owner, base_direction, combo_scale)
+func _perform_combo_segment(owner, base_direction: Vector2, combo_scale: float, allow_trick_variants: bool = true, spawn_aftershock: bool = true, reprise_scales: Array[float] = []) -> void:
+	_perform_attack_variant(owner, base_direction, combo_scale, true, spawn_aftershock, reprise_scales)
+	if allow_trick_variants:
+		_apply_trick_variants(owner, base_direction)
 
-func _perform_attack_variant(owner, shot_direction: Vector2, effect_scale: float = 1.0, advance_chain: bool = true, spawn_aftershock: bool = true) -> void:
+func _perform_attack_variant(owner, shot_direction: Vector2, effect_scale: float = 1.0, advance_chain: bool = true, spawn_aftershock: bool = true, reprise_scales: Array[float] = []) -> void:
 	var role_data: Dictionary = owner._get_active_role()
 	var upgrade_data: Dictionary = owner.role_upgrade_levels[role_data["id"]]
 	var focus_level: int = 0
@@ -58,16 +68,16 @@ func _perform_attack_variant(owner, shot_direction: Vector2, effect_scale: float
 	shot_direction = shot_direction if shot_direction.length_squared() > 0.001 else Vector2.RIGHT
 	shot_direction = shot_direction.normalized()
 	var effective_range: float = (float(role_data["range"]) + float(upgrade_data.get("range_bonus", 0.0))) * owner._get_story_style_range_multiplier(role_data["id"])
-	var target_enemy: Node2D = owner._get_enemy_in_aim_cone(18.0, effective_range + 80.0)
+	var target_enemy: Node2D = owner._get_enemy_in_aim_cone(18.0, effective_range)
 	var main_damage: float = owner._get_role_damage(role_data["id"]) * max(0.0, effect_scale)
 	if target_enemy != null:
 		main_damage *= owner._get_priority_target_bonus(target_enemy)
 
-	var bullet_color := Color(0.54, 0.94, 1.0, 1.0) if owner._get_story_style_id(role_data["id"]) == "star_pierce" else Color(1.0, 0.42, 0.34, 1.0)
+	var bullet_color: Color = Color(0.54, 0.94, 1.0, 1.0) if owner._get_story_style_id(role_data["id"]) == "star_pierce" else Color(1.0, 0.42, 0.34, 1.0)
 	if owner._get_gunner_barrage_shotgun_wave_count(barrage_attribute_level) > 0:
 		_spawn_barrage_shotgun(owner, shot_direction, main_damage, bullet_color, role_data, upgrade_data, focus_level, barrage_attribute_level)
 	else:
-		if not _spawn_primary_batched_bullet(owner, shot_direction, main_damage, bullet_color, role_data, upgrade_data, focus_level, owner.global_position + shot_direction * 18.0):
+		if not _spawn_primary_batched_bullet_group(owner, shot_direction, main_damage, bullet_color, role_data, upgrade_data, focus_level, owner.global_position + shot_direction * 18.0, reprise_scales):
 			return
 
 	if advance_chain:
@@ -92,20 +102,20 @@ func _perform_combo_segment_if_valid(owner, base_direction: Vector2, combo_scale
 		return
 	if owner.has_method("is_gunner_infinite_reload_active") and owner.is_gunner_infinite_reload_active():
 		return
-	_perform_combo_segment(owner, base_direction, combo_scale)
+	_perform_combo_segment(owner, base_direction, combo_scale, false, false)
 
-func _apply_trick_variants(owner, base_direction: Vector2, combo_scale: float) -> void:
-	var scales := _get_skill_effect_scales(owner, "quantity_skill_count")
-	var total_count := scales.size() + 1
-	if total_count <= 1:
+func _apply_trick_variants(owner, base_direction: Vector2) -> void:
+	var scales: Array[float] = _get_skill_effect_scales(owner, "quantity_skill_count")
+	var extra_count: int = scales.size()
+	if extra_count <= 0:
 		return
-	var center_offset := (float(total_count) - 1.0) * 0.5
-	for index in range(total_count):
-		if is_equal_approx(float(index), center_offset):
-			continue
-		var scale_index := index if float(index) < center_offset else index - 1
-		var angle_offset := deg_to_rad((float(index) - center_offset) * GUNNER_TRICK_ANGLE_STEP_DEGREES)
-		_perform_attack_variant(owner, base_direction.rotated(angle_offset), combo_scale * float(scales[scale_index]), false, false)
+	var center_offset: float = (float(extra_count) - 1.0) * 0.5
+	for index in range(extra_count):
+		var relative_index: float = float(index) - center_offset
+		if extra_count == 1:
+			relative_index = 1.0
+		var angle_offset: float = deg_to_rad(relative_index * GUNNER_TRICK_ANGLE_STEP_DEGREES)
+		_perform_attack_variant(owner, base_direction.rotated(angle_offset), float(scales[index]), false, false)
 
 func _get_skill_effect_scales(owner, stat: String) -> Array[float]:
 	if owner != null and owner.has_method("_get_skill_blessing_effect_scales_for_skill"):
@@ -133,7 +143,8 @@ func _spawn_primary_batched_bullet(owner, shot_direction: Vector2, damage_amount
 	var hit_radius: float = 14.0 + float(overrides.get("hit_radius_bonus", 0.0))
 	if focus_level > 0:
 		hit_radius += 1.5 * focus_level
-	var lifetime: float = float(overrides.get("lifetime", BASIC_BULLET_LIFETIME))
+	var bullet_speed: float = _get_basic_bullet_speed(owner, role_data, focus_level)
+	var lifetime: float = float(overrides.get("lifetime", _get_basic_bullet_lifetime(bullet_speed)))
 	var pierce_count: int = int(round(float(upgrade_data["range_bonus"]) / 40.0)) + focus_level + owner._get_story_style_extra_pierce(role_data["id"])
 	return owner._spawn_batched_directional_bullet_values(
 		shot_direction,
@@ -141,7 +152,7 @@ func _spawn_primary_batched_bullet(owner, shot_direction: Vector2, damage_amount
 		bullet_color,
 		role_data["id"],
 		origin,
-		(BASIC_BULLET_BASE_SPEED + BASIC_BULLET_FOCUS_SPEED_BONUS * focus_level) * owner._get_story_style_bullet_speed_multiplier(role_data["id"]) * _get_basic_attack_projectile_speed_multiplier(owner),
+		bullet_speed,
 		lifetime,
 		hit_radius,
 		_get_scaled_visual_radius(BASIC_BULLET_VISUAL_RADIUS),
@@ -158,9 +169,22 @@ func _spawn_primary_batched_bullet(owner, shot_direction: Vector2, damage_amount
 		pierce_count
 	)
 
+func _spawn_primary_batched_bullet_group(owner, shot_direction: Vector2, damage_amount: float, bullet_color: Color, role_data: Dictionary, upgrade_data: Dictionary, focus_level: int, origin: Vector2, reprise_scales: Array[float]) -> bool:
+	var side_axis := Vector2(-shot_direction.y, shot_direction.x)
+	var total_count := 1 + reprise_scales.size()
+	var center_offset := (float(total_count) - 1.0) * 0.5
+	var spawned := false
+	for index in range(total_count):
+		var scale := 1.0
+		if index > 0:
+			scale = float(reprise_scales[index - 1])
+		var bullet_origin := origin + side_axis * ((float(index) - center_offset) * GUNNER_REPRISE_BULLET_SIDE_OFFSET)
+		spawned = _spawn_primary_batched_bullet(owner, shot_direction, damage_amount * max(0.0, scale), bullet_color, role_data, upgrade_data, focus_level, bullet_origin) or spawned
+	return spawned
+
 func _configure_primary_bullet(owner, bullet, role_data: Dictionary, upgrade_data: Dictionary, focus_level: int) -> void:
-	bullet.speed = (BASIC_BULLET_BASE_SPEED + BASIC_BULLET_FOCUS_SPEED_BONUS * focus_level) * owner._get_story_style_bullet_speed_multiplier(role_data["id"]) * _get_basic_attack_projectile_speed_multiplier(owner)
-	bullet.lifetime = BASIC_BULLET_LIFETIME
+	bullet.speed = _get_basic_bullet_speed(owner, role_data, focus_level)
+	bullet.lifetime = _get_basic_bullet_lifetime(bullet.speed)
 	bullet.visual_scale_multiplier *= GUNNER_BULLET_VISUAL_SCALE
 	bullet.pierce_count = int(round(float(upgrade_data["range_bonus"]) / 40.0)) + focus_level + owner._get_story_style_extra_pierce(role_data["id"])
 	if focus_level > 0:
@@ -172,6 +196,12 @@ func _get_basic_attack_projectile_speed_multiplier(owner) -> float:
 	if owner != null and owner.has_method("_get_basic_attack_projectile_speed_multiplier"):
 		return float(owner._get_basic_attack_projectile_speed_multiplier("gunner_basic_attack"))
 	return 1.0
+
+func _get_basic_bullet_speed(owner, role_data: Dictionary, focus_level: int) -> float:
+	return (BASIC_BULLET_BASE_SPEED + BASIC_BULLET_FOCUS_SPEED_BONUS * focus_level) * owner._get_story_style_bullet_speed_multiplier(role_data["id"]) * _get_basic_attack_projectile_speed_multiplier(owner)
+
+func _get_basic_bullet_lifetime(bullet_speed: float) -> float:
+	return BASIC_BULLET_TRAVEL_DISTANCE / max(1.0, bullet_speed)
 
 func perform_background(owner) -> void:
 	var special_data: Dictionary = owner._get_role_special_state("gunner")
@@ -237,24 +267,35 @@ func perform_ultimate(owner, cast_payload: Dictionary) -> void:
 	if owner.has_method("_get_blessing_skill_duration_multiplier"):
 		total_duration *= float(owner._get_blessing_skill_duration_multiplier(ULTIMATE_SKILL_ID))
 	total_duration *= float(cast_payload.get("duration_multiplier", 1.0))
+	if owner.has_method("_get_blessing_skill_duration_flat_bonus"):
+		total_duration += float(owner._get_blessing_skill_duration_flat_bonus(ULTIMATE_SKILL_ID))
 	_lock_basic_attack_during_ultimate(owner, total_duration)
+	_apply_ultimate_haste(owner, total_duration)
 	var old_tick_interval: float = _get_ultimate_tick_interval(ultimate_tier)
 	var old_tick_count: int = max(1, int(ceil(total_duration / old_tick_interval)))
 	var tick_count: int = _get_ultimate_damage_wave_count(total_duration, ultimate_tier)
 	var tick_interval: float = total_duration / float(max(1, tick_count))
 	var damage_wave_multiplier: float = float(old_tick_count) / float(max(1, tick_count))
-	var visual_count: int = max(1, int(ceil(total_duration / ULTIMATE_VISUAL_INTERVAL)))
+	var cast_damage_multiplier: float = float(cast_payload.get("damage_multiplier", 1.0)) * _get_ultimate_damage_multiplier(owner)
+	var visual_interval: float = _get_ultimate_visual_interval()
+	var visual_count: int = max(1, int(ceil(total_duration / visual_interval)))
 	owner._queue_camera_shake(17.5, 0.54)
 	owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, 0.5)
 	owner._delay_level_up_requests(total_duration)
 	owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -34.0), "火箭弹幕", Color(1.0, 0.86, 0.5, 1.0))
 	owner._schedule_repeating_sequence(tick_interval, tick_count, func(tick_index: int) -> void:
-		_apply_ultimate_cone_damage(owner, barrage_level, focus_level, cone_degrees, float(cast_payload.get("damage_multiplier", 1.0)) * damage_wave_multiplier, ultimate_tier, tick_index)
+		_apply_ultimate_cone_damage(owner, barrage_level, focus_level, cone_degrees, cast_damage_multiplier * damage_wave_multiplier, ultimate_tier, tick_index)
 	)
-	owner._schedule_repeating_sequence(ULTIMATE_VISUAL_INTERVAL, visual_count, func(visual_index: int) -> void:
+	owner._schedule_repeating_sequence(visual_interval, visual_count, func(visual_index: int) -> void:
 		_spawn_ultimate_cone_visuals(owner, barrage_level, focus_level, scatter_level, cone_degrees, visual_index)
 	)
 	owner._apply_post_ultimate_bonuses("gunner", total_duration)
+
+func _apply_ultimate_haste(owner, total_duration: float) -> void:
+	var special_multiplier: float = _get_ultimate_special_effect_multiplier(owner)
+	owner.ultimate_haste_remaining = max(owner.ultimate_haste_remaining, total_duration)
+	owner.ultimate_haste_move_speed_multiplier = 1.0 + (ULTIMATE_HASTE_MOVE_SPEED_MULTIPLIER - 1.0) * special_multiplier
+	owner.ultimate_haste_dodge_chance = ULTIMATE_HASTE_DODGE_CHANCE * special_multiplier
 
 func _lock_basic_attack_during_ultimate(owner, total_duration: float) -> void:
 	ultimate_attack_lock_id += 1
@@ -279,7 +320,7 @@ func _apply_ultimate_cone_damage(owner, barrage_level: int, focus_level: int, co
 	direction = direction.normalized()
 	owner.facing_direction = direction
 	var range_value: float = _get_ultimate_cone_range(owner)
-	var damage_multiplier: float = (ULTIMATE_DAMAGE_BASE_RATIO + float(barrage_level) * ULTIMATE_DAMAGE_BARRAGE_RATIO + float(focus_level) * ULTIMATE_DAMAGE_FOCUS_RATIO) * cast_damage_multiplier
+	var damage_multiplier: float = (ULTIMATE_DAMAGE_BASE_RATIO + float(barrage_level) * ULTIMATE_DAMAGE_BARRAGE_RATIO + float(focus_level) * ULTIMATE_DAMAGE_FOCUS_RATIO) * cast_damage_multiplier * ULTIMATE_DAMAGE_OUTPUT_MULTIPLIER
 	if ultimate_tier >= 3:
 		damage_multiplier *= ULTIMATE_TIER_TWO_DAMAGE_MULTIPLIER * ULTIMATE_TIER_THREE_DAMAGE_MULTIPLIER
 	elif ultimate_tier >= 2:
@@ -310,7 +351,7 @@ func _spawn_ultimate_cone_visuals(owner, barrage_level: int, focus_level: int, s
 	var range_value: float = _get_ultimate_cone_range(owner)
 	var bullet_speed: float = ULTIMATE_VISUAL_BULLET_SPEED + focus_level * ULTIMATE_VISUAL_FOCUS_SPEED_BONUS + barrage_level * ULTIMATE_VISUAL_BARRAGE_SPEED_BONUS
 	var bullet_lifetime: float = max(0.20, range_value / bullet_speed)
-	var bullet_count: int = ULTIMATE_VISUAL_BULLETS_PER_PULSE + min(3, barrage_level) + min(2, scatter_level)
+	var bullet_count: int = _get_ultimate_visual_bullets_per_pulse() + min(3, barrage_level) + min(2, scatter_level)
 	var phase: float = float(visual_index) * 0.37
 	for bullet_index in range(bullet_count):
 		var ratio: float = 0.5 if bullet_count <= 1 else float(bullet_index) / float(bullet_count - 1)
@@ -358,9 +399,7 @@ func _uses_batched_damage(owner) -> bool:
 	return owner != null and owner.has_method("_damage_enemies_in_shapes_batched")
 
 func _get_ultimate_cone_range(owner) -> float:
-	var role_data: Dictionary = owner.roles[1] if owner.roles.size() > 1 else {"range": 300.0, "id": "gunner"}
-	var upgrade_data: Dictionary = owner.role_upgrade_levels.get("gunner", {})
-	var base_range: float = (float(role_data.get("range", 300.0)) + float(upgrade_data.get("range_bonus", 0.0))) * 2.0
+	var base_range: float = ULTIMATE_RANGE
 	base_range *= owner._get_story_style_range_multiplier("gunner")
 	base_range *= owner._get_role_attribute_range_multiplier("gunner")
 	base_range *= owner._get_role_equipment_skill_range_multiplier("gunner")
@@ -372,10 +411,6 @@ func _get_ultimate_skill_tier(owner) -> int:
 	return 1
 
 func _get_ultimate_cone_degrees(ultimate_tier: int) -> float:
-	if ultimate_tier >= 3:
-		return ULTIMATE_TIER_THREE_CONE_DEGREES
-	if ultimate_tier >= 2:
-		return ULTIMATE_TIER_TWO_CONE_DEGREES
 	return ULTIMATE_TIER_ONE_CONE_DEGREES
 
 func _get_ultimate_tick_interval(ultimate_tier: int) -> float:
@@ -392,6 +427,32 @@ func _get_ultimate_damage_wave_count(total_duration: float, ultimate_tier: int) 
 	elif ultimate_tier >= 2:
 		waves_per_second = ULTIMATE_TIER_TWO_DAMAGE_WAVES_PER_SECOND
 	return max(1, int(round(total_duration * waves_per_second)))
+
+func _get_ultimate_visual_interval() -> float:
+	var fps: int = Engine.get_frames_per_second()
+	if fps > 0 and fps < PERFORMANCE_GUARD.CRITICAL_FPS_THRESHOLD:
+		return ULTIMATE_CRITICAL_FPS_VISUAL_INTERVAL
+	if fps > 0 and fps < PERFORMANCE_GUARD.LOW_FPS_THRESHOLD:
+		return ULTIMATE_LOW_FPS_VISUAL_INTERVAL
+	return ULTIMATE_VISUAL_INTERVAL
+
+func _get_ultimate_visual_bullets_per_pulse() -> int:
+	var fps: int = Engine.get_frames_per_second()
+	if fps > 0 and fps < PERFORMANCE_GUARD.CRITICAL_FPS_THRESHOLD:
+		return max(3, int(ceil(float(ULTIMATE_VISUAL_BULLETS_PER_PULSE) * 0.5)))
+	if fps > 0 and fps < PERFORMANCE_GUARD.LOW_FPS_THRESHOLD:
+		return max(4, int(ceil(float(ULTIMATE_VISUAL_BULLETS_PER_PULSE) * 0.7)))
+	return ULTIMATE_VISUAL_BULLETS_PER_PULSE
+
+func _get_ultimate_damage_multiplier(owner) -> float:
+	if owner != null and owner.has_method("_get_blessing_ultimate_damage_multiplier"):
+		return float(owner._get_blessing_ultimate_damage_multiplier(ULTIMATE_SKILL_ID))
+	return 1.0
+
+func _get_ultimate_special_effect_multiplier(owner) -> float:
+	if owner != null and owner.has_method("_get_blessing_ultimate_special_effect_multiplier"):
+		return max(0.0, float(owner._get_blessing_ultimate_special_effect_multiplier(ULTIMATE_SKILL_ID)))
+	return 1.0
 
 func _fire_ultimate_wave(owner, wave_count: int, barrage_level: int, focus_level: int, scatter_level: int, lock_level: int, cast_damage_multiplier: float, wave_index: int) -> void:
 	if owner.is_dead:

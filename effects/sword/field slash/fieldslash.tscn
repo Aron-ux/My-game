@@ -28,7 +28,7 @@ animations = [{
 "duration": 1.0,
 "texture": ExtResource("6_81d6w")
 }],
-"loop": false,
+"loop": true,
 "name": &"fieldslash",
 "speed": 18.0
 }]
@@ -38,8 +38,7 @@ animations = [{
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=998349292]
 sprite_frames = SubResource("SpriteFrames_n386s")
 animation = &"fieldslash"
-frame = 5
-frame_progress = 1.0
+frame_progress = 0.16678935
 speed_scale = 2.0
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="AnimatedSprite2D" unique_id=1957920384]
@@ -47,8 +46,7 @@ position = Vector2(11.999998, -27)
 rotation = -1.4963362
 sprite_frames = SubResource("SpriteFrames_n386s")
 animation = &"fieldslash"
-frame = 5
-frame_progress = 1.0
+frame_progress = 0.58145356
 speed_scale = 2.0
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="AnimatedSprite2D/AnimatedSprite2D" unique_id=1658185103]
@@ -56,8 +54,7 @@ position = Vector2(17.564062, -33.39916)
 rotation = -2.2846181
 sprite_frames = SubResource("SpriteFrames_n386s")
 animation = &"fieldslash"
-frame = 5
-frame_progress = 1.0
+frame_progress = 0.04632479
 speed_scale = 2.0
 
 [node name="AnimatedSprite2D2" type="AnimatedSprite2D" parent="." unique_id=198189040]
@@ -66,8 +63,7 @@ rotation = 1.3089969
 scale = Vector2(1.3328236, 0.5872302)
 sprite_frames = SubResource("SpriteFrames_n386s")
 animation = &"fieldslash"
-frame = 5
-frame_progress = 1.0
+frame_progress = 0.088039994
 
 [node name="AnimatedSprite2D2" type="AnimatedSprite2D" parent="AnimatedSprite2D2" unique_id=219191741]
 position = Vector2(-22.324207, -8.28772)
@@ -75,5 +71,4 @@ rotation = 1.6793079
 scale = Vector2(2.3668282, 0.53869563)
 sprite_frames = SubResource("SpriteFrames_n386s")
 animation = &"fieldslash"
-frame = 5
-frame_progress = 1.0
+frame_progress = 0.27000022

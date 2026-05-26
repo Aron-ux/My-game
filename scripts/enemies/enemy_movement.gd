@@ -1,5 +1,7 @@
 extends RefCounted
 
+const ENEMY_GLUTTON_SKILL_BEHAVIOR := preload("res://scripts/enemies/enemy_glutton_skill_behavior.gd")
+
 const GLOBAL_UNIT_MOVE_SPEED_SCALE := 0.7
 const BOSS_MOVE_SPEED_SCALE := 0.7
 
@@ -13,6 +15,8 @@ static func compute_velocity(enemy, delta: float) -> Vector2:
 	if enemy._is_boss:
 		return compute_boss_velocity(enemy, direction_to_target, distance_to_target, delta)
 	if enemy._is_turret or enemy.behavior_id == "rose" or enemy.secondary_behavior_id == "rose" or enemy.rebirth_timer > 0.0:
+		return Vector2.ZERO
+	if enemy._is_glutton and ENEMY_GLUTTON_SKILL_BEHAVIOR.should_hold_position_for_cast(enemy):
 		return Vector2.ZERO
 
 	if enemy._is_shooter:
@@ -35,6 +39,7 @@ static func compute_velocity(enemy, delta: float) -> Vector2:
 
 	if enemy._is_glutton:
 		move_speed += enemy.glutton_bonus_speed
+		move_speed *= ENEMY_GLUTTON_SKILL_BEHAVIOR.get_war_stomp_speed_multiplier(enemy)
 	if enemy._is_swarm:
 		move_speed *= 1.1
 	move_speed *= max(0.0, float(enemy.skull_soldier_speed_multiplier))

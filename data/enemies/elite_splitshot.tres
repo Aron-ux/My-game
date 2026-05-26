@@ -8,9 +8,9 @@ script = ExtResource("1_profile")
 archetype = "elite_splitshot"
 behavior = "shooter"
 boss_name = "碎幕炮台"
-max_health = 380.0
+max_health = 608.0
 speed = 74.0
-touch_damage = 22.0
+touch_damage = 32.0
 contact_radius = 56.0
 body_collision_radius = 102.0
 reward_tier = 4
@@ -21,13 +21,22 @@ visual_scene = ExtResource("2_visual")
 extra = {
 "preferred_distance": 230.0,
 "projectile_color": Color(0.890196, 0.184314, 0.211765, 1),
+"projectile_visual_style": "solid_circle",
 "shot_interval": 2.2,
 "projectile_speed": 250.0,
-"projectile_damage": 10.0,
+"projectile_damage": 15.0,
 "projectile_lifetime": 4.8,
 "projectile_spread": 0.18,
 "projectile_count": 5,
+"projectile_count_fixed": true,
 "projectile_split_count": 4,
-"projectile_split_after": 0.48,
+"projectile_split_after": 2.0,
+"projectile_split_count_fixed": true,
+"projectile_split_damage_scale": 0.5,
+"projectile_split_hit_radius_scale": 0.5,
+"projectile_split_lifetime_scale": 0.72,
+"projectile_split_pattern": "cross",
+"projectile_split_size_scale": 0.5,
+"projectile_split_speed_scale": 2.0,
 "projectile_split_spread": 1.2
 }

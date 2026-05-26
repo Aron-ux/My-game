@@ -3,6 +3,7 @@ extends RefCounted
 const ENEMY_VISUAL_DATA := preload("res://scripts/enemies/enemy_visual_data.gd")
 const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
 const NON_BOSS_PROJECTILE_SPEED_MULTIPLIER := 0.6
+const DEFAULT_HIT_RADIUS := 16.0
 const ENEMY_PROJECTILE_POOL_GROUP := "enemy_projectile_pool"
 
 static func fire_shooter_pattern(enemy) -> void:
@@ -22,13 +23,15 @@ static func fire_shooter_pattern(enemy) -> void:
 			extra_config = {
 				"split_count": enemy.projectile_split_count,
 				"split_after_time": enemy.projectile_split_after,
-				"split_pattern": "fan",
+				"split_pattern": enemy.projectile_split_pattern,
 				"split_spread": enemy.projectile_split_spread,
-				"split_speed": enemy.projectile_speed * 0.88,
-				"split_damage_scale": 0.72,
-				"split_lifetime": max(1.6, enemy.projectile_lifetime * 0.72),
+				"split_speed": enemy.projectile_speed * enemy.projectile_split_speed_scale,
+				"split_damage_scale": enemy.projectile_split_damage_scale,
+				"split_lifetime": max(1.6, enemy.projectile_lifetime * enemy.projectile_split_lifetime_scale),
 				"split_motion_mode": "straight",
-				"size_scale": 0.92
+				"split_size_scale": enemy.projectile_split_size_scale,
+				"split_hit_radius_scale": enemy.projectile_split_hit_radius_scale,
+				"split_visual_style": enemy.projectile_visual_style
 			}
 		spawn_projectile(
 			enemy,
@@ -69,8 +72,16 @@ static func spawn_projectile(enemy, origin: Vector2, shot_direction: Vector2, sh
 		"speed": shot_speed * speed_multiplier,
 		"damage": shot_damage,
 		"lifetime": shot_lifetime,
+		"hit_radius": DEFAULT_HIT_RADIUS,
 		"visual_color": color,
+		"visual_style": enemy.projectile_visual_style,
+		"size_scale": 1.0,
 		"motion_mode": mode,
+		"split_on_return": false,
+		"split_count": 0,
+		"split_after_time": 0.0,
+		"split_pattern": "radial",
+		"split_visual_style": "",
 		"target": enemy.target
 	}
 	for key in extra_config.keys():

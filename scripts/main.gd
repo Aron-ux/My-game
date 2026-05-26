@@ -113,6 +113,7 @@ var runtime_player_projectile_pool_cache_dirty: Dictionary = {}
 var runtime_player_projectile_pool_limit: int = 96
 var reward_maintenance_scheduled: bool = false
 var reward_maintenance_resume_level_ups: bool = false
+var opening_trait_choice_completed: bool = false
 
 func _ready() -> void:
 	GAME_MAIN_FLOW.ready(self)
@@ -541,6 +542,9 @@ func _on_developer_blessing_grant_requested(blessing_id: String, tier: int) -> v
 
 func _on_developer_all_blessings_grant_requested() -> void:
 	DEVELOPER_ACTIONS.grant_all_blessings(self)
+
+func _on_developer_glutton_skill_test_requested(skill_id: String) -> void:
+	DEVELOPER_ACTIONS.force_glutton_skill(self, skill_id)
 
 func _on_developer_enemy_detail_display_toggled(enabled: bool) -> void:
 	set_enemy_debug_ranges_visible(enabled)

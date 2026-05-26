@@ -2,6 +2,8 @@ extends RefCounted
 
 
 static func try_trigger_swordsman_blade_storm(owner) -> void:
+	if owner.has_method("_is_player_action_locked") and owner._is_player_action_locked():
+		return
 	var active_role_id := str(owner._get_active_role().get("id", ""))
 	if owner.swordsman_blade_storm_ability == null or not owner.swordsman_blade_storm_ability.can_trigger(owner, active_role_id):
 		return
@@ -9,7 +11,7 @@ static func try_trigger_swordsman_blade_storm(owner) -> void:
 
 
 static func try_trigger_swordsman_crescent_wave(owner) -> void:
-	if owner.is_dead or owner.level_up_active:
+	if owner.is_dead or owner.level_up_active or (owner.has_method("_is_player_action_locked") and owner._is_player_action_locked()):
 		return
 	var active_role_id := str(owner._get_active_role().get("id", ""))
 	if owner.swordsman_crescent_wave_ability == null or not owner.swordsman_crescent_wave_ability.can_trigger(owner, active_role_id):
@@ -18,7 +20,7 @@ static func try_trigger_swordsman_crescent_wave(owner) -> void:
 
 
 static func try_trigger_gunner_infinite_reload(owner) -> void:
-	if owner.is_dead or owner.level_up_active:
+	if owner.is_dead or owner.level_up_active or (owner.has_method("_is_player_action_locked") and owner._is_player_action_locked()):
 		return
 	if owner.gunner_infinite_reload_ability == null:
 		return
@@ -29,7 +31,7 @@ static func try_trigger_gunner_infinite_reload(owner) -> void:
 
 
 static func try_trigger_gunner_shrapnel_field(owner) -> void:
-	if owner.is_dead or owner.level_up_active:
+	if owner.is_dead or owner.level_up_active or (owner.has_method("_is_player_action_locked") and owner._is_player_action_locked()):
 		return
 	var active_role_id := str(owner._get_active_role().get("id", ""))
 	if owner.gunner_shrapnel_field_ability == null or not owner.gunner_shrapnel_field_ability.can_trigger(owner, active_role_id):
@@ -38,7 +40,7 @@ static func try_trigger_gunner_shrapnel_field(owner) -> void:
 
 
 static func try_trigger_mage_tidal_surge(owner) -> void:
-	if owner.is_dead or owner.level_up_active:
+	if owner.is_dead or owner.level_up_active or (owner.has_method("_is_player_action_locked") and owner._is_player_action_locked()):
 		return
 	var active_role_id := str(owner._get_active_role().get("id", ""))
 	if owner.mage_tidal_surge_ability == null or not owner.mage_tidal_surge_ability.can_trigger(owner, active_role_id):
@@ -47,7 +49,7 @@ static func try_trigger_mage_tidal_surge(owner) -> void:
 
 
 static func try_trigger_mage_meta_field(owner) -> void:
-	if owner.is_dead or owner.level_up_active:
+	if owner.is_dead or owner.level_up_active or (owner.has_method("_is_player_action_locked") and owner._is_player_action_locked()):
 		return
 	var active_role_id := str(owner._get_active_role().get("id", ""))
 	if owner.mage_meta_field_ability == null or not owner.mage_meta_field_ability.can_trigger(owner, active_role_id):

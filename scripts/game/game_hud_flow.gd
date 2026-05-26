@@ -67,13 +67,15 @@ static func update_boss_hud(main: Node) -> void:
 		var boss_name := "Boss"
 		var current_health := float(main.boss_enemy.get("current_health"))
 		var max_health := float(main.boss_enemy.get("max_health"))
+		var status_payload: Dictionary = {}
 		if main.boss_enemy.has_method("get_boss_ui_payload"):
 			var payload: Dictionary = main.boss_enemy.get_boss_ui_payload()
 			boss_name = str(payload.get("name", boss_name))
 			current_health = float(payload.get("current_health", current_health))
 			max_health = float(payload.get("max_health", max_health))
+			status_payload = payload.get("status", {}) as Dictionary
 		if main.hud.has_method("show_boss_ui"):
-			main.hud.show_boss_ui(boss_name, current_health, max_health)
+			main.hud.show_boss_ui(boss_name, current_health, max_health, status_payload)
 	else:
 		hide_boss_ui(main)
 

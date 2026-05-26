@@ -15,6 +15,7 @@ const KIND_COLORS := {
 }
 const TREE_SQUASH_COLOR := Color(0.1, 0.48, 1.0, 0.88)
 const TREE_ATTACK_COLOR := Color(1.0, 0.12, 0.08, 0.9)
+const TREE_WOOD_SPIKE_COLOR := Color(1.0, 0.72, 0.08, 0.95)
 
 var battle_root: Node
 var debug_enabled: bool = false
@@ -64,6 +65,9 @@ func _draw_enemy_body_collision(enemy: Node2D) -> void:
 func _draw_tree_ranges(enemy: Node2D) -> void:
 	_draw_shape(ENEMY_GLUTTON_BEHAVIOR.get_debug_aura_shape(enemy), TREE_SQUASH_COLOR, TREE_RANGE_LINE_WIDTH)
 	_draw_shape(ENEMY_GLUTTON_BEHAVIOR.get_player_touch_shape(enemy), TREE_ATTACK_COLOR, TREE_RANGE_LINE_WIDTH)
+	for shape in ENEMY_GLUTTON_BEHAVIOR.get_debug_wood_spike_hitboxes(enemy):
+		if shape is Dictionary:
+			_draw_shape(shape, TREE_WOOD_SPIKE_COLOR, TREE_RANGE_LINE_WIDTH)
 
 
 func _draw_shape(shape: Dictionary, color: Color, width: float) -> void:

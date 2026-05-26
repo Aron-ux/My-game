@@ -8,6 +8,7 @@ const MIDGAME_STEP := 420.0
 const LATEGAME_STEP := 850.0
 const MIDGAME_LEVEL := 10
 const LATEGAME_LEVEL := 18
+const REQUIRED_EXPERIENCE_MULTIPLIER := 0.8
 
 
 static func get_required_experience_for_level(level: int) -> int:
@@ -18,6 +19,7 @@ static func get_required_experience_for_level(level: int) -> int:
 	required += pow(index, POWER_EXPONENT) * POWER_STEP
 	required += float(max(0, safe_level - MIDGAME_LEVEL)) * MIDGAME_STEP
 	required += float(max(0, safe_level - LATEGAME_LEVEL)) * LATEGAME_STEP
+	required *= REQUIRED_EXPERIENCE_MULTIPLIER
 	return max(1, int(round(required)))
 
 

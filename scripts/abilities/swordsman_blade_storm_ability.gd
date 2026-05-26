@@ -9,8 +9,10 @@ const TIER_THREE_DURATION := 2.0
 const BASE_TICK_INTERVAL := 0.5
 const TIER_TWO_TICK_INTERVAL := 0.4
 const TIER_THREE_TICK_INTERVAL := 0.2
+const BASE_DAMAGE_RATIO := 0.8
+const TIER_THREE_DAMAGE_RATIO := 1.05
 const MAX_CATCH_UP_TICKS := 5
-const ROTATION_SPEED := -TAU * 3.45
+const ROTATION_SPEED := -TAU * 5.175
 const BASE_RADIUS := 350.0 * 0.6
 const BASE_VISUAL_SCALE := 1.4 * 0.6
 const DIELANG_DURATION_BONUS := 0.24
@@ -42,7 +44,7 @@ func update(owner, delta: float) -> void:
 		return
 
 	if str(owner._get_active_role().get("id", "")) != "swordsman":
-		stop()
+		stop(owner)
 		return
 
 	active_remaining = max(0.0, active_remaining - delta)
@@ -56,7 +58,7 @@ func update(owner, delta: float) -> void:
 	if catch_up_ticks >= MAX_CATCH_UP_TICKS and tick_remaining <= 0.0:
 		tick_remaining = _get_tick_interval(owner)
 	if active_remaining <= 0.0:
-		stop()
+		stop(owner)
 
 func can_trigger(owner, role_id: String) -> bool:
 	if owner == null or not is_instance_valid(owner):
@@ -81,7 +83,7 @@ func try_trigger(owner) -> bool:
 	owner._spawn_ring_effect(owner.global_position, _get_radius(owner) * 0.95, Color(0.42, 0.9, 1.0, 0.28), 8.0, 0.2)
 	return true
 
-func stop() -> void:
+func stop(owner = null) -> void:
 	active_remaining = 0.0
 	tick_remaining = 0.0
 	for effect in effects:
@@ -145,7 +147,7 @@ func _ensure_effect(owner) -> void:
 		if sprite != null:
 			sprite.centered = true
 			sprite.position = Vector2.ZERO
-			sprite.scale = Vector2.ONE * BASE_VISUAL_SCALE * _get_size_multiplier(owner) * owner._get_equipment_skill_range_multiplier()
+			sprite.scale = Vector2.ONE * BASE_VISUAL_SCALE * _get_size_multiplier(owner) * _get_range_multiplier(owner)
 			sprite.modulate = Color(1.0, 1.0, 1.0, 0.96)
 			if sprite.sprite_frames != null:
 				sprite.play()
@@ -210,10 +212,10 @@ func _get_damage(owner) -> float:
 	var tier: int = _get_tier(owner)
 	var tier_multiplier := 1.0
 	if tier >= 3:
-		tier_multiplier = 1.05 / 0.72
+		tier_multiplier = TIER_THREE_DAMAGE_RATIO / BASE_DAMAGE_RATIO
 	elif tier >= 2:
 		tier_multiplier = 1.18
-	return float(owner._get_role_damage("swordsman")) * 0.72 * tier_multiplier
+	return float(owner._get_role_damage("swordsman")) * BASE_DAMAGE_RATIO * tier_multiplier
 
 func _get_duration(owner) -> float:
 	var tier: int = _get_tier(owner)
@@ -224,6 +226,8 @@ func _get_duration(owner) -> float:
 		duration = TIER_TWO_DURATION
 	if owner != null and owner.has_method("_get_blessing_skill_duration_multiplier"):
 		duration *= float(owner._get_blessing_skill_duration_multiplier(BLADE_STORM_SKILL_ID))
+	if owner != null and owner.has_method("_get_blessing_skill_duration_flat_bonus"):
+		duration += float(owner._get_blessing_skill_duration_flat_bonus(BLADE_STORM_SKILL_ID))
 	return duration
 
 func _get_tick_interval(owner) -> float:
@@ -237,8 +241,16 @@ func _get_tick_interval(owner) -> float:
 func _get_size_multiplier(_owner) -> float:
 	return 1.0
 
+func _get_range_multiplier(owner) -> float:
+	var range_multiplier: float = 1.0
+	if owner != null and owner.has_method("_get_equipment_skill_range_multiplier"):
+		range_multiplier *= float(owner._get_equipment_skill_range_multiplier())
+	if owner != null and owner.has_method("_get_invoker_magic_range_multiplier"):
+		range_multiplier *= float(owner._get_invoker_magic_range_multiplier(BLADE_STORM_SKILL_ID))
+	return range_multiplier
+
 func _get_radius(owner) -> float:
-	return BASE_RADIUS * _get_size_multiplier(owner) * owner._get_equipment_skill_range_multiplier()
+	return BASE_RADIUS * _get_size_multiplier(owner) * _get_range_multiplier(owner)
 
 func _get_extra_storm_count(owner) -> int:
 	return min(4, _get_trick_bonus(owner)) if owner != null else 0
@@ -264,7 +276,7 @@ func _get_storm_local_positions(owner) -> Array[Vector2]:
 	var side: Vector2 = owner._get_downward_perpendicular(direction).normalized()
 	if side.length_squared() <= 0.001:
 		side = Vector2.DOWN
-	var distance: float = EXTRA_STORM_OFFSET * _get_size_multiplier(owner) * owner._get_equipment_skill_range_multiplier()
+	var distance: float = EXTRA_STORM_OFFSET * _get_size_multiplier(owner) * _get_range_multiplier(owner)
 	if extra_count >= 1:
 		storm_local_positions.append(direction * distance)
 	if extra_count >= 2:

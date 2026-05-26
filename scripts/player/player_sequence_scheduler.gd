@@ -32,8 +32,10 @@ func _process(delta: float) -> void:
 			sequences[sequence_index] = sequence
 			continue
 		var callback: Callable = sequence.get("callback", Callable())
-		if callback.is_valid():
-			callback.call(int(sequence.get("index", 0)))
+		if not callback.is_valid():
+			sequences.remove_at(sequence_index)
+			continue
+		callback.call(int(sequence.get("index", 0)))
 		var remaining: int = int(sequence.get("remaining", 0)) - 1
 		if remaining <= 0:
 			sequences.remove_at(sequence_index)

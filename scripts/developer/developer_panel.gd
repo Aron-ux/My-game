@@ -14,13 +14,16 @@ signal skill_unlock_requested(skill_id: String, tier: int)
 signal blessing_grant_requested(blessing_id: String, tier: int)
 signal all_blessings_grant_requested
 signal enemy_detail_display_toggled(enabled: bool)
+signal glutton_skill_test_requested(skill_id: String)
 
 var level_button: Button
 var invincibility_button: Button
 var no_cooldown_button: Button
+var force_tier_four_blessing_button: Button
 var enemy_detail_button: Button
 var enemy_menu_popup: PanelContainer
 var enemy_list: VBoxContainer
+var glutton_skill_list: VBoxContainer
 var skill_list: VBoxContainer
 var blessing_list: VBoxContainer
 var performance_label: Label
@@ -59,6 +62,8 @@ func refresh_mode_buttons() -> void:
 		invincibility_button.text = "停用无敌模式" if DEVELOPER_MODE.is_ignore_damage_enabled() else "启用无敌模式"
 	if no_cooldown_button != null:
 		no_cooldown_button.text = "关闭无 CD" if DEVELOPER_MODE.is_no_cooldown_enabled() else "开启无 CD"
+	if force_tier_four_blessing_button != null:
+		force_tier_four_blessing_button.text = "关闭必出四级祝福" if DEVELOPER_MODE.is_force_tier_four_blessing_enabled() else "开启必出四级祝福"
 
 
 	_refresh_enemy_detail_button_text()
@@ -117,6 +122,10 @@ func _build_top_buttons(parent: Control) -> void:
 	no_cooldown_button.pressed.connect(_on_no_cooldown_button_pressed)
 	parent.add_child(no_cooldown_button)
 
+	force_tier_four_blessing_button = _build_button("", Vector2(220, 40), 16)
+	force_tier_four_blessing_button.pressed.connect(_on_force_tier_four_blessing_button_pressed)
+	parent.add_child(force_tier_four_blessing_button)
+
 	enemy_detail_button = _build_button("", Vector2(220, 40), 16)
 	enemy_detail_button.pressed.connect(_on_enemy_detail_button_pressed)
 	parent.add_child(enemy_detail_button)
@@ -136,6 +145,8 @@ func _build_scroll_content(parent: Control) -> void:
 	scroll.add_child(menu_content)
 
 	_build_enemy_menu_button(menu_content)
+	glutton_skill_list = _add_menu_section(menu_content, "Glutton Skill Test")
+	_populate_glutton_skill_list()
 	blessing_list = _add_menu_section(menu_content, "添加祝福")
 	skill_list = _add_menu_section(menu_content, "添加技能")
 
@@ -224,6 +235,15 @@ func _populate_enemy_option_list(options: Array) -> void:
 	_populate_option_list(enemy_list, options, "暂无敌人选项", Callable(self, "_on_enemy_button_pressed"))
 
 
+func _populate_glutton_skill_list() -> void:
+	var options: Array = [
+		{"id": "war_stomp", "title": "War Stomp", "description": "Force the 7 second war stomp state."},
+		{"id": "death_twine", "title": "Death Twine", "description": "Force the player-targeted entangle skill."},
+		{"id": "wood_spike", "title": "Wood Spike", "description": "Force five random wood spike warnings."}
+	]
+	_populate_option_list(glutton_skill_list, options, "No glutton skill test options", Callable(self, "_on_glutton_skill_button_pressed"))
+
+
 func _add_menu_section(parent: Control, title: String) -> VBoxContainer:
 	var section := VBoxContainer.new()
 	section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -297,6 +317,11 @@ func _on_no_cooldown_button_pressed() -> void:
 	refresh_mode_buttons()
 
 
+func _on_force_tier_four_blessing_button_pressed() -> void:
+	DEVELOPER_MODE.set_force_tier_four_blessing_enabled(not DEVELOPER_MODE.is_force_tier_four_blessing_enabled())
+	refresh_mode_buttons()
+
+
 func _on_enemy_detail_button_pressed() -> void:
 	enemy_detail_display_enabled = not enemy_detail_display_enabled
 	_refresh_enemy_detail_button_text()
@@ -350,3 +375,9 @@ func _on_blessing_button_pressed(option_id: String) -> void:
 	var tier: int = max(1, int(parts[1]))
 	if blessing_id != "":
 		blessing_grant_requested.emit(blessing_id, tier)
+
+
+func _on_glutton_skill_button_pressed(option_id: String) -> void:
+	if option_id == "":
+		return
+	glutton_skill_test_requested.emit(option_id)

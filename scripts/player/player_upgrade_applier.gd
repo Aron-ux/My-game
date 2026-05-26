@@ -13,6 +13,9 @@ static func apply_upgrade(owner, option_id: String) -> void:
 		return
 	var blessing_result: Dictionary = PLAYER_BLESSING_SYSTEM.apply_option_with_result(owner, option_id)
 	if not blessing_result.is_empty():
+		if str(blessing_result.get("type", "")) == PLAYER_BLESSING_SYSTEM.CATEGORY_MAGIC_STONE:
+			_finish_upgrade(owner, true, true)
+			return
 		if owner.has_method("_refresh_blessing_skill_unlocks"):
 			owner._refresh_blessing_skill_unlocks(
 				str(blessing_result.get("blessing_id", "")),

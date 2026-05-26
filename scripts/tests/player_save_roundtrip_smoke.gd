@@ -16,6 +16,7 @@ const EXACT_KEYS := [
 	"switch_invulnerability_remaining",
 	"level_up_delay_remaining",
 	"switch_cooldown_remaining",
+	"greed_heal_cooldown_remaining",
 	"enemy_move_slow_multiplier",
 	"enemy_move_slow_remaining",
 	"gunner_infinite_reload_cooldown_remaining",
@@ -74,6 +75,7 @@ const EXACT_KEYS := [
 	"attribute_training_levels",
 	"role_blessing_levels",
 	"skill_blessing_levels",
+	"owned_magic_stones",
 	"blessing_skill_state",
 	"role_special_states",
 	"roles",
@@ -179,6 +181,7 @@ func _seed_run_state(player: Node) -> void:
 	player.switch_invulnerability_remaining = 0.44
 	player.level_up_delay_remaining = 0.55
 	player.switch_cooldown_remaining = 1.25
+	player.greed_heal_cooldown_remaining = 1.75
 	player.enemy_move_slow_multiplier = 0.72
 	player.enemy_move_slow_remaining = 2.4
 
@@ -224,6 +227,7 @@ func _seed_run_state(player: Node) -> void:
 	PLAYER_BLESSING_SYSTEM.apply_blessing(player, "blazing_sun", 2)
 	PLAYER_BLESSING_SYSTEM.apply_blessing(player, "tide_rain", 1)
 	PLAYER_BLESSING_SYSTEM.apply_blessing(player, "reprise", 2)
+	PLAYER_BLESSING_SYSTEM.apply_magic_stone(player, "kebiru")
 
 	player.switch_power_remaining = 3.1
 	player.switch_power_role_id = "gunner"

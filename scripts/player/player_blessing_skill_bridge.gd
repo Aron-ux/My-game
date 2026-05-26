@@ -146,6 +146,27 @@ static func get_combo_scales(owner, skill_id: String) -> Array[float]:
 static func get_duration_multiplier(owner, skill_id: String) -> float:
 	return PLAYER_BLESSING_SKILL_STATE.get_duration_multiplier(owner, skill_id)
 
+static func get_duration_flat_bonus(owner, skill_id: String) -> float:
+	return PLAYER_BLESSING_SKILL_STATE.get_duration_flat_bonus(owner, skill_id)
+
+static func get_ultimate_damage_multiplier(owner, skill_id: String) -> float:
+	return PLAYER_BLESSING_SKILL_STATE.get_ultimate_damage_multiplier(owner, skill_id)
+
+static func get_ultimate_special_effect_multiplier(owner, skill_id: String) -> float:
+	return PLAYER_BLESSING_SKILL_STATE.get_ultimate_special_effect_multiplier(owner, skill_id)
+
+
+static func get_kebiru_magic_cooldown_multiplier(owner, skill_id: String) -> float:
+	return PLAYER_BLESSING_SKILL_STATE.get_kebiru_magic_cooldown_multiplier(owner, skill_id)
+
+
+static func get_kebiru_magic_range_multiplier(owner, skill_id: String) -> float:
+	return PLAYER_BLESSING_SKILL_STATE.get_kebiru_magic_range_multiplier(owner, skill_id)
+
+
+static func get_invoker_magic_range_multiplier(owner, skill_id: String) -> float:
+	return PLAYER_BLESSING_SKILL_STATE.get_invoker_magic_range_multiplier(owner, skill_id)
+
 
 static func get_skill_next_requirement_text(owner, skill_id: String) -> String:
 	return PLAYER_BLESSING_SKILL_STATE.get_skill_next_requirement_text(owner, skill_id)

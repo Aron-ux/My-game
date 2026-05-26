@@ -3,10 +3,12 @@ extends RefCounted
 const PLAYER_LEVEL_CURVE := preload("res://scripts/player/player_level_curve.gd")
 const PLAYER_BLESSING_SYSTEM := preload("res://scripts/player/player_blessing_system.gd")
 
+const PLAYER_OBSTACLE_COLLISION_MASK := 1 << 6
+
 static func ready(owner) -> void:
 	owner.motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
 	owner.collision_layer = 0
-	owner.collision_mask = 0
+	owner.collision_mask = PLAYER_OBSTACLE_COLLISION_MASK
 
 	owner.roles = owner._build_role_data()
 	owner.role_upgrade_levels = owner._build_role_upgrade_data()
@@ -36,6 +38,7 @@ static func ready(owner) -> void:
 	owner.equipment_low_health_damage_taken_multiplier = 1.0
 	owner.equipment_skill_range_multiplier = 1.0
 	owner.equipment_cooldown_multiplier = 1.0
+	owner.player_action_lock_remaining = 0.0
 	if owner.has_method("_sync_active_role_max_health"):
 		owner._sync_active_role_max_health(false, false)
 	owner._sync_active_role_ultimate_state()

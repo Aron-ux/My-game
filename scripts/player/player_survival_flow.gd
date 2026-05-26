@@ -53,6 +53,19 @@ static func physics_process(owner, delta: float) -> void:
 	owner._update_player_health_bar(owner._get_active_role())
 	owner._update_background_effects(delta)
 
+	if owner.has_method("_is_player_action_locked") and owner._is_player_action_locked():
+		owner.velocity = Vector2.ZERO
+		owner.move_and_slide()
+		owner.gem_collection_elapsed += delta
+		if owner.gem_collection_elapsed >= owner.GEM_COLLECTION_INTERVAL:
+			owner.gem_collection_elapsed = 0.0
+			owner._collect_nearby_gems()
+		owner.contact_check_elapsed += delta
+		if owner.contact_check_elapsed >= owner.CONTACT_CHECK_INTERVAL:
+			owner.contact_check_elapsed = 0.0
+			owner._check_enemy_contact_damage()
+		return
+
 	var direction := Vector2.ZERO
 	if GAME_SETTINGS.is_action_pressed(GAME_SETTINGS.ACTION_MOVE_LEFT):
 		direction.x -= 1.0
@@ -266,13 +279,13 @@ static func take_damage(owner, amount: float) -> void:
 
 	if owner._try_equipment_dodge():
 		owner.hurt_cooldown_remaining = owner.hurt_cooldown * 0.55
-		owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -34.0), "\u95ea\u907f", Color(0.38, 1.0, 0.48, 1.0))
+		_show_dodge_tag(owner)
 		return
 
 	var attribute_dodge_chance: float = owner._get_attribute_dodge_chance() if owner.has_method("_get_attribute_dodge_chance") else 0.0
 	if attribute_dodge_chance > 0.0 and randf() < attribute_dodge_chance:
 		owner.hurt_cooldown_remaining = owner.hurt_cooldown * 0.55
-		owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -34.0), "闪避", Color(0.38, 1.0, 0.48, 1.0))
+		_show_dodge_tag(owner)
 		return
 
 	if owner._get_active_role()["id"] == "swordsman":
@@ -290,6 +303,15 @@ static func take_damage(owner, amount: float) -> void:
 
 	if owner.current_health <= 0.0:
 		owner._die()
+
+
+static func _show_dodge_tag(owner) -> void:
+	var tag_position: Vector2 = owner.global_position + Vector2(0.0, -34.0)
+	var tag_color: Color = Color(0.38, 1.0, 0.48, 1.0)
+	if owner.has_method("_spawn_forced_combat_tag"):
+		owner._spawn_forced_combat_tag(tag_position, "闪避", tag_color)
+	else:
+		owner._spawn_combat_tag(tag_position, "闪避", tag_color)
 
 
 static func apply_enemy_slow(owner, multiplier: float, duration: float) -> void:

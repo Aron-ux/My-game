@@ -28,6 +28,8 @@ static func physics_process(enemy, delta: float) -> void:
 	enemy.ENEMY_TURRET_BOMBARD.update_bombards(current_scene, delta)
 	if enemy.pooled_inactive:
 		return
+	if bool(enemy._is_glutton):
+		enemy.ENEMY_OCCLUSION_SORT.update_scene_from_glutton(enemy)
 	if enemy.status_root != null or enemy.boss_visual_instance != null or enemy.hit_flash_remaining > 0.0 or enemy._has_status_visual_pressure():
 		enemy.status_visual_time += delta
 	if enemy.hit_flash_remaining > 0.0:
@@ -49,12 +51,14 @@ static func physics_process(enemy, delta: float) -> void:
 	enemy._cached_to_target = enemy.target.global_position - enemy.global_position
 	enemy._cached_distance_to_target = enemy._cached_to_target.length()
 	enemy._cached_direction_to_target = enemy._cached_to_target.normalized() if enemy._cached_distance_to_target > 0.001 else Vector2.RIGHT
-	if enemy._should_skip_motion_frame(delta):
-		enemy.ENEMY_BODY_SEPARATION.apply_body_collision_separation(enemy)
-		enemy._update_motion_visual()
-		return
 	if enemy._has_timed_behavior_traits():
 		enemy._update_behavior_state(delta + enemy.throttled_motion_delta)
+	if enemy._should_skip_motion_frame(delta):
+		enemy.ENEMY_BODY_SEPARATION.apply_body_collision_separation(enemy)
+		if bool(enemy._is_glutton):
+			enemy.ENEMY_GLUTTON_SKILL_BEHAVIOR.enforce_cast_position_lock(enemy)
+		enemy._update_motion_visual()
+		return
 	var motion_delta: float = delta + enemy.throttled_motion_delta
 	enemy.throttled_motion_delta = 0.0
 	if enemy.behavior_id == "rose" or enemy.secondary_behavior_id == "rose":
@@ -65,4 +69,6 @@ static func physics_process(enemy, delta: float) -> void:
 	enemy.velocity += enemy.ENEMY_BODY_SEPARATION.get_separation_velocity(enemy) * 2.6
 	enemy._apply_direct_motion(motion_delta)
 	enemy.ENEMY_BODY_SEPARATION.apply_body_collision_separation(enemy)
+	if bool(enemy._is_glutton):
+		enemy.ENEMY_GLUTTON_SKILL_BEHAVIOR.enforce_cast_position_lock(enemy)
 	enemy._update_motion_visual()

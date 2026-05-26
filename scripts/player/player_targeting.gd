@@ -66,6 +66,15 @@ static func get_owner_low_health_enemy(owner) -> Node2D:
 	return value
 
 
+static func get_owner_priority_boss_target(owner, origin: Vector2) -> Node2D:
+	var key: String = _owner_cache_key(owner, "priority_boss_%.1f_%.1f" % [origin.x, origin.y])
+	if _has_owner_cache(key):
+		return _get_cached_node2d_value(key)
+	var value: Node2D = get_priority_boss_target(get_enemy_nodes(owner), origin)
+	_set_owner_cache(key, value)
+	return value
+
+
 static func get_owner_enemy_in_aim_cone(owner, max_angle_degrees: float, max_distance: float = INF) -> Node2D:
 	var key: String = _owner_cache_key(owner, "aim_cone_%.2f_%.2f_%.3f_%.3f" % [max_angle_degrees, max_distance, owner.facing_direction.x, owner.facing_direction.y])
 	if _has_owner_cache(key):
@@ -145,6 +154,27 @@ static func get_low_health_enemy(enemies: Array) -> Node2D:
 		if ratio < lowest_ratio:
 			lowest_ratio = ratio
 			selected_enemy = enemy
+	return selected_enemy
+
+static func get_priority_boss_target(enemies: Array, origin: Vector2) -> Node2D:
+	var selected_enemy: Node2D
+	var selected_priority: int = 999
+	var selected_distance: float = INF
+	for enemy in enemies:
+		if not is_instance_valid(enemy) or enemy is not Node2D:
+			continue
+		if float(enemy.get("current_health")) <= 0.0:
+			continue
+		var enemy_kind: String = str(enemy.get("enemy_kind"))
+		var priority: int = _get_boss_target_priority(enemy_kind)
+		if priority < 0:
+			continue
+		var enemy_node: Node2D = enemy as Node2D
+		var distance_squared: float = origin.distance_squared_to(enemy_node.global_position)
+		if priority < selected_priority or (priority == selected_priority and distance_squared < selected_distance):
+			selected_priority = priority
+			selected_distance = distance_squared
+			selected_enemy = enemy_node
 	return selected_enemy
 
 static func get_enemy_in_aim_cone(enemies: Array, origin: Vector2, facing_direction: Vector2, max_angle_degrees: float, max_distance: float = INF) -> Node2D:
@@ -351,6 +381,13 @@ static func _score_cluster_cell(grid: Dictionary, center_cell: Vector2i) -> Dict
 
 static func _grid_cell(position: Vector2) -> Vector2i:
 	return Vector2i(floori(position.x / CLUSTER_CELL_SIZE), floori(position.y / CLUSTER_CELL_SIZE))
+
+static func _get_boss_target_priority(enemy_kind: String) -> int:
+	if enemy_kind == "boss":
+		return 0
+	if enemy_kind == "small_boss":
+		return 1
+	return -1
 
 static func _owner_cache_key(owner, suffix: String) -> String:
 	var owner_id: int = owner.get_instance_id() if owner != null and is_instance_valid(owner) else 0

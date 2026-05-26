@@ -1,5 +1,7 @@
 extends RefCounted
 
+const ENEMY_GLUTTON_SKILL_BEHAVIOR := preload("res://scripts/enemies/enemy_glutton_skill_behavior.gd")
+
 static func reset(enemy, randomize_timers: bool) -> void:
 	if randomize_timers:
 		enemy.shot_timer = randf_range(0.15, max(0.16, enemy.shot_interval))
@@ -56,6 +58,7 @@ static func reset(enemy, randomize_timers: bool) -> void:
 	enemy.rebirth_timer = 0.0
 	enemy.glutton_absorb_elapsed = 0.0
 	enemy.glutton_aura_hits_by_enemy_id.clear()
+	ENEMY_GLUTTON_SKILL_BEHAVIOR.reset(enemy)
 	enemy.skulltomb_summon_timer = enemy.skulltomb_summon_interval
 	enemy.skulltomb_summon_windup_remaining = 0.0
 	enemy.skull_soldier_speed_multiplier = 1.0

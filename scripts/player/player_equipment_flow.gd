@@ -266,9 +266,16 @@ static func apply_passives(owner, delta: float) -> void:
 
 
 static func try_dodge(owner) -> bool:
-	if owner.equipment_dodge_chance <= 0.0:
+	var blessing_dodge_chance := 0.0
+	if owner.has_method("_get_role_blessing_stat_bonus"):
+		blessing_dodge_chance = float(owner._get_role_blessing_stat_bonus(owner._get_active_role_id(), "dodge"))
+	var survival_multiplier: float = (1.0 - clamp(owner.equipment_dodge_chance, 0.0, 1.0)) * (1.0 - clamp(blessing_dodge_chance, 0.0, 1.0))
+	if owner.get("ultimate_haste_remaining") != null and float(owner.get("ultimate_haste_remaining")) > 0.0:
+		survival_multiplier *= 1.0 - clamp(float(owner.get("ultimate_haste_dodge_chance")), 0.0, 1.0)
+	var dodge_chance: float = min(0.75, 1.0 - survival_multiplier)
+	if dodge_chance <= 0.0:
 		return false
-	return randf() < owner.equipment_dodge_chance
+	return randf() < dodge_chance
 
 
 static func get_low_health_damage_taken_multiplier(owner) -> float:

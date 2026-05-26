@@ -1,7 +1,7 @@
 extends RefCounted
 
 const PLAYER_AUTHORED_EFFECTS := preload("res://scripts/player/player_authored_effects.gd")
-const COOLDOWN := 13.0
+const COOLDOWN := 19.0
 const BASE_DURATION := 1.0
 const TIER_TWO_DURATION := 2.0
 const TIER_THREE_DURATION := 3.0
@@ -9,7 +9,7 @@ const TICK_INTERVAL := 0.1
 const MAX_CATCH_UP_TICKS := 6
 const MAX_VISUALS := 7
 const EXTRA_VISUALS_PER_WIDTH_LEVEL := 3
-const BEAM_LENGTH := 168.0
+const BEAM_LENGTH := 250.0
 const BEAM_THICKNESS := 34.0
 const BASE_WIDTH_MULTIPLIER := 5.0
 const GATHER_VISUAL_LENGTH_MULTIPLIER := 1.12
@@ -24,8 +24,9 @@ const TIER_TWO_TICK_INTERVAL_MULTIPLIER := 0.58
 const TIER_THREE_RANGE_MULTIPLIER := 2.5
 const TIER_THREE_MOVE_SPEED_MULTIPLIER := 2.0
 const TIER_THREE_TICK_INTERVAL_MULTIPLIER := 0.38
-const TIER_TWO_DAMAGE_MULTIPLIER := 1.16
-const TIER_THREE_DAMAGE_MULTIPLIER := 1.36
+const BASE_DAMAGE_RATIO := 0.78
+const TIER_TWO_DAMAGE_MULTIPLIER := 1.25
+const TIER_THREE_DAMAGE_MULTIPLIER := 1.50
 
 var cooldown_remaining: float = 0.0
 var active_remaining: float = 0.0
@@ -42,7 +43,7 @@ func update(owner, delta: float) -> void:
 		stop()
 		return
 	if str(owner._get_active_role().get("id", "")) != "gunner":
-		stop()
+		stop(owner)
 		return
 
 	active_remaining = max(0.0, active_remaining - delta)
@@ -55,7 +56,7 @@ func update(owner, delta: float) -> void:
 	if catch_up_ticks >= MAX_CATCH_UP_TICKS and tick_remaining <= 0.0:
 		tick_remaining = _get_tick_interval(owner)
 	if active_remaining <= 0.0:
-		stop()
+		stop(owner)
 
 func can_trigger(owner, role_id: String) -> bool:
 	if owner == null or not is_instance_valid(owner):
@@ -85,7 +86,7 @@ func try_trigger(owner) -> bool:
 	owner._spawn_burst_effect(owner.global_position, 92.0, Color(1.0, 0.54, 0.28, 0.16), 0.18)
 	return true
 
-func stop() -> void:
+func stop(owner = null) -> void:
 	active_remaining = 0.0
 	tick_remaining = 0.0
 	locked_aim_direction = Vector2.RIGHT
@@ -150,7 +151,7 @@ func _trigger_tick(owner) -> void:
 	var beam_length: float = BEAM_LENGTH * range_multiplier
 	var hit_width: float = BEAM_THICKNESS * BASE_WIDTH_MULTIPLIER * _get_width_multiplier(owner)
 	var base_origin: Vector2 = owner.global_position + aim_direction * 20.0
-	var damage_amount: float = float(owner._get_role_damage("gunner")) * 0.52 * _get_damage_multiplier(owner)
+	var damage_amount: float = float(owner._get_role_damage("gunner")) * BASE_DAMAGE_RATIO * _get_damage_multiplier(owner)
 	var hit_count: int = _fire_piercing_beam(owner, base_origin, aim_direction, beam_length, hit_width, damage_amount, 1.0)
 	for combo_scale in _get_combo_scales(owner):
 		var offset_origin: Vector2 = _get_random_origin_in_hit_width(owner, base_origin, aim_direction, hit_width)
@@ -160,9 +161,9 @@ func _trigger_tick(owner) -> void:
 
 func _fire_piercing_beam(owner, base_origin: Vector2, aim_direction: Vector2, beam_length: float, hit_width: float, damage_amount: float, effect_scale: float) -> int:
 	var safe_scale: float = max(0.05, effect_scale)
-	_spawn_visuals(owner, base_origin, aim_direction, beam_length, hit_width * safe_scale)
+	_spawn_visuals(owner, base_origin, aim_direction, beam_length, hit_width)
 	var hit_center: Vector2 = base_origin + aim_direction * (beam_length * 0.5)
-	return owner._damage_enemies_in_oriented_rect(hit_center, aim_direction, beam_length, hit_width * safe_scale, damage_amount * safe_scale, 0.0, 1.0, 0.0, "gunner")
+	return owner._damage_enemies_in_oriented_rect(hit_center, aim_direction, beam_length, hit_width, damage_amount * safe_scale, 0.0, 1.0, 0.0, "gunner")
 
 func _get_random_origin_in_hit_width(owner, base_origin: Vector2, aim_direction: Vector2, hit_width: float) -> Vector2:
 	var perpendicular: Vector2 = owner._get_downward_perpendicular(aim_direction).normalized()
@@ -210,6 +211,8 @@ func _get_duration(owner) -> float:
 		duration = TIER_TWO_DURATION
 	if owner != null and owner.has_method("_get_blessing_skill_duration_multiplier"):
 		duration *= float(owner._get_blessing_skill_duration_multiplier(INFINITE_RELOAD_SKILL_ID))
+	if owner != null and owner.has_method("_get_blessing_skill_duration_flat_bonus"):
+		duration += float(owner._get_blessing_skill_duration_flat_bonus(INFINITE_RELOAD_SKILL_ID))
 	return duration
 
 func _get_range_multiplier(owner) -> float:
@@ -219,7 +222,10 @@ func _get_range_multiplier(owner) -> float:
 		tier_multiplier = TIER_THREE_RANGE_MULTIPLIER
 	elif tier >= 2:
 		tier_multiplier = TIER_TWO_RANGE_MULTIPLIER
-	return float(owner._get_infinite_reload_range_multiplier()) * tier_multiplier
+	var invoker_multiplier: float = 1.0
+	if owner != null and owner.has_method("_get_invoker_magic_range_multiplier"):
+		invoker_multiplier = float(owner._get_invoker_magic_range_multiplier(INFINITE_RELOAD_SKILL_ID))
+	return float(owner._get_infinite_reload_range_multiplier()) * tier_multiplier * invoker_multiplier
 
 func _get_width_multiplier(_owner) -> float:
 	return 1.0

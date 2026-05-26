@@ -174,8 +174,10 @@ static func apply_to_enemy_profile(kind: String, enemy_profile: Dictionary, prof
 	var is_special := kind in ["elite", "small_boss", "boss"]
 	if behavior == "shooter" or secondary_behavior == "shooter" or is_special:
 		_adjust_interval(adjusted, "shot_interval", attack_interval_scale, 0.55)
-		_adjust_projectile_count(adjusted, "projectile_count", projectile_count_scale, 1, 8)
-		_adjust_projectile_count(adjusted, "projectile_split_count", projectile_count_scale, 0, 6)
+		if not bool(adjusted.get("projectile_count_fixed", false)):
+			_adjust_projectile_count(adjusted, "projectile_count", projectile_count_scale, 1, 8)
+		if not bool(adjusted.get("projectile_split_count_fixed", false)):
+			_adjust_projectile_count(adjusted, "projectile_split_count", projectile_count_scale, 0, 6)
 	if behavior == "dash" or is_special:
 		_adjust_interval(adjusted, "dash_interval", attack_interval_scale, 0.7)
 	if behavior == "turret" or secondary_behavior == "turret" or is_special:

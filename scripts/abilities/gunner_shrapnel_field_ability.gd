@@ -18,8 +18,9 @@ const SHRAPNEL_TEXTURES := [
 ]
 
 const SKILL_ID := "shrapnel_field"
-const COOLDOWN := 10.0
-const DURATION := 6.0
+const COOLDOWN := 14.0
+const DURATION := 4.0
+const REPRISE_FIELD_DURATION := 2.0
 const BASE_RADIUS := 145.0
 const RADIUS_MULTIPLIER := 1.30
 const TIER_ONE_TICK_INTERVAL := 0.65
@@ -59,7 +60,7 @@ func update(owner, delta: float) -> void:
 		stop()
 		return
 	if str(owner._get_active_role().get("id", "")) != "gunner":
-		stop()
+		stop(owner)
 		return
 	_update_fields(owner, delta)
 
@@ -81,16 +82,17 @@ func try_trigger(owner) -> bool:
 		return false
 	cooldown_remaining = _get_cooldown(owner)
 	active_fields.clear()
+	var duration: float = _get_duration(owner)
 	var extra_field_count: int = _get_trick_extra_field_count(owner)
 	var centers: Array = owner._get_random_enemy_cluster_centers(1 + extra_field_count)
 	for center_value in centers:
 		var center: Vector2 = center_value if center_value is Vector2 else owner.global_position
-		_create_field(owner, center)
+		_create_field(owner, center, 1.0, true, duration)
 	owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -66.0), "\u6563\u5f39", Color(1.0, 0.62, 0.32, 1.0))
 	return true
 
 
-func stop() -> void:
+func stop(owner = null) -> void:
 	for field_data in active_fields:
 		_free_field(field_data)
 	active_fields.clear()
@@ -123,6 +125,7 @@ func _update_fields(owner, delta: float) -> void:
 		var remaining: float = max(0.0, float(field_data.get("remaining", 0.0)) - delta)
 		field_data["remaining"] = remaining
 		if remaining <= 0.0:
+			_spawn_reprise_fields_on_end(owner, field_data)
 			_free_field(field_data)
 			active_fields.remove_at(index)
 			continue
@@ -140,11 +143,12 @@ func _update_fields(owner, delta: float) -> void:
 		owner._register_attack_result("gunner", hits, false)
 
 
-func _create_field(owner, center: Vector2) -> void:
+func _create_field(owner, center: Vector2, effect_scale: float = 1.0, spawn_reprise_on_end: bool = false, duration_override: float = -1.0) -> void:
 	var current_scene: Node = owner.get_tree().current_scene
 	if current_scene == null:
 		return
 	var radius: float = _get_radius(owner)
+	var safe_scale: float = max(0.05, effect_scale)
 	var root: Node2D = null
 	root = Node2D.new()
 	root.name = "GunnerShrapnelField"
@@ -165,11 +169,14 @@ func _create_field(owner, center: Vector2) -> void:
 	var field_data: Dictionary = {
 		"root": root,
 		"center": center,
-		"remaining": _get_duration(owner),
+		"remaining": duration_override if duration_override > 0.0 else _get_duration(owner),
 		"tick_remaining": 0.0,
 		"visual_remaining": 0.0,
 		"visuals": [],
-		"radius": radius
+		"radius": radius,
+		"effect_scale": safe_scale,
+		"spawn_reprise_on_end": spawn_reprise_on_end,
+		"is_primary_cast": spawn_reprise_on_end
 	}
 	active_fields.append(field_data)
 
@@ -177,7 +184,16 @@ func _create_field(owner, center: Vector2) -> void:
 func _damage_field(owner, field_data: Dictionary) -> int:
 	var center: Vector2 = field_data.get("center", owner.global_position)
 	var radius: float = float(field_data.get("radius", _get_radius(owner)))
-	return owner._damage_enemies_in_radius(center, radius, _get_damage(owner), 0.0, _get_slow_multiplier(owner), 1.1, "gunner")
+	var effect_scale: float = max(0.0, float(field_data.get("effect_scale", 1.0)))
+	return owner._damage_enemies_in_radius(center, radius, _get_damage(owner) * effect_scale, 0.0, _get_slow_multiplier(owner), 1.1, "gunner")
+
+
+func _spawn_reprise_fields_on_end(owner, field_data: Dictionary) -> void:
+	if not bool(field_data.get("spawn_reprise_on_end", false)):
+		return
+	for combo_scale in _get_reprise_field_scales(owner):
+		var center: Vector2 = field_data.get("center", owner.global_position)
+		_create_field(owner, center, float(combo_scale), false, REPRISE_FIELD_DURATION)
 
 
 func _spawn_shrapnel_visual_if_room(field_data: Dictionary) -> void:
@@ -344,16 +360,27 @@ func _get_trick_extra_field_count(owner) -> int:
 	return max(0, int(owner._get_blessing_skill_quantity_count(SKILL_ID)))
 
 
+func _get_reprise_field_scales(owner) -> Array[float]:
+	if owner == null or not owner.has_method("_get_blessing_skill_combo_scales"):
+		return []
+	return owner._get_blessing_skill_combo_scales(SKILL_ID) as Array[float]
+
+
 func _get_cooldown(owner) -> float:
+	var cooldown_multiplier: float = 1.0
 	if owner != null and is_instance_valid(owner) and owner.has_method("_get_equipment_cooldown_multiplier"):
-		return COOLDOWN * owner._get_equipment_cooldown_multiplier()
-	return COOLDOWN
+		cooldown_multiplier *= float(owner._get_equipment_cooldown_multiplier())
+	if owner != null and is_instance_valid(owner) and owner.has_method("_get_kebiru_magic_cooldown_multiplier"):
+		cooldown_multiplier *= float(owner._get_kebiru_magic_cooldown_multiplier(SKILL_ID))
+	return COOLDOWN * cooldown_multiplier
 
 
 func _get_radius(owner) -> float:
 	var range_multiplier: float = 1.0
 	if owner != null and owner.has_method("_get_equipment_skill_range_multiplier"):
 		range_multiplier *= float(owner._get_equipment_skill_range_multiplier())
+	if owner != null and owner.has_method("_get_kebiru_magic_range_multiplier"):
+		range_multiplier *= float(owner._get_kebiru_magic_range_multiplier(SKILL_ID))
 	var tier: int = _get_tier(owner)
 	var base_radius: float = BASE_RADIUS * RADIUS_MULTIPLIER
 	if tier >= 3:
@@ -395,6 +422,8 @@ func _get_duration(owner) -> float:
 	var duration: float = DURATION
 	if owner != null and owner.has_method("_get_blessing_skill_duration_multiplier"):
 		duration *= float(owner._get_blessing_skill_duration_multiplier(SKILL_ID))
+	if owner != null and owner.has_method("_get_blessing_skill_duration_flat_bonus"):
+		duration += float(owner._get_blessing_skill_duration_flat_bonus(SKILL_ID))
 	return duration
 
 func _uses_batched_damage(owner) -> bool:

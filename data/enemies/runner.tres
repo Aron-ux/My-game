@@ -7,9 +7,9 @@
 script = ExtResource("1_profile")
 archetype = "runner"
 behavior = "chaser"
-max_health = 16.0
+max_health = 16.384
 speed = 126.0
-touch_damage = 8.0
+touch_damage = 18.0
 contact_radius = 38.0
 body_collision_radius = 40.8
 reward_tier = 1

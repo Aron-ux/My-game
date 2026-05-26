@@ -26,7 +26,9 @@ const ENEMY_TRAIT_BEHAVIOR := preload("res://scripts/enemies/enemy_trait_behavio
 const ENEMY_TURRET_BOMBARD := preload("res://scripts/enemies/enemy_turret_bombard.gd")
 const ENEMY_RUNTIME_PROCESS := preload("res://scripts/enemies/enemy_runtime_process.gd")
 const ENEMY_VISUALS := preload("res://scripts/enemies/enemy_visuals.gd")
+const ENEMY_OCCLUSION_SORT := preload("res://scripts/enemies/enemy_occlusion_sort.gd")
 const ENEMY_GLUTTON_BEHAVIOR := preload("res://scripts/enemies/enemy_glutton_behavior.gd")
+const ENEMY_GLUTTON_SKILL_BEHAVIOR := preload("res://scripts/enemies/enemy_glutton_skill_behavior.gd")
 
 @export var speed: float = 80.0
 @export var max_health: float = 20.0
@@ -71,6 +73,7 @@ var projectile_lifetime: float = 4.0
 var projectile_spread: float = 0.0
 var projectile_count: int = 1
 var projectile_color: Color = Color(-1.0, -1.0, -1.0, -1.0)
+var projectile_visual_style: String = ""
 
 var acceleration_interval: float = 0.0
 var acceleration_boost: float = 1.8
@@ -91,6 +94,12 @@ var strafe_sign: float = 1.0
 var projectile_split_count: int = 0
 var projectile_split_after: float = 0.0
 var projectile_split_spread: float = 1.2
+var projectile_split_pattern: String = "fan"
+var projectile_split_speed_scale: float = 0.88
+var projectile_split_damage_scale: float = 0.72
+var projectile_split_lifetime_scale: float = 0.72
+var projectile_split_size_scale: float = 0.75
+var projectile_split_hit_radius_scale: float = 0.8
 
 var glutton_absorb_radius: float = 0.0
 var glutton_speed_gain_per_gem: float = 0.0
@@ -102,6 +111,26 @@ var glutton_aura_damage: float = 0.0
 var glutton_heart_heal_scale: float = 1.0
 var drop_absorber: Node = null
 var glutton_aura_hits_by_enemy_id: Dictionary = {}
+var glutton_skill_think_timer: float = 0.0
+var glutton_skill_state: String = ""
+var glutton_skill_state_remaining: float = 0.0
+var glutton_skill_action: String = ""
+var glutton_skill_action_remaining: float = 0.0
+var glutton_skill_warning_shapes: Array = []
+var glutton_warning_nodes: Array = []
+var glutton_cast_lock_active: bool = false
+var glutton_cast_lock_position: Vector2 = Vector2.ZERO
+var glutton_recent_skill: String = ""
+var glutton_war_stomp_remaining: float = 0.0
+var glutton_war_stomp_cast_lock_remaining: float = 0.0
+var glutton_war_stomp_cooldown_remaining: float = 0.0
+var glutton_war_stomp_cast_shake_elapsed: float = 0.0
+var glutton_war_stomp_tick_elapsed: float = 0.0
+var glutton_war_stomp_hit_registry: Dictionary = {}
+var glutton_active_wood_spike_hitboxes: Array = []
+var glutton_growth_carry: float = 0.0
+var glutton_entangle_damage_remaining: float = 0.0
+var glutton_entangle_damage_elapsed: float = 0.0
 var rebirth_lives_remaining: int = 0
 var rebirth_delay: float = 2.0
 var rebirth_timer: float = 0.0
@@ -245,12 +274,19 @@ func _reset_runtime_state(randomize_timers: bool) -> void:
 	ENEMY_RUNTIME_STATE.reset(self, randomize_timers)
 
 func get_boss_ui_payload() -> Dictionary:
-	return {
+	var payload: Dictionary = {
 		"name": boss_display_name,
 		"current_health": current_health,
 		"max_health": max_health,
 		"phase": boss_phase
 	}
+	if behavior_id == "glutton" and ENEMY_GLUTTON_SKILL_BEHAVIOR.is_war_stomp_active(self):
+		payload["status"] = {
+			"label": "战争践踏",
+			"remaining": float(glutton_war_stomp_remaining),
+			"duration": ENEMY_GLUTTON_SKILL_BEHAVIOR.get_war_stomp_duration()
+		}
+	return payload
 
 func _ensure_boss_helpers() -> void:
 	ENEMY_BOSS_VISUALS.ensure_boss_helpers(self)
@@ -321,10 +357,10 @@ func _update_bleed(delta: float) -> void:
 	ENEMY_STATUS_EFFECTS.tick_bleed(self, delta)
 
 func take_damage(amount: float) -> bool:
-	return ENEMY_DAMAGE.take_damage(self, amount)
+	return ENEMY_DAMAGE.take_damage(self, amount * ENEMY_GLUTTON_SKILL_BEHAVIOR.get_damage_taken_multiplier(self))
 
 func take_batched_damage(amount: float) -> bool:
-	return ENEMY_DAMAGE.apply_damage(self, amount, false)
+	return ENEMY_DAMAGE.apply_damage(self, amount * ENEMY_GLUTTON_SKILL_BEHAVIOR.get_damage_taken_multiplier(self), false)
 
 func activate_pooled_enemy() -> void:
 	batch_simulation_enabled = false

@@ -1,0 +1,75 @@
+[gd_scene format=3 uid="uid://bluecardscene"]
+
+[ext_resource type="Texture2D" uid="uid://di0w1krto7tv4" path="res://assets/UI/card/bluestonecard.png" id="1_k83x2"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hover"]
+bg_color = Color(1, 0.92, 0.62, 0.08)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(1, 0.82, 0.28, 0.96)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[node name="Card" type="TextureButton" unique_id=1473635035]
+offset_right = 256.0
+offset_bottom = 256.0
+scale = Vector2(1.5, 1.5)
+texture_normal = ExtResource("1_k83x2")
+texture_pressed = ExtResource("1_k83x2")
+texture_hover = ExtResource("1_k83x2")
+stretch_mode = 0
+
+[node name="HoverFrame" type="Panel" parent="." unique_id=2081622287]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_hover")
+
+[node name="Margin" type="MarginContainer" parent="." unique_id=1728797975]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 18
+
+[node name="Content" type="VBoxContainer" parent="Margin" unique_id=1848628593]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="TitleLabel" type="Label" parent="Margin/Content" unique_id=1445773141]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.17, 0.1, 0.04, 1)
+theme_override_font_sizes/font_size = 18
+text = "閫夐」"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="SummaryLabel" type="Label" parent="Margin/Content" unique_id=1165688438]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.24, 0.16, 0.08, 0.94)
+theme_override_font_sizes/font_size = 11
+text = "鎻忚堪"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+clip_text = true
+max_lines_visible = 4

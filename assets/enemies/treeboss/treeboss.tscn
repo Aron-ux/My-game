@@ -1,8 +1,25 @@
 [gd_scene format=3 uid="uid://t6fmr4aefbok"]
 
 [ext_resource type="Texture2D" uid="uid://bapqkx7m5jlte" path="res://assets/enemies/treeboss/tree-walk.png" id="1_5ljqa"]
-[ext_resource type="Script" path="res://assets/enemies/treeboss/treeboss_visual.gd" id="2_treev"]
+[ext_resource type="Script" uid="uid://djyaxcjcfoprg" path="res://assets/enemies/treeboss/treeboss_visual.gd" id="2_treev"]
 [ext_resource type="Texture2D" uid="uid://d2osgj1g3ayin" path="res://assets/阴影.png" id="3_shadow"]
+[ext_resource type="Texture2D" uid="uid://wje7whnn21vw" path="res://assets/enemies/treeboss/attack1.png" id="3_wgomk"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_1uhfr"]
+atlas = ExtResource("3_wgomk")
+region = Rect2(256, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_j64xi"]
+atlas = ExtResource("3_wgomk")
+region = Rect2(512, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_t4diq"]
+atlas = ExtResource("3_wgomk")
+region = Rect2(768, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_rkvy6"]
+atlas = ExtResource("3_wgomk")
+region = Rect2(0, 0, 256, 256)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_pss2o"]
 atlas = ExtResource("1_5ljqa")
@@ -43,6 +60,26 @@ region = Rect2(0, 512, 256, 256)
 [sub_resource type="SpriteFrames" id="SpriteFrames_1uhfr"]
 animations = [{
 "frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_1uhfr")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_j64xi")
+}, {
+"duration": 10.0,
+"texture": SubResource("AtlasTexture_t4diq")
+}, {
+"duration": 0.5,
+"texture": SubResource("AtlasTexture_j64xi")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_rkvy6")
+}],
+"loop": true,
+"name": &"treeattack",
+"speed": 5.0
+}, {
+"frames": [{
 "duration": 0.2,
 "texture": SubResource("AtlasTexture_pss2o")
 }, {
@@ -80,12 +117,13 @@ script = ExtResource("2_treev")
 
 [node name="Shadow" type="Sprite2D" parent="." unique_id=524084782]
 modulate = Color(0.58, 0.58, 0.58, 1)
+z_index = -1
 position = Vector2(0, 8)
 scale = Vector2(1.656, 0.828)
-z_index = -1
 texture = ExtResource("3_shadow")
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=438959411]
 sprite_frames = SubResource("SpriteFrames_1uhfr")
 animation = &"treewalk"
-frame_progress = 0.5824798
+frame_progress = 0.0
+speed_scale = 1.5

@@ -180,7 +180,9 @@ static func update_role_idle_visual(owner: Node, role_id: String, facing_directi
 			bob_strength = 2.0
 			tilt = 0.012 * sin(role_visual_time * 2.8)
 
+	bob_strength *= _get_idle_visual_bob_factor(owner)
 	sprite.position = base_position + Vector2(0.0, sin(role_visual_time * 4.4) * bob_strength)
+	sprite.position = sprite.position.round()
 	sprite.rotation = tilt
 	if role_id in ["swordsman", "gunner", "mage"]:
 		sprite.flip_h = _get_visual_facing_direction(owner, facing_direction).x < 0.0
@@ -191,8 +193,9 @@ static func _update_role_scene_visual(owner: Node, scene_visual: Node2D, role_id
 	var base_position_value: Variant = scene_visual.get_meta("base_position", base_position)
 	if base_position_value is Vector2:
 		base_position = base_position_value
-	var bob_strength := 2.0 if role_id == "mage" else 1.4
+	var bob_strength := (2.0 if role_id == "mage" else 1.4) * _get_idle_visual_bob_factor(owner)
 	scene_visual.position = base_position + Vector2(0.0, sin(role_visual_time * 4.4) * bob_strength)
+	scene_visual.position = scene_visual.position.round()
 	scene_visual.rotation = 0.012 * sin(role_visual_time * 2.8) if role_id == "mage" else 0.0
 	var animated_sprite := scene_visual.get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
 	if scene_visual.has_method("set_moving"):
@@ -202,6 +205,8 @@ static func _update_role_scene_visual(owner: Node, scene_visual: Node2D, role_id
 		animated_sprite.flip_h = facing_direction.x < 0.0
 		if animated_sprite.sprite_frames != null and not animated_sprite.is_playing():
 			animated_sprite.play()
+	if animated_sprite != null:
+		animated_sprite.position = animated_sprite.position.round()
 
 static func _get_visual_facing_direction(owner: Node, fallback_direction: Vector2) -> Vector2:
 	var visual_x: float = 1.0
@@ -212,6 +217,16 @@ static func _get_visual_facing_direction(owner: Node, fallback_direction: Vector
 	if abs(fallback_direction.x) > 0.01:
 		return Vector2(sign(fallback_direction.x), 0.0)
 	return Vector2.RIGHT
+
+static func _get_idle_visual_bob_factor(owner: Node) -> float:
+	if owner == null:
+		return 1.0
+	var velocity_value: Variant = owner.get("velocity")
+	if velocity_value is Vector2:
+		var current_velocity := velocity_value as Vector2
+		if current_velocity.length_squared() > 1.0:
+			return 0.0
+	return 1.0
 
 static func update_visuals(owner: Node, role_data: Dictionary, active_role_visual_hidden: bool, hidden_role_id: String) -> void:
 	var polygon := owner.get_node_or_null("Polygon2D") as Polygon2D

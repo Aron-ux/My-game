@@ -7,9 +7,9 @@
 script = ExtResource("1_profile")
 archetype = "shotgunner"
 behavior = "shooter"
-max_health = 76.0
+max_health = 77.824
 speed = 70.0
-touch_damage = 16.0
+touch_damage = 26.0
 contact_radius = 48.0
 body_collision_radius = 51.8
 reward_tier = 3
@@ -20,9 +20,10 @@ visual_scene = ExtResource("2_visual")
 extra = {
 "preferred_distance": 210.0,
 "projectile_color": Color(0.278431, 0.772549, 0.509804, 1),
+"projectile_visual_style": "solid_circle",
 "shot_interval": 2.55,
 "projectile_speed": 240.0,
-"projectile_damage": 8.0,
+"projectile_damage": 13.0,
 "projectile_lifetime": 4.6,
 "projectile_spread": 0.22,
 "projectile_count": 5

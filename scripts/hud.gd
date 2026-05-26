@@ -18,6 +18,7 @@ signal developer_skill_unlock_requested(skill_id: String, tier: int)
 signal developer_blessing_grant_requested(blessing_id: String, tier: int)
 signal developer_all_blessings_grant_requested
 signal developer_enemy_detail_display_toggled(enabled: bool)
+signal developer_glutton_skill_test_requested(skill_id: String)
 
 var level_label: Label
 var role_label: Label
@@ -33,6 +34,8 @@ var boss_panel: Control
 var boss_name_label: Label
 var boss_health_bar: ProgressBar
 var boss_health_label: Label
+var boss_status_label: Label
+var boss_status_bar: ProgressBar
 var team_panel: PanelContainer
 var team_role_labels: Array[Label] = []
 var switch_cd_label: Label
@@ -41,7 +44,7 @@ var combat_skill_bar: Control
 var developer_panel: PanelContainer
 var performance_overlay_panel: PanelContainer
 var performance_overlay_label: Label
-var performance_overlay_visible: bool = true
+var performance_overlay_visible: bool = false
 var attack_mode_hint_panel: PanelContainer
 var attack_mode_hint_label: Label
 var attack_mode_hint_key_name: String = ""
@@ -110,11 +113,35 @@ func _ready() -> void:
 	boss_health_label.text = "0 / 0"
 	boss_panel.add_child(boss_health_label)
 
+	boss_status_label = Label.new()
+	boss_status_label.anchor_left = 0.0
+	boss_status_label.anchor_right = 1.0
+	boss_status_label.offset_top = 78.0
+	boss_status_label.offset_bottom = 98.0
+	boss_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	boss_status_label.add_theme_font_size_override("font_size", 15)
+	boss_status_label.modulate = Color(1.0, 0.68, 0.42, 1.0)
+	boss_status_label.text = ""
+	boss_status_label.visible = false
+	boss_panel.add_child(boss_status_label)
+
+	boss_status_bar = ProgressBar.new()
+	boss_status_bar.anchor_left = 0.18
+	boss_status_bar.anchor_right = 0.82
+	boss_status_bar.offset_left = 0.0
+	boss_status_bar.offset_right = 0.0
+	boss_status_bar.offset_top = 99.0
+	boss_status_bar.offset_bottom = 111.0
+	boss_status_bar.show_percentage = false
+	boss_status_bar.visible = false
+	boss_panel.add_child(boss_status_bar)
+
 	_build_skill_cooldown_panel(root)
 	_build_attack_mode_hint(root)
 	_build_minimap(root)
 	if DEVELOPER_MODE.is_enabled():
 		_build_developer_panel(root)
+	set_performance_overlay_visible(performance_overlay_visible)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if GAME_SETTINGS.event_matches_action(event, GAME_SETTINGS.ACTION_TOGGLE_PERFORMANCE_OVERLAY):
@@ -324,6 +351,7 @@ func _build_developer_panel(root: Control) -> void:
 	developer_panel.blessing_grant_requested.connect(func(blessing_id: String, tier: int): developer_blessing_grant_requested.emit(blessing_id, tier))
 	developer_panel.all_blessings_grant_requested.connect(func(): developer_all_blessings_grant_requested.emit())
 	developer_panel.enemy_detail_display_toggled.connect(func(enabled: bool): developer_enemy_detail_display_toggled.emit(enabled))
+	developer_panel.glutton_skill_test_requested.connect(func(skill_id: String): developer_glutton_skill_test_requested.emit(skill_id))
 
 func set_developer_invincibility_enabled(enabled: bool) -> void:
 	if developer_panel != null and developer_panel.has_method("set_invincibility_enabled"):
@@ -396,6 +424,7 @@ func _ensure_performance_overlay() -> void:
 	performance_overlay_label.modulate = Color(0.82, 0.95, 1.0, 0.96)
 	performance_overlay_panel.add_child(performance_overlay_label)
 	add_child(performance_overlay_panel)
+	performance_overlay_panel.visible = performance_overlay_visible
 
 func update_display(level: int, current_experience: int, required_experience: int) -> void:
 	_set_label_text(level_label, "绛夌骇 %d" % level)
@@ -505,23 +534,41 @@ func _set_label_modulate(label: Label, next_color: Color) -> void:
 		return
 	label.modulate = next_color
 
-func show_boss_ui(boss_name: String, current_health: float, max_health: float) -> void:
+func show_boss_ui(boss_name: String, current_health: float, max_health: float, status_payload: Dictionary = {}) -> void:
 	if boss_panel != null:
 		boss_panel.visible = true
 	if time_label != null:
 		time_label.visible = false
-	update_boss_ui(boss_name, current_health, max_health)
+	update_boss_ui(boss_name, current_health, max_health, status_payload)
 
-func update_boss_ui(boss_name: String, current_health: float, max_health: float) -> void:
+func update_boss_ui(boss_name: String, current_health: float, max_health: float, status_payload: Dictionary = {}) -> void:
 	if boss_panel == null:
 		return
 	boss_name_label.text = boss_name
 	boss_health_bar.max_value = max(max_health, 1.0)
 	boss_health_bar.value = clamp(current_health, 0.0, boss_health_bar.max_value)
 	boss_health_label.text = "%.0f / %.0f" % [max(current_health, 0.0), max_health]
+	_update_boss_status_ui(status_payload)
 
 func hide_boss_ui() -> void:
 	if boss_panel != null:
 		boss_panel.visible = false
 	if time_label != null:
 		time_label.visible = true
+
+func _update_boss_status_ui(status_payload: Dictionary) -> void:
+	var remaining: float = float(status_payload.get("remaining", 0.0))
+	var duration: float = max(0.001, float(status_payload.get("duration", 0.0)))
+	if remaining <= 0.0:
+		if boss_status_label != null:
+			boss_status_label.visible = false
+		if boss_status_bar != null:
+			boss_status_bar.visible = false
+		return
+	if boss_status_label != null:
+		boss_status_label.text = "%s %.1fs" % [str(status_payload.get("label", "状态")), remaining]
+		boss_status_label.visible = true
+	if boss_status_bar != null:
+		boss_status_bar.max_value = duration
+		boss_status_bar.value = clamp(remaining, 0.0, duration)
+		boss_status_bar.visible = true

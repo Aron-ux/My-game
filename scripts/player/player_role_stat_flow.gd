@@ -45,7 +45,10 @@ static func get_effective_attack_interval(owner, role_id: String) -> float:
 	if owner.has_method("_get_role_attack_interval_flat_reduction"):
 		flat_reduction = float(owner._get_role_attack_interval_flat_reduction(role_id))
 	var base_interval: float = max(0.18, float(role_data.get("attack_interval", 0.18)) - get_active_interval_bonus(owner, role_id) - flat_reduction)
-	return max(0.18, base_interval * owner._get_role_attack_interval_multiplier(role_id))
+	var blessing_multiplier := 1.0
+	if owner.has_method("_get_role_blessing_stat_bonus"):
+		blessing_multiplier = max(0.2, 1.0 - float(owner._get_role_blessing_stat_bonus(role_id, "basic_attack_cooldown_reduction")))
+	return max(0.18, base_interval * owner._get_role_attack_interval_multiplier(role_id) * blessing_multiplier)
 
 
 static func get_effective_background_attack_interval(owner, role_id: String) -> float:
@@ -63,21 +66,27 @@ static func get_effective_background_interval_multiplier(owner) -> float:
 
 static func get_current_move_speed(owner) -> float:
 	var role_id: String = str(owner._get_active_role()["id"])
-	var move_speed: float = owner.speed * float(owner._get_active_role()["speed_scale"])
+	var role_data: Dictionary = owner._get_active_role()
+	var move_speed: float
+	if role_data.has("move_speed"):
+		move_speed = float(role_data.get("move_speed", owner.base_speed)) + (owner.speed - owner.base_speed)
+	else:
+		move_speed = owner.speed * float(role_data.get("speed_scale", 1.0)) * GLOBAL_UNIT_MOVE_SPEED_SCALE
 	if owner.has_method("_get_role_blessing_stat_bonus"):
 		move_speed += float(owner._get_role_blessing_stat_bonus(role_id, "move_speed"))
 	move_speed *= owner._get_role_attribute_move_speed_multiplier(role_id)
-	move_speed += owner._get_role_attribute_flat_move_speed_bonus(role_id)
 	if owner.entry_blessing_remaining > 0.0 and owner.entry_blessing_role_id == role_id:
 		move_speed *= owner.entry_haste_move_speed_multiplier
 	if role_id == "gunner" and owner.has_method("_get_gunner_infinite_reload_move_speed_multiplier"):
 		move_speed *= float(owner._get_gunner_infinite_reload_move_speed_multiplier())
+	if owner.ultimate_haste_remaining > 0.0:
+		move_speed *= max(0.0, float(owner.ultimate_haste_move_speed_multiplier))
 	if owner._is_last_stand_active():
 		move_speed *= 1.18
 	if owner.frenzy_remaining > 0.0 and owner.frenzy_stacks > 0:
 		move_speed *= 1.0 + 0.02 * owner.frenzy_stacks
 	move_speed *= owner.enemy_move_slow_multiplier
-	return move_speed * GLOBAL_UNIT_MOVE_SPEED_SCALE
+	return move_speed
 
 
 static func get_active_role_base_health(owner) -> float:
@@ -204,12 +213,13 @@ static func get_role_damage(owner, role_id: String) -> float:
 		var upgrade_data: Dictionary = owner.role_upgrade_levels[role_id]
 		var base_global_multiplier: float = owner.global_damage_multiplier - owner.equipment_damage_multiplier_bonus
 		var role_equipment_bonus: float = owner._get_role_equipment_damage_multiplier_bonus(role_id)
-		if owner.has_method("_get_role_blessing_stat_bonus"):
-			role_equipment_bonus += float(owner._get_role_blessing_stat_bonus(role_id, "damage"))
 		var primary_attribute_bonus: float = 0.0
 		if owner.has_method("_get_primary_attribute_damage_bonus"):
 			primary_attribute_bonus = float(owner._get_primary_attribute_damage_bonus(role_id))
-		var damage_amount: float = (float(role_data["damage"]) + float(upgrade_data["damage_bonus"]) + primary_attribute_bonus) * max(0.01, base_global_multiplier + role_equipment_bonus)
+		var blessing_flat_damage_bonus := 0.0
+		if owner.has_method("_get_role_blessing_stat_bonus"):
+			blessing_flat_damage_bonus = float(owner._get_role_blessing_stat_bonus(role_id, "damage"))
+		var damage_amount: float = (float(role_data["damage"]) + float(upgrade_data["damage_bonus"]) + primary_attribute_bonus + blessing_flat_damage_bonus) * max(0.01, base_global_multiplier + role_equipment_bonus)
 		damage_amount *= owner._get_story_style_damage_multiplier(role_id)
 		if owner.switch_power_remaining > 0.0 and owner.switch_power_role_id == role_id:
 			damage_amount *= owner.switch_power_damage_multiplier

@@ -36,9 +36,16 @@ static func get_save_data(enemy) -> Dictionary:
 		"projectile_spread": enemy.projectile_spread,
 		"projectile_count": enemy.projectile_count,
 		"projectile_color": [enemy.projectile_color.r, enemy.projectile_color.g, enemy.projectile_color.b, enemy.projectile_color.a],
+		"projectile_visual_style": enemy.projectile_visual_style,
 		"projectile_split_count": enemy.projectile_split_count,
 		"projectile_split_after": enemy.projectile_split_after,
 		"projectile_split_spread": enemy.projectile_split_spread,
+		"projectile_split_pattern": enemy.projectile_split_pattern,
+		"projectile_split_speed_scale": enemy.projectile_split_speed_scale,
+		"projectile_split_damage_scale": enemy.projectile_split_damage_scale,
+		"projectile_split_lifetime_scale": enemy.projectile_split_lifetime_scale,
+		"projectile_split_size_scale": enemy.projectile_split_size_scale,
+		"projectile_split_hit_radius_scale": enemy.projectile_split_hit_radius_scale,
 		"acceleration_interval": enemy.acceleration_interval,
 		"acceleration_boost": enemy.acceleration_boost,
 		"acceleration_duration": enemy.acceleration_duration,
@@ -61,6 +68,7 @@ static func get_save_data(enemy) -> Dictionary:
 		"glutton_aura_radius": enemy.glutton_aura_radius,
 		"glutton_aura_damage": enemy.glutton_aura_damage,
 		"glutton_heart_heal_scale": enemy.glutton_heart_heal_scale,
+		"glutton_war_stomp_cooldown_remaining": enemy.glutton_war_stomp_cooldown_remaining,
 		"rebirth_lives_remaining": enemy.rebirth_lives_remaining,
 		"rebirth_delay": enemy.rebirth_delay,
 		"rebirth_timer": enemy.rebirth_timer,
@@ -154,9 +162,16 @@ static func apply_save_data(enemy, data: Dictionary, target_node: Node2D) -> voi
 	var projectile_color_data = data.get("projectile_color", [enemy.projectile_color.r, enemy.projectile_color.g, enemy.projectile_color.b, enemy.projectile_color.a])
 	if projectile_color_data.size() >= 4:
 		enemy.projectile_color = Color(float(projectile_color_data[0]), float(projectile_color_data[1]), float(projectile_color_data[2]), float(projectile_color_data[3]))
+	enemy.projectile_visual_style = str(data.get("projectile_visual_style", enemy.projectile_visual_style))
 	enemy.projectile_split_count = int(data.get("projectile_split_count", enemy.projectile_split_count))
 	enemy.projectile_split_after = float(data.get("projectile_split_after", enemy.projectile_split_after))
 	enemy.projectile_split_spread = float(data.get("projectile_split_spread", enemy.projectile_split_spread))
+	enemy.projectile_split_pattern = str(data.get("projectile_split_pattern", enemy.projectile_split_pattern))
+	enemy.projectile_split_speed_scale = float(data.get("projectile_split_speed_scale", enemy.projectile_split_speed_scale))
+	enemy.projectile_split_damage_scale = float(data.get("projectile_split_damage_scale", enemy.projectile_split_damage_scale))
+	enemy.projectile_split_lifetime_scale = float(data.get("projectile_split_lifetime_scale", enemy.projectile_split_lifetime_scale))
+	enemy.projectile_split_size_scale = float(data.get("projectile_split_size_scale", enemy.projectile_split_size_scale))
+	enemy.projectile_split_hit_radius_scale = float(data.get("projectile_split_hit_radius_scale", enemy.projectile_split_hit_radius_scale))
 
 	enemy.acceleration_interval = float(data.get("acceleration_interval", enemy.acceleration_interval))
 	enemy.acceleration_boost = float(data.get("acceleration_boost", enemy.acceleration_boost))
@@ -186,6 +201,7 @@ static func apply_save_data(enemy, data: Dictionary, target_node: Node2D) -> voi
 	enemy.glutton_aura_radius = float(data.get("glutton_aura_radius", enemy.glutton_absorb_radius))
 	enemy.glutton_aura_damage = float(data.get("glutton_aura_damage", enemy.glutton_aura_damage))
 	enemy.glutton_heart_heal_scale = float(data.get("glutton_heart_heal_scale", enemy.glutton_heart_heal_scale))
+	enemy.glutton_war_stomp_cooldown_remaining = float(data.get("glutton_war_stomp_cooldown_remaining", 0.0))
 	enemy.drop_absorber = null
 	enemy.rebirth_lives_remaining = int(data.get("rebirth_lives_remaining", enemy.rebirth_lives_remaining))
 	enemy.rebirth_delay = float(data.get("rebirth_delay", enemy.rebirth_delay))

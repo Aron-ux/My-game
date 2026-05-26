@@ -522,12 +522,13 @@ func _build_stats_text(role_data: Dictionary) -> String:
 	var active_bonus: Dictionary = cached_player._get_role_equipment_bonus_summary(str(cached_player._get_active_role().get("id", ""))) if cached_player.has_method("_get_role_equipment_bonus_summary") else {}
 	var damage: float = float(cached_player._get_role_damage(role_id)) if cached_player.has_method("_get_role_damage") else float(role_data.get("damage", 0.0))
 	var base_speed: float = float(cached_player.get("speed")) - float(active_bonus.get("speed_bonus", 0.0))
-	var move_speed: float = (base_speed + float(bonus.get("speed_bonus", 0.0))) * float(role_data.get("speed_scale", 1.0))
+	var move_speed: float = float(role_data.get("move_speed", (base_speed + float(bonus.get("speed_bonus", 0.0))) * float(role_data.get("speed_scale", 1.0))))
+	if role_data.has("move_speed"):
+		move_speed += float(bonus.get("speed_bonus", 0.0))
 	if cached_player.has_method("_get_role_attribute_move_speed_multiplier"):
 		move_speed *= float(cached_player._get_role_attribute_move_speed_multiplier(role_id))
-	if cached_player.has_method("_get_role_attribute_flat_move_speed_bonus"):
-		move_speed += float(cached_player._get_role_attribute_flat_move_speed_bonus(role_id))
-	move_speed *= GLOBAL_UNIT_MOVE_SPEED_SCALE
+	if not role_data.has("move_speed"):
+		move_speed *= GLOBAL_UNIT_MOVE_SPEED_SCALE
 	var max_health: float = float(cached_player._get_role_max_health(role_id)) if cached_player.has_method("_get_role_max_health") else float(cached_player.get("max_health")) - float(active_bonus.get("max_health_bonus", 0.0)) + float(bonus.get("max_health_bonus", 0.0))
 	var current_health: float = float(cached_player._get_role_current_health(role_id)) if cached_player.has_method("_get_role_current_health") else float(cached_player.get("current_health"))
 	var current_health_text := "%.0f / %.0f" % [current_health, max_health]
@@ -568,7 +569,7 @@ func _build_stats_text(role_data: Dictionary) -> String:
 		health_regen
 	])
 	lines.append("")
-	lines.append("[b]英雄特性训练[/b]")
+	lines.append("[b]英雄特性[/b]")
 	lines.append("剑士 Lv.%s    枪手 Lv.%s    术师 Lv.%s" % [
 		_format_panel_attribute_level(swordsman_trait_level),
 		_format_panel_attribute_level(gunner_trait_level),

@@ -79,6 +79,8 @@ static func _make_ultimate_enhancement_description(_owner, _role_id: String) -> 
 
 
 static func can_use_ultimate(owner) -> bool:
+	if owner.has_method("_is_player_action_locked") and owner._is_player_action_locked():
+		return false
 	if owner._get_active_role_id() == "gunner" and owner.is_gunner_infinite_reload_active():
 		return false
 	if DEVELOPER_MODE.should_unlock_ultimate_freely():

@@ -37,6 +37,8 @@ const POOL_SOFT_LIMIT := 96
 @export var split_pattern: String = "radial"
 @export var split_spread: float = 1.2
 @export var split_visual_style: String = ""
+@export var split_size_scale: float = 0.75
+@export var split_hit_radius_scale: float = 0.8
 @export var size_scale: float = 1.0
 @export var visual_style: String = ""
 
@@ -102,6 +104,8 @@ func reset_projectile(config: Dictionary) -> void:
 	split_pattern = str(config.get("split_pattern", split_pattern))
 	split_spread = float(config.get("split_spread", split_spread))
 	split_visual_style = str(config.get("split_visual_style", ""))
+	split_size_scale = float(config.get("split_size_scale", split_size_scale))
+	split_hit_radius_scale = float(config.get("split_hit_radius_scale", split_hit_radius_scale))
 	size_scale = float(config.get("size_scale", size_scale))
 	visual_style = str(config.get("visual_style", ""))
 	_initialize_runtime_state()
@@ -288,6 +292,8 @@ func _spawn_split_bullets() -> void:
 			if count > 1:
 				angle_offset = lerpf(-split_spread * 0.5, split_spread * 0.5, float(index) / float(count - 1))
 			shot_direction = direction.rotated(angle_offset)
+		elif split_pattern == "cross":
+			shot_direction = _get_relative_cross_split_direction(index)
 		else:
 			var shot_angle := TAU * float(index) / float(count)
 			shot_direction = Vector2.RIGHT.rotated(shot_angle)
@@ -303,17 +309,35 @@ func _spawn_split_bullets() -> void:
 				"speed": split_speed,
 				"damage": damage * split_damage_scale,
 				"lifetime": split_lifetime,
-				"hit_radius": max(10.0, hit_radius * 0.8),
+				"hit_radius": max(1.0, hit_radius * split_hit_radius_scale),
 				"visual_color": visual_color,
 				"motion_mode": split_motion_mode,
+				"split_on_return": false,
+				"split_count": 0,
+				"split_after_time": 0.0,
 				"sine_amplitude": max(18.0, sine_amplitude * 0.55),
 				"sine_frequency": max(1.0, sine_frequency + 0.2),
 				"quarter_sine_distance": max(120.0, quarter_sine_distance * 0.72),
 				"quarter_sine_side": -1.0 if index % 2 == 0 else 1.0,
-				"size_scale": max(0.7, size_scale * 0.75),
+				"size_scale": max(0.1, size_scale * split_size_scale),
 				"visual_style": split_visual_style if split_visual_style != "" else visual_style,
 				"target": target
 			})
+
+func _get_relative_cross_split_direction(index: int) -> Vector2:
+	var forward := direction.normalized()
+	if forward == Vector2.ZERO:
+		forward = Vector2.RIGHT
+	var right := forward.orthogonal().normalized()
+	match index % 4:
+		0:
+			return forward
+		1:
+			return right
+		2:
+			return -forward
+		_:
+			return -right
 
 func _apply_visuals() -> void:
 	var polygon := get_node_or_null("Polygon2D") as Polygon2D
@@ -328,6 +352,9 @@ func _apply_visuals() -> void:
 		_apply_boss_projectile_visual(polygon)
 		return
 	_clear_boss_projectile_visuals()
+	if visual_style == "solid_circle":
+		_apply_solid_circle_visual(polygon)
+		return
 
 	var glow := get_node_or_null("Glow") as Polygon2D
 	if glow == null:
@@ -367,6 +394,23 @@ func _apply_visuals() -> void:
 	ring.width = 2.5 * max(size_scale, 0.8)
 	ring.default_color = Color(0.05, 0.02, 0.04, 0.7)
 	ring.points = ENEMY_GEOMETRY.build_circle_points(12.0 * polygon.scale.x, 14)
+
+func _apply_solid_circle_visual(polygon: Polygon2D) -> void:
+	_clear_extra_visual("Glow")
+	_clear_extra_visual("Ring")
+	var outline := get_node_or_null("Outline") as Polygon2D
+	if outline == null:
+		outline = Polygon2D.new()
+		outline.name = "Outline"
+		add_child(outline)
+	outline.z_index = -1
+	outline.color = Color(0.0, 0.0, 0.0, 0.92)
+	outline.polygon = ENEMY_GEOMETRY.build_circle_points(9.6, 24)
+	outline.scale = Vector2.ONE * size_scale
+
+	polygon.color = visual_color
+	polygon.polygon = ENEMY_GEOMETRY.build_circle_points(8.0, 24)
+	polygon.scale = Vector2.ONE * size_scale
 
 func _apply_rose_flower_visual(polygon: Polygon2D) -> void:
 	_clear_extra_visual("Glow")
@@ -535,6 +579,8 @@ func get_save_data() -> Dictionary:
 		"split_pattern": split_pattern,
 		"split_spread": split_spread,
 		"split_visual_style": split_visual_style,
+		"split_size_scale": split_size_scale,
+		"split_hit_radius_scale": split_hit_radius_scale,
 		"visual_style": visual_style,
 		"size_scale": size_scale,
 		"travel_time": travel_time,
@@ -588,6 +634,8 @@ func apply_save_data(data: Dictionary, target_node: Node2D) -> void:
 	split_pattern = str(data.get("split_pattern", split_pattern))
 	split_spread = float(data.get("split_spread", split_spread))
 	split_visual_style = str(data.get("split_visual_style", split_visual_style))
+	split_size_scale = float(data.get("split_size_scale", split_size_scale))
+	split_hit_radius_scale = float(data.get("split_hit_radius_scale", split_hit_radius_scale))
 	visual_style = str(data.get("visual_style", visual_style))
 	size_scale = float(data.get("size_scale", size_scale))
 	travel_time = float(data.get("travel_time", 0.0))

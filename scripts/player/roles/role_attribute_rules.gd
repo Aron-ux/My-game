@@ -11,38 +11,21 @@ const ATTR_GUNNER := "gunner_trait"
 const ATTR_MAGE := "mage_trait"
 const ATTRIBUTE_KEYS := [ATTR_SWORDSMAN, ATTR_GUNNER, ATTR_MAGE]
 
-# Compatibility aliases for saves/code created while this system was named as
-# three generic attributes. Canonical storage now uses hero-trait keys.
-const ATTR_STRENGTH := ATTR_SWORDSMAN
-const ATTR_AGILITY := ATTR_GUNNER
-const ATTR_INTELLIGENCE := ATTR_MAGE
-
 const ROLE_PRIMARY_ATTRIBUTES := {
 	"swordsman": ATTR_SWORDSMAN,
 	"gunner": ATTR_GUNNER,
 	"mage": ATTR_MAGE
 }
 
-const SWORDSMAN_MAX_HEALTH_PER_POINT := 0.0
-const PRIMARY_DAMAGE_PER_POINT := 0.0
-const SWORDSMAN_LOW_HEALTH_THRESHOLD := 0.30
-const SWORDSMAN_LOW_HEALTH_FLAT_HEAL_PER_POINT := 0.14
-const SWORDSMAN_DODGE_PER_POINT := 0.006
-const SWORDSMAN_MAX_DODGE := 0.16
-const GUNNER_MOVE_SPEED_PER_POINT := 3.0
-const GUNNER_DISTANCE_DAMAGE_PER_POINT := 0.018
-const MAGE_SKILL_RANGE_PER_POINT := 0.018
-const MAGE_KILL_ENERGY_PER_POINT := 0.025
+const SWORDSMAN_TRAIT_HEAL_PROC_CHANCE := 0.10
+const SWORDSMAN_TRAIT_HEAL_PER_LEVEL := 5.0
+const SWORDSMAN_TRAIT_HEAL_COOLDOWN := 3.0
+const GUNNER_TRAIT_BASE_DODGE := 0.15
+const GUNNER_TRAIT_DODGE_PER_LEVEL := 0.02
+const MAGE_TRAIT_KILL_ENERGY_BASE_CHANCE := 0.10
+const MAGE_TRAIT_KILL_ENERGY_CHANCE_PER_LEVEL := 0.02
+const MAGE_TRAIT_KILL_ENERGY_MULTIPLIER := 3.0
 const COMMON_PROSPERITY_SWITCH_COOLDOWN_FACTOR := 0.9
-
-# Compatibility constant aliases.
-const STRENGTH_MAX_HEALTH_PER_POINT := 0.0
-const STRENGTH_REGEN_PER_POINT := 0.0
-const AGILITY_MOVE_SPEED_PER_POINT := GUNNER_MOVE_SPEED_PER_POINT
-const AGILITY_DODGE_PER_POINT := 0.0
-const AGILITY_MAX_DODGE := 0.0
-const INTELLIGENCE_MANA_REGEN_PER_POINT := 0.0
-const INTELLIGENCE_PICKUP_RANGE_PER_POINT := 0.0
 
 
 static func get_effective_level(level: float) -> float:
@@ -92,24 +75,16 @@ static func get_swordsman_trait_regen_per_second(_level: float) -> float:
 	return 0.0
 
 
-static func get_swordsman_trait_low_health_flat_heal(level: float) -> float:
-	return get_effective_level(level) * SWORDSMAN_LOW_HEALTH_FLAT_HEAL_PER_POINT
+static func get_swordsman_trait_heal_amount(level: float) -> float:
+	return (get_effective_level(level) + 1.0) * SWORDSMAN_TRAIT_HEAL_PER_LEVEL
 
 
-static func get_swordsman_trait_dodge_chance(level: float) -> float:
-	return min(SWORDSMAN_MAX_DODGE, get_effective_level(level) * SWORDSMAN_DODGE_PER_POINT)
+static func get_swordsman_trait_heal_proc_chance(_level: float) -> float:
+	return SWORDSMAN_TRAIT_HEAL_PROC_CHANCE
 
 
-static func get_gunner_trait_flat_move_speed_bonus(level: float) -> float:
-	return get_effective_level(level) * GUNNER_MOVE_SPEED_PER_POINT
-
-
-static func get_gunner_trait_dodge_chance(_level: float) -> float:
-	return 0.0
-
-
-static func get_gunner_trait_distance_damage_bonus(level: float) -> float:
-	return get_effective_level(level) * GUNNER_DISTANCE_DAMAGE_PER_POINT
+static func get_gunner_trait_dodge_chance(level: float) -> float:
+	return 1.0 - (1.0 - GUNNER_TRAIT_BASE_DODGE) * pow(1.0 - GUNNER_TRAIT_DODGE_PER_LEVEL, get_effective_level(level))
 
 
 static func get_mage_trait_mana_regen_per_second(_level: float) -> float:
@@ -120,105 +95,8 @@ static func get_mage_trait_pickup_range_bonus(_level: float) -> float:
 	return 0.0
 
 
-static func get_mage_trait_skill_range_multiplier(level: float) -> float:
-	return 1.0 + get_effective_level(level) * MAGE_SKILL_RANGE_PER_POINT
-
-
-static func get_mage_trait_kill_energy_multiplier(level: float) -> float:
-	return 1.0 + get_effective_level(level) * MAGE_KILL_ENERGY_PER_POINT
-
-
-static func get_swordsman_trait_entry_damage_multiplier(_level: float) -> float:
-	return 1.0
-
-
-static func get_swordsman_trait_entry_distance_multiplier(_level: float) -> float:
-	return 1.0
-
-
-static func get_swordsman_trait_entry_invulnerability_bonus(_level: float) -> float:
-	return 0.0
-
-
-static func get_swordsman_trait_exit_lifesteal_bonus(_level: float) -> float:
-	return 0.0
-
-
-static func get_swordsman_trait_exit_lifesteal_duration_bonus(_level: float) -> float:
-	return 0.0
-
-
-static func get_gunner_trait_entry_bullet_damage_multiplier(_level: float) -> float:
-	return 1.0
-
-
-static func get_gunner_trait_entry_bullet_speed_bonus(_level: float) -> float:
-	return 0.0
-
-
-static func get_gunner_trait_entry_wave_count(_level: float) -> int:
-	return 2
-
-
-static func get_gunner_trait_exit_haste_interval_bonus(_level: float) -> float:
-	return 0.0
-
-
-static func get_gunner_trait_exit_move_speed_multiplier_bonus(_level: float) -> float:
-	return 0.0
-
-
-static func get_gunner_trait_exit_haste_duration_bonus(_level: float) -> float:
-	return 0.0
-
-
-static func get_mage_trait_entry_radius_multiplier(_level: float) -> float:
-	return 1.0
-
-
-static func get_mage_trait_entry_damage_multiplier(_level: float) -> float:
-	return 1.0
-
-
-static func get_mage_trait_entry_bombard_count(_level: float) -> int:
-	return 2
-
-
-static func get_mage_trait_exit_energy_bonus(_level: float) -> float:
-	return 0.0
-
-
-static func get_mage_trait_exit_slow_field_radius_bonus(_level: float) -> float:
-	return 0.0
-
-
-static func get_mage_trait_exit_slow_field_damage_ratio(_level: float) -> float:
-	return 0.0
-
-
-# Compatibility helpers retaining previous generic attribute function names.
-static func get_strength_max_health_bonus(level: float) -> float:
-	return get_swordsman_trait_max_health_bonus(level)
-
-
-static func get_strength_regen_per_second(level: float) -> float:
-	return get_swordsman_trait_regen_per_second(level)
-
-
-static func get_agility_flat_move_speed_bonus(level: float) -> float:
-	return get_gunner_trait_flat_move_speed_bonus(level)
-
-
-static func get_agility_dodge_chance(level: float) -> float:
-	return get_gunner_trait_dodge_chance(level)
-
-
-static func get_intelligence_mana_regen_per_second(level: float) -> float:
-	return get_mage_trait_mana_regen_per_second(level)
-
-
-static func get_intelligence_pickup_range_bonus(level: float) -> float:
-	return get_mage_trait_pickup_range_bonus(level)
+static func get_mage_trait_kill_energy_proc_chance(level: float) -> float:
+	return clamp(MAGE_TRAIT_KILL_ENERGY_BASE_CHANCE + get_effective_level(level) * MAGE_TRAIT_KILL_ENERGY_CHANCE_PER_LEVEL, 0.0, 1.0)
 
 
 static func get_primary_attribute_damage_bonus(_role_id: String, _attribute_levels: Dictionary) -> float:
@@ -240,97 +118,27 @@ static func get_role_attribute_description(_role_id: String, attribute_key: Stri
 	var level := get_effective_level(next_level)
 	match attribute_key:
 		ATTR_SWORDSMAN:
-			return "剑士特性训练提升到 Lv.%s：生命低于 %.0f%% 时，剑士每次攻击命中固定回复 %.1f 生命；闪避 %.1f%%。本次提升：濒死回复 +%.1f，闪避 +%.1f%%。" % [
+			return "剑士特性提升到 Lv.%s：击杀怪物后有 %.0f%% 概率回复 %.1f 生命，触发后进入 %.1fs 内置 CD。本次提升：回复量 +%.1f。" % [
 				_format_level(level),
-				SWORDSMAN_LOW_HEALTH_THRESHOLD * 100.0,
-				get_swordsman_trait_low_health_flat_heal(level),
-				get_swordsman_trait_dodge_chance(level) * 100.0,
-				SWORDSMAN_LOW_HEALTH_FLAT_HEAL_PER_POINT,
-				SWORDSMAN_DODGE_PER_POINT * 100.0
+				get_swordsman_trait_heal_proc_chance(level) * 100.0,
+				get_swordsman_trait_heal_amount(level),
+				SWORDSMAN_TRAIT_HEAL_COOLDOWN,
+				SWORDSMAN_TRAIT_HEAL_PER_LEVEL
 			]
 		ATTR_GUNNER:
-			return "枪手特性训练提升到 Lv.%s：射手天赋强化，距离增伤额外 +%.1f%%；移动速度 +%.1f。本次提升：射手天赋 +%.1f%%，移速 +%.1f。" % [
+			return "枪手特性提升到 Lv.%s：闪避概率 %.1f%%，基础 15%%，每级提供 2%% 闪避。本次提升：闪避 +%.1f%%。" % [
 				_format_level(level),
-				get_gunner_trait_distance_damage_bonus(level) * 100.0,
-				get_gunner_trait_flat_move_speed_bonus(level),
-				GUNNER_DISTANCE_DAMAGE_PER_POINT * 100.0,
-				GUNNER_MOVE_SPEED_PER_POINT
-			]
-		ATTR_MAGE:
-			return "术师特性训练提升到 Lv.%s：奥法扩能，术师所有技能范围 x%.3f；击杀能量回复 x%.3f。本次提升：范围 +%.1f%%，击杀能量 +%.1f%%。" % [
-				_format_level(level),
-				get_mage_trait_skill_range_multiplier(level),
-				get_mage_trait_kill_energy_multiplier(level),
-				MAGE_SKILL_RANGE_PER_POINT * 100.0,
-				MAGE_KILL_ENERGY_PER_POINT * 100.0
-			]
-	if attribute_key == ATTR_SWORDSMAN:
-		return "剑士特性训练提升到 Lv.%s：生命低于 %.0f%% 时，每次剑士攻击固定回复 %.1f 生命；闪避 %.1f%%。本次提升：濒死回复 +%.1f，闪避 +%.1f%%。" % [
-			_format_level(level),
-			SWORDSMAN_LOW_HEALTH_THRESHOLD * 100.0,
-			get_swordsman_trait_low_health_flat_heal(level),
-			get_swordsman_trait_dodge_chance(level) * 100.0,
-			SWORDSMAN_LOW_HEALTH_FLAT_HEAL_PER_POINT,
-			SWORDSMAN_DODGE_PER_POINT * 100.0
-		]
-	if attribute_key == ATTR_GUNNER:
-		return "枪手特性训练提升到 Lv.%s：射手天赋强化，距离增伤额外 +%.1f%%；移动速度 +%.1f。本次提升：射手天赋 +%.1f%%，移速 +%.1f。" % [
-			_format_level(level),
-			get_gunner_trait_distance_damage_bonus(level) * 100.0,
-			get_gunner_trait_flat_move_speed_bonus(level),
-			GUNNER_DISTANCE_DAMAGE_PER_POINT * 100.0,
-			GUNNER_MOVE_SPEED_PER_POINT
-		]
-	if attribute_key == ATTR_MAGE:
-		return "术师特性训练提升到 Lv.%s：奥法扩能，术师所有技能范围 x%.3f；击杀能量回复 x%.3f。本次提升：范围 +%.1f%%，击杀能量 +%.1f%%。" % [
-			_format_level(level),
-			get_mage_trait_skill_range_multiplier(level),
-			get_mage_trait_kill_energy_multiplier(level),
-			MAGE_SKILL_RANGE_PER_POINT * 100.0,
-			MAGE_KILL_ENERGY_PER_POINT * 100.0
-		]
-	return ""
-	match attribute_key:
-		ATTR_SWORDSMAN:
-			return "剑士特性提升到 Lv.%s：最大生命累计 +%.0f（本次 +%.0f），生命自动恢复 %.2f/s；剑士普攻伤害 +%.1f。入场破阵伤害 ×%.0f%%、突进距离 ×%.0f%%、无敌 +%.2fs；离场传承吸血 +%.1f%%、持续 +%.1fs。" % [
-				_format_level(level),
-				get_swordsman_trait_max_health_bonus(level),
-				SWORDSMAN_MAX_HEALTH_PER_POINT,
-				get_swordsman_trait_regen_per_second(level),
-				level * PRIMARY_DAMAGE_PER_POINT,
-				get_swordsman_trait_entry_damage_multiplier(level) * 100.0,
-				get_swordsman_trait_entry_distance_multiplier(level) * 100.0,
-				get_swordsman_trait_entry_invulnerability_bonus(level),
-				get_swordsman_trait_exit_lifesteal_bonus(level) * 100.0,
-				get_swordsman_trait_exit_lifesteal_duration_bonus(level)
-			]
-		ATTR_GUNNER:
-			return "枪手特性提升到 Lv.%s：移动速度累计 +%.1f，闪避率 %.1f%%；枪手普攻伤害 +%.1f。入场弹幕伤害 ×%.0f%%、子弹速度 +%.0f、弹幕波数 %d；离场过载攻速 +%.1f%%、移速 +%.1f%%、持续 +%.1fs。" % [
-				_format_level(level),
-				get_gunner_trait_flat_move_speed_bonus(level),
 				get_gunner_trait_dodge_chance(level) * 100.0,
-				level * PRIMARY_DAMAGE_PER_POINT,
-				get_gunner_trait_entry_bullet_damage_multiplier(level) * 100.0,
-				get_gunner_trait_entry_bullet_speed_bonus(level),
-				get_gunner_trait_entry_wave_count(level),
-				get_gunner_trait_exit_haste_interval_bonus(level) * 100.0,
-				get_gunner_trait_exit_move_speed_multiplier_bonus(level) * 100.0,
-				get_gunner_trait_exit_haste_duration_bonus(level)
+				GUNNER_TRAIT_DODGE_PER_LEVEL * 100.0
 			]
 		ATTR_MAGE:
-			return "术师特性提升到 Lv.%s：大招能量自动恢复 %.2f/s，吸取范围累计 +%.1f；术师普攻伤害 +%.1f。入场轰炸伤害 ×%.0f%%、范围 ×%.0f%%、落点数 %d；离场立刻回能 +%.1f，并留下半径 +%.1f 的减速领域。" % [
+			return "术师特性提升到 Lv.%s：造成击杀伤害时有 %.1f%% 概率回复 %.0f 倍大招能量。本次提升：概率 +%.1f%%。" % [
 				_format_level(level),
-				get_mage_trait_mana_regen_per_second(level),
-				get_mage_trait_pickup_range_bonus(level),
-				level * PRIMARY_DAMAGE_PER_POINT,
-				get_mage_trait_entry_damage_multiplier(level) * 100.0,
-				get_mage_trait_entry_radius_multiplier(level) * 100.0,
-				get_mage_trait_entry_bombard_count(level),
-				get_mage_trait_exit_energy_bonus(level),
-				get_mage_trait_exit_slow_field_radius_bonus(level)
+				get_mage_trait_kill_energy_proc_chance(level) * 100.0,
+				MAGE_TRAIT_KILL_ENERGY_MULTIPLIER,
+				MAGE_TRAIT_KILL_ENERGY_CHANCE_PER_LEVEL * 100.0
 			]
-		_:
-			return ""
+	return ""
 
 
 static func get_balanced_attribute_description(current_levels: Dictionary, added_amount: float) -> String:
@@ -348,7 +156,7 @@ static func get_balanced_attribute_description_for_roles(current_levels: Diction
 		var next_level := get_effective_level(float(current_levels.get(trait_key, 0.0)) + added_amount)
 		parts.append("%s Lv.%s" % [str((definition as Dictionary).get("trait_name", trait_key)), _format_level(next_level)])
 	var target_text := "所选英雄特性" if trait_definitions.size() != 3 else "三名英雄特性"
-	return "共同致富：%s都 +%.2f，且切换英雄冷却 ×%.0f%%（乘算叠加）。本次后：%s。" % [
+	return "共同致富：%s都 +%.2f，且切换英雄冷却 x%.0f%%。本次后：%s。" % [
 		target_text,
 		added_amount,
 		COMMON_PROSPERITY_SWITCH_COOLDOWN_FACTOR * 100.0,
@@ -362,63 +170,77 @@ static func _format_level(level: float) -> String:
 	return "%.1f" % level
 
 
-# Compatibility shims for old role-specific attribute hooks. The new training
-# system is hero-trait based: swordsman = health/regen, gunner = speed/dodge,
-# mage = mana regen/pickup range. Legacy combat-shape bonuses return neutral
-# values so old callers keep working without hidden extra effects.
 static func get_swordsman_heart_interval_multiplier(_level: float) -> float:
 	return 1.0
+
 
 static func get_swordsman_heart_range_multiplier(_level: float) -> float:
 	return 1.0
 
+
 static func get_swordsman_normal_attack_scale(_level: float) -> float:
 	return 1.0
+
 
 static func get_swordsman_normal_attack_width_scale(_level: float) -> float:
 	return 1.0
 
+
 static func get_swordsman_bloodthirst_ratio(_level: float) -> float:
 	return 0.0
+
 
 static func get_swordsman_bloodthirst_heal_cap(_level: float) -> float:
 	return 0.0
 
-static func get_swordsman_dodge_chance(level: float) -> float:
-	return get_gunner_trait_dodge_chance(level)
+
+static func get_swordsman_dodge_chance(_level: float) -> float:
+	return 0.0
+
 
 static func get_gunner_barrage_speed_multiplier(_level: float) -> float:
 	return 1.0
 
+
 static func get_gunner_barrage_interval_reduction(_level: float) -> float:
 	return 0.0
+
 
 static func get_gunner_barrage_bounce_count(_level: float) -> int:
 	return 0
 
+
 static func get_gunner_barrage_shotgun_wave_count(_level: float) -> int:
 	return 0
+
 
 static func get_gunner_barrage_shotgun_pellet_count(_level: float) -> int:
 	return 0
 
+
 static func get_gunner_barrage_split_count(_level: float) -> int:
 	return 0
+
 
 static func get_gunner_footwork_range_multiplier(_level: float) -> float:
 	return 1.0
 
+
 static func get_gunner_footwork_move_multiplier(_level: float) -> float:
 	return 1.0
 
-static func get_gunner_footwork_flat_speed_bonus(level: float) -> float:
-	return get_gunner_trait_flat_move_speed_bonus(level)
+
+static func get_gunner_footwork_flat_speed_bonus(_level: float) -> float:
+	return 0.0
+
 
 static func get_mage_arcane_focus_range_multiplier(_level: float) -> float:
 	return 1.0
 
+
 static func get_mage_surplus_energy_multiplier(_level: float, _role_id: String = "") -> float:
 	return 1.0
+
 
 static func get_mage_surplus_passive_energy_per_second(level: float) -> float:
 	return get_mage_trait_mana_regen_per_second(level)

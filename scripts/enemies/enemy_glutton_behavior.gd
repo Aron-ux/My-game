@@ -3,6 +3,7 @@ extends RefCounted
 const ENEMY_DEATH_EFFECTS := preload("res://scripts/enemies/enemy_death_effects.gd")
 const ENEMY_DROPS := preload("res://scripts/enemies/enemy_drops.gd")
 const ENEMY_SPATIAL_GRID := preload("res://scripts/enemies/enemy_spatial_grid.gd")
+const ENEMY_GLUTTON_SKILL_BEHAVIOR := preload("res://scripts/enemies/enemy_glutton_skill_behavior.gd")
 
 const ABSORB_INTERVAL := 0.18
 const GEM_GRID_CELL_SIZE := 128.0
@@ -17,6 +18,7 @@ static var cached_exp_gem_grid: Dictionary = {}
 
 
 static func update(enemy, delta: float) -> void:
+	ENEMY_GLUTTON_SKILL_BEHAVIOR.update(enemy, delta)
 	if enemy.glutton_absorb_radius <= 0.0:
 		return
 	enemy.glutton_absorb_elapsed += delta
@@ -24,7 +26,6 @@ static func update(enemy, delta: float) -> void:
 		return
 	enemy.glutton_absorb_elapsed = 0.0
 	absorb_nearby_pickups(enemy)
-	damage_nearby_enemies(enemy)
 
 
 static func absorb_nearby_pickups(enemy) -> void:
@@ -74,7 +75,7 @@ static func absorb_exp_gem(enemy, gem) -> int:
 	if gem == null or not is_instance_valid(gem) or not gem.has_method("collect"):
 		return 0
 	var value: int = int(gem.collect())
-	_apply_glutton_growth(enemy, 1)
+	_apply_glutton_growth(enemy, ENEMY_GLUTTON_SKILL_BEHAVIOR.get_growth_multiplier(enemy))
 	return value
 
 
@@ -82,9 +83,9 @@ static func absorb_heart(enemy, heart) -> float:
 	if heart == null or not is_instance_valid(heart) or not heart.has_method("collect"):
 		return 0.0
 	var heal_amount: float = float(heart.collect())
-	var heal_scale: float = max(0.0, enemy.glutton_heart_heal_scale)
-	if heal_amount > 0.0 and heal_scale > 0.0:
-		enemy.current_health = min(enemy.max_health, enemy.current_health + heal_amount * heal_scale)
+	var final_heal_amount: float = ENEMY_GLUTTON_SKILL_BEHAVIOR.get_heart_heal_amount(enemy, heal_amount)
+	if final_heal_amount > 0.0:
+		enemy.current_health = min(enemy.max_health, enemy.current_health + final_heal_amount)
 		enemy._spawn_status_burst(Color(1.0, 0.36, 0.48, 0.16), 24.0 + enemy.scale.x * 5.0)
 	return heal_amount
 
@@ -97,6 +98,10 @@ static func get_player_touch_radius(enemy) -> float:
 
 
 static func get_player_touch_shape(enemy) -> Dictionary:
+	return ENEMY_GLUTTON_SKILL_BEHAVIOR.get_player_touch_shape(enemy)
+
+
+static func get_passive_player_touch_shape(enemy) -> Dictionary:
 	var shadow_ellipse := _get_shadow_world_ellipse(enemy)
 	if not shadow_ellipse.is_empty():
 		return {
@@ -113,13 +118,22 @@ static func get_player_touch_shape(enemy) -> Dictionary:
 
 
 static func get_debug_aura_shape(enemy) -> Dictionary:
-	return _get_aura_shape(enemy)
+	return ENEMY_GLUTTON_SKILL_BEHAVIOR.get_debug_stomp_shape(enemy)
 
 
-static func _apply_glutton_growth(enemy, absorbed_count: int) -> void:
-	if absorbed_count <= 0:
+static func get_debug_wood_spike_hitboxes(enemy) -> Array:
+	return ENEMY_GLUTTON_SKILL_BEHAVIOR.get_active_wood_spike_hitboxes(enemy)
+
+
+static func _apply_glutton_growth(enemy, absorbed_count: float) -> void:
+	if absorbed_count <= 0.0:
 		return
-	for _index in range(absorbed_count):
+	enemy.glutton_growth_carry += absorbed_count
+	var whole_count := int(floor(enemy.glutton_growth_carry))
+	enemy.glutton_growth_carry -= float(whole_count)
+	if whole_count <= 0:
+		return
+	for _index in range(whole_count):
 		enemy.glutton_bonus_speed = min(enemy.glutton_max_bonus_speed, enemy.glutton_bonus_speed + enemy.glutton_speed_gain_per_gem)
 		enemy.scale += Vector2.ONE * enemy.glutton_scale_gain_per_gem
 	enemy._spawn_status_burst(Color(0.42, 0.88, 1.0, 0.18), 26.0 + enemy.scale.x * 6.0)

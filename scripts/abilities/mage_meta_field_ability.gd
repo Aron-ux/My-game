@@ -7,12 +7,12 @@ const COOLDOWN := 24.0
 const TIER_ONE_DURATION := 10.0
 const TIER_TWO_DURATION := 15.0
 const TIER_THREE_DURATION := 17.0
-const TIER_ONE_SLOW := 0.55
+const TIER_ONE_SLOW := 0.50
 const TIER_TWO_SLOW := 0.40
 const TIER_THREE_SLOW := 0.20
-const TIER_ONE_DAMAGE_REDUCTION := 0.12
-const TIER_TWO_DAMAGE_REDUCTION := 0.20
-const TIER_THREE_DAMAGE_REDUCTION := 0.30
+const TIER_ONE_DAMAGE_REDUCTION := 0.50
+const TIER_TWO_DAMAGE_REDUCTION := 0.50
+const TIER_THREE_DAMAGE_REDUCTION := 0.50
 const TIER_ONE_DAMAGE_RATIO := 0.18
 const TIER_TWO_DAMAGE_RATIO := 0.28
 const TIER_THREE_DAMAGE_RATIO := 0.38
@@ -23,8 +23,8 @@ const RADIUS_BONUS_PER_TIER := 0.10
 const SLOW_EFFECT_BONUS_PER_TIER := 0.10
 const DAMAGE_RATIO_BONUS_PER_TIER := 0.02
 const FIELD_SIZE_MULTIPLIER := 0.70
-const TICK_INTERVAL := 1.0
-const FIXED_SELF_HEAL_PER_TICK := 0.5
+const TICK_INTERVAL := 0.4
+const FIXED_SELF_HEAL_PER_TICK := 0.8
 const MAX_CATCH_UP_TICKS := 4
 
 var cooldown_remaining: float = 0.0
@@ -43,7 +43,7 @@ func update(owner, delta: float) -> void:
 		stop()
 		return
 	if str(owner._get_active_role().get("id", "")) != "mage":
-		stop()
+		stop(owner)
 		return
 
 	active_remaining = max(0.0, active_remaining - delta)
@@ -57,7 +57,7 @@ func update(owner, delta: float) -> void:
 	if catch_up_ticks >= MAX_CATCH_UP_TICKS and tick_remaining <= 0.0:
 		tick_remaining = TICK_INTERVAL
 	if active_remaining <= 0.0:
-		stop()
+		stop(owner)
 
 
 func can_trigger(owner, role_id: String) -> bool:
@@ -83,7 +83,7 @@ func try_trigger(owner) -> bool:
 	return true
 
 
-func stop() -> void:
+func stop(owner = null) -> void:
 	active_remaining = 0.0
 	tick_remaining = 0.0
 	if effect != null and is_instance_valid(effect):
@@ -261,6 +261,8 @@ func _get_duration(owner) -> float:
 		duration = TIER_TWO_DURATION
 	if owner != null and owner.has_method("_get_blessing_skill_duration_multiplier"):
 		duration *= float(owner._get_blessing_skill_duration_multiplier(SKILL_ID))
+	if owner != null and owner.has_method("_get_blessing_skill_duration_flat_bonus"):
+		duration += float(owner._get_blessing_skill_duration_flat_bonus(SKILL_ID))
 	return duration
 
 
@@ -280,6 +282,8 @@ func _get_radius(owner) -> float:
 	var range_multiplier: float = 1.0
 	if owner != null and owner.has_method("_get_equipment_skill_range_multiplier"):
 		range_multiplier *= float(owner._get_equipment_skill_range_multiplier())
+	if owner != null and owner.has_method("_get_invoker_magic_range_multiplier"):
+		range_multiplier *= float(owner._get_invoker_magic_range_multiplier(SKILL_ID))
 	base_radius *= 1.0 + float(_get_tier_bonus_level(owner)) * RADIUS_BONUS_PER_TIER
 	return base_radius * range_multiplier * FIELD_SIZE_MULTIPLIER
 
