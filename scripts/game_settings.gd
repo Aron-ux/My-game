@@ -32,6 +32,7 @@ const ACTION_TOGGLE_ATTACK_MODE := "toggle_attack_mode"
 const ACTION_CHARACTER_PANEL := "character_panel"
 const ACTION_TOGGLE_HURT_CORE := "toggle_hurt_core"
 const ACTION_TOGGLE_PERFORMANCE_OVERLAY := "toggle_performance_overlay"
+const ACTION_INTERACT := "interact"
 
 const ACTION_ORDER := [
 	ACTION_MOVE_UP,
@@ -44,7 +45,8 @@ const ACTION_ORDER := [
 	ACTION_TOGGLE_ATTACK_MODE,
 	ACTION_CHARACTER_PANEL,
 	ACTION_TOGGLE_HURT_CORE,
-	ACTION_TOGGLE_PERFORMANCE_OVERLAY
+	ACTION_TOGGLE_PERFORMANCE_OVERLAY,
+	ACTION_INTERACT
 ]
 
 const DEFAULT_KEYS := {
@@ -58,7 +60,8 @@ const DEFAULT_KEYS := {
 	"toggle_attack_mode": KEY_TAB,
 	"character_panel": KEY_C,
 	"toggle_hurt_core": KEY_F1,
-	"toggle_performance_overlay": KEY_F2
+	"toggle_performance_overlay": KEY_F2,
+	"interact": KEY_F
 }
 
 const WINDOW_SIZE_OPTIONS := {

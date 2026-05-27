@@ -1,0 +1,31 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/camp/camp_player.gd" id="1_camp_player"]
+[ext_resource type="PackedScene" path="res://assets/players/sword/sword.tscn" id="2_sword"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_player"]
+size = Vector2(28, 28)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_interact"]
+radius = 46.0
+
+[node name="CampPlayer" type="CharacterBody2D"]
+script = ExtResource("1_camp_player")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_player")
+
+[node name="InteractionSensor" type="Area2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="InteractionSensor"]
+shape = SubResource("CircleShape2D_interact")
+
+[node name="Camera2D" type="Camera2D" parent="."]
+enabled = true
+position_smoothing_enabled = true
+position_smoothing_speed = 8.0
+
+[node name="VisualRoot" type="Node2D" parent="."]
+
+[node name="RoleVisual" parent="VisualRoot" instance=ExtResource("2_sword")]
+scale = Vector2(1, 1)

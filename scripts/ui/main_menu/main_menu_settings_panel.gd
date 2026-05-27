@@ -35,7 +35,8 @@ const KEYBIND_LABELS := {
 	"toggle_attack_mode": "\u5207\u6362\u653b\u51fb\u65b9\u5f0f",
 	"character_panel": "\u89d2\u8272\u9762\u677f",
 	"toggle_hurt_core": "\u663e\u793a/\u9690\u85cf\u5224\u5b9a\u5706",
-	"toggle_performance_overlay": "\u663e\u793a/\u9690\u85cf\u5e27\u6570\u9762\u677f"
+	"toggle_performance_overlay": "\u663e\u793a/\u9690\u85cf\u5e27\u6570\u9762\u677f",
+	"interact": "\u4ea4\u4e92"
 }
 
 var settings_title_label: Label

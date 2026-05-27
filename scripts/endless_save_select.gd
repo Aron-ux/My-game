@@ -1,7 +1,7 @@
 extends Control
 
 const MAIN_MENU_SCENE_PATH := "res://scenes/main_menu.tscn"
-const GAME_SCENE_PATH := "res://scenes/main.tscn"
+const ENDLESS_CAMP_SCENE_PATH := "res://scenes/endless_camp.tscn"
 const SAVE_MANAGER := preload("res://scripts/save_manager.gd")
 const ENDLESS_DIFFICULTY_OVERLAY := preload("res://scripts/ui/save/endless_difficulty_overlay.gd")
 const ENDLESS_SLOT_CARD_FACTORY := preload("res://scripts/ui/save/endless_slot_card_factory.gd")
@@ -117,11 +117,9 @@ func _on_slot_pressed(slot_id: int, has_profile: bool, has_run: bool) -> void:
 		return
 
 	SAVE_MANAGER.set_active_endless_slot(slot_id)
-	if has_run:
-		SAVE_MANAGER.request_continue()
-	else:
+	if not has_run:
 		SAVE_MANAGER.clear_save(slot_id, SAVE_MANAGER.MODE_ENDLESS)
-	get_tree().change_scene_to_file(GAME_SCENE_PATH)
+	get_tree().change_scene_to_file(ENDLESS_CAMP_SCENE_PATH)
 
 func _on_delete_pressed(slot_id: int) -> void:
 	pending_delete_slot_id = slot_id
@@ -143,7 +141,7 @@ func _on_difficulty_selected(difficulty_id: String) -> void:
 	SAVE_MANAGER.create_or_load_endless_profile(pending_slot_id, difficulty_id)
 	SAVE_MANAGER.clear_save(pending_slot_id, SAVE_MANAGER.MODE_ENDLESS)
 	_hide_difficulty_overlay()
-	get_tree().change_scene_to_file(GAME_SCENE_PATH)
+	get_tree().change_scene_to_file(ENDLESS_CAMP_SCENE_PATH)
 
 func _hide_difficulty_overlay() -> void:
 	pending_slot_id = -1

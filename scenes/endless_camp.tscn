@@ -1,0 +1,240 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://scripts/camp/endless_camp.gd" id="1_camp"]
+[ext_resource type="PackedScene" path="res://scenes/camp/camp_player.tscn" id="2_player"]
+[ext_resource type="Script" path="res://scripts/camp/camp_interactable.gd" id="3_interactable"]
+[ext_resource type="PackedScene" path="res://assets/players/sword/sword.tscn" id="4_sword"]
+[ext_resource type="PackedScene" path="res://assets/players/gun/gun.tscn" id="5_gun"]
+[ext_resource type="PackedScene" path="res://assets/players/wizard/wizard.tscn" id="6_wizard"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_player_block"]
+size = Vector2(120, 72)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_role_interact"]
+radius = 70.0
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_shop_interact"]
+radius = 86.0
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_portal_interact"]
+radius = 92.0
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_world_bounds"]
+size = Vector2(1200, 720)
+
+[node name="EndlessCamp" type="Node2D"]
+script = ExtResource("1_camp")
+
+[node name="Ground" type="Polygon2D" parent="."]
+z_index = -100
+color = Color(0.18, 0.27, 0.19, 1)
+polygon = PackedVector2Array(-600, -360, 600, -360, 600, 360, -600, 360)
+
+[node name="GroundShade" type="Polygon2D" parent="."]
+z_index = -99
+color = Color(0.09, 0.12, 0.1, 0.18)
+polygon = PackedVector2Array(-540, -310, 540, -310, 540, 310, -540, 310)
+
+[node name="CampPlayer" parent="." instance=ExtResource("2_player")]
+position = Vector2(0, 120)
+
+[node name="Characters" type="Node2D" parent="."]
+
+[node name="Swordsman" type="Node2D" parent="Characters"]
+position = Vector2(-220, -90)
+
+[node name="Visual" parent="Characters/Swordsman" instance=ExtResource("4_sword")]
+scale = Vector2(1, 1)
+
+[node name="NameLabel" type="Label" parent="Characters/Swordsman"]
+offset_left = -48.0
+offset_top = 66.0
+offset_right = 48.0
+offset_bottom = 94.0
+text = "Swordsman"
+horizontal_alignment = 1
+
+[node name="Interactable" type="Area2D" parent="Characters/Swordsman" groups=["camp_interactable"]]
+script = ExtResource("3_interactable")
+interactable_id = "swordsman"
+display_name = "swordsman"
+prompt_text = ""
+interaction_kind = "dialogue"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Characters/Swordsman/Interactable"]
+shape = SubResource("CircleShape2D_role_interact")
+
+[node name="Gunner" type="Node2D" parent="Characters"]
+position = Vector2(0, -105)
+
+[node name="Visual" parent="Characters/Gunner" instance=ExtResource("5_gun")]
+scale = Vector2(1, 1)
+
+[node name="NameLabel" type="Label" parent="Characters/Gunner"]
+offset_left = -48.0
+offset_top = 66.0
+offset_right = 48.0
+offset_bottom = 94.0
+text = "Gunner"
+horizontal_alignment = 1
+
+[node name="Interactable" type="Area2D" parent="Characters/Gunner" groups=["camp_interactable"]]
+script = ExtResource("3_interactable")
+interactable_id = "gunner"
+display_name = "gunner"
+prompt_text = ""
+interaction_kind = "dialogue"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Characters/Gunner/Interactable"]
+shape = SubResource("CircleShape2D_role_interact")
+
+[node name="Mage" type="Node2D" parent="Characters"]
+position = Vector2(220, -90)
+
+[node name="Visual" parent="Characters/Mage" instance=ExtResource("6_wizard")]
+scale = Vector2(1.7, 1.7)
+
+[node name="NameLabel" type="Label" parent="Characters/Mage"]
+offset_left = -48.0
+offset_top = 72.0
+offset_right = 48.0
+offset_bottom = 100.0
+text = "Mage"
+horizontal_alignment = 1
+
+[node name="Interactable" type="Area2D" parent="Characters/Mage" groups=["camp_interactable"]]
+script = ExtResource("3_interactable")
+interactable_id = "mage"
+display_name = "mage"
+prompt_text = ""
+interaction_kind = "dialogue"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Characters/Mage/Interactable"]
+shape = SubResource("CircleShape2D_role_interact")
+
+[node name="Blacksmith" type="Node2D" parent="."]
+position = Vector2(-385, 90)
+
+[node name="Body" type="Polygon2D" parent="Blacksmith"]
+color = Color(0.33, 0.29, 0.25, 1)
+polygon = PackedVector2Array(-42, -58, 42, -58, 48, 44, -48, 44)
+
+[node name="Apron" type="Polygon2D" parent="Blacksmith"]
+color = Color(0.12, 0.14, 0.16, 1)
+polygon = PackedVector2Array(-26, -34, 26, -34, 30, 38, -30, 38)
+
+[node name="NameLabel" type="Label" parent="Blacksmith"]
+offset_left = -64.0
+offset_top = 54.0
+offset_right = 64.0
+offset_bottom = 82.0
+text = "Blacksmith"
+horizontal_alignment = 1
+
+[node name="Interactable" type="Area2D" parent="Blacksmith" groups=["camp_interactable"]]
+script = ExtResource("3_interactable")
+interactable_id = "blacksmith"
+display_name = "blacksmith"
+prompt_text = ""
+interaction_kind = "shop"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Blacksmith/Interactable"]
+shape = SubResource("CircleShape2D_shop_interact")
+
+[node name="Portal" type="Node2D" parent="."]
+position = Vector2(380, 100)
+
+[node name="OuterGlow" type="Polygon2D" parent="Portal"]
+color = Color(0.16, 0.63, 1, 0.22)
+polygon = PackedVector2Array(0, -98, 38, -82, 72, -44, 88, 0, 72, 44, 38, 82, 0, 98, -38, 82, -72, 44, -88, 0, -72, -44, -38, -82)
+
+[node name="Core" type="Polygon2D" parent="Portal"]
+color = Color(0.18, 0.82, 1, 0.72)
+polygon = PackedVector2Array(0, -70, 28, -56, 50, -26, 58, 0, 50, 26, 28, 56, 0, 70, -28, 56, -50, 26, -58, 0, -50, -26, -28, -56)
+
+[node name="NameLabel" type="Label" parent="Portal"]
+offset_left = -90.0
+offset_top = 86.0
+offset_right = 90.0
+offset_bottom = 114.0
+text = "Endless Portal"
+horizontal_alignment = 1
+
+[node name="Interactable" type="Area2D" parent="Portal" groups=["camp_interactable"]]
+script = ExtResource("3_interactable")
+interactable_id = "endless_portal"
+display_name = "endless_portal"
+prompt_text = ""
+interaction_kind = "portal"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Portal/Interactable"]
+shape = SubResource("CircleShape2D_portal_interact")
+
+[node name="WorldBounds" type="StaticBody2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="WorldBounds"]
+shape = SubResource("RectangleShape2D_world_bounds")
+disabled = true
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="PromptLabel" type="Label" parent="CanvasLayer"]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -220.0
+offset_top = -96.0
+offset_right = 220.0
+offset_bottom = -56.0
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 24
+theme_override_colors/font_color = Color(0.62, 0.9, 1, 1)
+
+[node name="MessageLabel" type="Label" parent="CanvasLayer"]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -300.0
+offset_top = -150.0
+offset_right = 300.0
+offset_bottom = -110.0
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 22
+theme_override_colors/font_color = Color(1, 0.86, 0.48, 1)
+
+[node name="ShopPanel" type="PanelContainer" parent="CanvasLayer"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -230.0
+offset_top = -150.0
+offset_right = 230.0
+offset_bottom = 150.0
+
+[node name="MarginContainer" type="MarginContainer" parent="CanvasLayer/ShopPanel"]
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 22
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 22
+
+[node name="ShopContent" type="VBoxContainer" parent="CanvasLayer/ShopPanel/MarginContainer"]
+theme_override_constants/separation = 18
+
+[node name="Title" type="Label" parent="CanvasLayer/ShopPanel/MarginContainer/ShopContent"]
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 30
+theme_override_colors/font_color = Color(1, 0.86, 0.48, 1)
+
+[node name="Body" type="Label" parent="CanvasLayer/ShopPanel/MarginContainer/ShopContent"]
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 22
+theme_override_colors/font_color = Color(0.9, 0.93, 1, 1)

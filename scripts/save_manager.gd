@@ -8,6 +8,7 @@ const STORY_SLOT_COUNT := 3
 const ENDLESS_SLOT_COUNT := 9
 const MODE_STORY := "story"
 const MODE_ENDLESS := "endless"
+const ENDLESS_CAMP_SCENE_PATH := "res://scenes/endless_camp.tscn"
 
 static var continue_requested: bool = false
 static var active_slot_id: int = -1
@@ -298,7 +299,7 @@ static func get_continue_target_scene() -> String:
 	if mode == MODE_ENDLESS:
 		var endless_slot_id := _get_last_endless_slot_id()
 		if endless_slot_id >= 1 and endless_slot_id <= ENDLESS_SLOT_COUNT and has_save(endless_slot_id, MODE_ENDLESS):
-			return STORY_DATA.BATTLE_SCENE_PATH
+			return ENDLESS_CAMP_SCENE_PATH
 		return ""
 
 	if not STORY_DATA.is_story_mode_enabled():
