@@ -128,6 +128,7 @@ var glutton_war_stomp_cast_shake_elapsed: float = 0.0
 var glutton_war_stomp_tick_elapsed: float = 0.0
 var glutton_war_stomp_hit_registry: Dictionary = {}
 var glutton_active_wood_spike_hitboxes: Array = []
+var glutton_active_twine_hitboxes: Array = []
 var glutton_growth_carry: float = 0.0
 var glutton_entangle_damage_remaining: float = 0.0
 var glutton_entangle_damage_elapsed: float = 0.0
@@ -150,6 +151,11 @@ var skulltomb_tomb_scene: PackedScene
 var skulltomb_tomb_instance: Node2D
 var skulltomb_channel_ring: Line2D
 var skulltomb_death_ring: Line2D
+var skulltomb_area_instance: Node2D
+var skulltomb_area_remaining: float = 0.0
+var skulltomb_area_damage_elapsed: float = 0.0
+var skulltomb_area_center: Vector2 = Vector2.ZERO
+var skulltomb_area_radius: float = 0.0
 var skull_soldier_speed_multiplier: float = 1.0
 var skull_soldier_speed_timer: float = 0.0
 var skull_damage_immune_timer: float = 0.0
@@ -195,6 +201,7 @@ var boss_battle_elapsed: float = 0.0
 var boss_phase: int = 1
 var boss_phase_three_elapsed: float = 0.0
 var boss_phase_three_intro_remaining: float = 0.0
+var boss_phase_transition_target: int = 0
 var boss_split_interval: float = 5.8
 var boss_split_timer: float = 0.0
 var boss_laser_interval: float = 8.5
@@ -211,6 +218,7 @@ var boss_orbit_bomb_timer: float = 0.0
 var boss_orbit_bomb_remaining: float = 0.0
 var boss_orbit_bomb_angle: float = 0.0
 var boss_orbit_bomb_shot_timer: float = 0.0
+var boss_orbit_pull_remaining: float = 0.0
 var boss_peacock_interval: float = 9.0
 var boss_peacock_timer: float = 0.0
 var boss_peacock_charge_remaining: float = 0.0
@@ -274,11 +282,15 @@ func _reset_runtime_state(randomize_timers: bool) -> void:
 	ENEMY_RUNTIME_STATE.reset(self, randomize_timers)
 
 func get_boss_ui_payload() -> Dictionary:
+	var boss_bar_max_health: float = max_health
+	if enemy_kind == "boss":
+		boss_bar_max_health = max(1.0, max_health / 3.0)
 	var payload: Dictionary = {
 		"name": boss_display_name,
 		"current_health": current_health,
-		"max_health": max_health,
-		"phase": boss_phase
+		"max_health": boss_bar_max_health,
+		"phase": boss_phase,
+		"hide_health": enemy_kind == "boss" and boss_phase_transition_target > 0
 	}
 	if behavior_id == "glutton" and ENEMY_GLUTTON_SKILL_BEHAVIOR.is_war_stomp_active(self):
 		payload["status"] = {
@@ -338,8 +350,8 @@ func has_trait(trait_id: String) -> bool:
 func _sync_trait_flags() -> void:
 	ENEMY_TRAIT_FLAGS.sync_trait_flags(self)
 
-func _spawn_projectile(origin: Vector2, shot_direction: Vector2, shot_speed: float, shot_damage: float, shot_lifetime: float, color: Color, mode: String, extra_config: Dictionary = {}) -> void:
-	ENEMY_PROJECTILES.spawn_projectile(self, origin, shot_direction, shot_speed, shot_damage, shot_lifetime, color, mode, extra_config)
+func _spawn_projectile(origin: Vector2, shot_direction: Vector2, shot_speed: float, shot_damage: float, shot_lifetime: float, color: Color, mode: String, extra_config: Dictionary = {}) -> Node:
+	return ENEMY_PROJECTILES.spawn_projectile(self, origin, shot_direction, shot_speed, shot_damage, shot_lifetime, color, mode, extra_config)
 
 func _apply_visuals(color_override = null) -> void:
 	ENEMY_VISUALS.apply_visuals(self, color_override)

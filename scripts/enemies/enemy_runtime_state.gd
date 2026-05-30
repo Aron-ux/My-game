@@ -46,6 +46,9 @@ static func reset(enemy, randomize_timers: bool) -> void:
 	enemy.boss_phase = 1
 	enemy.boss_phase_three_elapsed = 0.0
 	enemy.boss_phase_three_intro_remaining = 0.0
+	enemy.boss_phase_transition_target = 0
+	if str(enemy.enemy_kind) == "boss":
+		enemy.current_health = max(1.0, float(enemy.max_health) / 3.0)
 	enemy.boss_laser_remaining = 0.0
 	enemy.boss_laser_rotation = randf() * TAU if randomize_timers else 0.0
 	enemy.boss_laser_start_rotation = enemy.boss_laser_rotation
@@ -54,6 +57,7 @@ static func reset(enemy, randomize_timers: bool) -> void:
 	enemy.boss_orbit_bomb_remaining = 0.0
 	enemy.boss_orbit_bomb_angle = 0.0
 	enemy.boss_orbit_bomb_shot_timer = 0.0
+	enemy.boss_orbit_pull_remaining = 0.0
 	enemy.boss_peacock_charge_remaining = 0.0
 	enemy.rebirth_timer = 0.0
 	enemy.glutton_absorb_elapsed = 0.0
@@ -75,3 +79,10 @@ static func reset(enemy, randomize_timers: bool) -> void:
 	if enemy.skulltomb_death_ring != null and is_instance_valid(enemy.skulltomb_death_ring):
 		enemy.skulltomb_death_ring.queue_free()
 	enemy.skulltomb_death_ring = null
+	if enemy.skulltomb_area_instance != null and is_instance_valid(enemy.skulltomb_area_instance):
+		enemy.skulltomb_area_instance.queue_free()
+	enemy.skulltomb_area_instance = null
+	enemy.skulltomb_area_remaining = 0.0
+	enemy.skulltomb_area_damage_elapsed = 0.0
+	enemy.skulltomb_area_center = Vector2.ZERO
+	enemy.skulltomb_area_radius = 0.0

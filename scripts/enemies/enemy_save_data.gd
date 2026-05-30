@@ -105,6 +105,7 @@ static func get_save_data(enemy) -> Dictionary:
 		"boss_phase": enemy.boss_phase,
 		"boss_phase_three_elapsed": enemy.boss_phase_three_elapsed,
 		"boss_phase_three_intro_remaining": enemy.boss_phase_three_intro_remaining,
+		"boss_phase_transition_target": enemy.boss_phase_transition_target,
 		"boss_split_timer": enemy.boss_split_timer,
 		"boss_laser_timer": enemy.boss_laser_timer,
 		"boss_laser_remaining": enemy.boss_laser_remaining,
@@ -116,6 +117,7 @@ static func get_save_data(enemy) -> Dictionary:
 		"boss_orbit_bomb_remaining": enemy.boss_orbit_bomb_remaining,
 		"boss_orbit_bomb_angle": enemy.boss_orbit_bomb_angle,
 		"boss_orbit_bomb_shot_timer": enemy.boss_orbit_bomb_shot_timer,
+		"boss_orbit_pull_remaining": enemy.boss_orbit_pull_remaining,
 		"boss_peacock_timer": enemy.boss_peacock_timer,
 		"boss_peacock_charge_remaining": enemy.boss_peacock_charge_remaining,
 		"boss_attack_pressure_scale": enemy.boss_attack_pressure_scale,
@@ -239,6 +241,7 @@ static func apply_save_data(enemy, data: Dictionary, target_node: Node2D) -> voi
 	enemy.boss_phase = int(data.get("boss_phase", ENEMY_BOSS_STATE.get_boss_phase(enemy)))
 	enemy.boss_phase_three_elapsed = float(data.get("boss_phase_three_elapsed", 0.0))
 	enemy.boss_phase_three_intro_remaining = float(data.get("boss_phase_three_intro_remaining", 0.0))
+	enemy.boss_phase_transition_target = int(data.get("boss_phase_transition_target", 0))
 	enemy.boss_split_timer = float(data.get("boss_split_timer", enemy.boss_split_interval))
 	enemy.boss_laser_timer = float(data.get("boss_laser_timer", enemy.boss_laser_interval))
 	enemy.boss_laser_remaining = float(data.get("boss_laser_remaining", 0.0))
@@ -250,6 +253,7 @@ static func apply_save_data(enemy, data: Dictionary, target_node: Node2D) -> voi
 	enemy.boss_orbit_bomb_remaining = float(data.get("boss_orbit_bomb_remaining", 0.0))
 	enemy.boss_orbit_bomb_angle = float(data.get("boss_orbit_bomb_angle", 0.0))
 	enemy.boss_orbit_bomb_shot_timer = float(data.get("boss_orbit_bomb_shot_timer", 0.0))
+	enemy.boss_orbit_pull_remaining = float(data.get("boss_orbit_pull_remaining", 0.0))
 	enemy.boss_peacock_timer = float(data.get("boss_peacock_timer", enemy.boss_peacock_interval))
 	enemy.boss_peacock_charge_remaining = float(data.get("boss_peacock_charge_remaining", 0.0))
 	enemy.boss_attack_pressure_scale = float(data.get("boss_attack_pressure_scale", enemy.boss_attack_pressure_scale))
@@ -262,11 +266,11 @@ static func apply_save_data(enemy, data: Dictionary, target_node: Node2D) -> voi
 	enemy._apply_visuals(enemy.display_color)
 	if enemy.enemy_kind == "boss":
 		enemy._ensure_boss_helpers()
-		if enemy.boss_phase_three_intro_remaining > 0.0:
+		if enemy.boss_phase_transition_target > 0 or enemy.boss_phase_three_intro_remaining > 0.0:
 			ENEMY_BOSS_VISUALS.update_boss_phase_three_charge_visuals(enemy)
 		else:
 			ENEMY_BOSS_VISUALS.clear_boss_phase_three_charge_visuals(enemy)
-		if enemy.boss_orbit_bomb_remaining > 0.0:
+		if enemy.boss_phase >= 3 or enemy.boss_orbit_bomb_remaining > 0.0:
 			enemy._ensure_boss_orbit_ball()
 		if enemy.boss_peacock_charge_remaining > 0.0:
 			enemy._ensure_boss_peacock_markers(7)

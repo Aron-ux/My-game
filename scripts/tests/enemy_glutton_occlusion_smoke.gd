@@ -18,14 +18,31 @@ func _init() -> void:
 	scene.runtime_enemies = [glutton, behind, front]
 
 	ENEMY_OCCLUSION_SORT.update_scene_from_glutton(glutton)
-	if glutton.z_index != 30:
+	if glutton.z_index != 8:
 		failures.append("glutton should use occlusion middle z index")
-	if behind.z_index != 20:
+	if behind.z_index != 4:
 		failures.append("enemy behind glutton should be below glutton")
-	if front.z_index != 40:
+	if front.z_index != 9:
 		failures.append("enemy in front of glutton should be above glutton")
 
-	for node in [glutton, behind, front]:
+	var skulltomb := _make_enemy("small_boss", "skulltomb", Vector2(200.0, 100.0))
+	var skulltomb_behind := _make_enemy("normal", "chaser", Vector2(200.0, 60.0))
+	var skulltomb_front := _make_enemy("elite", "dash", Vector2(200.0, 160.0))
+	scene.add_child(skulltomb)
+	scene.add_child(skulltomb_behind)
+	scene.add_child(skulltomb_front)
+	scene.runtime_enemies = [skulltomb, skulltomb_behind, skulltomb_front]
+
+	scene.remove_meta("__enemy_occlusion_sort_frame")
+	ENEMY_OCCLUSION_SORT.update_scene_from_occluder(skulltomb)
+	if skulltomb.z_index != 8:
+		failures.append("skulltomb should use occlusion middle z index")
+	if skulltomb_behind.z_index != 4:
+		failures.append("enemy behind skulltomb should be below skulltomb")
+	if skulltomb_front.z_index != 9:
+		failures.append("enemy in front of skulltomb should be above skulltomb")
+
+	for node in [glutton, behind, front, skulltomb, skulltomb_behind, skulltomb_front]:
 		node.queue_free()
 	scene.queue_free()
 

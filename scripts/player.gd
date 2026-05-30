@@ -288,6 +288,10 @@ var post_ultimate_flow_background_multiplier: float = 1.0
 var ultimate_guard_remaining: float = 0.0
 var ultimate_guard_damage_multiplier: float = 1.0
 var player_action_lock_remaining: float = 0.0
+var healing_block_remaining: float = 0.0
+var confinement_center: Vector2 = Vector2.ZERO
+var confinement_radius: float = 0.0
+var confinement_remaining: float = 0.0
 var perpetual_motion_cooldown_remaining: float = 0.0
 var frenzy_remaining: float = 0.0
 var frenzy_stacks: int = 0
@@ -865,6 +869,17 @@ func _lock_player_actions(duration: float) -> void:
 func _is_player_action_locked() -> bool:
 	return player_action_lock_remaining > 0.0
 
+func apply_healing_block(duration: float) -> void:
+	healing_block_remaining = max(healing_block_remaining, max(0.0, duration))
+
+func is_healing_blocked() -> bool:
+	return healing_block_remaining > 0.0
+
+func apply_confinement(center: Vector2, radius: float, duration: float) -> void:
+	confinement_center = center
+	confinement_radius = max(0.0, radius)
+	confinement_remaining = max(confinement_remaining, max(0.0, duration))
+
 func _unhandled_input(event: InputEvent) -> void:
 	PLAYER_SURVIVAL_FLOW.unhandled_input(self, event)
 
@@ -1215,6 +1230,9 @@ func _clear_duration_status(status_id: String) -> void:
 		active_duration_statuses.erase(status_id)
 	PLAYER_HEALTH_VISUALS.update_player_duration_status_bar(self)
 
+func _sync_orbit_pull_status(remaining: float, _pull_origin: Vector2) -> void:
+	_sync_duration_status("orbit_pull", "牵引", remaining, 80, Color(0.22, 0.14, 0.28, 0.95))
+
 func _start_entangled_status(duration: float) -> void:
 	_start_duration_status("entangled", "缠绕", duration, 100, Color(0.56, 0.56, 0.56, 0.95))
 
@@ -1475,6 +1493,10 @@ func emit_frame_stats_changed() -> void:
 
 func _emit_deferred_level_up_requested() -> void:
 	if is_dead or not level_up_active:
+		return
+	if level_up_delay_remaining > 0.0:
+		level_up_active = false
+		pending_level_ups += 1
 		return
 	level_up_requested.emit([])
 

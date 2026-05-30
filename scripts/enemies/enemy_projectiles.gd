@@ -47,19 +47,19 @@ static func fire_shooter_pattern(enemy) -> void:
 	var projectile_color := get_projectile_color(enemy)
 	enemy._spawn_status_burst(Color(projectile_color.r, projectile_color.g, projectile_color.b, 0.18), 16.0 + enemy.scale.x * 4.0)
 
-static func spawn_projectile(enemy, origin: Vector2, shot_direction: Vector2, shot_speed: float, shot_damage: float, shot_lifetime: float, color: Color, mode: String, extra_config: Dictionary = {}) -> void:
+static func spawn_projectile(enemy, origin: Vector2, shot_direction: Vector2, shot_speed: float, shot_damage: float, shot_lifetime: float, color: Color, mode: String, extra_config: Dictionary = {}) -> Node:
 	if enemy.projectile_scene == null:
-		return
+		return null
 	var current_scene: Node = _get_enemy_current_scene(enemy)
 	if current_scene == null:
-		return
+		return null
 	if not _can_spawn_enemy_projectile(current_scene, enemy):
-		return
+		return null
 	var projectile = _take_projectile_from_pool(current_scene)
 	if projectile == null:
 		projectile = enemy.projectile_scene.instantiate()
 	if projectile == null:
-		return
+		return null
 	var speed_multiplier := NON_BOSS_PROJECTILE_SPEED_MULTIPLIER if str(enemy.enemy_kind) != "boss" else 1.0
 	if projectile.get_parent() == null:
 		current_scene.add_child(projectile)
@@ -94,6 +94,7 @@ static func spawn_projectile(enemy, origin: Vector2, shot_direction: Vector2, sh
 	else:
 		for key in config.keys():
 			projectile.set(key, config[key])
+	return projectile
 
 static func _take_projectile_from_pool(current_scene: Node):
 	if current_scene == null or current_scene.get_tree() == null:

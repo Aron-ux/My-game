@@ -74,6 +74,9 @@ static func update_boss_hud(main: Node) -> void:
 			current_health = float(payload.get("current_health", current_health))
 			max_health = float(payload.get("max_health", max_health))
 			status_payload = payload.get("status", {}) as Dictionary
+			if bool(payload.get("hide_health", false)):
+				hide_boss_ui(main)
+				return
 		if main.hud.has_method("show_boss_ui"):
 			main.hud.show_boss_ui(boss_name, current_health, max_health, status_payload)
 	else:

@@ -47,7 +47,7 @@ static func compute_velocity(enemy, delta: float) -> Vector2:
 	return move_direction * move_speed * GLOBAL_UNIT_MOVE_SPEED_SCALE
 
 static func compute_boss_velocity(enemy, direction_to_target: Vector2, distance_to_target: float, delta: float) -> Vector2:
-	if enemy.boss_phase >= 3 and enemy.boss_phase_three_intro_remaining > 0.0:
+	if enemy.boss_phase_transition_target > 0:
 		return Vector2.ZERO
 	var radial := Vector2.ZERO
 	if distance_to_target > enemy.preferred_distance + 42.0:

@@ -13,7 +13,7 @@ const SPLIT_MOTHER_SPEED := 520.0
 const SPLIT_CHILD_COUNT := 8
 const SPLIT_MINION_COUNT := 3
 const SPLIT_CHILD_LIFETIME := 1.2
-const BOMBARD_WARNING_SECONDS := 0.7
+const BOMBARD_WARNING_SECONDS := 1.9
 const BOMBARD_SPEED_MULTIPLIER := 1.3
 const BOMBARD_LIFETIME_MULTIPLIER := 1.5
 
@@ -90,12 +90,14 @@ static func _start_bombard_sequence(enemy) -> void:
 		return
 	var impact_center := _get_target_center(enemy) + Vector2(randf_range(-42.0, 42.0), randf_range(-42.0, 42.0))
 	var warning := _create_warning(scene, impact_center, enemy.turret_bombard_radius, Color(0.95, 0.12, 0.34, 0.84), Color(0.95, 0.12, 0.34, 0.13))
+	var expander := _create_bombard_expander(scene, impact_center, enemy.turret_bombard_radius)
 	_track_sequence(scene, ACTIVE_BOMBARDS_META_KEY, {
 		"enemy_ref": weakref(enemy),
 		"elapsed": 0.0,
 		"duration": BOMBARD_WARNING_SECONDS,
 		"warning": warning.get("line", null),
 		"fill": warning.get("fill", null),
+		"expander": expander,
 		"impact_center": impact_center
 	})
 
@@ -146,6 +148,7 @@ static func _update_bombard_sequences(scene: Node, delta: float) -> void:
 		var elapsed: float = float(data.get("elapsed", 0.0)) + delta
 		var duration: float = max(0.001, float(data.get("duration", BOMBARD_WARNING_SECONDS)))
 		_update_warning_scale(data, elapsed / duration)
+		_update_bombard_expander(data, elapsed / duration)
 		if elapsed >= duration:
 			active.remove_at(index)
 			_finish_bombard_sequence(data)
@@ -262,6 +265,17 @@ static func _create_warning(scene: Node, center: Vector2, radius: float, line_co
 	return {"line": line, "fill": fill}
 
 
+static func _create_bombard_expander(scene: Node, center: Vector2, radius: float) -> Polygon2D:
+	var expander := Polygon2D.new()
+	expander.global_position = center
+	expander.color = Color(1.0, 0.04, 0.02, 0.24)
+	expander.polygon = ENEMY_GEOMETRY.build_circle_points(radius, 48)
+	expander.scale = Vector2.ZERO
+	expander.z_index = 14
+	scene.add_child(expander)
+	return expander
+
+
 static func _create_rose_orb(scene: Node, position: Vector2, size_scale: float) -> Node2D:
 	var root := Node2D.new()
 	root.global_position = position
@@ -295,6 +309,15 @@ static func _update_warning_scale(data: Dictionary, raw_progress: float) -> void
 			(node as Node2D).scale = next_scale
 
 
+static func _update_bombard_expander(data: Dictionary, raw_progress: float) -> void:
+	var expander: Variant = data.get("expander", null)
+	if expander == null or not is_instance_valid(expander) or expander is not Node2D:
+		return
+	var progress: float = clampf(raw_progress, 0.0, 1.0)
+	var scale_value: float = max(0.001, progress)
+	(expander as Node2D).scale = Vector2(scale_value, scale_value)
+
+
 static func _update_split_mother_position(data: Dictionary, raw_progress: float) -> void:
 	var mother: Variant = data.get("mother", null)
 	if mother == null or not is_instance_valid(mother) or mother is not Node2D:
@@ -312,7 +335,7 @@ static func _get_split_travel_duration(data: Dictionary) -> float:
 
 
 static func _release_sequence_visuals(data: Dictionary) -> void:
-	for key in ["warning", "fill", "mother"]:
+	for key in ["warning", "fill", "mother", "expander"]:
 		var node: Variant = data.get(key, null)
 		if node != null and is_instance_valid(node) and node is Node:
 			(node as Node).queue_free()

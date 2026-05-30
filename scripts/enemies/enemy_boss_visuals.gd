@@ -3,6 +3,7 @@ extends RefCounted
 const BOSS_VISUAL_SCENE := preload("res://assets/enemies/Unas/Unas.tscn")
 const BOSS_PHASE_THREE_CHARGE_DURATION := 5.0
 const ENEMY_GEOMETRY := preload("res://scripts/enemies/enemy_geometry.gd")
+const ORBIT_BALL_RADIUS := 36.77
 
 static func ensure_boss_helpers(enemy) -> void:
 	if enemy.boss_helper_root != null:
@@ -48,34 +49,35 @@ static func ensure_boss_orbit_ball(enemy) -> void:
 
 	var glow := Polygon2D.new()
 	glow.name = "Glow"
-	glow.color = Color(1.0, 0.72, 0.28, 0.26)
-	glow.polygon = PackedVector2Array([
-		Vector2(0.0, -26.0),
-		Vector2(26.0, 0.0),
-		Vector2(0.0, 26.0),
-		Vector2(-26.0, 0.0)
-	])
-	glow.scale = Vector2(1.55, 1.55)
+	glow.color = Color(0.12, 0.02, 0.18, 0.3)
+	glow.polygon = ENEMY_GEOMETRY.build_circle_points(ORBIT_BALL_RADIUS)
+	glow.scale = Vector2(1.22, 1.22)
 	enemy.boss_orbit_ball.add_child(glow)
 
 	var core := Polygon2D.new()
 	core.name = "Core"
-	core.color = Color(1.0, 0.86, 0.56, 0.98)
-	core.polygon = PackedVector2Array([
-		Vector2(0.0, -18.0),
-		Vector2(18.0, 0.0),
-		Vector2(0.0, 18.0),
-		Vector2(-18.0, 0.0)
-	])
+	core.color = Color(0.16, 0.04, 0.24, 0.98)
+	core.polygon = ENEMY_GEOMETRY.build_circle_points(ORBIT_BALL_RADIUS)
 	enemy.boss_orbit_ball.add_child(core)
 
 	var ring := Line2D.new()
 	ring.name = "Ring"
 	ring.width = 4.0
-	ring.default_color = Color(1.0, 0.96, 0.7, 0.9)
+	ring.default_color = Color(0.06, 0.01, 0.09, 0.92)
 	ring.closed = true
-	ring.points = ENEMY_GEOMETRY.build_circle_points(24.0)
+	ring.points = ENEMY_GEOMETRY.build_circle_points(ORBIT_BALL_RADIUS)
 	enemy.boss_orbit_ball.add_child(ring)
+
+	var gather := Node2D.new()
+	gather.name = "GatherEffect"
+	gather.visible = false
+	enemy.boss_orbit_ball.add_child(gather)
+	for index in range(8):
+		var ray := Line2D.new()
+		ray.name = "Ray%d" % index
+		ray.width = 3.0
+		ray.default_color = Color(0.0, 0.0, 0.0, 0.0)
+		gather.add_child(ray)
 
 static func clear_boss_orbit_ball(enemy) -> void:
 	if enemy.boss_orbit_ball != null:

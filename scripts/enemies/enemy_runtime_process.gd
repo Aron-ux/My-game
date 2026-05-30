@@ -28,8 +28,8 @@ static func physics_process(enemy, delta: float) -> void:
 	enemy.ENEMY_TURRET_BOMBARD.update_bombards(current_scene, delta)
 	if enemy.pooled_inactive:
 		return
-	if bool(enemy._is_glutton):
-		enemy.ENEMY_OCCLUSION_SORT.update_scene_from_glutton(enemy)
+	if bool(enemy._is_glutton) or enemy.behavior_id == "skulltomb" or enemy.secondary_behavior_id == "skulltomb":
+		enemy.ENEMY_OCCLUSION_SORT.update_scene_from_occluder(enemy)
 	if enemy.status_root != null or enemy.boss_visual_instance != null or enemy.hit_flash_remaining > 0.0 or enemy._has_status_visual_pressure():
 		enemy.status_visual_time += delta
 	if enemy.hit_flash_remaining > 0.0:

@@ -4,6 +4,16 @@ const BOSS_PROJECTILE_SPEED_SCALE := 0.588
 const BOSS_PROJECTILE_LIFETIME_SCALE := 1.5
 const BOSS_LASER_LENGTH := 980.0
 const BOSS_LASER_COLOR := Color(39.0 / 255.0, 39.0 / 255.0, 39.0 / 255.0, 1.0)
+const ORBIT_PULL_DURATION := 7.0
+const ORBIT_PULL_STRENGTH := 200.0
+const ORBIT_ROTATION_SPEED := 0.987
+const BOSS_PASSIVE_PULL_STRENGTH := 50.0
+const ORBIT_AIMED_BURST_INTERVAL := 2.9
+const ORBIT_AIMED_BURST_COUNT := 7
+const ORBIT_AIMED_BURST_SPACING := 18.0
+const ORBIT_AIMED_CHAIN_GROUPS := 3
+const ORBIT_AIMED_CHAIN_LANE_SPACING := 72.0
+const ORBIT_BALL_RADIUS := 232.0
 
 static func fire_radial_burst(enemy, count: int = -1) -> void:
 	var bullet_count: int = max(10, count if count > 0 else enemy.boss_radial_bullets)
@@ -142,42 +152,165 @@ static func update_lasers(enemy, delta: float) -> void:
 				enemy.target.take_damage(enemy.projectile_damage * 0.62)
 				enemy.boss_laser_hit_timer = 0.16
 
+static func apply_passive_boss_pull(enemy, delta: float) -> void:
+	_pull_target_toward_point(enemy, enemy.global_position, BOSS_PASSIVE_PULL_STRENGTH, delta, false)
+
 static func start_orbit_bomb(enemy) -> void:
-	enemy.boss_orbit_bomb_remaining = 3.4
-	enemy.boss_orbit_bomb_angle = enemy.boss_pattern_rotation
-	enemy.boss_orbit_bomb_shot_timer = 0.0
+	enemy.boss_orbit_bomb_remaining = 1.0
+	enemy.boss_orbit_pull_remaining = ORBIT_PULL_DURATION
 	enemy._ensure_boss_orbit_ball()
-	enemy._spawn_status_burst(Color(1.0, 0.8, 0.34, 0.22), 42.0 + enemy.scale.x * 8.0)
+	enemy._spawn_status_burst(Color(0.05, 0.0, 0.08, 0.28), 42.0 + enemy.scale.x * 8.0)
 
 static func update_orbit_bomb(enemy, delta: float) -> void:
-	if enemy.boss_orbit_bomb_remaining <= 0.0:
-		enemy._clear_boss_orbit_ball()
-		return
-
 	enemy._ensure_boss_orbit_ball()
-	enemy.boss_orbit_bomb_remaining = max(0.0, enemy.boss_orbit_bomb_remaining - delta)
-	enemy.boss_orbit_bomb_angle = wrapf(enemy.boss_orbit_bomb_angle + 2.35 * delta, 0.0, TAU)
-	var orbit_offset: Vector2 = Vector2.RIGHT.rotated(enemy.boss_orbit_bomb_angle) * (116.0 + 8.0 * sin(enemy.status_visual_time * 4.0))
+	if enemy.boss_orbit_pull_remaining <= 0.0:
+		enemy.boss_orbit_bomb_angle = wrapf(enemy.boss_orbit_bomb_angle + ORBIT_ROTATION_SPEED * delta, 0.0, TAU)
+	var orbit_offset: Vector2 = Vector2.RIGHT.rotated(enemy.boss_orbit_bomb_angle) * (ORBIT_BALL_RADIUS + 8.0 * sin(enemy.status_visual_time * 4.0))
 	if enemy.boss_orbit_ball != null:
 		enemy.boss_orbit_ball.position = orbit_offset
-		enemy.boss_orbit_ball.rotation = -enemy.status_visual_time * 1.8
+		if enemy.boss_orbit_pull_remaining <= 0.0:
+			enemy.boss_orbit_ball.rotation = -enemy.status_visual_time * 1.26
+	_update_orbit_pull(enemy, delta)
+	_update_orbit_aimed_burst(enemy, delta)
 
+static func _update_orbit_pull(enemy, delta: float) -> void:
+	if enemy.boss_orbit_pull_remaining > 0.0:
+		enemy.boss_orbit_pull_remaining = max(0.0, enemy.boss_orbit_pull_remaining - delta)
+		_update_orbit_gather_visual(enemy, enemy.boss_orbit_pull_remaining / ORBIT_PULL_DURATION)
+		_pull_target_to_orbit_ball(enemy, delta)
+		return
+	_update_orbit_gather_visual(enemy, 1.0, false)
+	_sync_target_pull_status(enemy, 0.0)
+
+static func _update_orbit_aimed_burst(enemy, delta: float) -> void:
+	if enemy.boss_orbit_ball == null or not is_instance_valid(enemy.boss_orbit_ball):
+		return
+	if enemy.target == null or not is_instance_valid(enemy.target):
+		return
 	enemy.boss_orbit_bomb_shot_timer -= delta
-	while enemy.boss_orbit_bomb_shot_timer <= 0.0 and enemy.boss_orbit_bomb_remaining > 0.0:
-		enemy.boss_orbit_bomb_shot_timer += 0.2
-		var shot_angle: float = randf() * TAU
-		var shot_direction: Vector2 = Vector2.RIGHT.rotated(shot_angle)
-		var origin: Vector2 = enemy.global_position + orbit_offset
-		enemy._spawn_projectile(origin, shot_direction, 215.0 * BOSS_PROJECTILE_SPEED_SCALE, enemy.projectile_damage * 0.5, 4.2 * BOSS_PROJECTILE_LIFETIME_SCALE, Color(1.0, 0.76, 0.3, 1.0), "straight", {"size_scale": 0.86, "visual_style": "boss_dark_orb"})
+	if enemy.boss_orbit_bomb_shot_timer > 0.0:
+		return
+	enemy.boss_orbit_bomb_shot_timer += ORBIT_AIMED_BURST_INTERVAL
+	var origin: Vector2 = enemy.global_position
+	var aim_direction: Vector2 = origin.direction_to(enemy.target.global_position)
+	if aim_direction.length_squared() <= 0.001:
+		aim_direction = Vector2.RIGHT
+	var perpendicular: Vector2 = aim_direction.orthogonal().normalized()
+	var group_center: float = float(ORBIT_AIMED_CHAIN_GROUPS - 1) * 0.5
+	for group_index in range(ORBIT_AIMED_CHAIN_GROUPS):
+		var lane_offset: Vector2 = perpendicular * (float(group_index) - group_center) * ORBIT_AIMED_CHAIN_LANE_SPACING
+		_spawn_orbit_aimed_chain(enemy, origin + lane_offset, aim_direction)
 
-	if enemy.boss_orbit_bomb_remaining <= 0.0:
-		var burst_origin: Vector2 = enemy.global_position + orbit_offset
-		for index in range(26):
-			var burst_angle: float = TAU * float(index) / 26.0
-			var burst_direction: Vector2 = Vector2.RIGHT.rotated(burst_angle)
-			enemy._spawn_projectile(burst_origin, burst_direction, 250.0 * BOSS_PROJECTILE_SPEED_SCALE, enemy.projectile_damage * 0.66, 4.4 * BOSS_PROJECTILE_LIFETIME_SCALE, Color(1.0, 0.86, 0.52, 1.0), "straight", {"size_scale": 1.0, "visual_style": "boss_dark_orb"})
-		enemy._spawn_status_burst(Color(1.0, 0.84, 0.46, 0.22), 58.0)
-		enemy._clear_boss_orbit_ball()
+static func _spawn_orbit_aimed_chain(enemy, origin: Vector2, aim_direction: Vector2) -> void:
+	var center_offset: float = float(ORBIT_AIMED_BURST_COUNT - 1) * 0.5
+	var chain_head: Node = null
+	var projectile_speed: float = 405.0 * BOSS_PROJECTILE_SPEED_SCALE
+	var head_lifetime: float = 2.6 * BOSS_PROJECTILE_LIFETIME_SCALE
+	var chain_trail: Dictionary = {
+		"history": [],
+		"sealed": false
+	}
+	for index in range(ORBIT_AIMED_BURST_COUNT):
+		var chain_offset: float = 18.0 - float(index) * ORBIT_AIMED_BURST_SPACING
+		var shot_direction: Vector2 = aim_direction
+		var motion_mode: String = "chain_head" if index == 0 else "chain_follow"
+		var extra_config: Dictionary = {
+			"size_scale": 1.05,
+			"visual_style": "boss_dark_triangle",
+			"homing_turn_rate": 0.82,
+			"chain_follow_spacing": ORBIT_AIMED_BURST_SPACING,
+			"chain_follow_index": index,
+			"chain_head": chain_head,
+			"chain_trail": chain_trail
+		}
+		var projectile: Node = enemy._spawn_projectile(
+			origin + shot_direction * chain_offset,
+			shot_direction,
+			projectile_speed,
+			enemy.projectile_damage * 0.48,
+			head_lifetime + float(index) * ORBIT_AIMED_BURST_SPACING / max(projectile_speed, 1.0),
+			Color(0.16, 0.05, 0.24, 1.0),
+			motion_mode,
+			extra_config
+		)
+		if index == 0:
+			chain_head = projectile
+
+static func _pull_target_to_orbit_ball(enemy, delta: float) -> void:
+	if enemy.target == null or not is_instance_valid(enemy.target):
+		return
+	var pull_origin: Vector2 = enemy.global_position
+	if enemy.boss_orbit_ball != null and is_instance_valid(enemy.boss_orbit_ball):
+		pull_origin = enemy.boss_orbit_ball.global_position
+	_pull_target_toward_point(enemy, pull_origin, ORBIT_PULL_STRENGTH, delta, true)
+
+static func _pull_target_toward_point(enemy, pull_origin: Vector2, strength: float, delta: float, sync_status: bool) -> void:
+	if enemy.target == null or not is_instance_valid(enemy.target):
+		return
+	var target_node := enemy.target as Node2D
+	if target_node == null:
+		return
+	var to_origin: Vector2 = pull_origin - target_node.global_position
+	var distance: float = to_origin.length()
+	if distance <= 1.0:
+		return
+	var pull_direction: Vector2 = to_origin / distance
+	var movement_alignment: float = _get_target_pull_alignment(target_node, pull_direction)
+	var pull_factor: float = 1.0
+	if movement_alignment > 0.2:
+		pull_factor = 1.45
+	elif movement_alignment < -0.2:
+		pull_factor = 0.35
+	var pull_distance: float = min(distance, strength * pull_factor * delta)
+	target_node.global_position += pull_direction * pull_distance
+	if "velocity" in target_node:
+		target_node.velocity += pull_direction * strength * pull_factor * 0.18
+	if sync_status and target_node.has_method("queue_external_camera_shake"):
+		target_node.queue_external_camera_shake(8.0, 0.08)
+	if sync_status:
+		_sync_target_pull_status(enemy, enemy.boss_orbit_pull_remaining)
+
+static func _sync_target_pull_status(enemy, remaining: float) -> void:
+	if enemy.target == null or not is_instance_valid(enemy.target):
+		return
+	var pull_origin: Vector2 = enemy.global_position
+	if enemy.boss_orbit_ball != null and is_instance_valid(enemy.boss_orbit_ball):
+		pull_origin = enemy.boss_orbit_ball.global_position
+	if enemy.target.has_method("_sync_orbit_pull_status"):
+		enemy.target._sync_orbit_pull_status(remaining, pull_origin)
+		return
+	if not enemy.target.has_method("_sync_duration_status"):
+		return
+	enemy.target._sync_duration_status("orbit_pull", "牵引", remaining, 80, Color(0.22, 0.14, 0.28, 0.95))
+
+static func _get_target_pull_alignment(target_node: Node2D, pull_direction: Vector2) -> float:
+	if not ("velocity" in target_node):
+		return 0.0
+	var target_velocity: Vector2 = target_node.velocity
+	if target_velocity.length_squared() <= 9.0:
+		return 0.0
+	return target_velocity.normalized().dot(pull_direction)
+
+static func _update_orbit_gather_visual(enemy, remaining_ratio: float, visible: bool = true) -> void:
+	if enemy.boss_orbit_ball == null or not is_instance_valid(enemy.boss_orbit_ball):
+		return
+	var gather := enemy.boss_orbit_ball.get_node_or_null("GatherEffect") as Node2D
+	if gather == null:
+		return
+	gather.visible = visible
+	if not visible:
+		return
+	var progress: float = 1.0 - clamp(remaining_ratio, 0.0, 1.0)
+	var start_radius: float = lerpf(74.0, 28.0, progress)
+	for index in range(gather.get_child_count()):
+		var ray := gather.get_child(index) as Line2D
+		if ray == null:
+			continue
+		var angle: float = TAU * float(index) / float(max(1, gather.get_child_count())) + enemy.status_visual_time * 1.4
+		var direction: Vector2 = Vector2.RIGHT.rotated(angle)
+		ray.points = PackedVector2Array([direction * start_radius, direction * 18.0])
+		ray.default_color = Color(0.0, 0.0, 0.0, 0.28 + progress * 0.54)
+		ray.width = 2.0 + progress * 3.0
 
 static func start_peacock_attack(enemy) -> void:
 	enemy.boss_peacock_charge_remaining = 0.78

@@ -1,0 +1,80 @@
+[gd_scene format=3 uid="uid://bsritmw4n6cfo"]
+
+[ext_resource type="Texture2D" uid="uid://blkiot1kfc8ew" path="res://assets/enemies/skulltomb/area/1.png" id="1_4hr6i"]
+[ext_resource type="Texture2D" uid="uid://cj0aqgylrhj2j" path="res://assets/enemies/skulltomb/area/2.png" id="2_c2au1"]
+[ext_resource type="Texture2D" uid="uid://c4v4yd6nkm2kk" path="res://assets/enemies/skulltomb/area/3.png" id="3_8lm6f"]
+[ext_resource type="Texture2D" uid="uid://bfo3fpvjb11bp" path="res://assets/enemies/skulltomb/area/4.png" id="4_6w2bj"]
+[ext_resource type="Texture2D" uid="uid://cj0o3n2anjnin" path="res://assets/enemies/skulltomb/area/5.png" id="5_suxet"]
+[ext_resource type="Texture2D" uid="uid://dj58ee5ficjlk" path="res://assets/enemies/skulltomb/area/6.png" id="6_7a8en"]
+[ext_resource type="Texture2D" uid="uid://yymq6kb4f4it" path="res://assets/enemies/skulltomb/area/7.png" id="7_pw6lr"]
+[ext_resource type="Texture2D" uid="uid://cbjsi8eb70edp" path="res://assets/enemies/skulltomb/area/8.png" id="8_q4l8d"]
+[ext_resource type="Texture2D" uid="uid://bj0nh8ku5yeeb" path="res://assets/enemies/skulltomb/area/9.png" id="9_t80iw"]
+[ext_resource type="Texture2D" uid="uid://cpyi73d5n7s13" path="res://assets/enemies/skulltomb/area/10.png" id="10_mlmn4"]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_ugcyv"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("1_4hr6i")
+}, {
+"duration": 1.0,
+"texture": ExtResource("2_c2au1")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3_8lm6f")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_6w2bj")
+}, {
+"duration": 1.0,
+"texture": ExtResource("5_suxet")
+}, {
+"duration": 1.0,
+"texture": ExtResource("6_7a8en")
+}, {
+"duration": 1.0,
+"texture": ExtResource("7_pw6lr")
+}, {
+"duration": 1.0,
+"texture": ExtResource("8_q4l8d")
+}, {
+"duration": 1.0,
+"texture": ExtResource("9_t80iw")
+}, {
+"duration": 1.0,
+"texture": ExtResource("10_mlmn4")
+}, {
+"duration": 1.0,
+"texture": ExtResource("9_t80iw")
+}, {
+"duration": 1.0,
+"texture": ExtResource("8_q4l8d")
+}, {
+"duration": 1.0,
+"texture": ExtResource("7_pw6lr")
+}, {
+"duration": 1.0,
+"texture": ExtResource("6_7a8en")
+}, {
+"duration": 1.0,
+"texture": ExtResource("5_suxet")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_6w2bj")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3_8lm6f")
+}, {
+"duration": 1.0,
+"texture": ExtResource("2_c2au1")
+}],
+"loop": true,
+"name": &"default",
+"speed": 7.0
+}]
+
+[node name="Area" type="Node2D" unique_id=764353665]
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=297315240]
+sprite_frames = SubResource("SpriteFrames_ugcyv")
+frame_progress = 0.12350974

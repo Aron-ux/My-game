@@ -94,6 +94,8 @@ static func add_energy(owner, amount: float) -> void:
 static func heal(owner, amount: float) -> void:
 	if amount <= 0.0 or owner.is_dead:
 		return
+	if owner.has_method("is_healing_blocked") and owner.is_healing_blocked():
+		return
 	owner.current_health = min(owner.max_health, owner.current_health + amount)
 	if owner.has_method("_save_active_role_health"):
 		owner._save_active_role_health()

@@ -21,6 +21,7 @@ const POOL_SOFT_LIMIT := 96
 @export var turn_interval: float = 0.18
 @export var turn_angle_step: float = 0.2
 @export var turn_direction_sign: float = 1.0
+@export var homing_turn_rate: float = 1.1
 @export var quarter_sine_distance: float = 180.0
 @export var quarter_sine_side: float = 1.0
 @export var return_after: float = 0.8
@@ -41,6 +42,8 @@ const POOL_SOFT_LIMIT := 96
 @export var split_hit_radius_scale: float = 0.8
 @export var size_scale: float = 1.0
 @export var visual_style: String = ""
+@export var chain_follow_spacing: float = 18.0
+@export var chain_follow_index: int = 0
 
 var direction: Vector2 = Vector2.RIGHT
 var target: Node2D
@@ -55,6 +58,11 @@ var return_started: bool = false
 var split_performed: bool = false
 var pooled: bool = false
 var batch_simulation_enabled: bool = false
+var chain_head: Node2D
+var chain_history: Array[Dictionary] = []
+var chain_trail: Dictionary = {}
+var chain_follow_distance: float = 0.0
+var chain_path_distance: float = 0.0
 
 static var visual_shape_cache: Dictionary = {}
 
@@ -88,6 +96,7 @@ func reset_projectile(config: Dictionary) -> void:
 	turn_interval = float(config.get("turn_interval", turn_interval))
 	turn_angle_step = float(config.get("turn_angle_step", turn_angle_step))
 	turn_direction_sign = float(config.get("turn_direction_sign", turn_direction_sign))
+	homing_turn_rate = float(config.get("homing_turn_rate", homing_turn_rate))
 	quarter_sine_distance = float(config.get("quarter_sine_distance", quarter_sine_distance))
 	quarter_sine_side = float(config.get("quarter_sine_side", quarter_sine_side))
 	return_after = float(config.get("return_after", return_after))
@@ -108,9 +117,15 @@ func reset_projectile(config: Dictionary) -> void:
 	split_hit_radius_scale = float(config.get("split_hit_radius_scale", split_hit_radius_scale))
 	size_scale = float(config.get("size_scale", size_scale))
 	visual_style = str(config.get("visual_style", ""))
+	chain_head = config.get("chain_head", null) as Node2D
+	chain_trail = config.get("chain_trail", {})
+	chain_follow_spacing = float(config.get("chain_follow_spacing", chain_follow_spacing))
+	chain_follow_index = int(config.get("chain_follow_index", chain_follow_index))
 	_initialize_runtime_state()
 
 func recycle() -> void:
+	if motion_mode == "chain_head":
+		_seal_chain_trail()
 	if _get_runtime_pool_count() >= POOL_SOFT_LIMIT:
 		queue_free()
 		return
@@ -123,6 +138,9 @@ func recycle() -> void:
 	add_to_group(POOL_GROUP)
 	_register_runtime_projectile(true)
 	target = null
+	chain_head = null
+	chain_history.clear()
+	chain_trail = {}
 
 func _initialize_runtime_state() -> void:
 	direction = direction.normalized()
@@ -137,6 +155,12 @@ func _initialize_runtime_state() -> void:
 	forward_distance = 0.0
 	return_started = false
 	split_performed = false
+	chain_history.clear()
+	chain_follow_distance = max(0.0, float(chain_follow_index) * chain_follow_spacing)
+	chain_path_distance = -chain_follow_distance
+	if motion_mode == "chain_head":
+		_ensure_chain_trail()
+		_record_chain_history()
 	remove_from_group(POOL_GROUP)
 	add_to_group("enemy_projectiles")
 	_register_runtime_projectile(false)
@@ -160,6 +184,8 @@ func _run_physics_tick(delta: float) -> void:
 	if lifetime <= 0.0:
 		if motion_mode == "returning_sine" and split_on_return and not split_performed:
 			_spawn_split_bullets()
+		if motion_mode == "chain_head":
+			_seal_chain_trail()
 		recycle()
 		return
 
@@ -170,6 +196,13 @@ func _run_physics_tick(delta: float) -> void:
 			_update_sine_motion(delta)
 		"turning":
 			_update_turning_motion(delta)
+		"homing":
+			_update_homing_motion(delta)
+		"chain_head":
+			_update_chain_head_motion(delta)
+		"chain_follow":
+			if not _update_chain_follow_motion(delta):
+				return
 		"quarter_sine":
 			_update_quarter_sine_motion(delta)
 		"returning_sine":
@@ -211,6 +244,123 @@ func _update_turning_motion(delta: float) -> void:
 			turn_tick_remaining = max(0.05, turn_interval)
 	global_position += direction * speed * delta
 	rotation = direction.angle()
+
+func _update_homing_motion(delta: float) -> void:
+	if target != null and is_instance_valid(target):
+		var target_position: Vector2 = target.global_position
+		if target.has_method("get_hurtbox_center"):
+			target_position = target.get_hurtbox_center()
+		var desired_direction: Vector2 = global_position.direction_to(target_position)
+		if desired_direction.length_squared() > 0.001:
+			var angle_delta: float = wrapf(desired_direction.angle() - direction.angle(), -PI, PI)
+			var max_turn: float = max(0.0, homing_turn_rate) * delta
+			direction = direction.rotated(clamp(angle_delta, -max_turn, max_turn)).normalized()
+	global_position += direction * speed * delta
+	rotation = direction.angle()
+
+func _update_chain_head_motion(delta: float) -> void:
+	_update_homing_motion(delta)
+	_record_chain_history()
+
+func _update_chain_follow_motion(delta: float) -> bool:
+	chain_path_distance += speed * delta
+	if chain_path_distance < 0.0:
+		_update_straight_motion(delta)
+		return true
+	var sample: Dictionary = _get_chain_trail_sample_by_distance(chain_path_distance)
+	if sample.is_empty():
+		if not chain_trail.is_empty() and bool(chain_trail.get("sealed", false)):
+			recycle()
+			return false
+		_update_straight_motion(delta)
+		return true
+	global_position = sample.get("position", global_position)
+	rotation = float(sample.get("rotation", rotation))
+	direction = sample.get("direction", direction)
+	return true
+
+func _record_chain_history() -> void:
+	var history: Array = _get_chain_history()
+	var previous_position: Vector2 = global_position
+	var total_distance: float = 0.0
+	if not history.is_empty():
+		var previous_sample: Dictionary = history[history.size() - 1]
+		previous_position = previous_sample.get("position", global_position)
+		total_distance = float(previous_sample.get("distance", 0.0)) + previous_position.distance_to(global_position)
+	chain_path_distance = total_distance
+	chain_trail["total_distance"] = total_distance
+	history.append({
+		"position": global_position,
+		"rotation": rotation,
+		"direction": direction,
+		"distance": total_distance
+	})
+	var max_history: int = 320
+	while history.size() > max_history and not bool(chain_trail.get("sealed", false)):
+		history.pop_front()
+
+func get_chain_sample(distance_behind: float) -> Dictionary:
+	var trail_distance: float = max(0.0, float(chain_trail.get("total_distance", 0.0)) - distance_behind)
+	return _sample_chain_history_at_distance(_get_chain_history(), trail_distance)
+
+func _ensure_chain_trail() -> void:
+	if chain_trail.is_empty():
+		chain_trail = {
+			"history": [],
+			"sealed": false,
+			"total_distance": 0.0
+		}
+	if not chain_trail.has("history") or not (chain_trail.get("history") is Array):
+		chain_trail["history"] = []
+	if not chain_trail.has("sealed"):
+		chain_trail["sealed"] = false
+	if not chain_trail.has("total_distance"):
+		chain_trail["total_distance"] = 0.0
+
+func _seal_chain_trail() -> void:
+	_ensure_chain_trail()
+	chain_trail["sealed"] = true
+
+func _get_chain_history() -> Array:
+	if chain_trail.is_empty():
+		return chain_history
+	_ensure_chain_trail()
+	return chain_trail.get("history") as Array
+
+func _get_chain_trail_sample(distance_behind: float) -> Dictionary:
+	if chain_trail.is_empty():
+		return {}
+	var trail_distance: float = max(0.0, float(chain_trail.get("total_distance", 0.0)) - distance_behind)
+	return _sample_chain_history_at_distance(_get_chain_history(), trail_distance)
+
+func _get_chain_trail_sample_by_distance(trail_distance: float) -> Dictionary:
+	if chain_trail.is_empty():
+		return {}
+	return _sample_chain_history_at_distance(_get_chain_history(), trail_distance)
+
+func _sample_chain_history_at_distance(history: Array, trail_distance: float) -> Dictionary:
+	if history.is_empty():
+		return {}
+	if trail_distance <= float(history[0].get("distance", 0.0)):
+		return history[0]
+	var last_sample: Dictionary = history[history.size() - 1]
+	if trail_distance > float(last_sample.get("distance", 0.0)):
+		return {}
+	for index in range(1, history.size()):
+		var previous_sample: Dictionary = history[index - 1]
+		var sample: Dictionary = history[index]
+		var previous_distance: float = float(previous_sample.get("distance", 0.0))
+		var sample_distance: float = float(sample.get("distance", previous_distance))
+		if trail_distance <= sample_distance:
+			var alpha: float = clamp((trail_distance - previous_distance) / max(sample_distance - previous_distance, 0.001), 0.0, 1.0)
+			var previous_position: Vector2 = previous_sample.get("position", global_position)
+			var sample_position: Vector2 = sample.get("position", previous_position)
+			return {
+				"position": previous_position.lerp(sample_position, alpha),
+				"rotation": lerp_angle(float(previous_sample.get("rotation", rotation)), float(sample.get("rotation", rotation)), alpha),
+				"direction": (previous_sample.get("direction", direction) as Vector2).lerp(sample.get("direction", direction), alpha).normalized()
+			}
+	return {}
 
 func _update_quarter_sine_motion(delta: float) -> void:
 	forward_distance += speed * delta
@@ -439,6 +589,28 @@ func _apply_boss_projectile_visual(polygon: Polygon2D) -> void:
 	_clear_extra_visual("Glow")
 	_clear_extra_visual("Ring")
 	_clear_extra_visual("BossCore")
+	if visual_style == "boss_dark_triangle":
+		var outline := get_node_or_null("Outline") as Polygon2D
+		if outline == null:
+			outline = Polygon2D.new()
+			outline.name = "Outline"
+			add_child(outline)
+		polygon.color = Color(0.16, 0.05, 0.24, 1.0)
+		polygon.polygon = PackedVector2Array([
+			Vector2(14.0, 0.0),
+			Vector2(-10.0, -5.0),
+			Vector2(-10.0, 5.0)
+		])
+		polygon.scale = Vector2.ONE * size_scale
+		outline.z_index = -1
+		outline.color = Color(0.0, 0.0, 0.0, 0.9)
+		outline.polygon = PackedVector2Array([
+			Vector2(16.0, 0.0),
+			Vector2(-12.0, -7.0),
+			Vector2(-12.0, 7.0)
+		])
+		outline.scale = Vector2.ONE * size_scale
+		return
 	if visual_style == "boss_turning_hex":
 		_clear_extra_visual("Outline")
 		polygon.color = Color(0.16, 0.05, 0.24, 1.0)
@@ -483,6 +655,7 @@ func _get_boss_hex_shape() -> PackedVector2Array:
 func _clear_extra_visual(node_name: String) -> void:
 	var node := get_node_or_null(node_name)
 	if node != null:
+		remove_child(node)
 		node.queue_free()
 
 
@@ -524,12 +697,7 @@ func _get_shape_for_mode() -> PackedVector2Array:
 				Vector2(-8.0, -4.0)
 			])
 		_:
-			shape = PackedVector2Array([
-				Vector2(0.0, -8.0),
-				Vector2(8.0, 0.0),
-				Vector2(0.0, 8.0),
-				Vector2(-8.0, 0.0)
-			])
+			shape = ENEMY_GEOMETRY.build_circle_points(8.0, 20)
 	visual_shape_cache[shape_key] = shape
 	return shape
 
@@ -563,6 +731,7 @@ func get_save_data() -> Dictionary:
 		"turn_interval": turn_interval,
 		"turn_angle_step": turn_angle_step,
 		"turn_direction_sign": turn_direction_sign,
+		"homing_turn_rate": homing_turn_rate,
 		"quarter_sine_distance": quarter_sine_distance,
 		"quarter_sine_side": quarter_sine_side,
 		"return_after": return_after,
@@ -583,6 +752,8 @@ func get_save_data() -> Dictionary:
 		"split_hit_radius_scale": split_hit_radius_scale,
 		"visual_style": visual_style,
 		"size_scale": size_scale,
+		"chain_follow_spacing": chain_follow_spacing,
+		"chain_follow_index": chain_follow_index,
 		"travel_time": travel_time,
 		"forward_distance": forward_distance,
 		"base_position": [base_position.x, base_position.y],
@@ -618,6 +789,7 @@ func apply_save_data(data: Dictionary, target_node: Node2D) -> void:
 	turn_interval = float(data.get("turn_interval", turn_interval))
 	turn_angle_step = float(data.get("turn_angle_step", turn_angle_step))
 	turn_direction_sign = float(data.get("turn_direction_sign", turn_direction_sign))
+	homing_turn_rate = float(data.get("homing_turn_rate", homing_turn_rate))
 	quarter_sine_distance = float(data.get("quarter_sine_distance", quarter_sine_distance))
 	quarter_sine_side = float(data.get("quarter_sine_side", quarter_sine_side))
 	return_after = float(data.get("return_after", return_after))
@@ -638,6 +810,8 @@ func apply_save_data(data: Dictionary, target_node: Node2D) -> void:
 	split_hit_radius_scale = float(data.get("split_hit_radius_scale", split_hit_radius_scale))
 	visual_style = str(data.get("visual_style", visual_style))
 	size_scale = float(data.get("size_scale", size_scale))
+	chain_follow_spacing = float(data.get("chain_follow_spacing", chain_follow_spacing))
+	chain_follow_index = int(data.get("chain_follow_index", chain_follow_index))
 	travel_time = float(data.get("travel_time", 0.0))
 	forward_distance = float(data.get("forward_distance", 0.0))
 

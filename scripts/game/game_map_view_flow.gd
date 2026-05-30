@@ -48,7 +48,6 @@ static func create_battle_map_view() -> Node2D:
 
 
 static func prepare_battle_map_scene(map_scene: Node) -> void:
-	add_grassland_background(map_scene)
 	for child in map_scene.get_children():
 		if child.name in EDITOR_ONLY_MAP_NODES and child is CanvasItem:
 			(child as CanvasItem).visible = false
@@ -59,6 +58,7 @@ static func prepare_battle_map_scene(map_scene: Node) -> void:
 			(child as CanvasItem).visible = false
 		elif child.name in TILE_MAP_LAYER_NAMES and child is CanvasItem:
 			(child as CanvasItem).visible = false
+	add_grassland_background(map_scene)
 
 
 static func add_grassland_background(map_scene: Node) -> void:
@@ -71,8 +71,14 @@ static func add_grassland_background(map_scene: Node) -> void:
 	sprite.centered = true
 	sprite.z_index = -100
 	var tex_size: Vector2 = texture.get_size()
+	var target_bounds := Rect2(Vector2(-1600.0, -900.0), Vector2(3200.0, 1800.0))
+	if map_scene is Node2D:
+		var tile_bounds: Rect2 = calculate_tile_map_bounds(map_scene as Node2D)
+		if tile_bounds.size.x > 0.0 and tile_bounds.size.y > 0.0:
+			target_bounds = tile_bounds
+	sprite.global_position = target_bounds.get_center()
 	if tex_size.x > 0.0 and tex_size.y > 0.0:
-		sprite.scale = Vector2(3200.0, 1800.0) / tex_size
+		sprite.scale = target_bounds.size / tex_size
 	map_scene.add_child(sprite)
 	map_scene.move_child(sprite, 0)
 

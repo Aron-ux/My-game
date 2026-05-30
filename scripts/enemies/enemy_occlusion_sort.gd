@@ -2,17 +2,25 @@ extends RefCounted
 
 const SORT_FRAME_META := "__enemy_occlusion_sort_frame"
 const SORT_INTERVAL_FRAMES := 3
-const GLUTTON_Z_INDEX := 30
-const BEHIND_GLUTTON_Z_INDEX := 20
-const IN_FRONT_OF_GLUTTON_Z_INDEX := 40
+const BEHIND_OCCLUDER_Z_INDEX := 4
+const OCCLUDER_Z_INDEX := 8
+const IN_FRONT_OF_OCCLUDER_Z_INDEX := 9
+
+const GLUTTON_Z_INDEX := OCCLUDER_Z_INDEX
+const BEHIND_GLUTTON_Z_INDEX := BEHIND_OCCLUDER_Z_INDEX
+const IN_FRONT_OF_GLUTTON_Z_INDEX := IN_FRONT_OF_OCCLUDER_Z_INDEX
 
 
 static func update_scene_from_glutton(glutton) -> void:
-	if glutton == null or not is_instance_valid(glutton) or not glutton.is_inside_tree():
+	update_scene_from_occluder(glutton)
+
+
+static func update_scene_from_occluder(occluder) -> void:
+	if occluder == null or not is_instance_valid(occluder) or not occluder is Node:
 		return
-	if not _is_glutton(glutton as Node2D):
+	if not _is_large_enemy_occluder(occluder as Node2D):
 		return
-	var scene: Node = glutton.get_tree().current_scene
+	var scene: Node = _get_runtime_scene(occluder as Node)
 	if scene == null:
 		return
 	var current_frame: int = Engine.get_physics_frames()
@@ -27,15 +35,15 @@ static func _update_scene(scene: Node) -> void:
 	var enemies: Array = _get_runtime_enemies(scene)
 	if enemies.is_empty():
 		return
-	var gluttons: Array[Node2D] = []
+	var occluders: Array[Node2D] = []
 	var sortable_enemies: Array[Node2D] = []
-	_collect_sort_targets(enemies, gluttons, sortable_enemies)
-	if gluttons.is_empty():
+	_collect_sort_targets(enemies, occluders, sortable_enemies)
+	if occluders.is_empty():
 		return
-	for glutton in gluttons:
-		_apply_enemy_z_index(glutton, GLUTTON_Z_INDEX)
+	for occluder in occluders:
+		_apply_enemy_z_index(occluder, OCCLUDER_Z_INDEX)
 	for enemy_node in sortable_enemies:
-		_apply_enemy_z_index(enemy_node, _get_z_index_against_gluttons(enemy_node, gluttons))
+		_apply_enemy_z_index(enemy_node, _get_z_index_against_occluders(enemy_node, occluders))
 
 
 static func _get_runtime_enemies(scene: Node) -> Array:
@@ -46,26 +54,38 @@ static func _get_runtime_enemies(scene: Node) -> Array:
 	return []
 
 
-static func _collect_sort_targets(enemies: Array, gluttons: Array[Node2D], sortable_enemies: Array[Node2D]) -> void:
+static func _get_runtime_scene(source: Node) -> Node:
+	var cursor: Node = source
+	while cursor != null:
+		if cursor.has_method("get_runtime_enemies"):
+			return cursor
+		cursor = cursor.get_parent()
+	var tree: SceneTree = source.get_tree()
+	if tree != null:
+		return tree.current_scene
+	return null
+
+
+static func _collect_sort_targets(enemies: Array, occluders: Array[Node2D], sortable_enemies: Array[Node2D]) -> void:
 	for enemy in enemies:
 		if not _is_valid_enemy_node(enemy):
 			continue
 		var enemy_node: Node2D = enemy as Node2D
-		if _is_glutton(enemy_node):
-			gluttons.append(enemy_node)
-		elif _should_sort_against_glutton(enemy_node):
+		if _is_large_enemy_occluder(enemy_node):
+			occluders.append(enemy_node)
+		elif _should_sort_against_large_occluder(enemy_node):
 			sortable_enemies.append(enemy_node)
 
 
-static func _get_z_index_against_gluttons(enemy: Node2D, gluttons: Array[Node2D]) -> int:
+static func _get_z_index_against_occluders(enemy: Node2D, occluders: Array[Node2D]) -> int:
 	var enemy_sort_y: float = _get_sort_y(enemy)
-	for glutton in gluttons:
-		if not is_instance_valid(glutton):
+	for occluder in occluders:
+		if not is_instance_valid(occluder):
 			continue
-		var glutton_sort_y: float = _get_sort_y(glutton)
-		if enemy_sort_y < glutton_sort_y:
-			return BEHIND_GLUTTON_Z_INDEX
-	return IN_FRONT_OF_GLUTTON_Z_INDEX
+		var occluder_sort_y: float = _get_sort_y(occluder)
+		if enemy_sort_y < occluder_sort_y:
+			return BEHIND_OCCLUDER_Z_INDEX
+	return IN_FRONT_OF_OCCLUDER_Z_INDEX
 
 
 static func _apply_enemy_z_index(enemy: Node2D, z_value: int) -> void:
@@ -86,7 +106,15 @@ static func _is_glutton(enemy: Node2D) -> bool:
 	return bool(enemy.get("_is_glutton")) or str(enemy.get("behavior_id")) == "glutton" or str(enemy.get("secondary_behavior_id")) == "glutton"
 
 
-static func _should_sort_against_glutton(enemy: Node2D) -> bool:
+static func _is_skulltomb(enemy: Node2D) -> bool:
+	return str(enemy.get("behavior_id")) == "skulltomb" or str(enemy.get("secondary_behavior_id")) == "skulltomb"
+
+
+static func _is_large_enemy_occluder(enemy: Node2D) -> bool:
+	return _is_glutton(enemy) or _is_skulltomb(enemy)
+
+
+static func _should_sort_against_large_occluder(enemy: Node2D) -> bool:
 	var kind: String = str(enemy.get("enemy_kind"))
 	return kind == "normal" or kind == "elite"
 

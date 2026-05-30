@@ -10,6 +10,8 @@ static func apply_profile(enemy, kind: String, profile: Dictionary) -> void:
 	enemy.profile_visual_scene = profile.get("visual_scene", null) as PackedScene
 	enemy.max_health = float(profile.get("max_health", enemy.max_health))
 	enemy.current_health = enemy.max_health
+	if kind == "boss":
+		enemy.current_health = max(1.0, enemy.max_health / 3.0)
 	enemy.speed = float(profile.get("speed", enemy.speed))
 	enemy.touch_damage = float(profile.get("touch_damage", enemy.touch_damage))
 	enemy.contact_radius = float(profile.get("contact_radius", enemy.contact_radius))

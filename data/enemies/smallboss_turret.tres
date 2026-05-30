@@ -27,6 +27,6 @@ extra = {
 "projectile_spread": 0.14,
 "projectile_count": 3,
 "turret_bombard_interval": 3.3,
-"turret_bombard_radius": 112.0,
+"turret_bombard_radius": 123.2,
 "turret_bombard_projectiles": 10
 }

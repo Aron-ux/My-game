@@ -39,10 +39,11 @@ const TWINE_SPAWN_MAX_RADIUS := 255.0
 const TWINE_MIN_CENTER_DISTANCE := 205.0
 const TWINE_CAST_DURATION := 1.25
 const TWINE_LOCK_DURATION := 2.0
+const TWINE_RESIDUE_DURATION := 1.0
 const TWINE_DAMAGE_TICK_INTERVAL := 1.0
-const TWINE_FILL_VISUAL_SCALE := 0.82
-const TWINE_FILL_X_SPACING := 38.0
-const TWINE_FILL_Y_SPACING := 32.0
+const TWINE_FILL_VISUAL_SCALE := 0.082
+const TWINE_FILL_X_SPACING := 12.0
+const TWINE_FILL_Y_SPACING := 10.0
 const TWINE_FILL_RADIUS_RATIO := 0.88
 const WOOD_SPIKE_RADIUS := 61.2
 const WOOD_SPIKE_HITBOX_HORIZONTAL_RADIUS := 50.0
@@ -50,7 +51,10 @@ const WOOD_SPIKE_HITBOX_VERTICAL_RADIUS := 18.0
 const WOOD_SPIKE_HITBOX_Y_OFFSET := 34.0
 const WOOD_SPIKE_HITBOX_EXTRA_Y_OFFSET := 40.0
 const WOOD_SPIKE_HITBOX_DURATION := 1.0
-const WOOD_SPIKE_VISUAL_SCALE := 0.85
+const WOOD_SPIKE_VISUAL_SCALE := 0.17
+const WOOD_SPIKE_FILL_X_SPACING := 24.0
+const WOOD_SPIKE_FILL_Y_SPACING := 20.0
+const WOOD_SPIKE_FILL_RADIUS_RATIO := 0.88
 const WOOD_SPIKE_COUNT := 10
 const WOOD_SPIKE_RANDOM_MIN_RADIUS := 36.0
 const WOOD_SPIKE_RANDOM_MAX_RADIUS := 280.0
@@ -74,6 +78,7 @@ const SPREAD_POSITION_ATTEMPTS := 48
 static func update(enemy, delta: float) -> void:
 	if enemy == null or not is_instance_valid(enemy):
 		return
+	_tick_twine_hitboxes(enemy, delta)
 	_tick_wood_spike_hitboxes(enemy, delta)
 	_tick_war_stomp_cooldown(enemy, delta)
 	_tick_war_stomp(enemy, delta)
@@ -153,6 +158,7 @@ static func get_debug_stomp_shape(enemy) -> Dictionary:
 
 static func reset(enemy) -> void:
 	_clear_warnings(enemy)
+	_clear_twine_hitboxes(enemy)
 	_clear_wood_spike_hitboxes(enemy)
 	enemy.glutton_skill_state = SKILL_NONE
 	enemy.glutton_skill_state_remaining = 0.0
@@ -187,6 +193,7 @@ static func force_start_skill(enemy, skill_id: String) -> bool:
 	enemy.glutton_war_stomp_cooldown_remaining = 0.0
 	enemy.glutton_war_stomp_cast_shake_elapsed = 0.0
 	enemy.glutton_war_stomp_hit_registry.clear()
+	_clear_twine_hitboxes(enemy)
 	_clear_wood_spike_hitboxes(enemy)
 	match skill_id:
 		SKILL_WAR_STOMP:
@@ -373,6 +380,7 @@ static func _resolve_skill_impact(enemy, skill_id: String, shapes: Array) -> voi
 		SKILL_DEATH_TWINE:
 			for shape in shapes:
 				_spawn_twine_circle(enemy, shape)
+				_register_twine_hitbox(enemy, shape)
 				if _damage_player_in_shape(enemy, shape, 0.0, true):
 					enemy.glutton_entangle_damage_remaining = TWINE_LOCK_DURATION
 					enemy.glutton_entangle_damage_elapsed = 0.0
@@ -438,12 +446,61 @@ static func _tick_entangle_damage(enemy, delta: float) -> void:
 			enemy.target.take_damage(float(enemy.touch_damage) * 0.5)
 
 
+static func _register_twine_hitbox(enemy, shape: Dictionary) -> void:
+	enemy.glutton_active_twine_hitboxes.append({
+		"shape": shape.duplicate(true),
+		"remaining": TWINE_RESIDUE_DURATION,
+		"hit_player": false
+	})
+
+
+static func _tick_twine_hitboxes(enemy, delta: float) -> void:
+	if enemy.glutton_active_twine_hitboxes.is_empty():
+		return
+	var next_hitboxes: Array = []
+	for index in range(enemy.glutton_active_twine_hitboxes.size()):
+		var hitbox: Dictionary = enemy.glutton_active_twine_hitboxes[index]
+		hitbox["remaining"] = max(0.0, float(hitbox.get("remaining", 0.0)) - delta)
+		if float(hitbox.get("remaining", 0.0)) <= 0.0:
+			continue
+		next_hitboxes.append(hitbox)
+	enemy.glutton_active_twine_hitboxes = next_hitboxes
+	for index in range(enemy.glutton_active_twine_hitboxes.size()):
+		_resolve_twine_hitbox(enemy, index)
+
+
+static func _resolve_twine_hitbox(enemy, hitbox_index: int) -> void:
+	if hitbox_index < 0 or hitbox_index >= enemy.glutton_active_twine_hitboxes.size():
+		return
+	var hitbox: Dictionary = enemy.glutton_active_twine_hitboxes[hitbox_index]
+	if bool(hitbox.get("hit_player", false)):
+		return
+	var shape: Dictionary = hitbox.get("shape", {})
+	if _lock_player_in_twine_shape(enemy, shape):
+		hitbox["hit_player"] = true
+		enemy.glutton_active_twine_hitboxes[hitbox_index] = hitbox
+
+
+static func _lock_player_in_twine_shape(enemy, shape: Dictionary) -> bool:
+	if enemy.target == null or not is_instance_valid(enemy.target) or not (enemy.target is Node2D):
+		return false
+	var target_node: Node2D = enemy.target
+	if not _is_inside_ellipse(target_node.global_position, shape):
+		return false
+	if enemy.target.has_method("_lock_player_actions"):
+		enemy.target._lock_player_actions(TWINE_LOCK_DURATION)
+	if enemy.target.has_method("_start_entangled_status"):
+		enemy.target._start_entangled_status(TWINE_LOCK_DURATION)
+	return true
+
+
+static func _clear_twine_hitboxes(enemy) -> void:
+	enemy.glutton_active_twine_hitboxes.clear()
+
+
 static func _spawn_wood_spike(enemy, shape: Dictionary) -> void:
-	var center: Vector2 = shape.get("center", enemy.global_position)
-	var hitbox_shape: Dictionary = _get_wood_spike_bottom_hitbox(center)
-	var spike_effect: Node2D = _spawn_scene_effect(enemy, STING_SCENE, center, Vector2.ONE * WOOD_SPIKE_VISUAL_SCALE, max(WOOD_SPIKE_HITBOX_DURATION, _get_scene_animation_lifetime(STING_SCENE, "sting")))
-	if spike_effect != null:
-		spike_effect.z_index = _get_wood_spike_z_index(enemy, center)
+	var hitbox_shape: Dictionary = _get_wood_spike_hitbox_shape(enemy, shape)
+	_spawn_wood_spike_circle(enemy, shape)
 	var blocker: StaticBody2D = _spawn_wood_spike_blocker(enemy, hitbox_shape)
 	enemy.glutton_active_wood_spike_hitboxes.append({
 		"shape": hitbox_shape,
@@ -496,11 +553,12 @@ static func get_active_wood_spike_hitboxes(enemy) -> Array:
 	return shapes
 
 
-static func _get_wood_spike_bottom_hitbox(center: Vector2) -> Dictionary:
+static func _get_wood_spike_hitbox_shape(enemy, shape: Dictionary) -> Dictionary:
+	var center: Vector2 = shape.get("center", enemy.global_position)
 	return {
-		"center": center + Vector2(0.0, WOOD_SPIKE_HITBOX_Y_OFFSET * WOOD_SPIKE_VISUAL_SCALE + WOOD_SPIKE_HITBOX_EXTRA_Y_OFFSET),
-		"horizontal_radius": WOOD_SPIKE_HITBOX_HORIZONTAL_RADIUS * WOOD_SPIKE_VISUAL_SCALE,
-		"vertical_radius": WOOD_SPIKE_HITBOX_VERTICAL_RADIUS * WOOD_SPIKE_VISUAL_SCALE
+		"center": center,
+		"horizontal_radius": float(shape.get("horizontal_radius", WOOD_SPIKE_RADIUS)),
+		"vertical_radius": float(shape.get("vertical_radius", WOOD_SPIKE_RADIUS))
 	}
 
 
@@ -757,6 +815,34 @@ static func _spawn_twine_circle(enemy, shape: Dictionary) -> void:
 			var node: Node2D = _spawn_scene_effect(enemy, TWINE_SCENE, center + Vector2(x, y), Vector2.ONE * TWINE_FILL_VISUAL_SCALE, DEFAULT_EFFECT_LIFETIME)
 			if node != null:
 				node.rotation = randf_range(-0.22, 0.22)
+
+
+static func _spawn_wood_spike_circle(enemy, shape: Dictionary) -> void:
+	var center: Vector2 = shape.get("center", enemy.global_position)
+	var horizontal_radius: float = float(shape.get("horizontal_radius", WOOD_SPIKE_RADIUS))
+	var vertical_radius: float = float(shape.get("vertical_radius", horizontal_radius))
+	var fill_horizontal: float = horizontal_radius * WOOD_SPIKE_FILL_RADIUS_RATIO
+	var fill_vertical: float = vertical_radius * WOOD_SPIKE_FILL_RADIUS_RATIO
+	var lifetime: float = max(WOOD_SPIKE_HITBOX_DURATION, _get_scene_animation_lifetime(STING_SCENE, "sting"))
+	var row_count: int = int(floor(fill_vertical * 2.0 / WOOD_SPIKE_FILL_Y_SPACING)) + 1
+	var first_y: float = -float(row_count - 1) * WOOD_SPIKE_FILL_Y_SPACING * 0.5
+	for row_index in range(row_count):
+		var y: float = first_y + float(row_index) * WOOD_SPIKE_FILL_Y_SPACING
+		var normalized_y: float = y / max(1.0, fill_vertical)
+		if abs(normalized_y) > 1.0:
+			continue
+		var row_half_width: float = fill_horizontal * sqrt(max(0.0, 1.0 - normalized_y * normalized_y))
+		var column_count: int = max(1, int(floor(row_half_width * 2.0 / WOOD_SPIKE_FILL_X_SPACING)) + 1)
+		var first_x: float = -float(column_count - 1) * WOOD_SPIKE_FILL_X_SPACING * 0.5
+		for column_index in range(column_count):
+			var x: float = first_x + float(column_index) * WOOD_SPIKE_FILL_X_SPACING
+			var normalized_x: float = x / max(1.0, fill_horizontal)
+			if normalized_x * normalized_x + normalized_y * normalized_y > 1.0:
+				continue
+			var spike_effect: Node2D = _spawn_scene_effect(enemy, STING_SCENE, center + Vector2(x, y), Vector2.ONE * WOOD_SPIKE_VISUAL_SCALE, lifetime)
+			if spike_effect != null:
+				spike_effect.rotation = randf_range(-0.16, 0.16)
+				spike_effect.z_index = _get_wood_spike_z_index(enemy, center + Vector2(x, y))
 
 
 static func _spawn_scene_effect(enemy, scene: PackedScene, position: Vector2, scale_value: Vector2, lifetime: float = DEFAULT_EFFECT_LIFETIME) -> Node2D:

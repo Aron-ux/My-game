@@ -1,12 +1,13 @@
 extends RefCounted
 
 const ENEMY_SKULLTOMB_BEHAVIOR := preload("res://scripts/enemies/enemy_skulltomb_behavior.gd")
+const ENEMY_BOSS_STATE := preload("res://scripts/enemies/enemy_boss_state.gd")
 
 static func take_damage(enemy, amount: float) -> bool:
 	return apply_damage(enemy, amount, true)
 
 static func apply_damage(enemy, amount: float, show_feedback: bool = true) -> bool:
-	if enemy.enemy_kind == "boss" and enemy.boss_phase >= 3 and enemy.boss_phase_three_intro_remaining > 0.0:
+	if enemy.enemy_kind == "boss" and (enemy.boss_phase_transition_target > 0 or enemy.boss_phase_three_intro_remaining > 0.0):
 		return false
 	if enemy.rebirth_timer > 0.0:
 		return false
@@ -17,6 +18,9 @@ static func apply_damage(enemy, amount: float, show_feedback: bool = true) -> bo
 	var killed: bool = enemy.current_health <= 0.0
 	if show_feedback:
 		enemy._play_hit_feedback(adjusted_damage, killed)
+	if enemy.enemy_kind == "boss" and killed and int(enemy.boss_phase) < 3:
+		ENEMY_BOSS_STATE.start_phase_transition(enemy, int(enemy.boss_phase) + 1)
+		return false
 	if enemy.enemy_kind == "small_boss" and enemy.behavior_id == "skulltomb" and killed:
 		if ENEMY_SKULLTOMB_BEHAVIOR.handle_lethal_damage(enemy):
 			return false

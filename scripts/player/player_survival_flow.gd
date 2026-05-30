@@ -45,6 +45,7 @@ static func physics_process(owner, delta: float) -> void:
 		return
 
 	owner._update_timers(delta)
+	_update_area_control_states(owner, delta)
 	owner._regenerate_energy(delta)
 	owner._apply_equipment_passives(delta)
 	apply_attribute_passives(owner, delta)
@@ -71,14 +72,13 @@ static func physics_process(owner, delta: float) -> void:
 		direction.x -= 1.0
 	if GAME_SETTINGS.is_action_pressed(GAME_SETTINGS.ACTION_MOVE_RIGHT):
 		direction.x += 1.0
-	if abs(direction.x) > 0.01:
-		owner.visual_facing_direction_x = sign(direction.x)
 	if GAME_SETTINGS.is_action_pressed(GAME_SETTINGS.ACTION_MOVE_UP):
 		direction.y -= 1.0
 	if GAME_SETTINGS.is_action_pressed(GAME_SETTINGS.ACTION_MOVE_DOWN):
 		direction.y += 1.0
 
 	direction = direction.normalized()
+	_update_moving_visual_facing(owner, direction)
 	owner.velocity = direction * owner._get_current_move_speed()
 	owner.move_and_slide()
 	owner.gem_collection_elapsed += delta
@@ -95,6 +95,13 @@ static func regenerate_energy(owner, delta: float) -> void:
 	if owner.ENERGY_PASSIVE_REGEN <= 0.0:
 		return
 	owner._add_energy(owner.ENERGY_PASSIVE_REGEN * owner.energy_gain_multiplier * delta)
+
+
+static func _update_area_control_states(owner, delta: float) -> void:
+	owner.healing_block_remaining = max(0.0, float(owner.healing_block_remaining) - delta)
+	owner.confinement_remaining = max(0.0, float(owner.confinement_remaining) - delta)
+	if owner.confinement_remaining <= 0.0:
+		owner.confinement_radius = 0.0
 
 
 static func apply_attribute_passives(owner, delta: float) -> void:
@@ -119,16 +126,34 @@ static func update_facing_direction(owner) -> void:
 			var to_enemy: Vector2 = target_enemy.global_position - owner.global_position
 			if to_enemy.length_squared() > 0.001:
 				owner.facing_direction = to_enemy.normalized()
+				_sync_visual_facing_to_direction(owner, owner.facing_direction)
 		return
 
 	var mouse_direction: Vector2 = owner.get_global_mouse_position() - owner.global_position
 	if mouse_direction.length_squared() > 16.0:
 		owner.facing_direction = mouse_direction.normalized()
+		_sync_visual_facing_to_direction(owner, owner.facing_direction)
 		return
 
 	var enemy: Node2D = owner._get_closest_enemy()
 	if enemy != null:
 		owner.facing_direction = owner.global_position.direction_to(enemy.global_position)
+		_sync_visual_facing_to_direction(owner, owner.facing_direction)
+
+
+static func _update_moving_visual_facing(owner, move_direction: Vector2) -> void:
+	if move_direction.length_squared() <= 0.001:
+		return
+	var aim_direction: Vector2 = get_attack_aim_direction(owner, owner.facing_direction)
+	if abs(aim_direction.x) > 0.01:
+		owner.visual_facing_direction_x = sign(aim_direction.x)
+	elif abs(move_direction.x) > 0.01:
+		owner.visual_facing_direction_x = sign(move_direction.x)
+
+
+static func _sync_visual_facing_to_direction(owner, direction: Vector2) -> void:
+	if abs(direction.x) > 0.01:
+		owner.visual_facing_direction_x = sign(direction.x)
 
 
 static func get_attack_aim_direction(owner, fallback_direction: Vector2 = Vector2.RIGHT) -> Vector2:
