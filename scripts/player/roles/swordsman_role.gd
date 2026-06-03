@@ -5,6 +5,7 @@ const ULTIMATE_SKILL_ID := "swordsman_ultimate"
 const ULTIMATE_BASE_DURATION := 2.0
 const ULTIMATE_SLASH_INTERVAL := 0.2
 const ULTIMATE_BASE_SLASH_DAMAGE_SCALE := 2.68
+const ULTIMATE_GUNNER_ULTIMATE_OUTPUT_RATIO := 0.75
 const ULTIMATE_POST_INVULNERABILITY_DURATION := 3.0
 const ULTIMATE_LIFESTEAL_BOOST_DURATION := 3.0
 const ULTIMATE_BOSS_TARGET_WEIGHT := 0.35
@@ -15,7 +16,7 @@ const ULTIMATE_TIER_TWO_DAMAGE_MULTIPLIER := 1.22
 const ULTIMATE_TIER_THREE_EXTRA_SLASHES := 3
 const ULTIMATE_TIER_THREE_VISUAL_HIT_SCALE := 1.38
 const ULTIMATE_TIER_THREE_DAMAGE_MULTIPLIER := 1.42
-const ENTRY_INVULNERABILITY_DURATION := 1.5
+const ENTRY_INVULNERABILITY_DURATION := 3.0
 const POST_ULTIMATE_INVULNERABILITY_DURATION := 1.5
 
 func perform_attack(owner) -> void:
@@ -147,19 +148,28 @@ func perform_background(owner) -> void:
 
 func perform_enter(owner, role_id: String, _assault_level: int, _assault_multiplier: float) -> int:
 	var previous_position: Vector2 = owner.global_position
-	var travel_direction: Vector2 = owner._get_live_mouse_aim_direction(owner.facing_direction)
-	if travel_direction.length_squared() <= 0.001:
-		travel_direction = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
-	var dash_distance: float = 360.0
+	var cluster_center: Vector2 = owner._get_enemy_cluster_center()
+	var target_enemy: Node2D = owner._get_enemy_nearest_to_position(cluster_center) if cluster_center != Vector2.ZERO else owner._get_closest_enemy()
+	var travel_direction: Vector2 = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
+	var dash_distance: float = 160.0
+	if target_enemy != null and is_instance_valid(target_enemy):
+		travel_direction = previous_position.direction_to(target_enemy.global_position)
+		dash_distance = 600.0
+	elif cluster_center != Vector2.ZERO:
+		travel_direction = previous_position.direction_to(cluster_center)
+		dash_distance = 600.0
 	owner.global_position += travel_direction * dash_distance
+	if owner.has_method("_clamp_to_active_map_bounds"):
+		owner._clamp_to_active_map_bounds()
 	owner.facing_direction = travel_direction
 	owner._show_switch_banner("\u8FDB\u573A", "\u7A81\u8FDB\u7834\u9635", Color(1.0, 0.84, 0.46, 1.0))
 	var scar_width: float = 32.0
-	var scar_end: Vector2 = owner.global_position + travel_direction * 50.4
+	var scar_end: Vector2 = owner.global_position + travel_direction * 84.0
 	var scar_center: Vector2 = previous_position.lerp(scar_end, 0.5)
 	var scar_length: float = previous_position.distance_to(scar_end)
 	owner._spawn_sword_omnislash_scene_effect(scar_center, travel_direction, scar_length, scar_width * 1.08)
 	owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, ENTRY_INVULNERABILITY_DURATION)
+	owner.swordsman_entry_trait_share_remaining = max(owner.swordsman_entry_trait_share_remaining, ENTRY_INVULNERABILITY_DURATION)
 	return owner._damage_enemies_in_line(previous_position, scar_end, scar_width, owner._get_role_damage(role_id) * 1.52, 0.1, 1.0, 0.0, role_id)
 
 func perform_exit(_owner, _role_id: String, _rearguard_level: int) -> int:
@@ -184,6 +194,7 @@ func perform_ultimate(owner, cast_payload: Dictionary) -> void:
 	var combo_end_index: int = combo_start_index + combo_scales.size()
 	owner._queue_camera_shake(20.0, 0.62)
 	owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, total_sequence_duration + ULTIMATE_POST_INVULNERABILITY_DURATION * special_multiplier)
+	owner.hidden_invulnerability_status_remaining = max(owner.hidden_invulnerability_status_remaining, total_sequence_duration)
 	if owner.has_method("_lock_player_actions"):
 		owner._lock_player_actions(total_sequence_duration)
 	owner._delay_level_up_requests(total_sequence_duration)
@@ -262,7 +273,7 @@ func _execute_ultimate_slash(owner, slash_scales: Array[float], pursuit_level: i
 	var scar_length: float = start_position.distance_to(scar_length_end)
 	owner._spawn_sword_omnislash_scene_effect(scar_center, travel_direction, scar_length, scar_width * 1.12)
 
-	var damage_scale: float = (ULTIMATE_BASE_SLASH_DAMAGE_SCALE + float(pursuit_level) * 0.12 + float(crescent_level + thrust_level) * 0.06) * damage_multiplier
+	var damage_scale: float = (ULTIMATE_BASE_SLASH_DAMAGE_SCALE + float(pursuit_level) * 0.12 + float(crescent_level + thrust_level) * 0.06) * damage_multiplier * ULTIMATE_GUNNER_ULTIMATE_OUTPUT_RATIO
 	var line_damage: float = owner._get_role_damage("swordsman") * damage_scale
 	if is_combo_segment:
 		var combo_hits: int = owner._damage_enemies_in_line(start_position, scar_length_end, scar_width, line_damage, 0.08 + pursuit_level * 0.02, 1.0, 0.0, "swordsman")
@@ -286,7 +297,7 @@ func _execute_ultimate_slash(owner, slash_scales: Array[float], pursuit_level: i
 			"type": "circle",
 			"center": end_position,
 			"radius": (48.0 + crescent_level * 12.0) * visual_hit_scale,
-			"damage_amount": owner._get_role_damage("swordsman") * (0.52 + float(crescent_level) * 0.08) * damage_multiplier,
+		"damage_amount": owner._get_role_damage("swordsman") * (0.52 + float(crescent_level) * 0.08) * damage_multiplier * ULTIMATE_GUNNER_ULTIMATE_OUTPUT_RATIO,
 			"vulnerability_bonus": 0.03 + pursuit_level * 0.02,
 			"slow_multiplier": 1.0,
 			"slow_duration": 0.0,
@@ -297,7 +308,7 @@ func _execute_ultimate_slash(owner, slash_scales: Array[float], pursuit_level: i
 	if shape_hits > 0 and not _uses_batched_ultimate_damage(owner):
 		owner._register_attack_result("swordsman", shape_hits, false)
 	if target_enemy != null and is_instance_valid(target_enemy):
-		var direct_cut_kill: bool = owner._deal_damage_to_enemy(target_enemy, owner._get_role_damage("swordsman") * (0.68 + pursuit_level * 0.08) * damage_multiplier, "swordsman", 0.06 + pursuit_level * 0.02, 2.0, 1.0, 0.0)
+		var direct_cut_kill: bool = owner._deal_damage_to_enemy(target_enemy, owner._get_role_damage("swordsman") * (0.68 + pursuit_level * 0.08) * damage_multiplier * ULTIMATE_GUNNER_ULTIMATE_OUTPUT_RATIO, "swordsman", 0.06 + pursuit_level * 0.02, 2.0, 1.0, 0.0)
 		owner._register_attack_result("swordsman", 1, direct_cut_kill)
 
 	owner._spawn_ring_effect(end_position, (34.0 + crescent_level * 8.0) * visual_hit_scale, Color(1.0, 0.84, 0.44, 0.76), 5.0, 0.12)
@@ -309,11 +320,11 @@ func _execute_ultimate_slash(owner, slash_scales: Array[float], pursuit_level: i
 		owner._queue_camera_shake(15.0, 0.22)
 		owner._spawn_burst_effect(end_position, (94.0 + crescent_level * 10.0) * visual_hit_scale, Color(1.0, 0.78, 0.35, 0.28), 0.2)
 		owner._spawn_ring_effect(end_position, (108.0 + thrust_level * 10.0) * visual_hit_scale, Color(1.0, 0.92, 0.58, 0.9), 10.0, 0.18)
-		var finisher_hits: int = owner._damage_enemies_in_line(start_position, end_position + travel_direction * (168.0 * visual_hit_scale), scar_width + 18.0 * visual_hit_scale, owner._get_role_damage("swordsman") * (1.55 + pursuit_level * 0.14) * damage_multiplier, 0.1, 1.0, 0.0, "swordsman")
+		var finisher_hits: int = owner._damage_enemies_in_line(start_position, end_position + travel_direction * (168.0 * visual_hit_scale), scar_width + 18.0 * visual_hit_scale, owner._get_role_damage("swordsman") * (1.55 + pursuit_level * 0.14) * damage_multiplier * ULTIMATE_GUNNER_ULTIMATE_OUTPUT_RATIO, 0.1, 1.0, 0.0, "swordsman")
 		if finisher_hits > 0 and not _uses_batched_ultimate_damage(owner):
 			owner._register_attack_result("swordsman", finisher_hits, false)
 		if target_enemy != null and is_instance_valid(target_enemy):
-			var finisher_kill: bool = owner._deal_damage_to_enemy(target_enemy, owner._get_role_damage("swordsman") * (0.92 + pursuit_level * 0.1) * damage_multiplier, "swordsman", 0.12, 2.4, 1.0, 0.0)
+			var finisher_kill: bool = owner._deal_damage_to_enemy(target_enemy, owner._get_role_damage("swordsman") * (0.92 + pursuit_level * 0.1) * damage_multiplier * ULTIMATE_GUNNER_ULTIMATE_OUTPUT_RATIO, "swordsman", 0.12, 2.4, 1.0, 0.0)
 			owner._register_attack_result("swordsman", 1, finisher_kill)
 
 func _get_ultimate_skill_tier(owner) -> int:

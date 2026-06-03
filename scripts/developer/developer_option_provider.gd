@@ -42,7 +42,7 @@ static func get_blessing_options(player) -> Array:
 	var options: Array = [{
 		"id": ALL_BLESSINGS_OPTION_ID,
 		"title": "一键添加所有祝福",
-		"description": "开发者模式：给所有祝福的 I-IV 阶各添加 1 次。已经达到上限的祝福会自动跳过。",
+		"description": "开发者模式：给所有祝福的 I-IV 阶各添加 1 次。",
 		"enabled": true,
 		"is_bulk_action": true
 	}]
@@ -54,25 +54,23 @@ static func get_blessing_options(player) -> Array:
 			if not tier_values.has(tier):
 				continue
 			var current_count: int = _get_blessing_count(player, blessing_id, tier, str(definition.get("binding", PLAYER_BLESSING_SYSTEM.ROLE_BOUND)))
-			var max_count: int = _get_blessing_tier_limit(tier)
 			var description := _get_blessing_tier_description(definition, tier)
 			options.append({
 				"id": "%s:%d" % [blessing_id, tier],
 				"blessing_id": blessing_id,
 				"tier": tier,
-				"title": "%s %s  %d/%d" % [str(definition.get("title", blessing_id)), _get_tier_suffix(tier), current_count, max_count],
-				"description": "开发者模式：直接获得一次该祝福。\n%s\n绑定：%s\n当前：%d/%d" % [
+				"title": "%s %s  x%d" % [str(definition.get("title", blessing_id)), _get_tier_suffix(tier), current_count],
+				"description": "开发者模式：直接获得一次该祝福。\n%s\n绑定：%s\n当前：x%d" % [
 					description,
 					"技能" if str(definition.get("binding", PLAYER_BLESSING_SYSTEM.ROLE_BOUND)) == PLAYER_BLESSING_SYSTEM.SKILL_BOUND else "三人共享角色数值",
-					current_count,
-					max_count
+					current_count
 				],
-				"enabled": current_count < max_count
+				"enabled": true
 			})
 	var bulk_option: Dictionary = options.pop_front()
 	options.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		var a_tier := int(a.get("tier", 1))
-		var b_tier := int(b.get("tier", 1))
+		var a_tier: int = int(a.get("tier", 1))
+		var b_tier: int = int(b.get("tier", 1))
 		if a_tier != b_tier:
 			return a_tier < b_tier
 		return str(a.get("title", "")) < str(b.get("title", ""))
@@ -94,10 +92,6 @@ static func _get_blessing_count(player, blessing_id: String, tier: int, binding:
 		role_id = str(player._get_active_role().get("id", ""))
 	var role_levels: Dictionary = player.get_role_blessing_levels(role_id) if player.has_method("get_role_blessing_levels") else {}
 	return int((role_levels.get(blessing_id, {}) as Dictionary).get(tier, 0))
-
-
-static func _get_blessing_tier_limit(tier: int) -> int:
-	return int(PLAYER_BLESSING_SYSTEM.TIER_LIMITS.get(tier, PLAYER_BLESSING_SYSTEM.MAX_BLESSING_COUNT_PER_TIER))
 
 
 static func _get_blessing_tier_description(definition: Dictionary, tier: int) -> String:

@@ -19,6 +19,15 @@ static func build_circle_points(radius: float, segments: int = 20) -> PackedVect
 	_store_circle_points(cache_key, points)
 	return points
 
+static func build_ellipse_points(horizontal_radius: float, vertical_radius: float, segments: int = 20) -> PackedVector2Array:
+	var safe_segments: int = max(3, segments)
+	var points := PackedVector2Array()
+	points.resize(safe_segments)
+	for index in range(safe_segments):
+		var angle: float = TAU * float(index) / float(safe_segments)
+		points[index] = Vector2(cos(angle) * horizontal_radius, sin(angle) * vertical_radius)
+	return points
+
 static func _store_circle_points(cache_key: String, points: PackedVector2Array) -> void:
 	if circle_points_cache.has(cache_key):
 		return

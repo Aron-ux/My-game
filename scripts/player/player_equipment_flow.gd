@@ -192,7 +192,7 @@ static func get_role_bonus_summary(owner, role_id: String) -> Dictionary:
 		var definition: Dictionary = EQUIPMENT_DEFINITIONS.get(str(equipment_id), {})
 		summary["damage_multiplier_bonus"] = float(summary["damage_multiplier_bonus"]) + float(definition.get("damage_multiplier_bonus", 0.0)) * level
 		summary["speed_bonus"] = float(summary["speed_bonus"]) + float(definition.get("speed_bonus", 0.0)) * level
-		summary["dodge_chance"] = min(0.45, float(summary["dodge_chance"]) + float(definition.get("dodge_bonus", 0.0)) * level)
+		summary["dodge_chance"] = float(summary["dodge_chance"]) + float(definition.get("dodge_bonus", 0.0)) * level
 		summary["max_health_bonus"] = float(summary["max_health_bonus"]) + float(definition.get("max_health_bonus", 0.0)) * level
 		summary["regen_per_second"] = float(summary["regen_per_second"]) + float(definition.get("regen_bonus", 0.0)) * level
 		var threshold: float = float(definition.get("low_health_threshold", 0.0))
@@ -266,13 +266,17 @@ static func apply_passives(owner, delta: float) -> void:
 
 
 static func try_dodge(owner) -> bool:
-	var blessing_dodge_chance := 0.0
+	var blessing_dodge_chance: float = 0.0
 	if owner.has_method("_get_role_blessing_stat_bonus"):
 		blessing_dodge_chance = float(owner._get_role_blessing_stat_bonus(owner._get_active_role_id(), "dodge"))
-	var survival_multiplier: float = (1.0 - clamp(owner.equipment_dodge_chance, 0.0, 1.0)) * (1.0 - clamp(blessing_dodge_chance, 0.0, 1.0))
+	var dodge_chance: float = owner.equipment_dodge_chance + blessing_dodge_chance
+	if owner.has_method("_get_attribute_dodge_chance"):
+		dodge_chance += float(owner._get_attribute_dodge_chance())
+	if owner.has_method("_get_gunner_flash_dodge_chance"):
+		dodge_chance += float(owner._get_gunner_flash_dodge_chance())
 	if owner.get("ultimate_haste_remaining") != null and float(owner.get("ultimate_haste_remaining")) > 0.0:
-		survival_multiplier *= 1.0 - clamp(float(owner.get("ultimate_haste_dodge_chance")), 0.0, 1.0)
-	var dodge_chance: float = min(0.75, 1.0 - survival_multiplier)
+		dodge_chance += float(owner.get("ultimate_haste_dodge_chance"))
+	dodge_chance = clamp(dodge_chance, 0.0, 1.0)
 	if dodge_chance <= 0.0:
 		return false
 	return randf() < dodge_chance

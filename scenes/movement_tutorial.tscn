@@ -1,0 +1,264 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/tutorial/movement_tutorial.gd" id="1_tutorial"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_portal_interact"]
+radius = 92.0
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_movement_target"]
+radius = 70.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.03, 0.04, 0.06, 0.9)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.65, 0.86, 1, 0.95)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_intro_panel"]
+bg_color = Color(0.04, 0.05, 0.08, 0.96)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.96, 0.76, 0.34, 0.98)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_intro_section"]
+bg_color = Color(0.10, 0.12, 0.18, 0.92)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 0.84, 0.42, 0.94)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[node name="MovementTutorial" type="Node2D"]
+script = ExtResource("1_tutorial")
+
+[node name="Ground" type="Polygon2D" parent="."]
+z_index = -100
+color = Color(0.16, 0.21, 0.16, 1)
+polygon = PackedVector2Array(-900, -550, 900, -550, 900, 550, -900, 550)
+
+[node name="GroundShade" type="Polygon2D" parent="."]
+z_index = -99
+color = Color(0.07, 0.09, 0.07, 0.16)
+polygon = PackedVector2Array(-760, -420, 760, -420, 760, 420, -760, 420)
+
+[node name="PlayerSpawn" type="Marker2D" parent="."]
+position = Vector2(-320, 80)
+
+[node name="DummySpawn" type="Marker2D" parent="."]
+position = Vector2(250, -20)
+
+[node name="MovementTarget" type="Area2D" parent="."]
+position = Vector2(-20, -170)
+
+[node name="Glow" type="Polygon2D" parent="MovementTarget"]
+color = Color(0.24, 0.86, 1, 0.2)
+polygon = PackedVector2Array(0, -96, 28, -84, 54, -54, 84, -28, 96, 0, 84, 28, 54, 54, 28, 84, 0, 96, -28, 84, -54, 54, -84, 28, -96, 0, -84, -28, -54, -54, -28, -84)
+
+[node name="Ring" type="Polygon2D" parent="MovementTarget"]
+color = Color(0.42, 0.94, 1, 0.66)
+polygon = PackedVector2Array(0, -68, 18, -64, 40, -54, 54, -40, 64, -18, 68, 0, 64, 18, 54, 40, 40, 54, 18, 64, 0, 68, -18, 64, -40, 54, -54, 40, -64, 18, -68, 0, -64, -18, -54, -40, -40, -54, -18, -64)
+
+[node name="Center" type="Polygon2D" parent="MovementTarget"]
+color = Color(0.76, 0.98, 1, 0.92)
+polygon = PackedVector2Array(0, -18, 12, 0, 0, 18, -12, 0)
+
+[node name="HintLabel" type="Label" parent="MovementTarget"]
+offset_left = -90.0
+offset_top = 82.0
+offset_right = 90.0
+offset_bottom = 112.0
+text = "移动到这里"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.82, 0.96, 1, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="MovementTarget"]
+shape = SubResource("CircleShape2D_movement_target")
+
+[node name="TutorialPortal" type="Node2D" parent="."]
+visible = false
+position = Vector2(610, 80)
+
+[node name="OuterGlow" type="Polygon2D" parent="TutorialPortal"]
+color = Color(0.16, 0.63, 1, 0.22)
+polygon = PackedVector2Array(0, -98, 38, -82, 72, -44, 88, 0, 72, 44, 38, 82, 0, 98, -38, 82, -72, 44, -88, 0, -72, -44, -38, -82)
+
+[node name="Core" type="Polygon2D" parent="TutorialPortal"]
+color = Color(0.18, 0.82, 1, 0.72)
+polygon = PackedVector2Array(0, -70, 28, -56, 50, -26, 58, 0, 50, 26, 28, 56, 0, 70, -28, 56, -50, 26, -58, 0, -50, -26, -28, -56)
+
+[node name="NameLabel" type="Label" parent="TutorialPortal"]
+offset_left = -90.0
+offset_top = 86.0
+offset_right = 90.0
+offset_bottom = 114.0
+text = "训练传送门"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.78, 0.92, 1, 1)
+
+[node name="Interactable" type="Area2D" parent="TutorialPortal"]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="TutorialPortal/Interactable"]
+shape = SubResource("CircleShape2D_portal_interact")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="SwitchEnergyArrow" type="Label" parent="CanvasLayer"]
+visible = false
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 56.0
+offset_bottom = 56.0
+text = "↙"
+theme_override_font_sizes/font_size = 38
+theme_override_colors/font_color = Color(1, 0.16, 0.16, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.92)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+
+[node name="RoleIntroPanel" type="PanelContainer" parent="CanvasLayer"]
+visible = false
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -340.0
+offset_top = -290.0
+offset_right = 340.0
+offset_bottom = 210.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_intro_panel")
+
+[node name="MarginContainer" type="MarginContainer" parent="CanvasLayer/RoleIntroPanel"]
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 64
+
+[node name="Content" type="VBoxContainer" parent="CanvasLayer/RoleIntroPanel/MarginContainer"]
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="CanvasLayer/RoleIntroPanel/MarginContainer/Content"]
+text = "角色介绍"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 28
+theme_override_colors/font_color = Color(1, 0.92, 0.62, 1)
+
+[node name="TraitPanel" type="PanelContainer" parent="CanvasLayer/RoleIntroPanel/MarginContainer/Content"]
+theme_override_styles/panel = SubResource("StyleBoxFlat_intro_section")
+
+[node name="TraitLabel" type="Label" parent="CanvasLayer/RoleIntroPanel/MarginContainer/Content/TraitPanel"]
+offset_left = 12.0
+offset_top = 10.0
+offset_right = 628.0
+offset_bottom = 94.0
+autowrap_mode = 2
+text = ""
+theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.96, 0.98, 1, 1)
+
+[node name="BuffPanel" type="PanelContainer" parent="CanvasLayer/RoleIntroPanel/MarginContainer/Content"]
+theme_override_styles/panel = SubResource("StyleBoxFlat_intro_section")
+
+[node name="BuffLabel" type="Label" parent="CanvasLayer/RoleIntroPanel/MarginContainer/Content/BuffPanel"]
+offset_left = 12.0
+offset_top = 10.0
+offset_right = 628.0
+offset_bottom = 116.0
+autowrap_mode = 2
+text = ""
+theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.96, 0.98, 1, 1)
+
+[node name="EntryPanel" type="PanelContainer" parent="CanvasLayer/RoleIntroPanel/MarginContainer/Content"]
+theme_override_styles/panel = SubResource("StyleBoxFlat_intro_section")
+
+[node name="EntryLabel" type="Label" parent="CanvasLayer/RoleIntroPanel/MarginContainer/Content/EntryPanel"]
+offset_left = 12.0
+offset_top = 10.0
+offset_right = 628.0
+offset_bottom = 138.0
+autowrap_mode = 2
+text = ""
+theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.96, 0.98, 1, 1)
+
+[node name="RoleIntroNextButton" type="Button" parent="CanvasLayer"]
+visible = false
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -82.0
+offset_top = 188.0
+offset_right = 82.0
+offset_bottom = 232.0
+text = "下一个角色"
+
+[node name="CloseButton" type="Button" parent="CanvasLayer/RoleIntroPanel"]
+visible = false
+anchors_preset = 1
+anchor_left = 1.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 0.0
+offset_left = -76.0
+offset_top = 12.0
+offset_right = -16.0
+offset_bottom = 46.0
+text = "关闭"
+
+[node name="TutorialPanel" type="PanelContainer" parent="CanvasLayer"]
+anchors_preset = 10
+anchor_left = 0.5
+anchor_top = 0.0
+anchor_right = 0.5
+anchor_bottom = 0.0
+offset_left = -250.0
+offset_top = 24.0
+offset_right = 250.0
+offset_bottom = 128.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="MarginContainer" type="MarginContainer" parent="CanvasLayer/TutorialPanel"]
+theme_override_constants/margin_left = 22
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 22
+theme_override_constants/margin_bottom = 18
+
+[node name="TutorialLabel" type="Label" parent="CanvasLayer/TutorialPanel/MarginContainer"]
+layout_mode = 2
+text = "使用 WASD 移动"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 28
+theme_override_colors/font_color = Color(0.94, 0.98, 1, 1)
+
+[node name="ContinueLabel" type="Label" parent="CanvasLayer/TutorialPanel/MarginContainer"]
+visible = false
+layout_mode = 2
+offset_top = 42.0
+offset_bottom = 72.0
+text = "前往传送门"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.78, 0.92, 1, 0.96)

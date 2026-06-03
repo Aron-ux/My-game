@@ -1,11 +1,11 @@
 extends RefCounted
 
 const SUMMON_COLOR := Color(0.35, 1.0, 0.95, 0.82)
+const DEATH_SPACE_WARNING_COLOR := Color(1.0, 0.14, 0.08, 0.9)
+const DEATH_SPACE_WARNING_FILL_COLOR := Color(1.0, 0.14, 0.08, 0.22)
 const SUMMON_RING_START_RADIUS := 230.0
 const SUMMON_AREA_RADIUS := 583.2
-const SUMMON_AREA_DURATION := 15.0
-const SUMMON_AREA_DAMAGE_INTERVAL := 1.0
-const SUMMON_AREA_CURRENT_HEALTH_DAMAGE_RATIO := 0.01
+const SUMMON_AREA_DURATION := 10.0
 const SUMMON_AREA_VERTEX_VISUAL_SCALE := 1.0
 const SUMMON_AREA_LINE_COLOR := Color(0.08, 0.42, 0.38, 0.92)
 const SUMMON_AREA_COLLISION_LAYER := 1 << 6
@@ -19,6 +19,12 @@ const AREA_SCENE_PATHS := [
 ]
 const SKULL_SOLDIER_ARCHETYPES := ["dasher", "elite_ram_trail"]
 const SKULL_SHOT_ARCHETYPES := ["shooter", "shotgunner", "elite_splitshot"]
+const SKULLTOMB_SUMMON_SPAWN_INTERVAL := 0.14
+const SKULLTOMB_VERTEX_SPAWN_JITTER := 24.0
+const ELITE_RAM_TRAIL_BASE_DASH_DISTANCE := 130.0
+const SKULLTOMB_CHARGE_DISTANCE_MULTIPLIER := 2.0
+const SKULLTOMB_CHARGE_WARNING_ALPHA := 0.3
+const SKULLTOMB_CHARGE_WARNING_FILL_ALPHA := 0.6
 
 
 static func update(enemy, delta: float) -> void:
@@ -26,6 +32,8 @@ static func update(enemy, delta: float) -> void:
 		_update_rebirth(enemy, delta)
 		return
 	_update_summon_area(enemy, delta)
+	_update_pending_spawns(enemy, delta)
+	_update_charge(enemy, delta)
 	_update_summon_channel(enemy, delta)
 
 
@@ -48,6 +56,8 @@ static func handle_lethal_damage(enemy) -> bool:
 
 
 static func _update_summon_channel(enemy, delta: float) -> void:
+	if enemy.skulltomb_charge_windup_remaining > 0.0 or enemy.dash_remaining > 0.0:
+		return
 	if enemy.skulltomb_summon_windup_remaining > 0.0:
 		enemy.skulltomb_summon_windup_remaining = max(0.0, enemy.skulltomb_summon_windup_remaining - delta)
 		_update_channel_ring(enemy)
@@ -59,8 +69,145 @@ static func _update_summon_channel(enemy, delta: float) -> void:
 	if enemy.skulltomb_summon_timer > 0.0:
 		return
 	enemy.skulltomb_summon_timer += max(0.5, enemy.skulltomb_summon_interval)
+	enemy.skulltomb_area_center = _get_death_space_center(enemy)
 	enemy.skulltomb_summon_windup_remaining = max(0.15, enemy.skulltomb_summon_windup)
 	_update_channel_ring(enemy)
+
+
+static func _update_charge(enemy, delta: float) -> void:
+	if enemy.target == null or not is_instance_valid(enemy.target):
+		return
+	if enemy.dash_remaining > 0.0:
+		_clamp_charge_progress(enemy)
+		_clamp_enemy_to_map(enemy)
+		_push_enemies_during_charge(enemy)
+		return
+	if enemy.skulltomb_summon_windup_remaining > 0.0:
+		return
+	if enemy.skulltomb_charge_windup_remaining > 0.0:
+		enemy.skulltomb_charge_windup_remaining = max(0.0, enemy.skulltomb_charge_windup_remaining - delta)
+		_update_charge_warning(enemy)
+		if enemy.skulltomb_charge_windup_remaining <= 0.0:
+			_begin_charge(enemy)
+		return
+	enemy.skulltomb_charge_timer -= delta
+	if enemy.skulltomb_charge_timer > 0.0:
+		return
+	enemy.skulltomb_charge_timer += max(0.5, enemy.skulltomb_charge_interval)
+	enemy.skulltomb_charge_windup_remaining = max(0.18, enemy.skulltomb_charge_windup_duration)
+	enemy.dash_direction = enemy._cached_direction_to_target if enemy._cached_direction_to_target != Vector2.ZERO else Vector2.RIGHT
+	_update_charge_warning(enemy)
+
+
+static func _update_charge_warning(enemy) -> void:
+	if enemy.dash_warning_rect == null or not is_instance_valid(enemy.dash_warning_rect):
+		return
+	var progress: float = 1.0 - clamp(enemy.skulltomb_charge_windup_remaining / max(0.001, enemy.skulltomb_charge_windup_duration), 0.0, 1.0)
+	var target_position: Vector2 = _get_charge_target_position(enemy)
+	var dash_length: float = enemy.global_position.distance_to(target_position)
+	var dash_width: float = max(24.0, enemy.contact_radius * 0.9)
+	enemy.dash_warning_rect.visible = true
+	var fill_length: float = max(4.0, dash_length * progress)
+	enemy.dash_warning_rect.position = enemy.dash_direction * (fill_length * 0.5)
+	enemy.dash_warning_rect.rotation = enemy.dash_direction.angle()
+	enemy.dash_warning_rect.polygon = PackedVector2Array([
+		Vector2(-fill_length * 0.5, -dash_width * 0.5),
+		Vector2(fill_length * 0.5, -dash_width * 0.5),
+		Vector2(fill_length * 0.5, dash_width * 0.5),
+		Vector2(-fill_length * 0.5, dash_width * 0.5)
+	])
+	enemy.dash_warning_rect.color = Color(1.0, 0.14, 0.08, lerpf(SKULLTOMB_CHARGE_WARNING_ALPHA, SKULLTOMB_CHARGE_WARNING_FILL_ALPHA, progress))
+
+
+static func _begin_charge(enemy) -> void:
+	var target_position: Vector2 = _get_charge_target_position(enemy)
+	enemy.skulltomb_charge_target_position = target_position
+	var dash_distance: float = enemy.global_position.distance_to(target_position)
+	enemy.dash_speed_multiplier = 5.175 * enemy.skulltomb_charge_speed_multiplier
+	var dash_speed_per_second: float = max(0.001, enemy.speed * enemy.dash_speed_multiplier * 0.7)
+	enemy.dash_remaining = max(0.12, dash_distance / dash_speed_per_second)
+	enemy.dash_duration = enemy.dash_remaining
+	enemy.dash_warning_rect.visible = false
+	enemy._spawn_dash_trail(enemy.dash_direction, dash_distance)
+	_clamp_enemy_to_map(enemy)
+	_push_enemies_during_charge(enemy)
+
+
+static func _get_charge_distance(enemy) -> float:
+	var requested_distance: float = float(enemy.skulltomb_charge_distance)
+	if requested_distance <= 0.0:
+		requested_distance = ELITE_RAM_TRAIL_BASE_DASH_DISTANCE * SKULLTOMB_CHARGE_DISTANCE_MULTIPLIER
+	return enemy.global_position.distance_to(_get_charge_target_position(enemy, requested_distance))
+
+static func _get_charge_target_position(enemy, requested_distance: float = -1.0) -> Vector2:
+	if requested_distance < 0.0:
+		requested_distance = float(enemy.skulltomb_charge_distance)
+		if requested_distance <= 0.0:
+			requested_distance = ELITE_RAM_TRAIL_BASE_DASH_DISTANCE * SKULLTOMB_CHARGE_DISTANCE_MULTIPLIER
+	var scene: Node = _get_current_scene(enemy)
+	if scene == null or not scene.has_method("get_map_bounds"):
+		return enemy.global_position + enemy.dash_direction * requested_distance
+	var bounds_value: Variant = scene.call("get_map_bounds")
+	if bounds_value is not Rect2:
+		return enemy.global_position + enemy.dash_direction * requested_distance
+	var rect: Rect2 = bounds_value as Rect2
+	var margin: float = max(enemy.contact_radius, 24.0)
+	var safe_rect: Rect2 = rect.grow(-margin)
+	if safe_rect.size.x <= 0.0 or safe_rect.size.y <= 0.0:
+		return enemy.global_position + enemy.dash_direction * requested_distance
+	var target_position: Vector2 = enemy.global_position + enemy.dash_direction * requested_distance
+	return Vector2(
+		clamp(target_position.x, safe_rect.position.x, safe_rect.position.x + safe_rect.size.x),
+		clamp(target_position.y, safe_rect.position.y, safe_rect.position.y + safe_rect.size.y)
+	)
+
+
+static func _clamp_charge_progress(enemy) -> void:
+	var target_position: Vector2 = enemy.skulltomb_charge_target_position
+	if target_position == Vector2.ZERO:
+		return
+	var remaining: Vector2 = target_position - enemy.global_position
+	if remaining.dot(enemy.dash_direction) <= 0.0 or remaining.length_squared() <= 4.0:
+		enemy.global_position = target_position
+		enemy.dash_remaining = 0.0
+
+
+static func _push_enemies_during_charge(enemy) -> void:
+	var scene: Node = _get_current_scene(enemy)
+	if scene == null:
+		return
+	var dash_length: float = _get_charge_distance(enemy)
+	var half_width: float = max(18.0, enemy.contact_radius * 0.7)
+	for other in _get_runtime_enemies(scene):
+		if other == null or other == enemy or not is_instance_valid(other) or other is not Node2D:
+			continue
+		var offset: Vector2 = (other as Node2D).global_position - enemy.global_position
+		var forward: float = offset.dot(enemy.dash_direction)
+		if forward < 0.0 or forward > dash_length:
+			continue
+		var lateral: float = abs(offset.dot(enemy.dash_direction.orthogonal()))
+		if lateral > half_width:
+			continue
+		var push_direction: Vector2 = enemy.dash_direction
+		(other as Node2D).global_position += push_direction * float(enemy.skulltomb_charge_push_distance)
+
+
+static func _clamp_enemy_to_map(enemy) -> void:
+	var scene: Node = _get_current_scene(enemy)
+	if scene == null or not scene.has_method("get_map_bounds"):
+		return
+	var bounds_value: Variant = scene.call("get_map_bounds")
+	if bounds_value is not Rect2:
+		return
+	var rect: Rect2 = bounds_value as Rect2
+	var margin: float = max(enemy.contact_radius, 24.0)
+	var safe_rect: Rect2 = rect.grow(-margin)
+	if safe_rect.size.x <= 0.0 or safe_rect.size.y <= 0.0:
+		return
+	enemy.global_position = Vector2(
+		clamp(enemy.global_position.x, safe_rect.position.x, safe_rect.position.x + safe_rect.size.x),
+		clamp(enemy.global_position.y, safe_rect.position.y, safe_rect.position.y + safe_rect.size.y)
+	)
 
 
 static func _finish_summon(enemy) -> void:
@@ -70,12 +217,40 @@ static func _finish_summon(enemy) -> void:
 	_start_summon_area(enemy)
 	var soldier_count := _count_skull_soldiers(scene)
 	var missing_count: int = max(0, enemy.skulltomb_min_soldiers - soldier_count)
+	enemy.skulltomb_pending_spawns.clear()
+	enemy.skulltomb_spawn_elapsed = 0.0
+	enemy.skulltomb_spawn_vertex_index = 0
 	for index in range(missing_count):
-		_spawn_skull_soldier(enemy, scene, index)
+		enemy.skulltomb_pending_spawns.append({
+			"type": "soldier",
+			"index": index
+		})
 	for index in range(10):
-		_spawn_skull_shooter(enemy, scene, index)
+		enemy.skulltomb_pending_spawns.append({
+			"type": "shooter",
+			"index": index
+		})
 	_apply_summon_buffs(scene, enemy.skulltomb_buff_duration)
 	enemy._spawn_status_burst(SUMMON_COLOR, 38.0 + enemy.scale.x * 8.0)
+
+
+static func _update_pending_spawns(enemy, delta: float) -> void:
+	if enemy.skulltomb_pending_spawns.is_empty():
+		return
+	var scene := _get_current_scene(enemy)
+	if scene == null:
+		enemy.skulltomb_pending_spawns.clear()
+		return
+	enemy.skulltomb_spawn_elapsed += delta
+	while enemy.skulltomb_spawn_elapsed >= SKULLTOMB_SUMMON_SPAWN_INTERVAL and not enemy.skulltomb_pending_spawns.is_empty():
+		enemy.skulltomb_spawn_elapsed -= SKULLTOMB_SUMMON_SPAWN_INTERVAL
+		var spawn_data: Dictionary = enemy.skulltomb_pending_spawns.pop_front()
+		var spawn_position: Vector2 = _get_vertex_spawn_position(enemy, enemy.skulltomb_spawn_vertex_index)
+		enemy.skulltomb_spawn_vertex_index = posmod(enemy.skulltomb_spawn_vertex_index + 1, 3)
+		if str(spawn_data.get("type", "")) == "soldier":
+			_spawn_skull_soldier(enemy, scene, int(spawn_data.get("index", 0)), spawn_position)
+		else:
+			_spawn_skull_shooter(enemy, scene, int(spawn_data.get("index", 0)), spawn_position)
 
 
 static func _update_rebirth(enemy, delta: float) -> void:
@@ -116,10 +291,10 @@ static func _apply_death_buffs(enemy) -> void:
 			other.skullshot_attack_frequency_timer = max(float(other.skullshot_attack_frequency_timer), enemy.skulltomb_death_player_slow_duration)
 
 
-static func _spawn_skull_soldier(enemy, scene: Node, index: int) -> void:
+static func _spawn_skull_soldier(enemy, scene: Node, index: int, spawn_position_override: Variant = null) -> void:
 	if scene == null or not scene.has_method("queue_runtime_enemy_spawn"):
 		return
-	var spawn_position := _get_summon_position(enemy, index)
+	var spawn_position: Vector2 = spawn_position_override if spawn_position_override is Vector2 else _get_summon_position(enemy, index)
 	var health_multiplier := _get_scene_health_multiplier(scene)
 	var speed_multiplier := _get_scene_speed_multiplier(scene)
 	var damage_multiplier := _get_scene_damage_multiplier(scene)
@@ -136,10 +311,10 @@ static func _spawn_skull_soldier(enemy, scene: Node, index: int) -> void:
 	})
 
 
-static func _spawn_skull_shooter(enemy, scene: Node, index: int) -> void:
+static func _spawn_skull_shooter(enemy, scene: Node, index: int, spawn_position_override: Variant = null) -> void:
 	if scene == null or not scene.has_method("queue_runtime_enemy_spawn"):
 		return
-	var spawn_position := _get_summon_position(enemy, index + 10)
+	var spawn_position: Vector2 = spawn_position_override if spawn_position_override is Vector2 else _get_summon_position(enemy, index + 10)
 	var health_multiplier := _get_scene_health_multiplier(scene)
 	var speed_multiplier := _get_scene_speed_multiplier(scene)
 	var damage_multiplier := _get_scene_damage_multiplier(scene)
@@ -160,11 +335,22 @@ static func _get_summon_position(enemy, index: int) -> Vector2:
 	return enemy.skulltomb_area_center + Vector2.RIGHT.rotated(angle) * distance
 
 
+static func _get_vertex_spawn_position(enemy, vertex_index: int) -> Vector2:
+	var vertices: PackedVector2Array = _get_summon_area_global_vertices(enemy)
+	if vertices.is_empty():
+		return enemy.skulltomb_area_center
+	var resolved_index: int = posmod(vertex_index, vertices.size())
+	var base_position: Vector2 = vertices[resolved_index]
+	var jitter_direction: Vector2 = (enemy.skulltomb_area_center - base_position).normalized()
+	if jitter_direction.length_squared() <= 0.001:
+		jitter_direction = Vector2.DOWN
+	return base_position + jitter_direction * SKULLTOMB_VERTEX_SPAWN_JITTER
+
+
 static func _start_summon_area(enemy) -> void:
 	_clear_summon_area(enemy)
-	enemy.skulltomb_area_center = enemy.global_position
-	if enemy.target != null and is_instance_valid(enemy.target) and enemy.target is Node2D:
-		enemy.skulltomb_area_center = (enemy.target as Node2D).global_position
+	if enemy.skulltomb_area_center == Vector2.ZERO:
+		enemy.skulltomb_area_center = _get_death_space_center(enemy)
 	enemy.skulltomb_area_radius = SUMMON_AREA_RADIUS
 	enemy.skulltomb_area_remaining = SUMMON_AREA_DURATION
 	enemy.skulltomb_area_damage_elapsed = 0.0
@@ -180,19 +366,13 @@ static func _update_summon_area(enemy, delta: float) -> void:
 		return
 	if enemy.target == null or not is_instance_valid(enemy.target) or enemy.target is not Node2D:
 		return
-	var target_node: Node2D = enemy.target
+	var status_duration: float = float(enemy.skulltomb_area_remaining) + 0.12
 	if enemy.target.has_method("apply_healing_block"):
-		enemy.target.apply_healing_block(delta + 0.12)
+		enemy.target.apply_healing_block(status_duration)
+	if enemy.target.has_method("apply_aging"):
+		enemy.target.apply_aging(status_duration)
 	if enemy.target.has_method("apply_confinement"):
-		enemy.target.apply_confinement(enemy.skulltomb_area_center, enemy.skulltomb_area_radius, delta + 0.12)
-	if target_node.global_position.distance_squared_to(enemy.skulltomb_area_center) > enemy.skulltomb_area_radius * enemy.skulltomb_area_radius:
-		return
-	enemy.skulltomb_area_damage_elapsed += delta
-	while enemy.skulltomb_area_damage_elapsed >= SUMMON_AREA_DAMAGE_INTERVAL:
-		enemy.skulltomb_area_damage_elapsed -= SUMMON_AREA_DAMAGE_INTERVAL
-		if enemy.target.has_method("take_damage"):
-			var current_health: float = float(enemy.target.get("current_health")) if enemy.target.get("current_health") != null else 100.0
-			enemy.target.take_damage(max(1.0, current_health * SUMMON_AREA_CURRENT_HEALTH_DAMAGE_RATIO))
+		enemy.target.apply_confinement(enemy.skulltomb_area_center, enemy.skulltomb_area_radius, status_duration, _get_summon_area_global_vertices(enemy))
 
 
 static func _spawn_summon_area_visual(enemy) -> void:
@@ -276,6 +456,19 @@ static func _build_triangle_vertices(radius: float) -> PackedVector2Array:
 	var start_angle := -PI * 0.5
 	for index in range(3):
 		points.append(Vector2.RIGHT.rotated(start_angle + TAU * float(index) / 3.0) * radius)
+	return points
+
+
+static func _get_death_space_center(enemy) -> Vector2:
+	if enemy.target != null and is_instance_valid(enemy.target) and enemy.target is Node2D:
+		return (enemy.target as Node2D).global_position
+	return enemy.global_position
+
+
+static func _get_summon_area_global_vertices(enemy) -> PackedVector2Array:
+	var points := PackedVector2Array()
+	for point in _build_triangle_vertices(enemy.skulltomb_area_radius):
+		points.append(enemy.skulltomb_area_center + point)
 	return points
 
 
@@ -405,14 +598,29 @@ static func _update_channel_ring(enemy) -> void:
 		ring = Line2D.new()
 		ring.name = "SkulltombChannelRing"
 		ring.closed = true
-		ring.width = 4.0
-		ring.default_color = SUMMON_COLOR
+		ring.width = 6.0
+		ring.default_color = DEATH_SPACE_WARNING_COLOR
 		ring.z_index = enemy.z_index + 1
 		enemy.add_child(ring)
 		enemy.skulltomb_channel_ring = ring
+	var fill := enemy.skulltomb_channel_fill as Polygon2D
+	if fill == null or not is_instance_valid(fill):
+		fill = Polygon2D.new()
+		fill.name = "SkulltombChannelFill"
+		fill.color = DEATH_SPACE_WARNING_FILL_COLOR
+		fill.z_index = enemy.z_index
+		enemy.add_child(fill)
+		enemy.skulltomb_channel_fill = fill
 	var progress: float = 1.0 - clamp(float(enemy.skulltomb_summon_windup_remaining) / max(0.001, float(enemy.skulltomb_summon_windup)), 0.0, 1.0)
-	_update_circle_points(ring, lerpf(SUMMON_RING_START_RADIUS, max(28.0, enemy.contact_radius), progress))
-	ring.modulate.a = 0.35 + 0.45 * progress
+	var warning_radius: float = lerpf(max(18.0, enemy.contact_radius * 0.45), SUMMON_AREA_RADIUS, progress)
+	var vertices: PackedVector2Array = _build_triangle_vertices(warning_radius)
+	var center: Vector2 = enemy.skulltomb_area_center
+	ring.position = enemy.to_local(center)
+	ring.points = vertices
+	ring.modulate.a = 0.4 + 0.45 * progress
+	fill.position = enemy.to_local(center)
+	fill.polygon = vertices
+	fill.color = Color(DEATH_SPACE_WARNING_FILL_COLOR.r, DEATH_SPACE_WARNING_FILL_COLOR.g, DEATH_SPACE_WARNING_FILL_COLOR.b, 0.12 + 0.14 * progress)
 
 
 static func _update_circle_points(ring: Line2D, radius: float) -> void:
@@ -447,6 +655,9 @@ static func _clear_channel_ring(enemy) -> void:
 	if enemy.skulltomb_channel_ring != null and is_instance_valid(enemy.skulltomb_channel_ring):
 		enemy.skulltomb_channel_ring.queue_free()
 	enemy.skulltomb_channel_ring = null
+	if enemy.skulltomb_channel_fill != null and is_instance_valid(enemy.skulltomb_channel_fill):
+		enemy.skulltomb_channel_fill.queue_free()
+	enemy.skulltomb_channel_fill = null
 
 
 static func _clear_death_ring(enemy) -> void:

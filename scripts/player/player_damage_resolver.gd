@@ -11,8 +11,12 @@ const DAMAGE_JOB_QUEUE_NAME := "PlayerDamageJobQueue"
 const QUEUED_HIT_THRESHOLD := 16
 const LOW_FPS_QUEUED_HIT_THRESHOLD := 8
 const CRITICAL_FPS_QUEUED_HIT_THRESHOLD := 4
-const DAMAGE_QUERY_BOUNDS_GROW := 48.0
+const DAMAGE_QUERY_BOUNDS_GROW := 260.0
 const ENEMY_TOUCH_DAMAGE_RADIUS_SCALE := 0.78
+const BOSS_TOUCH_DAMAGE_SHADOW_RADIUS_SCALE := 1.048808848
+const BOSS_TOUCH_DAMAGE_CURRENT_SIZE_SCALE := 0.8
+const BOSS_PLAYER_HIT_SHAPE_SCALE := 1.2
+const BOSS_TOUCH_DAMAGE_QUERY_PADDING := 260.0
 
 static var cached_live_enemies: Array = []
 static var cached_live_enemies_frame: int = -1
@@ -39,19 +43,21 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 	var killed := false
 	if damage_amount > 0.0 and enemy.has_method("take_damage"):
 		killed = bool(enemy.take_damage(final_damage))
+		if owner != null and owner.has_method("_add_switch_energy_from_damage"):
+			owner._add_switch_energy_from_damage(final_damage, source_role_id)
 		if owner != null and owner.has_method("_apply_role_damage_lifesteal"):
 			owner._apply_role_damage_lifesteal(source_role_id, final_damage)
-		if owner != null and enemy.get("enemy_kind") != null and str(enemy.get("enemy_kind")) == "boss" and owner.has_method("_add_kill_energy") and owner.has_method("_get_boss_damage_energy"):
-			owner._add_kill_energy(owner._get_boss_damage_energy(final_damage))
+		if owner != null and enemy.get("enemy_kind") != null and str(enemy.get("enemy_kind")) == "boss" and owner.has_method("_add_boss_damage_energy") and owner.has_method("_get_boss_damage_energy"):
+			owner._add_boss_damage_energy(owner._get_boss_damage_energy(final_damage))
 		if killed and owner != null and owner.has_method("_add_kill_energy") and owner.has_method("_get_kill_energy_from_enemy"):
 			var kill_energy: float = owner._get_kill_energy_from_enemy(enemy)
 			var bypass_lock_role_id: String = source_role_id if source_role_id == "mage" and kill_energy_bonus > 0.0 else ""
-			owner._add_kill_energy(kill_energy, bypass_lock_role_id)
+			owner._add_kill_energy(kill_energy, bypass_lock_role_id, source_role_id)
 			if owner.has_method("_try_apply_mage_kill_energy_proc"):
 				owner._try_apply_mage_kill_energy_proc(source_role_id, kill_energy, bypass_lock_role_id)
 			if kill_energy_bonus > 0.0:
 				var bonus_energy: float = kill_energy * kill_energy_bonus
-				owner._add_kill_energy(bonus_energy, bypass_lock_role_id)
+				owner._add_kill_energy(bonus_energy, bypass_lock_role_id, source_role_id)
 				if owner.has_method("_try_apply_mage_kill_energy_proc"):
 					owner._try_apply_mage_kill_energy_proc(source_role_id, bonus_energy, bypass_lock_role_id)
 	if vulnerability_bonus > 0.0 and enemy.has_method("apply_vulnerability"):
@@ -126,9 +132,7 @@ static func damage_enemies_in_radius_with_kill_energy(owner, center: Vector2, ra
 	for enemy in candidates:
 		if not _is_live_enemy(enemy) or enemy is not Node2D:
 			continue
-		var hit_radius: float = _get_enemy_hit_radius(owner, enemy)
-		var total_radius: float = radius + hit_radius
-		if center.distance_squared_to(enemy.global_position) <= total_radius * total_radius:
+		if _enemy_hit_shape_hits_circle(owner, enemy as Node2D, center, radius):
 			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center, kill_energy_bonus)
 	var hit_count: int = batcher.hit_count
 	PERFORMANCE_COUNTERS.add("damage_hits", hit_count)
@@ -145,9 +149,7 @@ static func damage_enemies_in_radius_suppressing_status_visuals(owner, center: V
 	for enemy in candidates:
 		if not _is_live_enemy(enemy) or enemy is not Node2D:
 			continue
-		var hit_radius: float = _get_enemy_hit_radius(owner, enemy)
-		var total_radius: float = radius + hit_radius
-		if center.distance_squared_to(enemy.global_position) <= total_radius * total_radius:
+		if _enemy_hit_shape_hits_circle(owner, enemy as Node2D, center, radius):
 			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center, 0.0, true)
 	var hit_count: int = batcher.hit_count
 	PERFORMANCE_COUNTERS.add("damage_hits", hit_count)
@@ -165,12 +167,8 @@ static func damage_enemies_in_multiple_radii_batched(owner, centers: Array[Vecto
 	for enemy in candidates:
 		if not _is_live_enemy(enemy) or enemy is not Node2D:
 			continue
-		var enemy_position: Vector2 = (enemy as Node2D).global_position
-		var hit_radius: float = _get_enemy_hit_radius(owner, enemy)
 		for center_index in range(centers.size()):
-			var total_radius: float = radius + hit_radius
-			var total_radius_squared: float = total_radius * total_radius
-			if centers[center_index].distance_squared_to(enemy_position) <= total_radius_squared:
+			if _enemy_hit_shape_hits_circle(owner, enemy as Node2D, centers[center_index], radius):
 				batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, centers[center_index])
 	_record_damage_query(total_candidates)
 	PERFORMANCE_COUNTERS.add("damage_hits", batcher.hit_count)
@@ -185,14 +183,12 @@ static func damage_enemies_in_shapes_batched(owner, shapes: Array[Dictionary]) -
 	for enemy in candidates:
 		if not _is_live_enemy(enemy) or enemy is not Node2D:
 			continue
-		var enemy_position: Vector2 = (enemy as Node2D).global_position
-		var hit_radius: float = _get_enemy_hit_radius(owner, enemy)
 		var enemy_id: int = enemy.get_instance_id()
 		for shape in shapes:
 			var hit_registry: Dictionary = shape.get("hit_registry", {})
 			if not hit_registry.is_empty() and hit_registry.has(enemy_id):
 				continue
-			if not _shape_hits_enemy(shape, enemy_position, hit_radius):
+			if not _shape_hits_enemy_node(owner, shape, enemy as Node2D):
 				continue
 			if shape.has("hit_registry"):
 				hit_registry[enemy_id] = true
@@ -221,9 +217,7 @@ static func damage_enemies_in_radius_count_kills(owner, center: Vector2, radius:
 	for enemy in candidates:
 		if not _is_live_enemy(enemy):
 			continue
-		var hit_radius: float = _get_enemy_hit_radius(owner, enemy)
-		var total_radius: float = radius + hit_radius
-		if center.distance_squared_to(enemy.global_position) <= total_radius * total_radius:
+		if enemy is Node2D and _enemy_hit_shape_hits_circle(owner, enemy as Node2D, center, radius):
 			matched_enemies.append(enemy)
 	hit_count = matched_enemies.size()
 	if _should_queue_hits(hit_count):
@@ -254,7 +248,7 @@ static func count_enemies_in_radius(owner, center: Vector2, radius: float) -> in
 	return count
 
 static func get_touching_enemy_damage(owner, center: Vector2, radius: float, query_padding: float = 36.0) -> float:
-	var candidates: Array = _get_candidate_enemies_for_circle(owner, center, radius + query_padding)
+	var candidates: Array = _get_candidate_enemies_for_circle(owner, center, radius + max(query_padding, BOSS_TOUCH_DAMAGE_QUERY_PADDING))
 	for enemy in candidates:
 		if not _is_live_enemy(enemy) or enemy is not Node2D:
 			continue
@@ -266,16 +260,68 @@ static func get_touching_enemy_damage(owner, center: Vector2, radius: float, que
 			contact_radius = float(enemy_contact_radius)
 		if enemy_touch_damage != null:
 			touch_damage = float(enemy_touch_damage)
-		if str(enemy.get("behavior_id")) == "glutton" and enemy.has_method("get_glutton_player_touch_shape"):
-			if _is_center_inside_enemy_touch_shape(center, radius, enemy.get_glutton_player_touch_shape()):
+		if _uses_shadow_touch_damage_shape(enemy):
+			var touch_shape: Dictionary = get_enemy_touch_damage_shape(enemy)
+			if touch_shape.is_empty():
+				touch_shape = _get_fallback_touch_damage_shape(enemy as Node2D, contact_radius)
+			if _is_center_inside_enemy_touch_shape(center, radius, touch_shape):
 				return touch_damage
 			continue
-		if str(enemy.get("behavior_id")) != "glutton":
-			contact_radius *= ENEMY_TOUCH_DAMAGE_RADIUS_SCALE
+		contact_radius *= ENEMY_TOUCH_DAMAGE_RADIUS_SCALE
 		var combined_radius: float = contact_radius + radius
 		if center.distance_squared_to((enemy as Node2D).global_position) <= combined_radius * combined_radius:
 			return touch_damage
 	return 0.0
+
+static func _uses_shadow_touch_damage_shape(enemy: Node) -> bool:
+	if enemy == null:
+		return false
+	var kind: String = str(enemy.get("enemy_kind"))
+	return kind == "small_boss" or kind == "boss"
+
+static func get_enemy_touch_damage_shape(enemy: Node2D) -> Dictionary:
+	if enemy == null or not is_instance_valid(enemy) or not _uses_shadow_touch_damage_shape(enemy):
+		return {}
+	var visual: Node = enemy.get_node_or_null("ProfileVisual")
+	if visual == null:
+		visual = enemy.get_node_or_null("BossVisual")
+	if visual != null and visual.has_method("get_shadow_world_ellipse"):
+		var ellipse: Variant = visual.call("get_shadow_world_ellipse")
+		if ellipse is Dictionary and not (ellipse as Dictionary).is_empty():
+			var scale: float = BOSS_TOUCH_DAMAGE_SHADOW_RADIUS_SCALE * BOSS_TOUCH_DAMAGE_CURRENT_SIZE_SCALE * _get_enemy_touch_damage_shape_multiplier(enemy)
+			return _scale_touch_damage_shape(ellipse as Dictionary, scale)
+	return {}
+
+static func get_enemy_player_hit_shape(enemy: Node2D) -> Dictionary:
+	var touch_shape: Dictionary = get_enemy_touch_damage_shape(enemy)
+	if touch_shape.is_empty():
+		return {}
+	return _scale_touch_damage_shape(touch_shape, BOSS_PLAYER_HIT_SHAPE_SCALE)
+
+static func _get_fallback_touch_damage_shape(enemy: Node2D, contact_radius: float) -> Dictionary:
+	var radius: float = max(1.0, contact_radius) * BOSS_TOUCH_DAMAGE_CURRENT_SIZE_SCALE
+	return {
+		"center": enemy.global_position,
+		"horizontal_radius": radius,
+		"vertical_radius": radius
+	}
+
+static func _scale_touch_damage_shape(shape: Dictionary, radius_scale: float) -> Dictionary:
+	return {
+		"center": shape.get("center", Vector2.ZERO),
+		"horizontal_radius": float(shape.get("horizontal_radius", 0.0)) * radius_scale,
+		"vertical_radius": float(shape.get("vertical_radius", 0.0)) * radius_scale
+	}
+
+static func _get_enemy_touch_damage_shape_multiplier(enemy: Node) -> float:
+	match str(enemy.get("archetype_id")):
+		"smallboss_glutton":
+			return 0.5
+		"smallboss_rebirth":
+			return 0.6
+		"boss_spellcore":
+			return 0.5
+	return 1.0
 
 static func collect_enemies_in_radius(owner, center: Vector2, radius: float) -> Array:
 	var matched_enemies: Array = []
@@ -284,9 +330,7 @@ static func collect_enemies_in_radius(owner, center: Vector2, radius: float) -> 
 	for enemy in candidates:
 		if not _is_live_enemy(enemy):
 			continue
-		var hit_radius: float = _get_enemy_hit_radius(owner, enemy)
-		var total_radius: float = radius + hit_radius
-		if center.distance_squared_to(enemy.global_position) <= total_radius * total_radius:
+		if enemy is Node2D and _enemy_hit_shape_hits_circle(owner, enemy as Node2D, center, radius):
 			matched_enemies.append(enemy)
 	PERFORMANCE_COUNTERS.add("damage_hits", matched_enemies.size())
 	return matched_enemies
@@ -304,11 +348,7 @@ static func damage_enemies_in_line(owner, start_position: Vector2, end_position:
 	for enemy in candidates:
 		if not _is_live_enemy(enemy):
 			continue
-		var relative: Vector2 = enemy.global_position - start_position
-		var along: float = clamp(relative.dot(direction), 0.0, length)
-		var closest: Vector2 = start_position + direction * along
-		var total_width: float = width + _get_enemy_hit_radius(owner, enemy)
-		if enemy.global_position.distance_squared_to(closest) <= total_width * total_width:
+		if enemy is Node2D and _enemy_hit_shape_hits_line(owner, enemy as Node2D, start_position, end_position, width):
 			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, start_position)
 	var hit_count: int = batcher.hit_count
 	PERFORMANCE_COUNTERS.add("damage_hits", hit_count)
@@ -335,9 +375,7 @@ static func damage_enemies_in_oriented_rect_unique(owner, center: Vector2, axis_
 		var id: int = enemy.get_instance_id()
 		if hit_registry.has(id):
 			continue
-		var relative: Vector2 = enemy.global_position - center
-		var hit_radius: float = _get_enemy_hit_radius(owner, enemy)
-		if abs(relative.dot(direction)) <= half_length + hit_radius and abs(relative.dot(perpendicular)) <= half_width + hit_radius:
+		if enemy is Node2D and _enemy_hit_shape_hits_oriented_rect(owner, enemy as Node2D, center, direction, perpendicular, half_length, half_width):
 			hit_registry[id] = true
 			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center)
 	var hit_count: int = batcher.hit_count
@@ -352,11 +390,9 @@ static func damage_enemies_in_ellipse(owner, center: Vector2, horizontal_radius:
 	_record_damage_query(candidates.size())
 	var batcher := _get_reusable_damage_batcher(owner)
 	for enemy in candidates:
-		if not _is_live_enemy(enemy):
+		if not _is_live_enemy(enemy) or enemy is not Node2D:
 			continue
-		var relative: Vector2 = enemy.global_position - center
-		var value := pow(relative.x / safe_horizontal, 2.0) + pow(relative.y / safe_vertical, 2.0)
-		if value <= 1.0:
+		if _enemy_hit_shape_hits_ellipse(owner, enemy as Node2D, center, safe_horizontal, safe_vertical):
 			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center)
 	var hit_count: int = batcher.hit_count
 	PERFORMANCE_COUNTERS.add("damage_hits", hit_count)
@@ -376,18 +412,9 @@ static func damage_enemies_in_cone(owner, origin: Vector2, direction: Vector2, c
 	_record_damage_query(candidates.size())
 	var batcher := _get_reusable_damage_batcher(owner)
 	for enemy in candidates:
-		if not _is_live_enemy(enemy):
+		if not _is_live_enemy(enemy) or enemy is not Node2D:
 			continue
-		var enemy_offset: Vector2 = enemy.global_position - origin
-		var distance: float = enemy_offset.length()
-		var hit_radius: float = _get_enemy_hit_radius(owner, enemy)
-		if distance > safe_range + hit_radius:
-			continue
-		if distance <= hit_radius:
-			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, origin)
-			continue
-		var enemy_direction: Vector2 = enemy_offset / distance
-		if enemy_direction.dot(forward) >= cos_half_angle or _is_enemy_inside_cone_edge(enemy_offset, forward, safe_range, half_angle, hit_radius):
+		if _enemy_hit_shape_hits_cone(owner, enemy as Node2D, origin, forward, safe_range, half_angle, cos_half_angle):
 			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, origin)
 	var hit_count: int = batcher.hit_count
 	PERFORMANCE_COUNTERS.add("damage_hits", hit_count)
@@ -449,6 +476,143 @@ static func _get_shape_bounds(shape: Dictionary) -> Rect2:
 
 static func _shape_hits_enemy(shape: Dictionary, enemy_position: Vector2, hit_radius: float) -> bool:
 	return PLAYER_DAMAGE_SHAPE_FLOW.shape_hits_enemy(shape, enemy_position, hit_radius)
+
+static func _shape_hits_enemy_node(owner, shape: Dictionary, enemy: Node2D) -> bool:
+	var target_shape: Dictionary = get_enemy_player_hit_shape(enemy)
+	if target_shape.is_empty():
+		return _shape_hits_enemy(shape, enemy.global_position, _get_enemy_hit_radius(owner, enemy))
+	var shape_type: String = str(shape.get("type", "circle"))
+	if shape_type == "line":
+		var start_position: Vector2 = shape.get("start", Vector2.ZERO)
+		var end_position: Vector2 = shape.get("end", start_position)
+		return _enemy_shape_hits_line(target_shape, start_position, end_position, float(shape.get("width", 1.0)))
+	if shape_type == "oriented_rect":
+		var rect_direction: Vector2 = shape.get("axis", Vector2.RIGHT)
+		rect_direction = rect_direction.normalized()
+		if rect_direction.length_squared() <= 0.001:
+			rect_direction = Vector2.RIGHT
+		return _enemy_shape_hits_oriented_rect(
+			target_shape,
+			shape.get("center", Vector2.ZERO),
+			rect_direction,
+			rect_direction.orthogonal(),
+			float(shape.get("length", 1.0)) * 0.5,
+			float(shape.get("width", 1.0)) * 0.5
+		)
+	if shape_type == "cone":
+		var forward: Vector2 = shape.get("direction", Vector2.RIGHT)
+		forward = forward.normalized()
+		if forward.length_squared() <= 0.001:
+			forward = Vector2.RIGHT
+		var cone_angle: float = max(0.0, float(shape.get("angle", 0.0)) * 0.5)
+		return _enemy_shape_hits_cone(target_shape, shape.get("origin", Vector2.ZERO), forward, max(1.0, float(shape.get("range", 1.0))), cone_angle, cos(cone_angle))
+	if shape_type == "ellipse":
+		return _enemy_shape_hits_ellipse(
+			target_shape,
+			shape.get("center", Vector2.ZERO),
+			max(1.0, float(shape.get("horizontal_radius", 1.0))),
+			max(1.0, float(shape.get("vertical_radius", 1.0)))
+		)
+	return _enemy_shape_hits_circle(target_shape, shape.get("center", Vector2.ZERO), float(shape.get("radius", 1.0)))
+
+static func _enemy_hit_shape_hits_circle(owner, enemy: Node2D, center: Vector2, radius: float) -> bool:
+	var target_shape: Dictionary = get_enemy_player_hit_shape(enemy)
+	if not target_shape.is_empty():
+		return _enemy_shape_hits_circle(target_shape, center, radius)
+	var hit_radius: float = _get_enemy_hit_radius(owner, enemy)
+	var total_radius: float = radius + hit_radius
+	return center.distance_squared_to(enemy.global_position) <= total_radius * total_radius
+
+static func _enemy_hit_shape_hits_line(owner, enemy: Node2D, start_position: Vector2, end_position: Vector2, width: float) -> bool:
+	var target_shape: Dictionary = get_enemy_player_hit_shape(enemy)
+	if not target_shape.is_empty():
+		return _enemy_shape_hits_line(target_shape, start_position, end_position, width)
+	var relative: Vector2 = enemy.global_position - start_position
+	var axis: Vector2 = end_position - start_position
+	var length: float = axis.length()
+	if length <= 0.001:
+		var fallback_radius: float = width + _get_enemy_hit_radius(owner, enemy)
+		return start_position.distance_squared_to(enemy.global_position) <= fallback_radius * fallback_radius
+	var direction: Vector2 = axis / length
+	var along: float = clamp(relative.dot(direction), 0.0, length)
+	var closest: Vector2 = start_position + direction * along
+	var total_width: float = width + _get_enemy_hit_radius(owner, enemy)
+	return enemy.global_position.distance_squared_to(closest) <= total_width * total_width
+
+static func _enemy_hit_shape_hits_oriented_rect(owner, enemy: Node2D, center: Vector2, direction: Vector2, perpendicular: Vector2, half_length: float, half_width: float) -> bool:
+	var target_shape: Dictionary = get_enemy_player_hit_shape(enemy)
+	if not target_shape.is_empty():
+		return _enemy_shape_hits_oriented_rect(target_shape, center, direction, perpendicular, half_length, half_width)
+	var relative: Vector2 = enemy.global_position - center
+	var hit_radius: float = _get_enemy_hit_radius(owner, enemy)
+	return abs(relative.dot(direction)) <= half_length + hit_radius and abs(relative.dot(perpendicular)) <= half_width + hit_radius
+
+static func _enemy_hit_shape_hits_ellipse(owner, enemy: Node2D, center: Vector2, horizontal_radius: float, vertical_radius: float) -> bool:
+	var target_shape: Dictionary = get_enemy_player_hit_shape(enemy)
+	if not target_shape.is_empty():
+		return _enemy_shape_hits_ellipse(target_shape, center, horizontal_radius, vertical_radius)
+	var relative: Vector2 = enemy.global_position - center
+	var hit_radius: float = _get_enemy_hit_radius(owner, enemy)
+	var safe_horizontal: float = max(1.0, horizontal_radius + hit_radius)
+	var safe_vertical: float = max(1.0, vertical_radius + hit_radius)
+	return pow(relative.x / safe_horizontal, 2.0) + pow(relative.y / safe_vertical, 2.0) <= 1.0
+
+static func _enemy_hit_shape_hits_cone(owner, enemy: Node2D, origin: Vector2, forward: Vector2, cone_range: float, half_angle: float, cos_half_angle: float) -> bool:
+	var target_shape: Dictionary = get_enemy_player_hit_shape(enemy)
+	if not target_shape.is_empty():
+		return _enemy_shape_hits_cone(target_shape, origin, forward, cone_range, half_angle, cos_half_angle)
+	var enemy_offset: Vector2 = enemy.global_position - origin
+	var distance: float = enemy_offset.length()
+	var hit_radius: float = _get_enemy_hit_radius(owner, enemy)
+	if distance > cone_range + hit_radius:
+		return false
+	if distance <= hit_radius:
+		return true
+	var enemy_direction: Vector2 = enemy_offset / distance
+	return enemy_direction.dot(forward) >= cos_half_angle or _is_enemy_inside_cone_edge(enemy_offset, forward, cone_range, half_angle, hit_radius)
+
+static func _enemy_shape_hits_circle(target_shape: Dictionary, center: Vector2, radius: float) -> bool:
+	return _is_center_inside_enemy_touch_shape(center, max(0.0, radius), target_shape)
+
+static func _enemy_shape_hits_line(target_shape: Dictionary, start_position: Vector2, end_position: Vector2, width: float) -> bool:
+	var shape_center: Vector2 = _get_shape_center(target_shape)
+	if start_position.distance_squared_to(end_position) <= 0.001:
+		return _enemy_shape_hits_circle(target_shape, start_position, width)
+	var closest_point: Vector2 = Geometry2D.get_closest_point_to_segment(shape_center, start_position, end_position)
+	return _enemy_shape_hits_circle(target_shape, closest_point, width)
+
+static func _enemy_shape_hits_oriented_rect(target_shape: Dictionary, center: Vector2, direction: Vector2, perpendicular: Vector2, half_length: float, half_width: float) -> bool:
+	var shape_center: Vector2 = _get_shape_center(target_shape)
+	var relative: Vector2 = shape_center - center
+	var closest_local_x: float = clamp(relative.dot(direction), -half_length, half_length)
+	var closest_local_y: float = clamp(relative.dot(perpendicular), -half_width, half_width)
+	var closest_point: Vector2 = center + direction * closest_local_x + perpendicular * closest_local_y
+	return _enemy_shape_hits_circle(target_shape, closest_point, 0.0)
+
+static func _enemy_shape_hits_ellipse(target_shape: Dictionary, center: Vector2, horizontal_radius: float, vertical_radius: float) -> bool:
+	var shape_center: Vector2 = _get_shape_center(target_shape)
+	var relative: Vector2 = shape_center - center
+	var target_horizontal: float = max(0.0, float(target_shape.get("horizontal_radius", 0.0)))
+	var target_vertical: float = max(0.0, float(target_shape.get("vertical_radius", 0.0)))
+	var safe_horizontal: float = max(1.0, horizontal_radius + target_horizontal)
+	var safe_vertical: float = max(1.0, vertical_radius + target_vertical)
+	return pow(relative.x / safe_horizontal, 2.0) + pow(relative.y / safe_vertical, 2.0) <= 1.0
+
+static func _enemy_shape_hits_cone(target_shape: Dictionary, origin: Vector2, forward: Vector2, cone_range: float, half_angle: float, cos_half_angle: float) -> bool:
+	var shape_center: Vector2 = _get_shape_center(target_shape)
+	var enemy_offset: Vector2 = shape_center - origin
+	var distance: float = enemy_offset.length()
+	var target_radius: float = max(float(target_shape.get("horizontal_radius", 0.0)), float(target_shape.get("vertical_radius", 0.0)))
+	if distance > cone_range + target_radius:
+		return false
+	if distance <= target_radius:
+		return true
+	var enemy_direction: Vector2 = enemy_offset / distance
+	return enemy_direction.dot(forward) >= cos_half_angle or _is_enemy_inside_cone_edge(enemy_offset, forward, cone_range, half_angle, target_radius)
+
+static func _get_shape_center(shape: Dictionary) -> Vector2:
+	var center_value: Variant = shape.get("center", Vector2.ZERO)
+	return center_value if center_value is Vector2 else Vector2.ZERO
 
 static func schedule_swordsman_slash_followthrough(owner, center: Vector2, axis_direction: Vector2, rect_length: float, rect_width: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, animation_duration: float, source_role_id: String, hit_registry: Dictionary) -> void:
 	var pulse_count: int = max(0, int(owner.SWORD_SLASH_DAMAGE_FOLLOW_PULSES))

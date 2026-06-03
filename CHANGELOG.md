@@ -3,7 +3,12 @@
 ## Unreleased
 
 ### Changed
+- Swordsman trait healing now triggers on attack hits instead of kills: base 5% proc chance plus 5% per trait level, each proc heals 5% of max health plus 7.5% of missing health, and the effect has its own 1-second trigger cooldown.
+- `贪婪` now triggers on attack hits instead of kills, heals 1% of the attacker's max health on proc, uses tier-based proc chances of 1% / 5% / 10% / 20%, and has its own 1-second trigger cooldown.
+- Mage `奥法盈余` now grants the caster 3 stacks of `奥术充能` when the 5-second surplus window expires naturally.
 
+- Swordsman entry state now displays as `嗜血` instead of a generic `无敌`, shows a blue `嗜` buff icon in the combat buff bar, and shares entry lifesteal healing to the other two roles during its 3-second window.
+- Reduced post-switch invulnerability from 0.2s to 0.1s to tighten role-swap safety windows.
 - Cleaned Mac/archive metadata from imported asset folders and ignored future `.DS_Store`, `__MACOSX/`, and `._*` files.
 - Normalized script encodings by removing UTF-8 BOM from local code/check scripts.
 - Project display config now explicitly keeps resizable 16:9 `canvas_items + keep` settings required by project checks.

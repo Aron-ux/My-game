@@ -73,6 +73,13 @@ static func apply_profile(enemy, kind: String, profile: Dictionary) -> void:
 	enemy.skulltomb_summon_timer = enemy.skulltomb_summon_interval
 	enemy.skulltomb_summon_windup = float(profile.get("skulltomb_summon_windup", 1.2))
 	enemy.skulltomb_summon_windup_remaining = 0.0
+	enemy.skulltomb_charge_interval = float(profile.get("skulltomb_charge_interval", 9.0))
+	enemy.skulltomb_charge_timer = enemy.skulltomb_charge_interval
+	enemy.skulltomb_charge_windup_duration = float(profile.get("skulltomb_charge_windup_duration", 2.0))
+	enemy.skulltomb_charge_windup_remaining = 0.0
+	enemy.skulltomb_charge_distance = float(profile.get("skulltomb_charge_distance", 0.0))
+	enemy.skulltomb_charge_speed_multiplier = float(profile.get("skulltomb_charge_speed_multiplier", 2.0))
+	enemy.skulltomb_charge_push_distance = float(profile.get("skulltomb_charge_push_distance", 116.0))
 	enemy.skulltomb_min_soldiers = int(profile.get("skulltomb_min_soldiers", 10))
 	enemy.skulltomb_buff_duration = float(profile.get("skulltomb_buff_duration", 5.0))
 	enemy.skulltomb_death_player_slow_multiplier = float(profile.get("skulltomb_death_player_slow_multiplier", 0.5))

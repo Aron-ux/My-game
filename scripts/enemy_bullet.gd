@@ -7,6 +7,8 @@ const ENEMY_GEOMETRY := preload("res://scripts/enemies/enemy_geometry.gd")
 const MAX_TURN_CATCH_UP_TICKS := 8
 const POOL_GROUP := "enemy_projectile_pool"
 const POOL_SOFT_LIMIT := 96
+const PROJECTILE_Z_INDEX := 12
+const LIFETIME_FADE_DURATION := 0.6
 
 @export var speed: float = 260.0
 @export var damage: float = 8.0
@@ -63,6 +65,7 @@ var chain_history: Array[Dictionary] = []
 var chain_trail: Dictionary = {}
 var chain_follow_distance: float = 0.0
 var chain_path_distance: float = 0.0
+var max_lifetime: float = 4.0
 
 static var visual_shape_cache: Dictionary = {}
 
@@ -85,6 +88,7 @@ func reset_projectile(config: Dictionary) -> void:
 	speed = float(config.get("speed", speed))
 	damage = float(config.get("damage", damage))
 	lifetime = float(config.get("lifetime", lifetime))
+	max_lifetime = max(lifetime, 0.001)
 	hit_radius = float(config.get("hit_radius", hit_radius))
 	visual_color = config.get("visual_color", visual_color)
 	motion_mode = str(config.get("motion_mode", motion_mode))
@@ -155,6 +159,7 @@ func _initialize_runtime_state() -> void:
 	forward_distance = 0.0
 	return_started = false
 	split_performed = false
+	modulate = Color.WHITE
 	chain_history.clear()
 	chain_follow_distance = max(0.0, float(chain_follow_index) * chain_follow_spacing)
 	chain_path_distance = -chain_follow_distance
@@ -164,6 +169,7 @@ func _initialize_runtime_state() -> void:
 	remove_from_group(POOL_GROUP)
 	add_to_group("enemy_projectiles")
 	_register_runtime_projectile(false)
+	z_index = PROJECTILE_Z_INDEX
 	_apply_visuals()
 
 func _physics_process(delta: float) -> void:
@@ -188,6 +194,7 @@ func _run_physics_tick(delta: float) -> void:
 			_seal_chain_trail()
 		recycle()
 		return
+	_update_lifetime_fade()
 
 	travel_time += delta
 
@@ -408,6 +415,10 @@ func _try_hit_player() -> void:
 	if target.has_method("take_damage"):
 		target.take_damage(damage)
 	recycle()
+
+func _update_lifetime_fade() -> void:
+	var fade_duration: float = min(LIFETIME_FADE_DURATION, max_lifetime)
+	modulate.a = clamp(lifetime / max(fade_duration, 0.001), 0.0, 1.0)
 
 func _spawn_split_bullets() -> void:
 	split_performed = true

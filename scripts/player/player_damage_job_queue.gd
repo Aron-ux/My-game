@@ -201,18 +201,22 @@ func _flush_attack_results() -> void:
 	attack_results_by_role.clear()
 
 
-func _queue_kill_energy(amount: float, bypass_lock_role_id: String = "") -> void:
+func _queue_kill_energy(amount: float, bypass_lock_role_id: String = "", source_role_id: String = "") -> void:
 	if amount <= 0.0:
 		return
-	pending_kill_energy_by_lock_bypass[bypass_lock_role_id] = float(pending_kill_energy_by_lock_bypass.get(bypass_lock_role_id, 0.0)) + amount
+	var key: String = "%s|%s" % [bypass_lock_role_id, source_role_id]
+	pending_kill_energy_by_lock_bypass[key] = float(pending_kill_energy_by_lock_bypass.get(key, 0.0)) + amount
 
 
 func _flush_pending_kill_energy() -> void:
 	if pending_kill_energy_by_lock_bypass.is_empty():
 		return
 	if source_player != null and is_instance_valid(source_player) and source_player.has_method("_add_kill_energy"):
-		for bypass_lock_role_id in pending_kill_energy_by_lock_bypass.keys():
-			source_player._add_kill_energy(float(pending_kill_energy_by_lock_bypass.get(bypass_lock_role_id, 0.0)), str(bypass_lock_role_id))
+		for pending_key in pending_kill_energy_by_lock_bypass.keys():
+			var key_parts: PackedStringArray = str(pending_key).split("|", true)
+			var bypass_lock_role_id: String = key_parts[0] if key_parts.size() > 0 else ""
+			var source_role_id: String = key_parts[1] if key_parts.size() > 1 else ""
+			source_player._add_kill_energy(float(pending_kill_energy_by_lock_bypass.get(pending_key, 0.0)), bypass_lock_role_id, source_role_id)
 	pending_kill_energy_by_lock_bypass.clear()
 
 
@@ -233,19 +237,21 @@ func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_rol
 		killed = bool(enemy.take_batched_damage(final_damage))
 	elif enemy.has_method("take_damage"):
 		killed = bool(enemy.take_damage(final_damage))
+	if source_player.has_method("_add_switch_energy_from_damage"):
+		source_player._add_switch_energy_from_damage(final_damage, source_role_id)
 	if source_player.has_method("_apply_role_damage_lifesteal"):
 		source_player._apply_role_damage_lifesteal(source_role_id, final_damage)
-	if str(enemy.get("enemy_kind")) == "boss" and source_player.has_method("_get_boss_damage_energy"):
-		_queue_kill_energy(source_player._get_boss_damage_energy(final_damage))
+	if str(enemy.get("enemy_kind")) == "boss" and source_player.has_method("_get_boss_damage_energy") and source_player.has_method("_add_boss_damage_energy"):
+		source_player._add_boss_damage_energy(source_player._get_boss_damage_energy(final_damage))
 	if killed and source_player.has_method("_get_kill_energy_from_enemy"):
 		var kill_energy: float = source_player._get_kill_energy_from_enemy(enemy)
 		var bypass_lock_role_id: String = source_role_id if source_role_id == "mage" and kill_energy_bonus > 0.0 else ""
-		_queue_kill_energy(kill_energy, bypass_lock_role_id)
+		_queue_kill_energy(kill_energy, bypass_lock_role_id, source_role_id)
 		if source_player.has_method("_try_apply_mage_kill_energy_proc"):
 			source_player._try_apply_mage_kill_energy_proc(source_role_id, kill_energy, bypass_lock_role_id)
 		if kill_energy_bonus > 0.0:
 			var bonus_energy: float = kill_energy * kill_energy_bonus
-			_queue_kill_energy(bonus_energy, bypass_lock_role_id)
+			_queue_kill_energy(bonus_energy, bypass_lock_role_id, source_role_id)
 			if source_player.has_method("_try_apply_mage_kill_energy_proc"):
 				source_player._try_apply_mage_kill_energy_proc(source_role_id, bonus_energy, bypass_lock_role_id)
 	if vulnerability_bonus > 0.0 and enemy.has_method("apply_vulnerability"):

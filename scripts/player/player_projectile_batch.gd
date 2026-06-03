@@ -282,7 +282,7 @@ func _get_damage_batcher() -> RefCounted:
 
 func _find_hit_enemy(projectile_index: int, grid: Dictionary) -> Node2D:
 	var projectile_position: Vector2 = positions[projectile_index]
-	var total_cell_radius: float = hit_radii[projectile_index] + DEFAULT_ENEMY_HIT_RADIUS
+	var total_cell_radius: float = hit_radii[projectile_index] + PLAYER_DAMAGE_RESOLVER.BOSS_TOUCH_DAMAGE_QUERY_PADDING
 	var cell_radius: int = int(ceil(total_cell_radius / HIT_GRID_CELL_SIZE))
 	var center_cell: Vector2i = _grid_cell(projectile_position)
 	for x in range(center_cell.x - cell_radius, center_cell.x + cell_radius + 1):
@@ -295,9 +295,7 @@ func _find_hit_enemy(projectile_index: int, grid: Dictionary) -> Node2D:
 					continue
 				if _has_projectile_hit_enemy(projectile_index, enemy as Node2D):
 					continue
-				var enemy_radius: float = _get_enemy_hit_radius(enemy as Node2D, enemy_hit_radius_scales[projectile_index], enemy_hit_radius_mins[projectile_index], enemy_hit_radius_maxs[projectile_index])
-				var total_radius: float = hit_radii[projectile_index] + enemy_radius
-				if projectile_position.distance_squared_to((enemy as Node2D).global_position) <= total_radius * total_radius:
+				if _projectile_hits_enemy_shape(projectile_position, hit_radii[projectile_index], enemy as Node2D, enemy_hit_radius_scales[projectile_index], enemy_hit_radius_mins[projectile_index], enemy_hit_radius_maxs[projectile_index]):
 					return enemy as Node2D
 	return null
 
@@ -364,6 +362,14 @@ func _get_enemy_hit_radius(enemy: Node2D, radius_scale: float, minimum: float, m
 	if contact_radius == null:
 		return clamp(DEFAULT_ENEMY_HIT_RADIUS, minimum, maximum)
 	return clamp(float(contact_radius) * radius_scale, minimum, maximum)
+
+func _projectile_hits_enemy_shape(projectile_position: Vector2, projectile_radius: float, enemy: Node2D, radius_scale: float, minimum: float, maximum: float) -> bool:
+	var enemy_hit_shape: Dictionary = PLAYER_DAMAGE_RESOLVER.get_enemy_player_hit_shape(enemy)
+	if not enemy_hit_shape.is_empty():
+		return PLAYER_DAMAGE_RESOLVER._is_center_inside_enemy_touch_shape(projectile_position, projectile_radius, enemy_hit_shape)
+	var enemy_radius: float = _get_enemy_hit_radius(enemy, radius_scale, minimum, maximum)
+	var total_radius: float = projectile_radius + enemy_radius
+	return projectile_position.distance_squared_to(enemy.global_position) <= total_radius * total_radius
 
 func _remove_projectile(index: int) -> void:
 	var last_index := positions.size() - 1

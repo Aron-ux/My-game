@@ -478,7 +478,16 @@ func update_stats(summary: Dictionary) -> void:
 		else:
 			_set_label_text(switch_cd_label, "切人 CD 就绪")
 	if combat_skill_bar != null and combat_skill_bar.has_method("update_switch_cooldown"):
-		combat_skill_bar.update_switch_cooldown(str(summary.get("role_id", "swordsman")), switch_cooldown, float(summary.get("switch_cooldown_base", 8.0)))
+		var switch_energy_by_role_value: Variant = summary.get("switch_energy_by_role", {})
+		var switch_energy_by_role: Dictionary = switch_energy_by_role_value if switch_energy_by_role_value is Dictionary else {}
+		combat_skill_bar.update_switch_cooldown(
+			str(summary.get("role_id", "swordsman")),
+			switch_cooldown,
+			float(summary.get("switch_cooldown_base", 0.5)),
+			float(summary.get("switch_energy", 0.0)),
+			float(summary.get("switch_energy_required", 100.0)),
+			switch_energy_by_role
+		)
 
 	var switch_power_name := str(summary.get("switch_power_label", ""))
 	var switch_power_remaining := float(summary.get("switch_power_remaining", 0.0))
@@ -513,10 +522,34 @@ func update_stats(summary: Dictionary) -> void:
 	if mana_bar != null and mana_bar.value != current_energy:
 		mana_bar.value = current_energy
 	if combat_skill_bar != null and combat_skill_bar.has_method("update_ultimate_energy"):
-		combat_skill_bar.update_ultimate_energy(current_energy, required_energy, summary.get("ultimate_display", {}))
+		combat_skill_bar.update_ultimate_energy(current_energy, required_energy, summary.get("ultimate_display", {}), ultimate_ready)
 	var cooldown_slots: Array = summary.get("skill_cooldown_slots", [])
 	if combat_skill_bar != null and combat_skill_bar.has_method("update_skill_cooldown_slots"):
 		combat_skill_bar.update_skill_cooldown_slots(cooldown_slots)
+	if combat_skill_bar != null and combat_skill_bar.has_method("update_buff_slots"):
+		var buff_slots: Array = []
+		if switch_power_remaining > 0.0 and switch_power_name != "":
+			buff_slots.append({
+				"name": switch_power_name,
+				"description": "切换增益",
+				"remaining": switch_power_remaining,
+				"duration": max(switch_power_remaining, 1.0),
+				"color": Color(0.36, 0.76, 1.0, 0.92)
+			})
+		if entry_blessing_remaining > 0.0 and entry_blessing_name != "":
+			buff_slots.append({
+				"name": entry_blessing_name,
+				"description": "入场祝福",
+				"remaining": entry_blessing_remaining,
+				"duration": max(entry_blessing_remaining, 1.0),
+				"color": Color(0.88, 0.64, 1.0, 0.92)
+			})
+		var status_buff_slots_value: Variant = summary.get("buff_status_slots", [])
+		if status_buff_slots_value is Array:
+			for status_buff_value in status_buff_slots_value:
+				if status_buff_value is Dictionary:
+					buff_slots.append(status_buff_value)
+		combat_skill_bar.update_buff_slots(buff_slots)
 
 func update_time(seconds_elapsed: float) -> void:
 	var total_seconds: int = int(floor(seconds_elapsed))

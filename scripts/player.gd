@@ -86,8 +86,8 @@ signal died
 signal active_role_changed(role_id: String, role_name: String)
 signal blessing_skill_event_announced(event: Dictionary)
 
-const ROLE_SWITCH_COOLDOWN := 7.0
-const SWITCH_INVULNERABILITY := 0.2
+const ROLE_SWITCH_COOLDOWN := 0.5
+const SWITCH_INVULNERABILITY := 0.1
 const ENERGY_PASSIVE_REGEN := 0.0
 const ENERGY_PER_HIT := 0.3
 const ENERGY_PER_KILL := 1.1
@@ -96,6 +96,8 @@ const SMALL_ENEMY_KILL_ENERGY_MULTIPLIER := 0.75
 const BACKGROUND_ULTIMATE_ENERGY_GAIN_RATIO := 0.3
 const ULTIMATE_COST := 90.0
 const ULTIMATE_ENERGY_REQUIRED := 100.0
+const SWITCH_ENTRY_ENERGY_REQUIRED := 100.0
+const SWITCH_ENTRY_ENERGY_PER_DAMAGE := 0.04
 const ULTIMATE_ENERGY_LOCK_AFTER_CAST := 3.2
 const SWORD_ULTIMATE_SLASH_INTERVAL := 0.12
 const GUNNER_ULTIMATE_WAVE_INTERVAL := 0.14
@@ -103,6 +105,18 @@ const MAGE_ULTIMATE_BOMBARD_INTERVAL := 0.24
 const GUNNER_ENTRY_WAVE_BULLET_COUNT := 16
 const GUNNER_ENTRY_WAVE_BATCH_SIZE := 16
 const GUNNER_ENTRY_WAVE_BATCH_INTERVAL := 0.008
+const GUNNER_FLASH_DODGE_CHANCE := 0.15
+const GUNNER_FLASH_STACK_INTERVAL := 2.0
+const GUNNER_FLASH_MAX_STACKS := 10
+const GUNNER_FLASH_DAMAGE_PER_STACK := 0.03
+const GUNNER_FLASH_SPEED_PER_STACK := 0.03
+const GUNNER_FLASH_COOLDOWN := 10.0
+const MAGE_ARCANE_CHARGE_MAX_STACKS := 10
+const MAGE_ARCANE_CHARGE_SHARE_PER_STACK := 0.10
+const MAGE_ARCANE_CHARGE_SELF_ENERGY_PER_STACK := 0.02
+const SWORDSMAN_BLOODTHIRST_DURATION := 3.0
+const SWORDSMAN_DEATH_DEFIANCE_COOLDOWN := 80.0
+const SWORDSMAN_DEATH_DEFIANCE_INVULNERABILITY := 1.5
 const SHOW_GAMEPLAY_TEXT_HINTS := false
 
 const FIRE_RATE_STEP := 0.05
@@ -200,6 +214,7 @@ var current_mana: float = 0.0
 var ultimate_energy_lock_remaining: float = 0.0
 var hurt_cooldown_remaining: float = 0.0
 var switch_invulnerability_remaining: float = 0.0
+var hidden_invulnerability_status_remaining: float = 0.0
 var level_up_delay_remaining: float = 0.0
 var switch_cooldown_remaining: float = 0.0
 var enemy_move_slow_multiplier: float = 1.0
@@ -265,6 +280,11 @@ var entry_rescue_remaining: float = 0.0
 var entry_rescue_regen_per_second: float = 0.0
 var lifesteal_proc_cooldown_remaining: float = 0.0
 var swordsman_trait_heal_cooldown_remaining: float = 0.0
+var swordsman_death_defiance_cooldown_remaining: float = 0.0
+var swordsman_death_defiance_will_remaining: float = 0.0
+var swordsman_entry_trait_share_remaining: float = 0.0
+var mage_arcane_surplus_remaining: float = 0.0
+var mage_arcane_charge_stacks: int = 0
 var greed_heal_cooldown_remaining: float = 0.0
 var entry_haste_interval_bonus: float = 0.0
 var entry_haste_move_speed_multiplier: float = 1.0
@@ -289,9 +309,12 @@ var ultimate_guard_remaining: float = 0.0
 var ultimate_guard_damage_multiplier: float = 1.0
 var player_action_lock_remaining: float = 0.0
 var healing_block_remaining: float = 0.0
+var aging_remaining: float = 0.0
+var aging_damage_carry: float = 0.0
 var confinement_center: Vector2 = Vector2.ZERO
 var confinement_radius: float = 0.0
 var confinement_remaining: float = 0.0
+var confinement_polygon: PackedVector2Array = PackedVector2Array()
 var perpetual_motion_cooldown_remaining: float = 0.0
 var frenzy_remaining: float = 0.0
 var frenzy_stacks: int = 0
@@ -299,6 +322,7 @@ var frenzy_overkill_counter: int = 0
 var role_standby_elapsed: Dictionary = {}
 var role_health_values: Dictionary = {}
 var role_mana_values: Dictionary = {}
+var role_switch_energy_values: Dictionary = {}
 var role_ultimate_energy_lock_remaining: Dictionary = {}
 var role_share_initialized: bool = false
 var role_visual_time: float = 0.0
@@ -311,6 +335,9 @@ var swordsman_role = SWORDSMAN_ROLE.new()
 var swordsman_attack_chain: int = 0
 var gunner_role = GUNNER_ROLE.new()
 var gunner_attack_chain: int = 0
+var gunner_flash_stacks: int = 0
+var gunner_flash_stack_elapsed: float = 0.0
+var gunner_flash_cooldown_remaining: float = 0.0
 var gunner_infinite_reload_ability = GUNNER_INFINITE_RELOAD_ABILITY.new()
 var gunner_shrapnel_field_ability = GUNNER_SHRAPNEL_FIELD_ABILITY.new()
 var mage_role = MAGE_ROLE.new()
@@ -862,6 +889,11 @@ func _apply_equipment_passives(delta: float) -> void:
 func _try_equipment_dodge() -> bool:
 	return PLAYER_EQUIPMENT_FLOW.try_dodge(self)
 
+func _get_gunner_flash_dodge_chance() -> float:
+	if str(_get_active_role().get("id", "")) != "gunner":
+		return 0.0
+	return GUNNER_FLASH_DODGE_CHANCE
+
 func _lock_player_actions(duration: float) -> void:
 	player_action_lock_remaining = max(player_action_lock_remaining, max(0.0, duration))
 	velocity = Vector2.ZERO
@@ -869,16 +901,30 @@ func _lock_player_actions(duration: float) -> void:
 func _is_player_action_locked() -> bool:
 	return player_action_lock_remaining > 0.0
 
+func _is_status_immune() -> bool:
+	return switch_invulnerability_remaining > 0.0
+
 func apply_healing_block(duration: float) -> void:
 	healing_block_remaining = max(healing_block_remaining, max(0.0, duration))
 
 func is_healing_blocked() -> bool:
 	return healing_block_remaining > 0.0
 
-func apply_confinement(center: Vector2, radius: float, duration: float) -> void:
+func apply_aging(duration: float) -> void:
+	if _is_status_immune():
+		return
+	aging_remaining = max(aging_remaining, max(0.0, duration))
+
+func apply_confinement(center: Vector2, radius: float, duration: float, polygon: PackedVector2Array = PackedVector2Array()) -> void:
+	if _is_status_immune():
+		return
 	confinement_center = center
 	confinement_radius = max(0.0, radius)
+	confinement_polygon = polygon
 	confinement_remaining = max(confinement_remaining, max(0.0, duration))
+
+func _clamp_to_active_map_bounds() -> void:
+	PLAYER_MAP_BOUNDS_FLOW.clamp_to_active_map_bounds(self)
 
 func _unhandled_input(event: InputEvent) -> void:
 	PLAYER_SURVIVAL_FLOW.unhandled_input(self, event)
@@ -893,6 +939,150 @@ func _physics_process(delta: float) -> void:
 
 func _update_timers(delta: float) -> void:
 	PLAYER_TIMER_FLOW.update_timers(self, delta)
+
+func _tick_gunner_flash_trait(delta: float) -> void:
+	if delta <= 0.0:
+		return
+	if gunner_flash_cooldown_remaining > 0.0:
+		gunner_flash_cooldown_remaining = max(0.0, gunner_flash_cooldown_remaining - delta)
+		if gunner_flash_cooldown_remaining <= 0.0:
+			gunner_flash_stack_elapsed = 0.0
+		return
+	if str(_get_active_role().get("id", "")) != "gunner":
+		gunner_flash_stack_elapsed = 0.0
+		return
+	if gunner_flash_stacks >= GUNNER_FLASH_MAX_STACKS:
+		gunner_flash_stacks = GUNNER_FLASH_MAX_STACKS
+		gunner_flash_stack_elapsed = 0.0
+		return
+	gunner_flash_stack_elapsed += delta
+	while gunner_flash_stack_elapsed >= GUNNER_FLASH_STACK_INTERVAL:
+		gunner_flash_stack_elapsed -= GUNNER_FLASH_STACK_INTERVAL
+		gunner_flash_stacks = min(GUNNER_FLASH_MAX_STACKS, gunner_flash_stacks + 1)
+
+func _break_gunner_flash_trait() -> void:
+	if str(_get_active_role().get("id", "")) != "gunner":
+		return
+	gunner_flash_stacks = 0
+	gunner_flash_stack_elapsed = 0.0
+	gunner_flash_cooldown_remaining = GUNNER_FLASH_COOLDOWN
+
+func _clear_gunner_flash_trait_on_switch() -> void:
+	gunner_flash_stacks = 0
+	gunner_flash_stack_elapsed = 0.0
+
+func _get_gunner_flash_damage_multiplier() -> float:
+	return 1.0 + float(max(gunner_flash_stacks, 0)) * GUNNER_FLASH_DAMAGE_PER_STACK
+
+func _get_gunner_flash_move_speed_multiplier() -> float:
+	return 1.0 + float(max(gunner_flash_stacks, 0)) * GUNNER_FLASH_SPEED_PER_STACK
+
+func _get_gunner_flash_buff_slot() -> Dictionary:
+	if str(_get_active_role().get("id", "")) != "gunner":
+		return {}
+	if gunner_flash_cooldown_remaining > 0.0:
+		return {
+			"name": "\u77AC\u6740\u51B7\u5374",
+			"description": "\u77AC\u6740\u51B7\u5374\u4E2D",
+			"text": "\u77AC",
+			"stacks": 0,
+			"remaining": gunner_flash_cooldown_remaining,
+			"duration": GUNNER_FLASH_COOLDOWN,
+			"color": Color(0.28, 0.58, 1.0, 0.88),
+			"cooldown": true
+		}
+	if gunner_flash_stacks <= 0:
+		return {}
+	return {
+		"name": "\u77AC\u6740",
+		"description": "\u6BCF\u5C42\u63D0\u53473%\u4F24\u5BB3\u548C\u79FB\u901F",
+		"text": "\u77AC",
+		"stacks": gunner_flash_stacks,
+		"remaining": GUNNER_FLASH_STACK_INTERVAL,
+		"duration": GUNNER_FLASH_STACK_INTERVAL,
+		"color": Color(0.25, 0.74, 1.0, 0.95),
+		"cooldown": false
+	}
+
+func _add_mage_arcane_charge_stack() -> void:
+	_add_mage_arcane_charge_stacks(1)
+
+func _add_mage_arcane_charge_stacks(count: int) -> void:
+	if str(_get_active_role().get("id", "")) != "mage":
+		return
+	if count <= 0:
+		return
+	mage_arcane_charge_stacks = clampi(mage_arcane_charge_stacks + count, 0, MAGE_ARCANE_CHARGE_MAX_STACKS)
+	stats_changed.emit(get_frame_hud_summary())
+
+func _clear_mage_arcane_charge_on_switch() -> void:
+	mage_arcane_charge_stacks = 0
+
+func _get_mage_arcane_charge_share_ratio() -> float:
+	return float(clampi(mage_arcane_charge_stacks, 0, MAGE_ARCANE_CHARGE_MAX_STACKS)) * MAGE_ARCANE_CHARGE_SHARE_PER_STACK
+
+func _get_mage_arcane_charge_self_energy_multiplier() -> float:
+	return 1.0 + float(clampi(mage_arcane_charge_stacks, 0, MAGE_ARCANE_CHARGE_MAX_STACKS)) * MAGE_ARCANE_CHARGE_SELF_ENERGY_PER_STACK
+
+func _get_mage_arcane_charge_damage_multiplier() -> float:
+	return 1.0 + float(clampi(mage_arcane_charge_stacks, 0, MAGE_ARCANE_CHARGE_MAX_STACKS)) * 0.025
+
+func _get_mage_arcane_charge_buff_slot() -> Dictionary:
+	if str(_get_active_role().get("id", "")) != "mage":
+		return {}
+	if mage_arcane_charge_stacks <= 0:
+		return {}
+	return {
+		"name": "\u5965\u672F\u5145\u80FD",
+		"description": "\u6BCF\u5C42\u63D0\u5347\u672F\u5E08\u81EA\u8EAB2%\u5927\u62DB\u56DE\u80FD\u6548\u7387\uFF0C\u5E76\u5C06\u81EA\u8EAB\u5927\u62DB\u56DE\u80FD\u768410%\u540C\u6B65\u7ED9\u5176\u4ED6\u89D2\u8272",
+		"text": "\u5965",
+		"stacks": clampi(mage_arcane_charge_stacks, 0, MAGE_ARCANE_CHARGE_MAX_STACKS),
+		"remaining": 1.0,
+		"duration": 1.0,
+		"color": Color(0.25, 0.74, 1.0, 0.95),
+		"cooldown": false
+	}
+
+func _get_swordsman_bloodthirst_buff_slot() -> Dictionary:
+	if swordsman_entry_trait_share_remaining <= 0.0:
+		return {}
+	return {
+		"name": "嗜血",
+		"description": "3秒内无敌，且剑士造成的吸血回复会同步作用到另外两名角色",
+		"text": "嗜",
+		"stacks": 0,
+		"remaining": swordsman_entry_trait_share_remaining,
+		"duration": SWORDSMAN_BLOODTHIRST_DURATION,
+		"color": Color(0.96, 0.82, 0.24, 0.95),
+		"cooldown": false,
+		"base_color": Color(0.66, 0.42, 0.08, 0.92)
+	}
+
+func _get_swordsman_will_buff_slot() -> Dictionary:
+	if swordsman_death_defiance_will_remaining > 0.0:
+		return {
+			"name": "\u6218\u610F",
+			"description": "\u81F4\u547D\u4F24\u5BB3\u540E\u4FDD\u75591\u70B9\u751F\u547D\u5E76\u83B7\u5F97\u65E0\u654C",
+			"text": "\u6218",
+			"stacks": 0,
+			"remaining": SWORDSMAN_DEATH_DEFIANCE_INVULNERABILITY,
+			"duration": SWORDSMAN_DEATH_DEFIANCE_INVULNERABILITY,
+			"color": Color(0.28, 0.58, 1.0, 0.88),
+			"cooldown": false,
+			"base_color": Color(0.08, 0.22, 0.58, 0.92)
+		}
+	if swordsman_death_defiance_cooldown_remaining > 0.0:
+		return {
+			"name": "\u6218\u610F\u51B7\u5374",
+			"description": "\u6218\u610F\u51B7\u5374\u4E2D",
+			"text": "\u6218",
+			"stacks": 0,
+			"remaining": swordsman_death_defiance_cooldown_remaining,
+			"duration": SWORDSMAN_DEATH_DEFIANCE_COOLDOWN,
+			"color": Color(0.28, 0.58, 1.0, 0.88),
+			"cooldown": true
+		}
+	return {}
 
 func _apply_developer_no_cooldown() -> void:
 	PLAYER_TIMER_FLOW.apply_developer_no_cooldown(self)
@@ -919,7 +1109,15 @@ func _perform_active_attack() -> void:
 	PLAYER_ATTACK_LOOP_FLOW.perform_active_attack(self)
 
 func _get_live_mouse_aim_direction(fallback_direction: Vector2 = Vector2.RIGHT) -> Vector2:
-	return _get_attack_aim_direction(fallback_direction)
+	var mouse_direction: Vector2 = get_global_mouse_position() - global_position
+	if mouse_direction.length_squared() > 4.0:
+		facing_direction = mouse_direction.normalized()
+		return facing_direction
+	if facing_direction.length_squared() > 0.001:
+		return facing_direction.normalized()
+	if fallback_direction.length_squared() > 0.001:
+		return fallback_direction.normalized()
+	return Vector2.RIGHT
 
 func _try_trigger_swordsman_blade_storm() -> void:
 	PLAYER_ABILITY_FLOW.try_trigger_swordsman_blade_storm(self)
@@ -1231,14 +1429,23 @@ func _clear_duration_status(status_id: String) -> void:
 	PLAYER_HEALTH_VISUALS.update_player_duration_status_bar(self)
 
 func _sync_orbit_pull_status(remaining: float, _pull_origin: Vector2) -> void:
+	if _is_status_immune():
+		_clear_duration_status("orbit_pull")
+		return
 	_sync_duration_status("orbit_pull", "牵引", remaining, 80, Color(0.22, 0.14, 0.28, 0.95))
 
 func _start_entangled_status(duration: float) -> void:
+	if _is_status_immune():
+		return
 	_start_duration_status("entangled", "缠绕", duration, 100, Color(0.56, 0.56, 0.56, 0.95))
 
 func _sync_invulnerability_status() -> void:
-	if switch_invulnerability_remaining > 0.0:
-		_sync_duration_status("invulnerable", "无敌", switch_invulnerability_remaining, 90, Color(0.95, 0.82, 0.22, 0.96))
+	var visible_invulnerability_remaining: float = max(0.0, switch_invulnerability_remaining - hidden_invulnerability_status_remaining)
+	if visible_invulnerability_remaining > 0.0:
+		if swordsman_entry_trait_share_remaining > 0.0:
+			_sync_duration_status("invulnerable", "嗜血", visible_invulnerability_remaining, 90, Color(0.96, 0.82, 0.24, 0.95))
+		else:
+			_sync_duration_status("invulnerable", "无敌", visible_invulnerability_remaining, 90, Color(0.95, 0.82, 0.22, 0.96))
 	else:
 		_clear_duration_status("invulnerable")
 
@@ -1340,6 +1547,30 @@ func _save_active_role_health() -> void:
 func _add_all_role_current_health(amount: float) -> void:
 	PLAYER_ROLE_STAT_FLOW.add_all_role_current_health(self, amount)
 
+func _heal_role(role_id: String, amount: float) -> void:
+	if role_id == "" or amount <= 0.0 or is_dead:
+		return
+	if has_method("is_healing_blocked") and is_healing_blocked():
+		return
+	if role_health_values is not Dictionary or role_health_values.is_empty():
+		role_health_values = _build_role_health_state()
+	var role_max_health: float = _get_role_max_health(role_id)
+	var current_value: float = _get_role_current_health(role_id)
+	var updated_value: float = clamp(current_value + amount, 0.0, role_max_health)
+	role_health_values[role_id] = updated_value
+	if role_id == _get_active_role_id():
+		current_health = updated_value
+		health_changed.emit(current_health, max_health)
+
+func _heal_roles_except(excluded_role_id: String, amount: float) -> void:
+	if amount <= 0.0:
+		return
+	for role_data in roles:
+		var role_id: String = str(role_data.get("id", ""))
+		if role_id == "" or role_id == excluded_role_id:
+			continue
+		_heal_role(role_id, amount)
+
 func _sync_active_role_max_health(preserve_ratio: bool = true, restore_gain: bool = false) -> void:
 	PLAYER_ROLE_STAT_FLOW.sync_active_role_max_health(self, preserve_ratio, restore_gain)
 
@@ -1400,8 +1631,37 @@ func apply_enemy_slow(multiplier: float, duration: float) -> void:
 func _add_energy(amount: float) -> void:
 	PLAYER_RESOURCE_FLOW.add_energy(self, amount)
 
-func _add_kill_energy(amount: float, bypass_lock_role_id: String = "") -> void:
-	PLAYER_COMBAT_RESULT_FLOW.add_kill_energy(self, amount, bypass_lock_role_id)
+func _get_role_switch_energy(role_id: String) -> float:
+	if role_switch_energy_values is not Dictionary or role_switch_energy_values.is_empty():
+		role_switch_energy_values = _build_role_resource_state_data(0.0)
+	return clamp(float(role_switch_energy_values.get(role_id, 0.0)), 0.0, SWITCH_ENTRY_ENERGY_REQUIRED)
+
+func _set_role_switch_energy(role_id: String, value: float) -> void:
+	if role_id == "":
+		return
+	if role_switch_energy_values is not Dictionary or role_switch_energy_values.is_empty():
+		role_switch_energy_values = _build_role_resource_state_data(0.0)
+	role_switch_energy_values[role_id] = clamp(value, 0.0, SWITCH_ENTRY_ENERGY_REQUIRED)
+
+func _add_switch_energy_from_damage(damage_amount: float, source_role_id: String = "") -> void:
+	if damage_amount <= 0.0:
+		return
+	var resolved_role_id: String = source_role_id if source_role_id != "" else _get_active_role_id()
+	_set_role_switch_energy(resolved_role_id, _get_role_switch_energy(resolved_role_id) + damage_amount * SWITCH_ENTRY_ENERGY_PER_DAMAGE)
+
+func _has_full_switch_energy(role_id: String = "") -> bool:
+	var resolved_role_id: String = role_id if role_id != "" else _get_active_role_id()
+	return _get_role_switch_energy(resolved_role_id) >= SWITCH_ENTRY_ENERGY_REQUIRED
+
+func _consume_switch_energy_for_entry(role_id: String = "") -> bool:
+	var resolved_role_id: String = role_id if role_id != "" else _get_active_role_id()
+	if not _has_full_switch_energy(resolved_role_id):
+		return false
+	_set_role_switch_energy(resolved_role_id, 0.0)
+	return true
+
+func _add_kill_energy(amount: float, bypass_lock_role_id: String = "", source_role_id: String = "") -> void:
+	PLAYER_COMBAT_RESULT_FLOW.add_kill_energy(self, amount, bypass_lock_role_id, source_role_id)
 
 func _get_kill_energy_from_enemy(enemy: Node) -> float:
 	return PLAYER_COMBAT_RESULT_FLOW.get_kill_energy_from_enemy(enemy)

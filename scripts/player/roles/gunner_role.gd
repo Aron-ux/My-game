@@ -314,7 +314,7 @@ func _apply_ultimate_cone_damage(owner, barrage_level: int, focus_level: int, co
 	if owner.is_dead:
 		return
 	var origin: Vector2 = owner.global_position
-	var direction: Vector2 = owner._get_attack_aim_direction(owner.facing_direction)
+	var direction: Vector2 = owner._get_live_mouse_aim_direction(owner.facing_direction)
 	if direction.length_squared() <= 0.001:
 		direction = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
 	direction = direction.normalized()
@@ -344,7 +344,7 @@ func _apply_ultimate_cone_damage(owner, barrage_level: int, focus_level: int, co
 func _spawn_ultimate_cone_visuals(owner, barrage_level: int, focus_level: int, scatter_level: int, cone_degrees: float, visual_index: int) -> void:
 	if owner.is_dead:
 		return
-	var direction: Vector2 = owner._get_attack_aim_direction(owner.facing_direction)
+	var direction: Vector2 = owner._get_live_mouse_aim_direction(owner.facing_direction)
 	if direction.length_squared() <= 0.001:
 		direction = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
 	direction = direction.normalized()

@@ -86,6 +86,7 @@ static func ensure_status_visuals(enemy) -> void:
 
 static func update_status_visuals(enemy) -> void:
 	_update_invulnerability_tint(enemy)
+	var hit_flash_alpha: float = enemy._get_hit_flash_alpha()
 	if enemy.status_root == null:
 		if not enemy.has_method("_has_status_visual_pressure") or not bool(enemy._has_status_visual_pressure()):
 			return
@@ -95,7 +96,6 @@ static func update_status_visuals(enemy) -> void:
 	elif enemy.has_method("_has_status_visual_pressure") and not bool(enemy._has_status_visual_pressure()):
 		_clear_status_visuals(enemy)
 		return
-	var hit_flash_alpha: float = enemy._get_hit_flash_alpha()
 	var polygon := enemy.get_node_or_null("Polygon2D") as Polygon2D
 	if polygon != null:
 		var target_modulate := Color.WHITE
@@ -109,11 +109,10 @@ static func update_status_visuals(enemy) -> void:
 			target_modulate = target_modulate.lerp(Color(1.0, 0.92, 0.56, 1.0), 0.46)
 		if enemy._is_dasher and enemy.dash_remaining > 0.0:
 			target_modulate = target_modulate.lerp(Color(1.0, 0.72, 0.72, 1.0), 0.32)
+		var flash_strength: float = clamp(1.0 - hit_flash_alpha, 0.0, 1.0)
+		target_modulate = target_modulate.lerp(Color.WHITE, flash_strength)
 		polygon.modulate = polygon.modulate.lerp(target_modulate, 0.18)
-		polygon.modulate.a = hit_flash_alpha
-
-	if enemy.boss_visual_instance != null and is_instance_valid(enemy.boss_visual_instance):
-		enemy._apply_hit_flash_alpha_to_node(enemy.boss_visual_instance, hit_flash_alpha)
+		polygon.modulate.a = 1.0
 
 	if enemy.slow_ring != null:
 		enemy.slow_ring.visible = enemy.slow_timer > 0.0

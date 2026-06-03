@@ -10,11 +10,18 @@ const ULTIMATE_DURATION := 4.0
 const ULTIMATE_BOMBARD_INTERVAL := 0.25
 const ULTIMATE_KILL_ENERGY_MULTIPLIER := 2.0
 const ULTIMATE_BASE_DAMAGE_RATIO := 1.14
+const ULTIMATE_GUNNER_ULTIMATE_OUTPUT_RATIO := 0.75
 const ULTIMATE_BOSS_TARGET_WEIGHT := 0.35
 const ULTIMATE_EXTRA_BOMBARDS := 8
 const ULTIMATE_TIER_TWO_EXTRA_BOMBARDS := 6
 const ULTIMATE_TIER_THREE_EXTRA_BOMBARDS := 3
 const ULTIMATE_TIER_THREE_KILL_ENERGY := 0.45
+const ENTRY_ARCANE_SURPLUS_DURATION := 5.0
+const ENTRY_ARCANE_SURPLUS_STATUS_ID := "mage_arcane_surplus"
+const ENTRY_LIGHTNING_COUNT := 5
+const ENTRY_LIGHTNING_DISTANCE := 92.0
+const ENTRY_LIGHTNING_RADIUS := 52.0 * MAGE_ATTACK_EFFECT_SCALE
+const ENTRY_LIGHTNING_DAMAGE_SCALE := 1.08
 
 func perform_attack(owner) -> void:
 	var contexts: Array = _build_attack_contexts(owner)
@@ -250,14 +257,36 @@ func perform_background(owner) -> void:
 			break
 
 func perform_enter(owner, role_id: String, _assault_level: int, _assault_multiplier: float) -> int:
-	owner._show_switch_banner("\u8FDB\u573A", "\u971C\u73AF\u548F\u5531", Color(0.54, 0.9, 1.0, 1.0))
-	var bombard_count := 3
-	var radius_multiplier: float = float(owner._get_role_blessing_stat_bonus(role_id, "skill_range")) + 1.0
-	var bombard_centers: Array = owner._get_random_enemy_cluster_centers(bombard_count)
+	owner._show_switch_banner("\u8FDB\u573A", "\u5965\u6CD5\u76C8\u4F59", Color(0.34, 0.72, 1.0, 1.0))
+	var hit_count: int = _cast_entry_lightning_ring(owner, role_id)
+	owner.mage_arcane_surplus_remaining = ENTRY_ARCANE_SURPLUS_DURATION
+	owner._start_duration_status(ENTRY_ARCANE_SURPLUS_STATUS_ID, "\u5965\u6CD5\u76C8\u4F59", ENTRY_ARCANE_SURPLUS_DURATION, 18, Color(0.34, 0.72, 1.0, 0.95))
+	return hit_count
+
+func _cast_entry_lightning_ring(owner, role_id: String) -> int:
+	var centers: Array[Vector2] = []
+	var base_direction: Vector2 = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
+	for index in range(ENTRY_LIGHTNING_COUNT):
+		var angle_offset: float = TAU * float(index) / float(ENTRY_LIGHTNING_COUNT)
+		var direction: Vector2 = base_direction.rotated(angle_offset).normalized()
+		centers.append(owner.global_position + direction * ENTRY_LIGHTNING_DISTANCE)
+	for center in centers:
+		owner._spawn_mage_warning_scene_effect(center, ENTRY_LIGHTNING_RADIUS)
+	var damage_amount: float = owner._get_role_damage(role_id) * ENTRY_LIGHTNING_DAMAGE_SCALE
+	if owner.get_tree() == null or not owner.has_method("_schedule_repeating_sequence"):
+		return _resolve_entry_lightning_ring(owner, role_id, centers, damage_amount)
+	var warning_duration: float = owner._get_scene_animation_duration(owner.MAGE_WARNING_EFFECT_SCENE, 0.2)
+	owner._schedule_repeating_sequence(0.0, 1, func(_index: int) -> void:
+		if is_instance_valid(owner):
+			_resolve_entry_lightning_ring(owner, role_id, centers, damage_amount)
+	, warning_duration)
+	return 0
+
+func _resolve_entry_lightning_ring(owner, role_id: String, centers: Array[Vector2], damage_amount: float) -> int:
 	var total_hits: int = 0
-	for bombard_center in bombard_centers:
-		total_hits += owner._count_enemies_in_radius(bombard_center, owner.MAGE_ENTRY_HIT_RADIUS * radius_multiplier)
-	owner._start_mage_entry_bombardment(role_id, bombard_centers)
+	for center in centers:
+		owner._spawn_mage_boom_scene_effect(center, ENTRY_LIGHTNING_RADIUS)
+		total_hits += owner._damage_enemies_in_radius(center, ENTRY_LIGHTNING_RADIUS, damage_amount, 0.04, 0.78, 1.2, role_id)
 	return total_hits
 
 func perform_exit(_owner, _role_id: String, _rearguard_level: int) -> int:
@@ -279,7 +308,6 @@ func perform_ultimate(owner, cast_payload: Dictionary) -> void:
 	var bombard_scales: Array[float] = _build_ultimate_segment_scales(bombard_count, combo_scales)
 	var total_sequence_duration: float = 0.28 + float(bombard_scales.size() - 1) * ULTIMATE_BOMBARD_INTERVAL
 	owner._queue_camera_shake(18.5, 0.58)
-	owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, 0.45)
 	owner._delay_level_up_requests(total_sequence_duration)
 	owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -34.0), "奥数轰炸", Color(0.82, 0.96, 1.0, 1.0))
 	owner._spawn_vortex_effect(center, 58.0 + gravity_level * 12.0, Color(0.76, 0.84, 1.0, 0.54), 0.32)
@@ -312,9 +340,8 @@ func _trigger_ultimate_bombardment(owner, bombard_scales: Array[float], storm_le
 	var main_center: Vector2 = cluster_center + Vector2.RIGHT.rotated(orbit_angle) * (12.0 + 8.0 * sin(orbit_angle * 1.4))
 	var tier_damage_multiplier: float = 1.16 if ultimate_tier >= 2 else 1.0
 	var pulse_radius: float = (72.0 + storm_level * 9.0 + frost_level * 4.0) * owner._get_story_style_range_multiplier("mage") * owner._get_role_attribute_range_multiplier("mage")
-	var pulse_damage: float = owner._get_role_damage("mage") * (ULTIMATE_BASE_DAMAGE_RATIO + storm_level * 0.08 + echo_level * 0.04) * cast_damage_multiplier * max(0.0, effect_scale) * tier_damage_multiplier
+	var pulse_damage: float = owner._get_role_damage("mage") * (ULTIMATE_BASE_DAMAGE_RATIO + storm_level * 0.08 + echo_level * 0.04) * cast_damage_multiplier * max(0.0, effect_scale) * tier_damage_multiplier * ULTIMATE_GUNNER_ULTIMATE_OUTPUT_RATIO
 	owner._queue_camera_shake(6.4 + float(storm_level) * 0.28, 0.12)
-	owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, 0.08)
 	if gravity_level > 0:
 		owner._pull_enemies_toward(cluster_center, 132.0 + gravity_level * 18.0, 20.0 + gravity_level * 10.0)
 		owner._spawn_vortex_effect(cluster_center, 40.0 + gravity_level * 14.0, Color(0.76, 0.82, 1.0, 0.42), 0.18)
@@ -343,7 +370,7 @@ func _trigger_ultimate_bombardment(owner, bombard_scales: Array[float], storm_le
 			if echo_center.distance_to(main_center) > 28.0:
 				var echo_radius: float = 46.0 + echo_level * 8.0
 				owner._spawn_burst_effect(echo_center, echo_radius, Color(0.68, 0.96, 1.0, 0.18), 0.18)
-				shape_hits += owner._damage_enemies_in_radius(echo_center, echo_radius, owner._get_role_damage("mage") * (0.3 + echo_level * 0.05) * max(0.0, effect_scale) * tier_damage_multiplier, 0.04, max(0.3, 0.52 - frost_level * 0.03), 1.8, "mage")
+				shape_hits += owner._damage_enemies_in_radius(echo_center, echo_radius, owner._get_role_damage("mage") * (0.3 + echo_level * 0.05) * max(0.0, effect_scale) * tier_damage_multiplier * ULTIMATE_GUNNER_ULTIMATE_OUTPUT_RATIO, 0.04, max(0.3, 0.52 - frost_level * 0.03), 1.8, "mage")
 	if shape_hits > 0 and not _uses_batched_damage(owner):
 		owner._register_attack_result("mage", shape_hits, false)
 

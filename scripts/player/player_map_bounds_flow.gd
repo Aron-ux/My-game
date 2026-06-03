@@ -43,6 +43,13 @@ static func _get_hurtbox_safe_bounds(owner: Node2D, bounds: Rect2) -> Rect2:
 static func _clamp_to_active_confinement(owner: Node2D) -> void:
 	if owner.get("confinement_remaining") == null or float(owner.get("confinement_remaining")) <= 0.0:
 		return
+	var polygon_value: Variant = owner.get("confinement_polygon")
+	if polygon_value is PackedVector2Array and (polygon_value as PackedVector2Array).size() >= 3:
+		var safe_polygon := _shrink_polygon_toward_center(polygon_value as PackedVector2Array, owner)
+		if Geometry2D.is_point_in_polygon(owner.global_position, safe_polygon):
+			return
+		owner.global_position = _get_closest_point_on_polygon(owner.global_position, safe_polygon)
+		return
 	var radius: float = float(owner.get("confinement_radius"))
 	if radius <= 0.0:
 		return
@@ -55,6 +62,37 @@ static func _clamp_to_active_confinement(owner: Node2D) -> void:
 	if offset.length_squared() <= safe_radius * safe_radius:
 		return
 	owner.global_position = center + offset.normalized() * safe_radius
+
+static func _shrink_polygon_toward_center(points: PackedVector2Array, owner: Node2D) -> PackedVector2Array:
+	var center := Vector2.ZERO
+	for point in points:
+		center += point
+	center /= float(points.size())
+	var margin := _get_owner_hurtbox_radius(owner)
+	if margin <= 0.0:
+		return points
+	var safe_points := PackedVector2Array()
+	for point in points:
+		var offset := point - center
+		var length := offset.length()
+		if length <= margin:
+			safe_points.append(center)
+		else:
+			safe_points.append(center + offset.normalized() * (length - margin))
+	return safe_points
+
+static func _get_closest_point_on_polygon(point: Vector2, polygon: PackedVector2Array) -> Vector2:
+	var closest := polygon[0]
+	var closest_distance := INF
+	for index in range(polygon.size()):
+		var start := polygon[index]
+		var end := polygon[(index + 1) % polygon.size()]
+		var candidate := Geometry2D.get_closest_point_to_segment(point, start, end)
+		var distance := point.distance_squared_to(candidate)
+		if distance < closest_distance:
+			closest_distance = distance
+			closest = candidate
+	return closest
 
 static func _get_owner_hurtbox_radius(owner: Node2D) -> float:
 	if owner.has_method("get_hurtbox_radius"):

@@ -23,6 +23,7 @@ static func ready(owner) -> void:
 	owner.role_standby_elapsed = owner._build_role_timing_state_data(0.0)
 	owner.role_health_values = owner._build_role_health_state()
 	owner.role_mana_values = owner._build_role_timing_state_data(0.0)
+	owner.role_switch_energy_values = owner._build_role_resource_state_data(0.0)
 	owner.role_ultimate_energy_lock_remaining = owner._build_role_timing_state_data(0.0)
 	owner.experience_to_next_level = PLAYER_LEVEL_CURVE.normalize_required_experience(owner.level, owner.experience_to_next_level)
 

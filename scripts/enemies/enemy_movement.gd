@@ -27,12 +27,18 @@ static func compute_velocity(enemy, delta: float) -> Vector2:
 		else:
 			move_direction = (direction_to_target.orthogonal() * enemy.strafe_sign + direction_to_target * 0.18).normalized()
 
-	if enemy._is_dasher and enemy.dash_windup_remaining > 0.0:
+	var has_dash_windup: bool = (enemy._is_dasher and enemy.dash_windup_remaining > 0.0) or (enemy.behavior_id == "skulltomb" and enemy.skulltomb_charge_windup_remaining > 0.0)
+	if has_dash_windup:
 		return Vector2.ZERO
 
-	if enemy._is_dasher and enemy.dash_remaining > 0.0:
+	var has_active_dash: bool = (enemy._is_dasher and enemy.dash_remaining > 0.0) or (enemy.behavior_id == "skulltomb" and enemy.dash_remaining > 0.0)
+	if has_active_dash:
 		move_direction = enemy.dash_direction
 		move_speed *= enemy.dash_speed_multiplier
+		if enemy.behavior_id == "skulltomb":
+			var remaining_forward: float = max(0.0, (enemy.skulltomb_charge_target_position - enemy.global_position).dot(move_direction.normalized()))
+			var max_speed_for_target: float = remaining_forward / max(0.001, delta * GLOBAL_UNIT_MOVE_SPEED_SCALE)
+			move_speed = min(move_speed, max_speed_for_target)
 
 	if enemy._is_accelerator and enemy.acceleration_remaining > 0.0:
 		move_speed *= enemy.acceleration_boost

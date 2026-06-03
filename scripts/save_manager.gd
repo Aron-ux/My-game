@@ -299,7 +299,7 @@ static func get_continue_target_scene() -> String:
 	if mode == MODE_ENDLESS:
 		var endless_slot_id := _get_last_endless_slot_id()
 		if endless_slot_id >= 1 and endless_slot_id <= ENDLESS_SLOT_COUNT and has_save(endless_slot_id, MODE_ENDLESS):
-			return ENDLESS_CAMP_SCENE_PATH
+			return STORY_DATA.BATTLE_SCENE_PATH
 		return ""
 
 	if not STORY_DATA.is_story_mode_enabled():

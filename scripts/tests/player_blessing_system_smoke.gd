@@ -45,10 +45,10 @@ func _check_level_up_offer_uses_new_pool() -> void:
 		if option is not Dictionary:
 			failures.append("offer option should be a Dictionary, got %s" % str(option))
 			continue
-		var category := str((option as Dictionary).get("blessing_category", ""))
+		var category: String = str((option as Dictionary).get("blessing_category", ""))
 		if category != PlayerBlessingSystem.CATEGORY_GENERAL_BLESSING and category != PlayerBlessingSystem.CATEGORY_MAGIC_STONE and category != PlayerBlessingSystem.CATEGORY_MAGIC_STONE_BLESSING:
 			failures.append("current offer should contain blessings or magic stone items, got %s" % str(option))
-		var tier := int((option as Dictionary).get("blessing_tier", 0))
+		var tier: int = int((option as Dictionary).get("blessing_tier", 0))
 		if tier < 1 or tier > 4:
 			failures.append("offer tier should be I-IV, got %s" % str(option))
 
@@ -161,8 +161,8 @@ func _check_default_magic_stone_blessings_are_offerable() -> void:
 	var seen_tiers := {}
 	for option in options:
 		if option is Dictionary:
-			var blessing_id := str((option as Dictionary).get("blessing_id", ""))
-			var tier := int((option as Dictionary).get("blessing_tier", 0))
+			var blessing_id: String = str((option as Dictionary).get("blessing_id", ""))
+			var tier: int = int((option as Dictionary).get("blessing_tier", 0))
 			seen_ids[blessing_id] = true
 			if not seen_tiers.has(blessing_id):
 				seen_tiers[blessing_id] = {}
@@ -196,13 +196,12 @@ func _check_default_magic_stone_blessings_are_offerable() -> void:
 
 func _check_four_tier_caps() -> void:
 	var owner := _OwnerStub.new()
-	var expected_limits := {1: 6, 2: 3, 3: 2, 4: 1}
-	for tier in expected_limits.keys():
+	for tier in range(1, PlayerBlessingSystem.MAX_BLESSING_TIER + 1):
 		for _index in range(8):
 			PlayerBlessingSystem.apply_option(owner, "blessing:divine_grace:%d" % int(tier))
-		var level := int(((owner.role_blessing_levels.get("swordsman", {}) as Dictionary).get("divine_grace", {}) as Dictionary).get(int(tier), 0))
-		if level != int(expected_limits.get(tier, 0)):
-			failures.append("tier %d cap mismatch, expected %d got %d" % [int(tier), int(expected_limits.get(tier, 0)), level])
+		var level: int = int(((owner.role_blessing_levels.get("swordsman", {}) as Dictionary).get("divine_grace", {}) as Dictionary).get(int(tier), 0))
+		if level != 8:
+			failures.append("tier %d should be unlimited, expected 8 got %d" % [int(tier), level])
 
 
 func _check_general_blessing_stats() -> void:
@@ -218,10 +217,10 @@ func _check_general_blessing_stats() -> void:
 			failures.append("tailwind should add shared move speed")
 		if not is_equal_approx(PlayerBlessingSystem.get_role_stat_bonus(owner, role_id, "damage"), 15.0):
 			failures.append("blazing sun should add shared flat damage")
-	if not is_equal_approx(PlayerBlessingSystem.get_greed_heal_amount(owner), 20.0):
-		failures.append("greed tier IV should provide 20 heal amount")
-	if not is_equal_approx(PlayerBlessingSystem.get_greed_proc_chance(owner), 0.05):
-		failures.append("greed proc chance should be 5 percent")
+	if not is_equal_approx(PlayerBlessingSystem.get_greed_heal_ratio(owner), 0.01):
+		failures.append("greed should provide 1 percent max health heal ratio")
+	if not is_equal_approx(PlayerBlessingSystem.get_greed_proc_chance(owner), 0.20):
+		failures.append("greed tier IV should provide 20 percent proc chance")
 
 
 func _check_global_skill_blessings() -> void:
@@ -292,9 +291,9 @@ func _check_nonlinear_stats() -> void:
 		failures.append("benediction should stack nonlinearly")
 	PlayerBlessingSystem.apply_option(owner, "blessing:phantom:2")
 	PlayerBlessingSystem.apply_option(owner, "blessing:phantom:2")
-	var expected_dodge := 1.0 - pow(0.95, 2.0)
+	var expected_dodge := 0.10
 	if not is_equal_approx(PlayerBlessingSystem.get_role_stat_bonus(owner, "gunner", "dodge"), expected_dodge):
-		failures.append("phantom should stack nonlinearly")
+		failures.append("phantom should stack linearly")
 
 
 func _check_manual_compose_keeps_legacy_entry_points() -> void:
@@ -318,12 +317,12 @@ func _check_developer_blessing_options_count_shared_blessings() -> void:
 	var role_option: Dictionary = _find_developer_blessing_option(owner, "divine_grace:1")
 	if int(role_option.get("tier", 0)) != 1:
 		failures.append("developer blessing option should include role-bound blessing")
-	if not str(role_option.get("title", "")).contains("1/6"):
-		failures.append("developer role-bound blessing option should display shared count 1/6, got %s" % str(role_option.get("title", "")))
+	if not str(role_option.get("title", "")).contains("x1"):
+		failures.append("developer role-bound blessing option should display shared count x1, got %s" % str(role_option.get("title", "")))
 	PlayerBlessingSystem.apply_blessing(owner, "tide_rain", 1, false)
 	var skill_option: Dictionary = _find_developer_blessing_option(owner, "tide_rain:1")
-	if not str(skill_option.get("title", "")).contains("1/6"):
-		failures.append("developer skill-bound blessing option should display count 1/6, got %s" % str(skill_option.get("title", "")))
+	if not str(skill_option.get("title", "")).contains("x1"):
+		failures.append("developer skill-bound blessing option should display count x1, got %s" % str(skill_option.get("title", "")))
 
 
 func _find_developer_blessing_option(owner, option_id: String) -> Dictionary:

@@ -75,6 +75,29 @@ static func get_owner_priority_boss_target(owner, origin: Vector2) -> Node2D:
 	return value
 
 
+static func get_enemy_aim_point(enemy: Node2D, origin: Vector2) -> Vector2:
+	if enemy == null or not is_instance_valid(enemy):
+		return origin
+	var hit_shape: Dictionary = PLAYER_DAMAGE_RESOLVER.get_enemy_player_hit_shape(enemy)
+	if hit_shape.is_empty():
+		return enemy.global_position
+	var center_value: Variant = hit_shape.get("center", enemy.global_position)
+	var center: Vector2 = center_value if center_value is Vector2 else enemy.global_position
+	var direction: Vector2 = origin - center
+	if direction.length_squared() <= 0.001:
+		return center
+	var horizontal_radius: float = max(1.0, float(hit_shape.get("horizontal_radius", 1.0)))
+	var vertical_radius: float = max(1.0, float(hit_shape.get("vertical_radius", 1.0)))
+	var normalized_direction: Vector2 = direction.normalized()
+	var denominator: float = sqrt(
+		pow(normalized_direction.x / horizontal_radius, 2.0)
+		+ pow(normalized_direction.y / vertical_radius, 2.0)
+	)
+	if denominator <= 0.001:
+		return center
+	return center + normalized_direction / denominator
+
+
 static func get_owner_enemy_in_aim_cone(owner, max_angle_degrees: float, max_distance: float = INF) -> Node2D:
 	var key: String = _owner_cache_key(owner, "aim_cone_%.2f_%.2f_%.3f_%.3f" % [max_angle_degrees, max_distance, owner.facing_direction.x, owner.facing_direction.y])
 	if _has_owner_cache(key):

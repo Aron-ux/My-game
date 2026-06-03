@@ -1,6 +1,7 @@
 extends Node2D
 
 const PLAYER_DAMAGE_RESOLVER := preload("res://scripts/player/player_damage_resolver.gd")
+const PLAYER_TARGETING := preload("res://scripts/player/player_targeting.gd")
 const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
 const PERFORMANCE_COUNTERS := preload("res://scripts/game/performance_counters.gd")
 const WHITE_KEY_SHADER := preload("res://shaders/white_key.gdshader")
@@ -362,7 +363,8 @@ func _physics_process(delta: float) -> void:
 	if wave_amplitude > 0.0 and target == null:
 		_update_wave_motion(delta, effective_speed)
 	elif target != null and is_instance_valid(target):
-		direction = global_position.direction_to(target.global_position)
+		var target_position: Vector2 = PLAYER_TARGETING.get_enemy_aim_point(target, global_position)
+		direction = global_position.direction_to(target_position)
 		rotation = direction.angle()
 		global_position += direction.normalized() * effective_speed * delta
 	else:
@@ -415,11 +417,23 @@ func _get_enemy_hit_radius(enemy: Node2D) -> float:
 	return clamp(float(enemy_contact_radius) * enemy_hit_radius_scale, enemy_hit_radius_min, enemy_hit_radius_max)
 
 func _segment_hits_enemy(enemy: Node2D, start_position: Vector2, end_position: Vector2) -> bool:
+	var enemy_hit_shape: Dictionary = PLAYER_DAMAGE_RESOLVER.get_enemy_player_hit_shape(enemy)
+	if not enemy_hit_shape.is_empty():
+		var projectile_radius: float = hit_radius * max(0.01, hit_radius_multiplier)
+		if start_position.distance_squared_to(end_position) <= 0.001:
+			return PLAYER_DAMAGE_RESOLVER._is_center_inside_enemy_touch_shape(start_position, projectile_radius, enemy_hit_shape)
+		var shape_center: Vector2 = _get_shape_center(enemy_hit_shape, enemy.global_position)
+		var closest_point: Vector2 = Geometry2D.get_closest_point_to_segment(shape_center, start_position, end_position)
+		return PLAYER_DAMAGE_RESOLVER._is_center_inside_enemy_touch_shape(closest_point, projectile_radius, enemy_hit_shape)
 	var total_hit_radius: float = hit_radius * max(0.01, hit_radius_multiplier) + _get_enemy_hit_radius(enemy)
 	if start_position.distance_squared_to(end_position) <= 0.001:
 		return start_position.distance_squared_to(enemy.global_position) <= total_hit_radius * total_hit_radius
-	var closest_point := Geometry2D.get_closest_point_to_segment(enemy.global_position, start_position, end_position)
+	var closest_point: Vector2 = Geometry2D.get_closest_point_to_segment(enemy.global_position, start_position, end_position)
 	return closest_point.distance_squared_to(enemy.global_position) <= total_hit_radius * total_hit_radius
+
+func _get_shape_center(shape: Dictionary, fallback: Vector2) -> Vector2:
+	var center_value: Variant = shape.get("center", fallback)
+	return center_value if center_value is Vector2 else fallback
 
 func _find_bounce_target(last_enemy: Node2D) -> Node2D:
 	var chosen_enemy: Node2D
@@ -446,7 +460,7 @@ func _try_hit_enemy(start_position: Vector2, end_position: Vector2) -> void:
 			return
 
 	var query_center: Vector2 = (start_position + end_position) * 0.5
-	var query_radius: float = start_position.distance_to(end_position) * 0.5 + hit_radius * max(0.01, hit_radius_multiplier) + enemy_hit_radius_max + 8.0
+	var query_radius: float = start_position.distance_to(end_position) * 0.5 + hit_radius * max(0.01, hit_radius_multiplier) + max(enemy_hit_radius_max, PLAYER_DAMAGE_RESOLVER.BOSS_TOUCH_DAMAGE_QUERY_PADDING) + 8.0
 	for enemy in _get_candidate_enemies_near(query_center, query_radius):
 		if not is_instance_valid(enemy):
 			continue
@@ -537,10 +551,11 @@ func _apply_hit(enemy: Node2D) -> void:
 
 	if bounce_count > 0:
 		bounce_count -= 1
-		var bounce_target := _find_bounce_target(enemy)
+		var bounce_target: Node2D = _find_bounce_target(enemy)
 		if bounce_target != null:
 			target = bounce_target
-			direction = global_position.direction_to(bounce_target.global_position)
+			var bounce_target_position: Vector2 = PLAYER_TARGETING.get_enemy_aim_point(bounce_target, global_position)
+			direction = global_position.direction_to(bounce_target_position)
 			return
 
 	if pierce_count > 0:

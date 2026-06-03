@@ -3,6 +3,7 @@ extends RefCounted
 const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
 const GAME_SETTINGS := preload("res://scripts/game_settings.gd")
 const PLAYER_LEVEL_CURVE := preload("res://scripts/player/player_level_curve.gd")
+const PLAYER_TARGETING := preload("res://scripts/player/player_targeting.gd")
 
 const EXPERIENCE_GAIN_MULTIPLIER := 2.43
 const EXPERIENCE_FRACTION_CARRY_KEY := "__experience_fraction_carry"
@@ -10,6 +11,8 @@ const PICKUP_SCAN_CURSOR_KEY := "__pickup_scan_cursor"
 const HEART_SCAN_CURSOR_KEY := "__heart_scan_cursor"
 const PICKUP_SCAN_BATCH_SIZE := 80
 const HEART_SCAN_BATCH_SIZE := 28
+const SWORDSMAN_DEATH_DEFIANCE_COOLDOWN := 80.0
+const SWORDSMAN_DEATH_DEFIANCE_INVULNERABILITY := 1.5
 
 static func unhandled_input(owner, event: InputEvent) -> void:
 	if owner.is_dead or owner.get_tree().paused:
@@ -99,9 +102,35 @@ static func regenerate_energy(owner, delta: float) -> void:
 
 static func _update_area_control_states(owner, delta: float) -> void:
 	owner.healing_block_remaining = max(0.0, float(owner.healing_block_remaining) - delta)
+	owner.aging_remaining = max(0.0, float(owner.aging_remaining) - delta)
+	if owner.aging_remaining > 0.0:
+		_apply_aging_damage(owner, delta)
+	else:
+		owner.aging_damage_carry = 0.0
 	owner.confinement_remaining = max(0.0, float(owner.confinement_remaining) - delta)
 	if owner.confinement_remaining <= 0.0:
 		owner.confinement_radius = 0.0
+		owner.confinement_polygon = PackedVector2Array()
+
+
+static func _apply_aging_damage(owner, delta: float) -> void:
+	if delta <= 0.0 or owner.is_dead:
+		return
+	var raw_damage: float = max(1.0, float(owner.max_health)) * 0.06 * delta
+	owner.aging_damage_carry += raw_damage
+	var damage_to_apply: float = floor(owner.aging_damage_carry)
+	if damage_to_apply < 1.0:
+		return
+	owner.aging_damage_carry -= damage_to_apply
+	var previous_health: float = float(owner.current_health)
+	owner.current_health = max(1.0, previous_health - damage_to_apply)
+	if damage_to_apply > 0.0 and owner.has_method("_break_gunner_flash_trait"):
+		owner._break_gunner_flash_trait()
+	if owner.has_method("_save_active_role_health"):
+		owner._save_active_role_health()
+	if owner.current_health != previous_health:
+		owner.health_changed.emit(owner.current_health, owner.max_health)
+		owner._update_player_health_bar(owner._get_active_role())
 
 
 static func apply_attribute_passives(owner, delta: float) -> void:
@@ -123,7 +152,8 @@ static func update_facing_direction(owner) -> void:
 	if owner.auto_attack_enabled:
 		var target_enemy: Node2D = owner._get_closest_enemy()
 		if target_enemy != null and is_instance_valid(target_enemy):
-			var to_enemy: Vector2 = target_enemy.global_position - owner.global_position
+			var aim_point: Vector2 = PLAYER_TARGETING.get_enemy_aim_point(target_enemy, owner.global_position)
+			var to_enemy: Vector2 = aim_point - owner.global_position
 			if to_enemy.length_squared() > 0.001:
 				owner.facing_direction = to_enemy.normalized()
 				_sync_visual_facing_to_direction(owner, owner.facing_direction)
@@ -137,7 +167,8 @@ static func update_facing_direction(owner) -> void:
 
 	var enemy: Node2D = owner._get_closest_enemy()
 	if enemy != null:
-		owner.facing_direction = owner.global_position.direction_to(enemy.global_position)
+		var aim_point: Vector2 = PLAYER_TARGETING.get_enemy_aim_point(enemy, owner.global_position)
+		owner.facing_direction = owner.global_position.direction_to(aim_point)
 		_sync_visual_facing_to_direction(owner, owner.facing_direction)
 
 
@@ -160,7 +191,8 @@ static func get_attack_aim_direction(owner, fallback_direction: Vector2 = Vector
 	if owner.auto_attack_enabled:
 		var target_enemy: Node2D = owner._get_closest_enemy()
 		if target_enemy != null and is_instance_valid(target_enemy):
-			var target_direction: Vector2 = owner.global_position.direction_to(target_enemy.global_position)
+			var aim_point: Vector2 = PLAYER_TARGETING.get_enemy_aim_point(target_enemy, owner.global_position)
+			var target_direction: Vector2 = owner.global_position.direction_to(aim_point)
 			if target_direction.length_squared() > 0.001:
 				owner.facing_direction = target_direction
 				return target_direction
@@ -307,12 +339,6 @@ static func take_damage(owner, amount: float) -> void:
 		_show_dodge_tag(owner)
 		return
 
-	var attribute_dodge_chance: float = owner._get_attribute_dodge_chance() if owner.has_method("_get_attribute_dodge_chance") else 0.0
-	if attribute_dodge_chance > 0.0 and randf() < attribute_dodge_chance:
-		owner.hurt_cooldown_remaining = owner.hurt_cooldown * 0.55
-		_show_dodge_tag(owner)
-		return
-
 	if owner._get_active_role()["id"] == "swordsman":
 		var nearby_enemy_count: int = owner._count_enemies_in_radius(owner.get_hurtbox_center(), 62.0)
 		if nearby_enemy_count > 0:
@@ -320,6 +346,10 @@ static func take_damage(owner, amount: float) -> void:
 
 	var adjusted_damage: float = amount * owner._get_effective_damage_taken_multiplier()
 	owner.current_health = max(0.0, owner.current_health - adjusted_damage)
+	if adjusted_damage > 0.0 and owner.has_method("_break_gunner_flash_trait"):
+		owner._break_gunner_flash_trait()
+	if owner.current_health <= 0.0 and _try_trigger_swordsman_death_defiance(owner):
+		return
 	if owner.has_method("_save_active_role_health"):
 		owner._save_active_role_health()
 	owner.hurt_cooldown_remaining = owner.hurt_cooldown
@@ -328,6 +358,30 @@ static func take_damage(owner, amount: float) -> void:
 
 	if owner.current_health <= 0.0:
 		owner._die()
+
+
+static func _try_trigger_swordsman_death_defiance(owner) -> bool:
+	if str(owner._get_active_role().get("id", "")) != "swordsman":
+		return false
+	if owner.swordsman_death_defiance_cooldown_remaining > 0.0:
+		return false
+	if owner.swordsman_death_defiance_will_remaining > 0.0:
+		return false
+	owner.current_health = 1.0
+	if owner.has_method("_save_active_role_health"):
+		owner._save_active_role_health()
+	owner.swordsman_death_defiance_will_remaining = SWORDSMAN_DEATH_DEFIANCE_INVULNERABILITY
+	owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, SWORDSMAN_DEATH_DEFIANCE_INVULNERABILITY)
+	owner.hurt_cooldown_remaining = owner.hurt_cooldown
+	owner.health_changed.emit(owner.current_health, owner.max_health)
+	if owner.has_method("_sync_invulnerability_status"):
+		owner._sync_invulnerability_status()
+	if owner.has_method("_spawn_forced_combat_tag"):
+		owner._spawn_forced_combat_tag(owner.global_position + Vector2(0.0, -42.0), "\u4E0D\u5C48", Color(1.0, 0.72, 0.32, 1.0))
+	else:
+		owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -42.0), "\u4E0D\u5C48", Color(1.0, 0.72, 0.32, 1.0))
+	owner._play_player_hurt_feedback()
+	return true
 
 
 static func _show_dodge_tag(owner) -> void:
@@ -340,5 +394,7 @@ static func _show_dodge_tag(owner) -> void:
 
 
 static func apply_enemy_slow(owner, multiplier: float, duration: float) -> void:
+	if owner.has_method("_is_status_immune") and owner._is_status_immune():
+		return
 	owner.enemy_move_slow_multiplier = min(owner.enemy_move_slow_multiplier, clamp(multiplier, 0.15, 1.0))
 	owner.enemy_move_slow_remaining = max(owner.enemy_move_slow_remaining, duration)

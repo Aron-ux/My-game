@@ -26,10 +26,10 @@ func _run() -> void:
 func _check_timer_expiry_and_entry_rescue() -> void:
 	var owner := TimerOwnerStub.new()
 	owner.roles = [
-		{"id": "swordsman"},
+		{"id": "mage"},
 		{"id": "gunner"}
 	]
-	owner.active_role_id = "swordsman"
+	owner.active_role_id = "mage"
 	owner.role_standby_elapsed = {
 		"swordsman": 8.0,
 		"gunner": 2.0
@@ -57,6 +57,7 @@ func _check_timer_expiry_and_entry_rescue() -> void:
 	owner.frenzy_remaining = 0.1
 	owner.frenzy_stacks = 3
 	owner.frenzy_overkill_counter = 2
+	owner.mage_arcane_surplus_remaining = 0.1
 	owner.role_special_states["swordsman"] = {"ultimate_lifesteal_multiplier_remaining": 0.2}
 
 	PlayerTimerFlow.update_timers(owner, 0.25)
@@ -81,7 +82,7 @@ func _check_timer_expiry_and_entry_rescue() -> void:
 		failures.append("ultimate guard multiplier should reset after expiry")
 	if owner.frenzy_stacks != 0 or owner.frenzy_overkill_counter != 0:
 		failures.append("frenzy counters should reset after expiry")
-	if float(owner.role_standby_elapsed.get("swordsman", -1.0)) != 0.0:
+	if float(owner.role_standby_elapsed.get("mage", -1.0)) != 0.0:
 		failures.append("active role standby elapsed should reset")
 	if float(owner.role_standby_elapsed.get("gunner", 0.0)) <= 2.0:
 		failures.append("inactive role standby elapsed should advance")
@@ -92,6 +93,8 @@ func _check_timer_expiry_and_entry_rescue() -> void:
 		failures.append("timer flow should update camera shake once")
 	if owner.fire_timer_updates < 2:
 		failures.append("expiring switch/borrow buffs should refresh fire timer")
+	if owner.mage_arcane_charge_stacks != 3:
+		failures.append("expiring mage arcane surplus should grant 3 arcane charge stacks")
 	owner.free()
 
 
@@ -141,9 +144,17 @@ class TimerOwnerStub:
 	var roles: Array = []
 	var hurt_cooldown_remaining: float = 0.0
 	var switch_invulnerability_remaining: float = 0.0
+	var hidden_invulnerability_status_remaining: float = 0.0
 	var level_up_delay_remaining: float = 0.0
 	var switch_cooldown_remaining: float = 0.0
 	var lifesteal_proc_cooldown_remaining: float = 0.0
+	var swordsman_trait_heal_cooldown_remaining: float = 0.0
+	var swordsman_death_defiance_will_remaining: float = 0.0
+	var swordsman_death_defiance_cooldown_remaining: float = 0.0
+	var swordsman_entry_trait_share_remaining: float = 0.0
+	var mage_arcane_surplus_remaining: float = 0.0
+	var mage_arcane_charge_stacks: int = 0
+	var greed_heal_cooldown_remaining: float = 0.0
 	var role_special_states: Dictionary = {}
 	var enemy_move_slow_remaining: float = 0.0
 	var enemy_move_slow_multiplier: float = 1.0
@@ -162,6 +173,9 @@ class TimerOwnerStub:
 	var entry_blessing_remaining: float = 0.0
 	var entry_rescue_remaining: float = 0.0
 	var entry_rescue_regen_per_second: float = 0.0
+	var ultimate_haste_remaining: float = 0.0
+	var ultimate_haste_move_speed_multiplier: float = 1.0
+	var ultimate_haste_dodge_chance: float = 0.0
 	var standby_entry_remaining: float = 0.0
 	var guard_cover_remaining: float = 0.0
 	var guard_cover_damage_multiplier: float = 1.0
@@ -174,6 +188,7 @@ class TimerOwnerStub:
 	var post_ultimate_flow_background_multiplier: float = 1.0
 	var ultimate_guard_remaining: float = 0.0
 	var ultimate_guard_damage_multiplier: float = 1.0
+	var player_action_lock_remaining: float = 0.0
 	var frenzy_remaining: float = 0.0
 	var frenzy_stacks: int = 0
 	var frenzy_overkill_counter: int = 0
@@ -224,6 +239,11 @@ class TimerOwnerStub:
 
 	func _clear_standby_entry_buff() -> void:
 		standby_entry_cleared = true
+
+	func _add_mage_arcane_charge_stacks(count: int) -> void:
+		if active_role_id != "mage" or count <= 0:
+			return
+		mage_arcane_charge_stacks += count
 
 	func _get_active_role() -> Dictionary:
 		return {"id": active_role_id}

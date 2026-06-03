@@ -5,7 +5,7 @@ const ROLE_ATTRIBUTE_RULES := preload("res://scripts/player/roles/role_attribute
 
 const COMMON_PROSPERITY_KEY := "common_prosperity"
 const COMMON_PROSPERITY_TRAIT_GAIN := 0.35
-const BACKGROUND_TRAIT_SUPPORT_RATIO := 0.3
+const BACKGROUND_TRAIT_SUPPORT_RATIO := 0.0
 
 
 static func normalize_attribute_training_data(raw_data: Variant) -> Dictionary:

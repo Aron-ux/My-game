@@ -13,8 +13,6 @@ const PANEL_MIN_SIZE := Vector2(360.0, 280.0)
 const PANEL_WIDTH_RATIO := 0.86
 const PANEL_HEIGHT_RATIO := 0.84
 const PANEL_EDGE_MARGIN := Vector2(24.0, 16.0)
-const CLOSE_BUTTON_GAP := 10.0
-const CLOSE_BUTTON_BOTTOM_MARGIN := 8.0
 
 const ROLE_TEXTURE_PATHS := {
 	"swordsman": "人设草图/剑士草图.jpg",
@@ -29,9 +27,9 @@ var stats_label: RichTextLabel
 var equipment_list: VBoxContainer
 var blessing_list: VBoxContainer
 var card_label: RichTextLabel
-var close_button: Button
 var backdrop: ColorRect
 var panel: Panel
+var panel_margin: MarginContainer
 var gift_popup: PopupMenu
 var blessing_popup: PopupMenu
 var cached_player: Node
@@ -58,20 +56,20 @@ func _ready() -> void:
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(panel)
 
-	var margin := MarginContainer.new()
-	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 14)
-	margin.add_theme_constant_override("margin_top", 12)
-	margin.add_theme_constant_override("margin_right", 14)
-	margin.add_theme_constant_override("margin_bottom", 12)
-	panel.add_child(margin)
+	panel_margin = MarginContainer.new()
+	panel_margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel_margin.add_theme_constant_override("margin_left", 14)
+	panel_margin.add_theme_constant_override("margin_top", 12)
+	panel_margin.add_theme_constant_override("margin_right", 14)
+	panel_margin.add_theme_constant_override("margin_bottom", 12)
+	panel.add_child(panel_margin)
 
 	var root_layout := VBoxContainer.new()
 	root_layout.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root_layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root_layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root_layout.add_theme_constant_override("separation", 0)
-	margin.add_child(root_layout)
+	panel_margin.add_child(root_layout)
 
 	var content_layout := HBoxContainer.new()
 	content_layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -110,6 +108,7 @@ func _ready() -> void:
 	role_button_row = HBoxContainer.new()
 	role_button_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	role_button_row.add_theme_constant_override("separation", 8)
+	role_button_row.visible = false
 	portrait_body.add_child(role_button_row)
 
 	var stats_section := _make_panel_section("角色属性 / 道具")
@@ -196,14 +195,6 @@ func _ready() -> void:
 	blessing_list.add_theme_constant_override("separation", 6)
 	blessing_scroll.add_child(blessing_list)
 
-	close_button = Button.new()
-	close_button.text = _get_close_button_text()
-	close_button.custom_minimum_size = Vector2(150.0, 46.0)
-	close_button.add_theme_font_size_override("font_size", 17)
-	SURVIVORS_THEME.apply_button_style(close_button, "primary")
-	close_button.pressed.connect(func() -> void: close_requested.emit())
-	add_child(close_button)
-
 	var viewport := get_viewport()
 	if viewport != null and not viewport.size_changed.is_connected(_on_viewport_size_changed):
 		viewport.size_changed.connect(_on_viewport_size_changed)
@@ -264,8 +255,6 @@ func refresh() -> void:
 	_refresh_equipment_list(role_id)
 	_refresh_blessing_list(role_id)
 	card_label.text = _build_card_text()
-	if close_button != null:
-		close_button.text = _get_close_button_text()
 
 func _make_panel_section(title: String) -> PanelContainer:
 	var section := PanelContainer.new()
@@ -286,20 +275,16 @@ func _make_panel_section(title: String) -> PanelContainer:
 func _get_section_body(section: PanelContainer) -> VBoxContainer:
 	return section.get_child(0) as VBoxContainer
 
-func _get_close_button_text() -> String:
-	var key_name := GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(GAME_SETTINGS.ACTION_CHARACTER_PANEL))
-	return "关闭  %s" % key_name
-
 func _on_viewport_size_changed() -> void:
 	_layout_panel.call_deferred()
 
 func _layout_panel() -> void:
-	if close_button == null or panel == null:
+	if panel == null:
 		return
 	var viewport_size := get_viewport().get_visible_rect().size
 	var available := Vector2(
 		max(1.0, viewport_size.x - PANEL_EDGE_MARGIN.x * 2.0),
-		max(1.0, viewport_size.y - PANEL_EDGE_MARGIN.y * 2.0 - close_button.custom_minimum_size.y - CLOSE_BUTTON_GAP)
+		max(1.0, viewport_size.y - PANEL_EDGE_MARGIN.y * 2.0)
 	)
 	var target_size := Vector2(
 		clamp(viewport_size.x * PANEL_WIDTH_RATIO, min(PANEL_MIN_SIZE.x, available.x), min(PANEL_MAX_SIZE.x, available.x)),
@@ -308,16 +293,9 @@ func _layout_panel() -> void:
 	panel.size = target_size
 	panel.position = Vector2(
 		floor((viewport_size.x - target_size.x) * 0.5),
-		max(PANEL_EDGE_MARGIN.y, floor((viewport_size.y - target_size.y - close_button.custom_minimum_size.y - CLOSE_BUTTON_GAP) * 0.5))
+		max(PANEL_EDGE_MARGIN.y, floor((viewport_size.y - target_size.y) * 0.5))
 	)
 	panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
-
-	var button_size := close_button.custom_minimum_size
-	var x := panel.position.x + (panel.size.x - button_size.x) * 0.5
-	var y := panel.position.y + panel.size.y + CLOSE_BUTTON_GAP
-	y = min(y, viewport_size.y - button_size.y - CLOSE_BUTTON_BOTTOM_MARGIN)
-	close_button.size = button_size
-	close_button.position = Vector2(x, y)
 
 func _refresh_role_buttons() -> void:
 	for child in role_button_row.get_children():
@@ -538,7 +516,11 @@ func _build_stats_text(role_data: Dictionary) -> String:
 	if cached_player.has_method("_get_attribute_pickup_range_bonus"):
 		pickup_radius += float(cached_player._get_attribute_pickup_range_bonus())
 	var attribute_dodge: float = float(cached_player._get_attribute_dodge_chance()) if cached_player.has_method("_get_attribute_dodge_chance") else 0.0
-	var dodge_chance: float = 1.0 - (1.0 - float(bonus.get("dodge_chance", 0.0))) * (1.0 - attribute_dodge)
+	var blessing_dodge: float = float(cached_player._get_role_blessing_stat_bonus(role_id, "dodge")) if cached_player.has_method("_get_role_blessing_stat_bonus") else 0.0
+	var ultimate_dodge: float = 0.0
+	if role_id == str(cached_player._get_active_role().get("id", "")) and float(cached_player.get("ultimate_haste_remaining")) > 0.0:
+		ultimate_dodge = float(cached_player.get("ultimate_haste_dodge_chance"))
+	var dodge_chance: float = clamp(float(bonus.get("dodge_chance", 0.0)) + blessing_dodge + attribute_dodge + ultimate_dodge, 0.0, 1.0)
 	var health_regen: float = float(bonus.get("regen_per_second", 0.0))
 	if cached_player.has_method("_get_attribute_health_regen_per_second"):
 		health_regen += float(cached_player._get_attribute_health_regen_per_second())

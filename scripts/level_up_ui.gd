@@ -46,14 +46,14 @@ const OPENING_TRAIT_BUTTON_VISUAL_OFFSETS := {
 	"level_trait_mage": Vector2(-80.0, -30.0)
 }
 const TRAIT_OPENING_DESCRIPTIONS := {
-	"level_trait_swordsman": "剑士击杀怪物后有10％几率回复血量，每级提供5点血量回复。当前血量回复为5\n为站场角色提供30％的本特性效果。",
-	"level_trait_gunner": "枪手受到攻击时有几率闪避当前攻击，每级提供2％。当前闪避几率为15％\n为站场角色提供30％的本特性效果。",
-	"level_trait_mage": "术师造成击杀后有几率回复3倍大招能量，每级提供2％。当前几率为10％\n为站场角色提供30％的本特性效果。"
+	"level_trait_swordsman": "剑士攻击命中时有概率回复最大生命值的5％+已损失生命值的7.5％，基础概率5％，每升一级额外提升5％；该效果每秒最多生效1次。受到致命伤时保留1点生命并进入1.5s战意，之后进入80s CD。",
+	"level_trait_gunner": "枪手受到攻击时有几率闪避当前攻击，每级提供2％。枪手额外自带15％闪避；未受伤时每2秒叠加1层瞬杀，最多10层，每层提升3％伤害和移速。",
+	"level_trait_mage": "术师造成击杀后有几率回复3倍大招能量，每级提供2％。术师大招能量满后，击杀回能会100％分享给另外两名角色。"
 }
 const TRAIT_DETAIL_DESCRIPTIONS := {
-	"level_trait_swordsman": "提供5点血量回复。\n为站场角色提供30％的本特性效果。",
-	"level_trait_gunner": "提供2％的闪避。\n为站场角色提供30％的本特性效果。",
-	"level_trait_mage": "提供2％的击杀3倍回能。\n为站场角色提供30％的本特性效果。"
+	"level_trait_swordsman": "提供5％剑士特性触发概率。",
+	"level_trait_gunner": "提供2％闪避。",
+	"level_trait_mage": "提供2％击杀3倍回能概率。"
 }
 const TRAIT_BUTTON_DESCRIPTION_GAP := 4.0
 const OPENING_TRAIT_DESCRIPTION_OFFSETS := {

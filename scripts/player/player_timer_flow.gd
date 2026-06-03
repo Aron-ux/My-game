@@ -2,6 +2,7 @@ extends RefCounted
 
 const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
 const ROLE_RESOURCE_STATE := preload("res://scripts/player/roles/role_resource_state.gd")
+const MAGE_ARCANE_SURPLUS_EXPIRE_CHARGE_STACKS := 3
 
 
 static func update_timers(owner, delta: float) -> void:
@@ -14,6 +15,8 @@ static func update_timers(owner, delta: float) -> void:
 		owner.hurt_cooldown_remaining = max(0.0, owner.hurt_cooldown_remaining - delta)
 	if owner.switch_invulnerability_remaining > 0.0:
 		owner.switch_invulnerability_remaining = max(0.0, owner.switch_invulnerability_remaining - delta)
+	if owner.hidden_invulnerability_status_remaining > 0.0:
+		owner.hidden_invulnerability_status_remaining = max(0.0, owner.hidden_invulnerability_status_remaining - delta)
 	if owner.has_method("_sync_invulnerability_status"):
 		owner._sync_invulnerability_status()
 	if owner.level_up_delay_remaining > 0.0:
@@ -26,8 +29,25 @@ static func update_timers(owner, delta: float) -> void:
 		owner.lifesteal_proc_cooldown_remaining = max(0.0, owner.lifesteal_proc_cooldown_remaining - delta)
 	if owner.swordsman_trait_heal_cooldown_remaining > 0.0:
 		owner.swordsman_trait_heal_cooldown_remaining = max(0.0, owner.swordsman_trait_heal_cooldown_remaining - delta)
+	if owner.swordsman_death_defiance_will_remaining > 0.0:
+		owner.swordsman_death_defiance_will_remaining = max(0.0, owner.swordsman_death_defiance_will_remaining - delta)
+		if owner.swordsman_death_defiance_will_remaining <= 0.0:
+			owner.swordsman_death_defiance_cooldown_remaining = owner.SWORDSMAN_DEATH_DEFIANCE_COOLDOWN
+	if owner.swordsman_death_defiance_cooldown_remaining > 0.0:
+		owner.swordsman_death_defiance_cooldown_remaining = max(0.0, owner.swordsman_death_defiance_cooldown_remaining - delta)
+	if owner.swordsman_entry_trait_share_remaining > 0.0:
+		owner.swordsman_entry_trait_share_remaining = max(0.0, owner.swordsman_entry_trait_share_remaining - delta)
+	if owner.mage_arcane_surplus_remaining > 0.0:
+		var previous_arcane_surplus_remaining: float = owner.mage_arcane_surplus_remaining
+		owner.mage_arcane_surplus_remaining = max(0.0, owner.mage_arcane_surplus_remaining - delta)
+		if previous_arcane_surplus_remaining > 0.0 and owner.mage_arcane_surplus_remaining <= 0.0 and owner.has_method("_add_mage_arcane_charge_stacks"):
+			owner._add_mage_arcane_charge_stacks(MAGE_ARCANE_SURPLUS_EXPIRE_CHARGE_STACKS)
+		if owner.has_method("_sync_duration_status"):
+			owner._sync_duration_status("mage_arcane_surplus", "\u5965\u6CD5\u76C8\u4F59", owner.mage_arcane_surplus_remaining, 18, Color(0.34, 0.72, 1.0, 0.95))
 	if owner.greed_heal_cooldown_remaining > 0.0:
 		owner.greed_heal_cooldown_remaining = max(0.0, owner.greed_heal_cooldown_remaining - delta)
+	if owner.has_method("_tick_gunner_flash_trait"):
+		owner._tick_gunner_flash_trait(delta)
 	var swordsman_special: Dictionary = owner._get_role_special_state("swordsman")
 	if float(swordsman_special.get("ultimate_lifesteal_multiplier_remaining", 0.0)) > 0.0:
 		swordsman_special["ultimate_lifesteal_multiplier_remaining"] = max(0.0, float(swordsman_special.get("ultimate_lifesteal_multiplier_remaining", 0.0)) - delta)
@@ -112,7 +132,7 @@ static func update_timers(owner, delta: float) -> void:
 			owner.frenzy_stacks = 0
 			owner.frenzy_overkill_counter = 0
 	for role_data in owner.roles:
-		var role_id := str(role_data.get("id", ""))
+		var role_id: String = str(role_data.get("id", ""))
 		if role_id == str(owner._get_active_role().get("id", "")):
 			owner.role_standby_elapsed[role_id] = 0.0
 		else:

@@ -66,9 +66,12 @@ static func physics_process(enemy, delta: float) -> void:
 		enemy._update_motion_visual()
 		return
 	enemy.velocity = enemy._compute_velocity(motion_delta)
-	enemy.velocity += enemy.ENEMY_BODY_SEPARATION.get_separation_velocity(enemy) * 2.6
+	var skulltomb_charging: bool = enemy.behavior_id == "skulltomb" and enemy.dash_remaining > 0.0
+	if not skulltomb_charging:
+		enemy.velocity += enemy.ENEMY_BODY_SEPARATION.get_separation_velocity(enemy) * 2.6
 	enemy._apply_direct_motion(motion_delta)
-	enemy.ENEMY_BODY_SEPARATION.apply_body_collision_separation(enemy)
+	if not skulltomb_charging:
+		enemy.ENEMY_BODY_SEPARATION.apply_body_collision_separation(enemy)
 	if bool(enemy._is_glutton):
 		enemy.ENEMY_GLUTTON_SKILL_BEHAVIOR.enforce_cast_position_lock(enemy)
 	enemy._update_motion_visual()

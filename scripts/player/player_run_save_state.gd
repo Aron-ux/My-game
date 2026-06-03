@@ -31,13 +31,19 @@ static func get_save_data(player) -> Dictionary:
 		"role_health_values": player.role_health_values.duplicate(true),
 		"current_mana": player._get_role_mana(player._get_active_role_id()),
 		"role_mana_values": player.role_mana_values.duplicate(true),
+		"role_switch_energy_values": player.role_switch_energy_values.duplicate(true),
 		"ultimate_energy_lock_remaining": player._get_role_ultimate_lock_remaining(player._get_active_role_id()),
 		"role_ultimate_energy_lock_remaining": player.role_ultimate_energy_lock_remaining.duplicate(true),
 		"hurt_cooldown_remaining": player.hurt_cooldown_remaining,
 		"switch_invulnerability_remaining": player.switch_invulnerability_remaining,
+		"hidden_invulnerability_status_remaining": player.hidden_invulnerability_status_remaining,
+		"swordsman_entry_trait_share_remaining": player.swordsman_entry_trait_share_remaining,
+		"mage_arcane_surplus_remaining": player.mage_arcane_surplus_remaining,
+		"mage_arcane_charge_stacks": player.mage_arcane_charge_stacks,
 		"level_up_delay_remaining": player.level_up_delay_remaining,
 		"switch_cooldown_remaining": player.switch_cooldown_remaining,
 		"greed_heal_cooldown_remaining": player.greed_heal_cooldown_remaining,
+		"swordsman_death_defiance_cooldown_remaining": player.swordsman_death_defiance_cooldown_remaining,
 		"enemy_move_slow_multiplier": player.enemy_move_slow_multiplier,
 		"enemy_move_slow_remaining": player.enemy_move_slow_remaining,
 		"gunner_infinite_reload_cooldown_remaining": player.gunner_infinite_reload_ability.cooldown_remaining if player.gunner_infinite_reload_ability != null else 0.0,
@@ -145,11 +151,12 @@ static func apply_save_data(player, data: Dictionary) -> void:
 	player.pending_level_ups = max(0, int(data.get("pending_level_ups", player.pending_level_ups)))
 	player.max_health = float(data.get("max_health", player.max_health))
 	player.max_mana = float(data.get("max_mana", player.max_mana))
-	var saved_current_health := float(data.get("current_health", player.current_health))
+	var saved_current_health: float = float(data.get("current_health", player.current_health))
 	player.current_health = saved_current_health
 	player.role_health_values = player._build_role_health_state()
 	var saved_role_health_values: Variant = data.get("role_health_values", {})
 	player.role_mana_values = player._build_role_resource_state_data(0.0)
+	player.role_switch_energy_values = player._build_role_resource_state_data(0.0)
 	player.role_ultimate_energy_lock_remaining = player._build_role_resource_state_data(0.0)
 	var saved_role_mana_values: Dictionary = data.get("role_mana_values", {})
 	if saved_role_mana_values is Dictionary and not saved_role_mana_values.is_empty():
@@ -165,11 +172,21 @@ static func apply_save_data(player, data: Dictionary) -> void:
 		var fallback_lock_role_id: String = str(player.roles[clamp(saved_active_role_index, 0, max(0, player.roles.size() - 1))].get("id", ""))
 		if fallback_lock_role_id != "":
 			ROLE_RESOURCE_STATE.set_lock_remaining(player.role_ultimate_energy_lock_remaining, fallback_lock_role_id, float(data.get("ultimate_energy_lock_remaining", 0.0)))
+	var saved_switch_energy_values: Dictionary = data.get("role_switch_energy_values", {})
+	if saved_switch_energy_values is Dictionary and not saved_switch_energy_values.is_empty():
+		for role_id in player.role_switch_energy_values.keys():
+			player.role_switch_energy_values[role_id] = clamp(float(saved_switch_energy_values.get(role_id, 0.0)), 0.0, player.SWITCH_ENTRY_ENERGY_REQUIRED)
+	else:
+		var fallback_switch_role_id: String = str(player.roles[clamp(saved_active_role_index, 0, max(0, player.roles.size() - 1))].get("id", ""))
+		if fallback_switch_role_id != "":
+			player.role_switch_energy_values[fallback_switch_role_id] = clamp(float(data.get("switch_energy", 0.0)), 0.0, player.SWITCH_ENTRY_ENERGY_REQUIRED)
 	player.hurt_cooldown_remaining = max(0.0, float(data.get("hurt_cooldown_remaining", 0.0)))
 	player.switch_invulnerability_remaining = max(0.0, float(data.get("switch_invulnerability_remaining", 0.0)))
+	player.hidden_invulnerability_status_remaining = max(0.0, float(data.get("hidden_invulnerability_status_remaining", 0.0)))
 	player.level_up_delay_remaining = max(0.0, float(data.get("level_up_delay_remaining", 0.0)))
 	player.switch_cooldown_remaining = max(0.0, float(data.get("switch_cooldown_remaining", 0.0)))
 	player.greed_heal_cooldown_remaining = max(0.0, float(data.get("greed_heal_cooldown_remaining", 0.0)))
+	player.swordsman_death_defiance_cooldown_remaining = max(0.0, float(data.get("swordsman_death_defiance_cooldown_remaining", 0.0)))
 	player.enemy_move_slow_multiplier = float(data.get("enemy_move_slow_multiplier", 1.0))
 	player.enemy_move_slow_remaining = max(0.0, float(data.get("enemy_move_slow_remaining", 0.0)))
 	_apply_ability_save_data(player, data)
@@ -314,6 +331,13 @@ static func _apply_switch_buff_save_data(player, data: Dictionary) -> void:
 	player.switch_power_damage_multiplier = float(data.get("switch_power_damage_multiplier", 1.0))
 	player.switch_power_interval_bonus = float(data.get("switch_power_interval_bonus", 0.0))
 	player.switch_power_label = str(data.get("switch_power_label", ""))
+	player.swordsman_entry_trait_share_remaining = max(0.0, float(data.get("swordsman_entry_trait_share_remaining", 0.0)))
+	player.mage_arcane_surplus_remaining = max(0.0, float(data.get("mage_arcane_surplus_remaining", 0.0)))
+	player.mage_arcane_charge_stacks = clampi(int(data.get("mage_arcane_charge_stacks", 0)), 0, player.MAGE_ARCANE_CHARGE_MAX_STACKS)
+	if player.has_method("_sync_invulnerability_status"):
+		player._sync_invulnerability_status()
+	if player.mage_arcane_surplus_remaining > 0.0 and player.has_method("_sync_duration_status"):
+		player._sync_duration_status("mage_arcane_surplus", "\u5965\u6CD5\u76C8\u4F59", player.mage_arcane_surplus_remaining, 18, Color(0.34, 0.72, 1.0, 0.95))
 	player.pending_entry_blessing_source_role_id = str(data.get("pending_entry_blessing_source_role_id", ""))
 	player.entry_blessing_role_id = str(data.get("entry_blessing_role_id", ""))
 	player.entry_blessing_label = str(data.get("entry_blessing_label", ""))

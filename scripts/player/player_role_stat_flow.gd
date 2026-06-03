@@ -79,6 +79,8 @@ static func get_current_move_speed(owner) -> float:
 		move_speed *= owner.entry_haste_move_speed_multiplier
 	if role_id == "gunner" and owner.has_method("_get_gunner_infinite_reload_move_speed_multiplier"):
 		move_speed *= float(owner._get_gunner_infinite_reload_move_speed_multiplier())
+	if role_id == "gunner" and owner.has_method("_get_gunner_flash_move_speed_multiplier"):
+		move_speed *= float(owner._get_gunner_flash_move_speed_multiplier())
 	if owner.ultimate_haste_remaining > 0.0:
 		move_speed *= max(0.0, float(owner.ultimate_haste_move_speed_multiplier))
 	if owner._is_last_stand_active():
@@ -233,6 +235,10 @@ static func get_role_damage(owner, role_id: String) -> float:
 			damage_amount *= owner.borrow_fire_damage_multiplier
 		if owner.frenzy_remaining > 0.0 and owner.frenzy_stacks > 0:
 			damage_amount *= 1.0 + 0.015 * owner.frenzy_stacks
+		if role_id == "gunner" and owner.has_method("_get_gunner_flash_damage_multiplier"):
+			damage_amount *= float(owner._get_gunner_flash_damage_multiplier())
+		if role_id == "mage" and owner.has_method("_get_mage_arcane_charge_damage_multiplier"):
+			damage_amount *= float(owner._get_mage_arcane_charge_damage_multiplier())
 		return damage_amount
 	return 0.0
 

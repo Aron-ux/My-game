@@ -65,6 +65,9 @@ static func reset(enemy, randomize_timers: bool) -> void:
 	ENEMY_GLUTTON_SKILL_BEHAVIOR.reset(enemy)
 	enemy.skulltomb_summon_timer = enemy.skulltomb_summon_interval
 	enemy.skulltomb_summon_windup_remaining = 0.0
+	enemy.skulltomb_charge_timer = enemy.skulltomb_charge_interval
+	enemy.skulltomb_charge_windup_remaining = 0.0
+	enemy.skulltomb_charge_target_position = Vector2.ZERO
 	enemy.skull_soldier_speed_multiplier = 1.0
 	enemy.skull_soldier_speed_timer = 0.0
 	enemy.skull_damage_immune_timer = 0.0
@@ -76,6 +79,9 @@ static func reset(enemy, randomize_timers: bool) -> void:
 	if enemy.skulltomb_channel_ring != null and is_instance_valid(enemy.skulltomb_channel_ring):
 		enemy.skulltomb_channel_ring.queue_free()
 	enemy.skulltomb_channel_ring = null
+	if enemy.skulltomb_channel_fill != null and is_instance_valid(enemy.skulltomb_channel_fill):
+		enemy.skulltomb_channel_fill.queue_free()
+	enemy.skulltomb_channel_fill = null
 	if enemy.skulltomb_death_ring != null and is_instance_valid(enemy.skulltomb_death_ring):
 		enemy.skulltomb_death_ring.queue_free()
 	enemy.skulltomb_death_ring = null
@@ -86,3 +92,6 @@ static func reset(enemy, randomize_timers: bool) -> void:
 	enemy.skulltomb_area_damage_elapsed = 0.0
 	enemy.skulltomb_area_center = Vector2.ZERO
 	enemy.skulltomb_area_radius = 0.0
+	enemy.skulltomb_pending_spawns.clear()
+	enemy.skulltomb_spawn_elapsed = 0.0
+	enemy.skulltomb_spawn_vertex_index = 0

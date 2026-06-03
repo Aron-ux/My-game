@@ -13,6 +13,26 @@ func _ready() -> void:
 	_ensure_visuals()
 
 
+func get_shadow_world_ellipse() -> Dictionary:
+	_ensure_visuals()
+	if shadow == null or shadow.texture == null:
+		return {}
+	var texture_size: Vector2 = shadow.texture.get_size()
+	var world_scale: Vector2 = shadow.global_scale
+	return {
+		"center": shadow.global_position,
+		"horizontal_radius": texture_size.x * abs(world_scale.x) * 0.5,
+		"vertical_radius": texture_size.y * abs(world_scale.y) * 0.5
+	}
+
+
+func get_shadow_world_radius() -> float:
+	var ellipse: Dictionary = get_shadow_world_ellipse()
+	if ellipse.is_empty():
+		return 0.0
+	return max(float(ellipse.get("horizontal_radius", 0.0)), float(ellipse.get("vertical_radius", 0.0)))
+
+
 func _ensure_visuals() -> void:
 	shadow = get_node_or_null("Shadow") as Sprite2D
 	if shadow == null:

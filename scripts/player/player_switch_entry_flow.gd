@@ -3,6 +3,7 @@ extends RefCounted
 const GUNNER_ENTRY_WAVE_BULLET_COUNT := 16
 const GUNNER_ENTRY_WAVE_BATCH_SIZE := 4
 const GUNNER_ENTRY_WAVE_BATCH_INTERVAL := 0.012
+const GUNNER_ENTRY_BULLET_DAMAGE_MULTIPLIER := 2.0
 const MAGE_ATTACK_EFFECT_SCALE := 0.8
 const MAGE_ENTRY_EFFECT_RADIUS := 52.0 * MAGE_ATTACK_EFFECT_SCALE
 const MAGE_ENTRY_HIT_RADIUS := 104.0 * MAGE_ATTACK_EFFECT_SCALE
@@ -20,11 +21,13 @@ static func spawn_gunner_entry_wave_batch(owner, role_id: String, wave_index: in
 	var end_index: int = min(start_index + GUNNER_ENTRY_WAVE_BATCH_SIZE, bullet_count)
 	for bullet_index in range(start_index, end_index):
 		var shot_angle: float = TAU * float(bullet_index) / float(bullet_count) + angle_offset
-		var bullet = owner._spawn_directional_bullet(Vector2.RIGHT.rotated(shot_angle), owner._get_role_damage(role_id) * 0.22 * max(0.0, damage_scale), Color(1.0, 0.55, 0.32, 1.0), role_id, owner.global_position)
+		var bullet_damage: float = owner._get_role_damage(role_id) * 0.22 * GUNNER_ENTRY_BULLET_DAMAGE_MULTIPLIER * max(0.0, damage_scale)
+		var bullet = owner._spawn_directional_bullet(Vector2.RIGHT.rotated(shot_angle), bullet_damage, Color(1.0, 0.55, 0.32, 1.0), role_id, owner.global_position)
 		if bullet != null:
 			bullet.speed = 1000.0
 			bullet.lifetime = 0.9
 			bullet.hit_radius = 12.0
+			bullet.pierce_count = max(int(bullet.pierce_count), 8)
 	if end_index >= bullet_count:
 		return
 	if not owner.has_method("_schedule_repeating_sequence"):

@@ -5,8 +5,8 @@ const PLAYER_SWITCH_BANNER_FLOW := preload("res://scripts/player/player_switch_b
 const PLAYER_SWITCH_ENTRY_FLOW := preload("res://scripts/player/player_switch_entry_flow.gd")
 const PLAYER_SWITCH_JOB_QUEUE := preload("res://scripts/player/player_switch_job_queue.gd")
 
-const ROLE_SWITCH_COOLDOWN := 7.0
-const SWITCH_INVULNERABILITY := 0.2
+const ROLE_SWITCH_COOLDOWN := 0.5
+const SWITCH_INVULNERABILITY := 0.1
 const GUNNER_ENTRY_WAVE_BULLET_COUNT := 16
 const GUNNER_ENTRY_WAVE_BATCH_SIZE := 4
 const GUNNER_ENTRY_WAVE_BATCH_INTERVAL := 0.012
@@ -161,28 +161,40 @@ static func try_switch_role(owner, new_role_index: int) -> void:
 
 	var previous_role_index: int = owner.active_role_index
 	var previous_position: Vector2 = owner.global_position
+	var previous_role_id: String = str(owner.roles[previous_role_index].get("id", ""))
+	var should_trigger_entry: bool = owner.has_method("_consume_switch_energy_for_entry") and owner._consume_switch_energy_for_entry(previous_role_id)
 	if owner.has_method("_save_active_role_health"):
 		owner._save_active_role_health()
+	if previous_role_id == "gunner" and owner.has_method("_clear_gunner_flash_trait_on_switch"):
+		owner._clear_gunner_flash_trait_on_switch()
+	if previous_role_id == "mage" and owner.mage_arcane_surplus_remaining > 0.0:
+		owner.mage_arcane_surplus_remaining = 0.0
+		if owner.has_method("_clear_duration_status"):
+			owner._clear_duration_status("mage_arcane_surplus")
+	if previous_role_id == "mage" and owner.has_method("_clear_mage_arcane_charge_on_switch"):
+		owner._clear_mage_arcane_charge_on_switch()
 	apply_exit_skill(owner, previous_role_index)
 	owner.active_role_index = new_role_index
 	owner.switch_cooldown_remaining = 0.0 if DEVELOPER_MODE.should_ignore_cooldowns() else _get_switch_cooldown_duration(owner)
-	owner.switch_invulnerability_remaining = SWITCH_INVULNERABILITY
 	var active_role_index: int = owner.active_role_index
 	var active_role_id: String = str(owner.roles[active_role_index]["id"])
+	owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, SWITCH_INVULNERABILITY)
+	owner.hidden_invulnerability_status_remaining = max(owner.hidden_invulnerability_status_remaining, SWITCH_INVULNERABILITY)
 	var switch_direction: Vector2 = owner.velocity if owner.velocity.length_squared() > 0.001 else owner.facing_direction
 	owner._update_active_role_state()
-	PLAYER_SWITCH_JOB_QUEUE.run_jobs(owner, [
-		func() -> void:
-			apply_enter_skill(owner, active_role_index),
-		func() -> void:
-			PLAYER_SWITCH_ENTRY_FLOW.apply_shared_entry_skills(owner, active_role_id),
-		func() -> void:
-			apply_pending_entry_blessing(owner, active_role_id),
-		func() -> void:
-			apply_rotation_entry_bonus(owner, active_role_id),
-		func() -> void:
-			apply_swap_guard(owner, switch_direction)
-	])
+	if should_trigger_entry:
+		PLAYER_SWITCH_JOB_QUEUE.run_jobs(owner, [
+			func() -> void:
+				apply_enter_skill(owner, active_role_index),
+			func() -> void:
+				PLAYER_SWITCH_ENTRY_FLOW.apply_shared_entry_skills(owner, active_role_id),
+			func() -> void:
+				apply_pending_entry_blessing(owner, active_role_id),
+			func() -> void:
+				apply_rotation_entry_bonus(owner, active_role_id),
+			func() -> void:
+				apply_swap_guard(owner, switch_direction)
+		])
 	var symbol_level: int = 0
 	if symbol_level > 0:
 		owner._add_energy((4.0 + symbol_level * 1.8) * owner.energy_gain_multiplier)
@@ -200,11 +212,7 @@ static func _get_switch_cooldown_duration(owner) -> float:
 	var common_prosperity_multiplier := 1.0
 	if owner.has_method("_get_common_prosperity_switch_cooldown_multiplier"):
 		common_prosperity_multiplier = float(owner._get_common_prosperity_switch_cooldown_multiplier())
-	var support_multiplier := 1.0
-	if owner.has_method("_get_role_blessing_stat_bonus"):
-		var role_id := str(owner._get_active_role().get("id", ""))
-		support_multiplier = max(0.2, 1.0 - float(owner._get_role_blessing_stat_bonus(role_id, "switch_cooldown_reduction")))
-	return max(2.5, (ROLE_SWITCH_COOLDOWN - owner.role_switch_cooldown_bonus) * owner._get_equipment_cooldown_multiplier() * common_prosperity_multiplier * support_multiplier)
+	return max(0.5, (ROLE_SWITCH_COOLDOWN - owner.role_switch_cooldown_bonus) * owner._get_equipment_cooldown_multiplier() * common_prosperity_multiplier)
 
 
 static func apply_enter_skill(owner, role_index: int) -> int:

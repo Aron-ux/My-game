@@ -2,6 +2,8 @@ extends RefCounted
 
 const ROLE_RESOURCE_STATE := preload("res://scripts/player/roles/role_resource_state.gd")
 
+const ULTIMATE_ENERGY_GAIN_OUTPUT_MULTIPLIER := 0.625
+
 
 static func get_active_role(owner) -> Dictionary:
 	return owner.roles[owner.active_role_index]
@@ -30,6 +32,10 @@ static func set_role_mana(owner, role_id: String, value: float, emit_for_active:
 static func add_role_mana(owner, role_id: String, amount: float, emit_for_active: bool = true) -> float:
 	if amount == 0.0:
 		return get_role_mana(owner, role_id)
+	if amount > 0.0:
+		amount *= ULTIMATE_ENERGY_GAIN_OUTPUT_MULTIPLIER
+		if amount <= 0.0:
+			return get_role_mana(owner, role_id)
 	var updated_value: float = ROLE_RESOURCE_STATE.add_mana(owner.role_mana_values, role_id, amount, owner.max_mana)
 	if role_id == get_active_role_id(owner):
 		sync_active_role_ultimate_state(owner)
@@ -84,8 +90,20 @@ static func increase_team_specials(owner, entries: Array) -> void:
 static func add_energy(owner, amount: float) -> void:
 	if amount <= 0.0:
 		return
+	var effective_amount: float = amount * ULTIMATE_ENERGY_GAIN_OUTPUT_MULTIPLIER
+	if effective_amount <= 0.0:
+		return
 	var active_role_id: String = get_active_role_id(owner)
-	var updated_mana: float = add_role_mana(owner, active_role_id, amount, false)
+	var self_amount: float = amount
+	if active_role_id == "mage" and owner.has_method("_get_mage_arcane_charge_self_energy_multiplier"):
+		self_amount *= max(0.0, float(owner._get_mage_arcane_charge_self_energy_multiplier()))
+	var updated_mana: float = add_role_mana(owner, active_role_id, self_amount, false)
+	if active_role_id == "mage" and owner.mage_arcane_surplus_remaining > 0.0:
+		for role_data in owner.roles:
+			var role_id: String = str(role_data.get("id", ""))
+			if role_id == "" or role_id == active_role_id:
+				continue
+			add_role_mana(owner, role_id, amount, false)
 	if owner._has_elite_relic("elite_reactor") and is_equal_approx(updated_mana, owner.max_mana):
 		owner._activate_switch_power(active_role_id, "\u6EE1\u80FD\u53CD\u5E94", 2.8, 1.14, 0.04)
 	emit_active_mana_changed(owner)

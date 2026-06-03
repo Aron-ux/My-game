@@ -20,7 +20,7 @@ const WAR_STOMP_CAST_SHAKE_DURATION := 0.12
 const WAR_STOMP_CAST_SHAKE_INTERVAL := 0.08
 const WAR_STOMP_SPEED_MULTIPLIER := 1.15
 const WAR_STOMP_DAMAGE_REDUCTION := 0.3
-const BASE_GROWTH_MULTIPLIER := 0.6
+const BASE_GROWTH_MULTIPLIER := 0.9
 const WAR_STOMP_GROWTH_MULTIPLIER := 1.5
 const WAR_STOMP_HEART_HEAL_RATIO := 0.02
 const WAR_STOMP_KILL_HEAL_CHANCE := 0.10
@@ -32,11 +32,12 @@ const WAR_STOMP_MONSTER_SHADOW_RATIO := 1.2
 
 const MONSTER_QUERY_PADDING := 96.0
 const TWINE_COUNT := 5
-const TWINE_RADIUS := 110.0
+const TWINE_RADIUS := 125.399362
 const TWINE_SAFE_RADIUS := 86.0
 const TWINE_SPAWN_MIN_RADIUS := 145.0
 const TWINE_SPAWN_MAX_RADIUS := 255.0
 const TWINE_MIN_CENTER_DISTANCE := 205.0
+const TWINE_EXIT_GAP_DEGREES := 76.0
 const TWINE_CAST_DURATION := 1.25
 const TWINE_LOCK_DURATION := 2.0
 const TWINE_RESIDUE_DURATION := 1.0
@@ -45,7 +46,7 @@ const TWINE_FILL_VISUAL_SCALE := 0.082
 const TWINE_FILL_X_SPACING := 12.0
 const TWINE_FILL_Y_SPACING := 10.0
 const TWINE_FILL_RADIUS_RATIO := 0.88
-const WOOD_SPIKE_RADIUS := 61.2
+const WOOD_SPIKE_RADIUS := 51.208124
 const WOOD_SPIKE_HITBOX_HORIZONTAL_RADIUS := 50.0
 const WOOD_SPIKE_HITBOX_VERTICAL_RADIUS := 18.0
 const WOOD_SPIKE_HITBOX_Y_OFFSET := 34.0
@@ -55,7 +56,7 @@ const WOOD_SPIKE_VISUAL_SCALE := 0.17
 const WOOD_SPIKE_FILL_X_SPACING := 24.0
 const WOOD_SPIKE_FILL_Y_SPACING := 20.0
 const WOOD_SPIKE_FILL_RADIUS_RATIO := 0.88
-const WOOD_SPIKE_COUNT := 10
+const WOOD_SPIKE_COUNT := 16
 const WOOD_SPIKE_RANDOM_MIN_RADIUS := 36.0
 const WOOD_SPIKE_RANDOM_MAX_RADIUS := 280.0
 const WOOD_SPIKE_SAFE_RADIUS := 74.0
@@ -270,13 +271,14 @@ static func _start_death_twine(enemy) -> void:
 	if enemy.target == null or not is_instance_valid(enemy.target):
 		return
 	var shapes: Array = []
-	for center in _get_spread_positions_near_target(
+	for center in _get_spread_positions_near_target_with_exit_gap(
 		enemy,
 		TWINE_COUNT,
 		TWINE_SPAWN_MIN_RADIUS,
 		TWINE_SPAWN_MAX_RADIUS,
 		TWINE_SAFE_RADIUS,
-		TWINE_MIN_CENTER_DISTANCE
+		TWINE_MIN_CENTER_DISTANCE,
+		deg_to_rad(TWINE_EXIT_GAP_DEGREES)
 	):
 		shapes.append({
 			"center": center,
@@ -919,6 +921,40 @@ static func _get_spread_positions_near_target(enemy, count: int, min_radius: flo
 	return positions
 
 
+static func _get_spread_positions_near_target_with_exit_gap(enemy, count: int, min_radius: float, max_radius: float, safe_radius: float, min_center_distance: float, gap_radians: float) -> Array[Vector2]:
+	var positions: Array[Vector2] = []
+	if count <= 0:
+		return positions
+	var target_position: Vector2 = _get_target_position(enemy)
+	var away_from_enemy: Vector2 = target_position - enemy.global_position
+	var gap_center_angle: float = away_from_enemy.angle() if away_from_enemy.length_squared() > 0.001 else randf() * TAU
+	var usable_arc: float = max(0.25, TAU - clamp(gap_radians, 0.0, TAU * 0.85))
+	var arc_start: float = gap_center_angle + gap_radians * 0.5
+	var safe_min_radius: float = max(0.0, min_radius, safe_radius)
+	var safe_max_radius: float = max(safe_min_radius + 1.0, max_radius)
+	for index in range(count):
+		var t: float = (float(index) + 0.5) / float(count)
+		var preferred_angle: float = arc_start + usable_arc * t
+		var fallback_radius: float = lerp(safe_min_radius, safe_max_radius, 0.62 if index % 2 == 0 else 0.88)
+		var best_position: Vector2 = _clamp_position_to_map(enemy, target_position + Vector2.RIGHT.rotated(preferred_angle) * fallback_radius)
+		var best_score: float = -INF
+		for _attempt in range(SPREAD_POSITION_ATTEMPTS):
+			var angle_window: float = usable_arc / float(max(6, count * 3))
+			var angle: float = preferred_angle + randf_range(-angle_window, angle_window)
+			if _is_angle_inside_gap(angle, gap_center_angle, gap_radians):
+				continue
+			var distance: float = randf_range(safe_min_radius, safe_max_radius)
+			var candidate: Vector2 = _clamp_position_to_map(enemy, target_position + Vector2.RIGHT.rotated(angle) * distance)
+			var score: float = _score_spread_position(candidate, target_position, positions, safe_radius, min_center_distance)
+			if score > best_score:
+				best_score = score
+				best_position = candidate
+			if score >= 1.0:
+				break
+		positions.append(best_position)
+	return positions
+
+
 static func _score_spread_position(candidate: Vector2, target_position: Vector2, existing_positions: Array[Vector2], safe_radius: float, min_center_distance: float) -> float:
 	var target_distance: float = candidate.distance_to(target_position)
 	if target_distance < safe_radius:
@@ -928,9 +964,15 @@ static func _score_spread_position(candidate: Vector2, target_position: Vector2,
 		nearest_distance = min(nearest_distance, candidate.distance_to(existing_position))
 	if existing_positions.is_empty():
 		nearest_distance = min_center_distance
-	var spacing_score: float = nearest_distance / max(1.0, min_center_distance)
-	var escape_score: float = min(target_distance / max(1.0, safe_radius), 2.0) * 0.12
-	return spacing_score + escape_score
+	var spacing_score: float = pow(nearest_distance / max(1.0, min_center_distance), 1.18) * 1.35
+	var target_proximity_score: float = 1.0 - clamp((target_distance - safe_radius) / max(1.0, min_center_distance * 2.2), 0.0, 1.0)
+	return spacing_score + target_proximity_score * 0.42
+
+
+static func _is_angle_inside_gap(angle: float, gap_center_angle: float, gap_radians: float) -> bool:
+	var half_gap: float = gap_radians * 0.5
+	var delta: float = wrapf(angle - gap_center_angle + PI, 0.0, TAU) - PI
+	return abs(delta) < half_gap
 
 
 static func _get_target_position(enemy) -> Vector2:

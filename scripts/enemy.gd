@@ -62,6 +62,7 @@ var vulnerability_ring: Line2D
 var trait_ring: Line2D
 var dash_warning_ring: Line2D
 var dash_warning_rect: Polygon2D
+var touch_damage_ring: Line2D
 var display_color: Color = Color(0.34, 0.8, 1.0, 1.0)
 
 var preferred_distance: float = 220.0
@@ -150,12 +151,24 @@ var skulltomb_death_shot_frequency_multiplier: float = 1.3
 var skulltomb_tomb_scene: PackedScene
 var skulltomb_tomb_instance: Node2D
 var skulltomb_channel_ring: Line2D
+var skulltomb_channel_fill: Polygon2D
 var skulltomb_death_ring: Line2D
 var skulltomb_area_instance: Node2D
 var skulltomb_area_remaining: float = 0.0
 var skulltomb_area_damage_elapsed: float = 0.0
 var skulltomb_area_center: Vector2 = Vector2.ZERO
 var skulltomb_area_radius: float = 0.0
+var skulltomb_pending_spawns: Array = []
+var skulltomb_spawn_elapsed: float = 0.0
+var skulltomb_spawn_vertex_index: int = 0
+var skulltomb_charge_interval: float = 9.0
+var skulltomb_charge_timer: float = 0.0
+var skulltomb_charge_windup_duration: float = 2.0
+var skulltomb_charge_windup_remaining: float = 0.0
+var skulltomb_charge_distance: float = 0.0
+var skulltomb_charge_speed_multiplier: float = 2.0
+var skulltomb_charge_push_distance: float = 116.0
+var skulltomb_charge_target_position: Vector2 = Vector2.ZERO
 var skull_soldier_speed_multiplier: float = 1.0
 var skull_soldier_speed_timer: float = 0.0
 var skull_damage_immune_timer: float = 0.0

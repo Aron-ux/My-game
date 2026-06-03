@@ -19,6 +19,8 @@ const LOW_FPS_KILL_DAMAGE_NUMBER_BUDGET_PER_FRAME := 3
 const CRITICAL_FPS_KILL_DAMAGE_NUMBER_BUDGET_PER_FRAME := 1
 const DAMAGE_LABEL_POOL_LIMIT := 64
 const DEATH_BURST_POOL_LIMIT := 32
+const BOSS_HIT_FLASH_OVERLAY_NAME := "BossHitFlashOverlay"
+const BOSS_HIT_FLASH_TOKEN_META := "boss_hit_flash_token"
 
 static var damage_number_budget_frame: int = -1
 static var damage_number_budget_used: int = 0
@@ -28,6 +30,7 @@ static var death_burst_budget_frame: int = -1
 static var death_burst_budget_used: int = 0
 static var hit_flash_budget_frame: int = -1
 static var hit_flash_budget_used: int = 0
+static var boss_hit_flash_shader: Shader
 static var damage_label_pool: Array = []
 static var death_burst_pool: Array = []
 static var active_damage_labels: Array[Dictionary] = []
@@ -49,6 +52,9 @@ static func play_hit_feedback(enemy, damage_amount: float, killed: bool) -> void
 	if killed or _consume_hit_flash_budget():
 		enemy.hit_flash_remaining = HIT_FLASH_DURATION
 		_play_custom_hit_visual(enemy)
+		_spawn_boss_hit_flash_overlay(enemy)
+		if _should_apply_immediate_model_flash(enemy) and enemy.has_method("_update_status_visuals"):
+			enemy._update_status_visuals()
 
 	var can_show_damage_number := _consume_kill_damage_number_budget() if killed else _consume_damage_number_budget()
 	if can_show_damage_number:
@@ -95,11 +101,96 @@ static func get_hit_flash_alpha(hit_flash_remaining: float) -> float:
 static func apply_hit_flash_alpha_to_node(node: Node, alpha: float) -> void:
 	if node is CanvasItem:
 		var canvas_item := node as CanvasItem
-		var color := canvas_item.modulate
-		color.a = alpha
+		var color: Color = canvas_item.modulate
+		var original_alpha: float = color.a
+		var flash_strength: float = clamp(1.0 - alpha, 0.0, 1.0)
+		color = color.lerp(Color.WHITE, flash_strength)
+		color.a = original_alpha
 		canvas_item.modulate = color
 	for child in node.get_children():
 		apply_hit_flash_alpha_to_node(child, alpha)
+
+static func _spawn_boss_hit_flash_overlay(enemy) -> void:
+	if not _should_apply_immediate_model_flash(enemy):
+		return
+	if enemy == null or not is_instance_valid(enemy) or not (enemy is Node):
+		return
+	var visual_root: Node = (enemy as Node).get_node_or_null("ProfileVisual")
+	if visual_root == null and enemy.get("boss_visual_instance") != null:
+		visual_root = enemy.get("boss_visual_instance") as Node
+	if visual_root == null or not is_instance_valid(visual_root):
+		return
+	var source_sprites: Array[AnimatedSprite2D] = []
+	_collect_boss_flash_sprites(visual_root, source_sprites)
+	if source_sprites.is_empty():
+		return
+	for source_sprite: AnimatedSprite2D in source_sprites:
+		_spawn_boss_hit_flash_overlay_for_sprite(source_sprite)
+
+static func _spawn_boss_hit_flash_overlay_for_sprite(source_sprite: AnimatedSprite2D) -> void:
+	if source_sprite == null or not is_instance_valid(source_sprite) or source_sprite.sprite_frames == null:
+		return
+	var current_frame_texture: Texture2D = source_sprite.sprite_frames.get_frame_texture(source_sprite.animation, source_sprite.frame)
+	if current_frame_texture == null:
+		return
+	var overlay: Sprite2D = source_sprite.get_node_or_null(BOSS_HIT_FLASH_OVERLAY_NAME) as Sprite2D
+	if overlay == null:
+		overlay = Sprite2D.new()
+		overlay.name = BOSS_HIT_FLASH_OVERLAY_NAME
+		overlay.z_index = source_sprite.z_index + 20
+		overlay.show_behind_parent = false
+		source_sprite.add_child(overlay)
+		overlay.material = _get_boss_hit_flash_material()
+	overlay.texture = current_frame_texture
+	overlay.centered = source_sprite.centered
+	overlay.offset = source_sprite.offset
+	overlay.flip_h = source_sprite.flip_h
+	overlay.flip_v = source_sprite.flip_v
+	overlay.position = Vector2.ZERO
+	overlay.rotation = 0.0
+	overlay.scale = Vector2.ONE
+	overlay.modulate = Color(1.0, 1.0, 1.0, 0.7)
+	overlay.visible = true
+	var flash_token: int = int(overlay.get_meta(BOSS_HIT_FLASH_TOKEN_META, 0)) + 1
+	overlay.set_meta(BOSS_HIT_FLASH_TOKEN_META, flash_token)
+	var tween: Tween = overlay.create_tween()
+	tween.tween_property(overlay, "modulate:a", 0.0, HIT_FLASH_DURATION)
+	tween.tween_callback(func() -> void:
+		if is_instance_valid(overlay) and int(overlay.get_meta(BOSS_HIT_FLASH_TOKEN_META, 0)) == flash_token:
+			overlay.visible = false
+	)
+
+static func _get_boss_hit_flash_material() -> ShaderMaterial:
+	if boss_hit_flash_shader == null:
+		boss_hit_flash_shader = Shader.new()
+		boss_hit_flash_shader.code = "shader_type canvas_item;\nvoid fragment() {\n\tvec4 tex = texture(TEXTURE, UV);\n\tCOLOR = vec4(1.0, 1.0, 1.0, tex.a * COLOR.a);\n}\n"
+	var material: ShaderMaterial = ShaderMaterial.new()
+	material.shader = boss_hit_flash_shader
+	return material
+
+static func _collect_boss_flash_sprites(root: Node, output: Array[AnimatedSprite2D]) -> void:
+	if root is AnimatedSprite2D:
+		var sprite: AnimatedSprite2D = root as AnimatedSprite2D
+		if sprite.visible and not _is_shadow_flash_sprite(sprite):
+			output.append(sprite)
+	for child in root.get_children():
+		_collect_boss_flash_sprites(child, output)
+
+static func _is_shadow_flash_sprite(sprite: AnimatedSprite2D) -> bool:
+	if sprite == null:
+		return true
+	var node: Node = sprite
+	while node != null:
+		if str(node.name).to_lower().contains("shadow"):
+			return true
+		node = node.get_parent()
+	return false
+
+static func _should_apply_immediate_model_flash(enemy) -> bool:
+	if enemy == null or not is_instance_valid(enemy):
+		return false
+	var kind: String = str(enemy.get("enemy_kind"))
+	return kind == "small_boss" or kind == "boss"
 
 static func show_damage_number(enemy, damage_amount: float, killed: bool) -> void:
 	var current_scene: Node = _get_enemy_current_scene(enemy)

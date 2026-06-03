@@ -2,6 +2,7 @@ extends RefCounted
 
 const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
 const PROJECTILE_BATCH := preload("res://scripts/player/player_projectile_batch.gd")
+const PLAYER_TARGETING := preload("res://scripts/player/player_targeting.gd")
 
 const BATCH_NODE_NAME := "PlayerProjectileBatch"
 
@@ -36,7 +37,8 @@ static func spawn_bullet(owner, bullet_scene: PackedScene, target_enemy: Node2D,
 
 	var start_position: Vector2 = _resolve_origin(owner, origin)
 	var role := _resolve_role_id(owner, role_id)
-	var shot_direction := start_position.direction_to(target_enemy.global_position)
+	var target_position: Vector2 = PLAYER_TARGETING.get_enemy_aim_point(target_enemy, start_position)
+	var shot_direction := start_position.direction_to(target_position)
 	_configure_projectile(bullet, {
 		"pool_key": _get_projectile_pool_key(bullet_scene),
 		"position": start_position,
