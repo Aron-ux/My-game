@@ -318,7 +318,17 @@ func _apply_projectile_hit(projectile_index: int, enemy: Node2D) -> void:
 	if source_player.has_method("_deal_damage_to_enemy"):
 		source_player._deal_damage_to_enemy(enemy, damages[projectile_index], role_id, vulnerability_bonuses[projectile_index], vulnerability_durations[projectile_index], slow_multipliers[projectile_index], slow_durations[projectile_index], source_origins[projectile_index])
 	elif enemy.has_method("take_damage"):
-		enemy.take_damage(damages[projectile_index])
+		PLAYER_DAMAGE_RESOLVER.deal_damage_to_enemy(
+			source_player,
+			enemy,
+			damages[projectile_index],
+			role_id,
+			vulnerability_bonuses[projectile_index],
+			vulnerability_durations[projectile_index],
+			slow_multipliers[projectile_index],
+			slow_durations[projectile_index],
+			source_origins[projectile_index]
+		)
 
 func _has_projectile_hit_enemy(projectile_index: int, enemy: Node2D) -> bool:
 	if projectile_index < 0 or projectile_index >= hit_enemy_ids.size():

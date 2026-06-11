@@ -2,22 +2,21 @@ extends RefCounted
 
 const BASIC_COMBO_INTERVAL := 0.14
 const ULTIMATE_SKILL_ID := "swordsman_ultimate"
-const ULTIMATE_BASE_DURATION := 2.0
+const ULTIMATE_BASE_DURATION := 3.0
 const ULTIMATE_SLASH_INTERVAL := 0.2
-const ULTIMATE_BASE_SLASH_DAMAGE_SCALE := 2.68
+const ULTIMATE_BASE_SLASH_DAMAGE_SCALE := 1.0
 const ULTIMATE_GUNNER_ULTIMATE_OUTPUT_RATIO := 0.75
-const ULTIMATE_POST_INVULNERABILITY_DURATION := 3.0
-const ULTIMATE_LIFESTEAL_BOOST_DURATION := 3.0
 const ULTIMATE_BOSS_TARGET_WEIGHT := 0.35
-const ULTIMATE_EXTRA_SLASHES := 3
-const ULTIMATE_TIER_TWO_EXTRA_SLASHES := 3
+const ULTIMATE_CRITICAL_BONUS_CHANCE := 0.20
+const ULTIMATE_EXTRA_SLASHES := 0
+const ULTIMATE_TIER_TWO_EXTRA_SLASHES := 0
 const ULTIMATE_TIER_TWO_VISUAL_HIT_SCALE := 1.18
-const ULTIMATE_TIER_TWO_DAMAGE_MULTIPLIER := 1.22
-const ULTIMATE_TIER_THREE_EXTRA_SLASHES := 3
+const ULTIMATE_TIER_TWO_DAMAGE_MULTIPLIER := 1.0
+const ULTIMATE_TIER_THREE_EXTRA_SLASHES := 0
 const ULTIMATE_TIER_THREE_VISUAL_HIT_SCALE := 1.38
-const ULTIMATE_TIER_THREE_DAMAGE_MULTIPLIER := 1.42
+const ULTIMATE_TIER_THREE_DAMAGE_MULTIPLIER := 1.0
 const ENTRY_INVULNERABILITY_DURATION := 3.0
-const POST_ULTIMATE_INVULNERABILITY_DURATION := 1.5
+const POST_ULTIMATE_BLOODTHIRST_DURATION := 4.5
 
 func perform_attack(owner) -> void:
 	var base_direction: Vector2 = owner._get_attack_aim_direction(owner.facing_direction)
@@ -134,8 +133,6 @@ func perform_background(owner) -> void:
 	var killed: bool = false
 	owner._spawn_slash_effect(target_enemy.global_position - hit_direction * 10.0, hit_direction, 46.0, 12.0, Color(1.0, 0.74, 0.36, 0.65), 0.1)
 	killed = owner._deal_damage_to_enemy(target_enemy, damage_amount, "swordsman")
-	if target_enemy.has_method("apply_bleed"):
-		target_enemy.apply_bleed(damage_amount * 0.22, 1.8)
 	if crescent_level >= 2:
 		owner._spawn_slash_effect(target_enemy.global_position, hit_direction.rotated(0.9), 42.0, 10.0, Color(1.0, 0.86, 0.48, 0.55), 0.1)
 		owner._spawn_ring_effect(target_enemy.global_position, 34.0 + crescent_level * 5.0, Color(0.42, 0.84, 1.0, 0.32), 4.0, 0.12)
@@ -148,16 +145,10 @@ func perform_background(owner) -> void:
 
 func perform_enter(owner, role_id: String, _assault_level: int, _assault_multiplier: float) -> int:
 	var previous_position: Vector2 = owner.global_position
-	var cluster_center: Vector2 = owner._get_enemy_cluster_center()
-	var target_enemy: Node2D = owner._get_enemy_nearest_to_position(cluster_center) if cluster_center != Vector2.ZERO else owner._get_closest_enemy()
-	var travel_direction: Vector2 = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
+	var travel_direction: Vector2 = owner._get_live_mouse_aim_direction(owner.facing_direction)
+	if travel_direction.length_squared() <= 0.001:
+		travel_direction = Vector2.RIGHT
 	var dash_distance: float = 160.0
-	if target_enemy != null and is_instance_valid(target_enemy):
-		travel_direction = previous_position.direction_to(target_enemy.global_position)
-		dash_distance = 600.0
-	elif cluster_center != Vector2.ZERO:
-		travel_direction = previous_position.direction_to(cluster_center)
-		dash_distance = 600.0
 	owner.global_position += travel_direction * dash_distance
 	if owner.has_method("_clamp_to_active_map_bounds"):
 		owner._clamp_to_active_map_bounds()
@@ -170,7 +161,13 @@ func perform_enter(owner, role_id: String, _assault_level: int, _assault_multipl
 	owner._spawn_sword_omnislash_scene_effect(scar_center, travel_direction, scar_length, scar_width * 1.08)
 	owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, ENTRY_INVULNERABILITY_DURATION)
 	owner.swordsman_entry_trait_share_remaining = max(owner.swordsman_entry_trait_share_remaining, ENTRY_INVULNERABILITY_DURATION)
-	return owner._damage_enemies_in_line(previous_position, scar_end, scar_width, owner._get_role_damage(role_id) * 1.52, 0.1, 1.0, 0.0, role_id)
+	owner.swordsman_bloodthirst_heal_multiplier = max(owner.swordsman_bloodthirst_heal_multiplier, 1.0)
+	owner._push_attack_result_context_tag("suppress_swordsman_trait_heal")
+	owner._push_attack_result_context_tag("suppress_greed_heal")
+	var hits: int = owner._damage_enemies_in_line(previous_position, scar_end, scar_width, owner._get_role_damage(role_id) * 1.5, 0.1, 1.0, 0.0, role_id)
+	owner._pop_attack_result_context_tag("suppress_greed_heal")
+	owner._pop_attack_result_context_tag("suppress_swordsman_trait_heal")
+	return hits
 
 func perform_exit(_owner, _role_id: String, _rearguard_level: int) -> int:
 	return 0
@@ -185,16 +182,13 @@ func perform_ultimate(owner, cast_payload: Dictionary) -> void:
 	var combo_scales: Array[float] = _get_ultimate_combo_scales(owner)
 	var slash_scales: Array[float] = _build_ultimate_segment_scales(slash_count, combo_scales)
 	var total_sequence_duration: float = float(max(0, slash_scales.size() - 1)) * ULTIMATE_SLASH_INTERVAL + 0.18
-	var special_multiplier: float = _get_ultimate_special_effect_multiplier(owner)
-	var special_data: Dictionary = owner._get_role_special_state("swordsman")
-	special_data["ultimate_lifesteal_multiplier_remaining"] = ULTIMATE_LIFESTEAL_BOOST_DURATION * special_multiplier
-	special_data["ultimate_lifesteal_chance_multiplier"] = 2.0 * special_multiplier
-	owner.role_special_states["swordsman"] = special_data
 	var combo_start_index: int = max(0, slash_count - 1)
 	var combo_end_index: int = combo_start_index + combo_scales.size()
 	owner._queue_camera_shake(20.0, 0.62)
-	owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, total_sequence_duration + ULTIMATE_POST_INVULNERABILITY_DURATION * special_multiplier)
+	owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, total_sequence_duration)
 	owner.hidden_invulnerability_status_remaining = max(owner.hidden_invulnerability_status_remaining, total_sequence_duration)
+	owner.swordsman_ultimate_crit_bonus_chance = max(owner.swordsman_ultimate_crit_bonus_chance, ULTIMATE_CRITICAL_BONUS_CHANCE)
+	owner.swordsman_bloodthirst_heal_multiplier = max(owner.swordsman_bloodthirst_heal_multiplier, 1.0)
 	if owner.has_method("_lock_player_actions"):
 		owner._lock_player_actions(total_sequence_duration)
 	owner._delay_level_up_requests(total_sequence_duration)
@@ -205,8 +199,29 @@ func perform_ultimate(owner, cast_payload: Dictionary) -> void:
 		, total_sequence_duration)
 	owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -34.0), "无敌斩", Color(1.0, 0.92, 0.6, 1.0))
 	owner._spawn_ring_effect(owner.global_position, 68.0, Color(1.0, 0.88, 0.52, 0.84), 8.0, 0.18)
+	owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, total_sequence_duration)
+	owner._push_attack_result_context_tag("suppress_swordsman_trait_heal")
+	owner._push_attack_result_context_tag("suppress_greed_heal")
 	_schedule_ultimate_sequence(owner, slash_scales, pursuit_level, crescent_level, thrust_level, _get_ultimate_damage_multiplier(owner, cast_payload), ultimate_tier, 0.0, combo_start_index, combo_end_index)
 	owner._apply_post_ultimate_bonuses("swordsman", total_sequence_duration)
+	if owner.has_method("_schedule_repeating_sequence"):
+		owner._schedule_repeating_sequence(total_sequence_duration, 1, func(_index: int) -> void:
+			if owner == null or not is_instance_valid(owner):
+				return
+			owner._pop_attack_result_context_tag("suppress_greed_heal")
+			owner._pop_attack_result_context_tag("suppress_swordsman_trait_heal")
+			owner.swordsman_ultimate_crit_bonus_chance = 0.0
+			owner.swordsman_entry_trait_share_remaining = max(owner.swordsman_entry_trait_share_remaining, POST_ULTIMATE_BLOODTHIRST_DURATION)
+			owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, POST_ULTIMATE_BLOODTHIRST_DURATION)
+			owner.swordsman_bloodthirst_heal_multiplier = max(owner.swordsman_bloodthirst_heal_multiplier, 1.5)
+		, total_sequence_duration)
+	else:
+		owner._pop_attack_result_context_tag("suppress_greed_heal")
+		owner._pop_attack_result_context_tag("suppress_swordsman_trait_heal")
+		owner.swordsman_ultimate_crit_bonus_chance = 0.0
+		owner.swordsman_entry_trait_share_remaining = max(owner.swordsman_entry_trait_share_remaining, POST_ULTIMATE_BLOODTHIRST_DURATION)
+		owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, POST_ULTIMATE_BLOODTHIRST_DURATION)
+		owner.swordsman_bloodthirst_heal_multiplier = max(owner.swordsman_bloodthirst_heal_multiplier, 1.5)
 
 func _schedule_ultimate_sequence(owner, slash_scales: Array[float], pursuit_level: int, crescent_level: int, thrust_level: int, cast_damage_multiplier: float, ultimate_tier: int, start_delay: float, combo_start_index: int = -1, combo_end_index: int = -1) -> void:
 	var slash_count: int = slash_scales.size()
@@ -238,10 +253,13 @@ func _execute_ultimate_slash(owner, slash_scales: Array[float], pursuit_level: i
 			target_enemy = owner._get_farthest_enemy()
 
 	var travel_direction: Vector2 = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
+	var target_position: Vector2 = cluster_center
 	if target_enemy != null and is_instance_valid(target_enemy):
-		travel_direction = start_position.direction_to(target_enemy.global_position)
+		target_position = _get_ultimate_target_position(owner, target_enemy, start_position)
+		travel_direction = start_position.direction_to(target_position)
 	elif cluster_center != Vector2.ZERO:
-		travel_direction = start_position.direction_to(cluster_center)
+		target_position = cluster_center
+		travel_direction = start_position.direction_to(target_position)
 	if travel_direction.length_squared() <= 0.001:
 		travel_direction = Vector2.RIGHT.rotated(float(slash_index) * TAU / float(max(1, slash_count)))
 
@@ -273,59 +291,18 @@ func _execute_ultimate_slash(owner, slash_scales: Array[float], pursuit_level: i
 	var scar_length: float = start_position.distance_to(scar_length_end)
 	owner._spawn_sword_omnislash_scene_effect(scar_center, travel_direction, scar_length, scar_width * 1.12)
 
-	var damage_scale: float = (ULTIMATE_BASE_SLASH_DAMAGE_SCALE + float(pursuit_level) * 0.12 + float(crescent_level + thrust_level) * 0.06) * damage_multiplier * ULTIMATE_GUNNER_ULTIMATE_OUTPUT_RATIO
+	var damage_scale: float = ULTIMATE_BASE_SLASH_DAMAGE_SCALE * damage_multiplier * ULTIMATE_GUNNER_ULTIMATE_OUTPUT_RATIO
 	var line_damage: float = owner._get_role_damage("swordsman") * damage_scale
 	if is_combo_segment:
 		var combo_hits: int = owner._damage_enemies_in_line(start_position, scar_length_end, scar_width, line_damage, 0.08 + pursuit_level * 0.02, 1.0, 0.0, "swordsman")
 		if combo_hits > 0 and not _uses_batched_ultimate_damage(owner):
 			owner._register_attack_result("swordsman", combo_hits, false)
 		return
-	var shape_hits: int = _apply_ultimate_damage_shapes(owner, [
-		{
-			"type": "line",
-			"start": start_position,
-			"end": scar_length_end,
-			"width": scar_width,
-			"damage_amount": line_damage,
-			"vulnerability_bonus": 0.08 + pursuit_level * 0.02,
-			"slow_multiplier": 1.0,
-			"slow_duration": 0.0,
-			"source_role_id": "swordsman",
-			"source_position": start_position
-		},
-		{
-			"type": "circle",
-			"center": end_position,
-			"radius": (48.0 + crescent_level * 12.0) * visual_hit_scale,
-		"damage_amount": owner._get_role_damage("swordsman") * (0.52 + float(crescent_level) * 0.08) * damage_multiplier * ULTIMATE_GUNNER_ULTIMATE_OUTPUT_RATIO,
-			"vulnerability_bonus": 0.03 + pursuit_level * 0.02,
-			"slow_multiplier": 1.0,
-			"slow_duration": 0.0,
-			"source_role_id": "swordsman",
-			"source_position": end_position
-		}
-	])
-	if shape_hits > 0 and not _uses_batched_ultimate_damage(owner):
-		owner._register_attack_result("swordsman", shape_hits, false)
-	if target_enemy != null and is_instance_valid(target_enemy):
-		var direct_cut_kill: bool = owner._deal_damage_to_enemy(target_enemy, owner._get_role_damage("swordsman") * (0.68 + pursuit_level * 0.08) * damage_multiplier * ULTIMATE_GUNNER_ULTIMATE_OUTPUT_RATIO, "swordsman", 0.06 + pursuit_level * 0.02, 2.0, 1.0, 0.0)
-		owner._register_attack_result("swordsman", 1, direct_cut_kill)
+	var slash_hits: int = owner._damage_enemies_in_line(start_position, scar_length_end, scar_width, line_damage, 0.08 + pursuit_level * 0.02, 1.0, 0.0, "swordsman")
+	if slash_hits > 0 and not _uses_batched_ultimate_damage(owner):
+		owner._register_attack_result("swordsman", slash_hits, false)
 
 	owner._spawn_ring_effect(end_position, (34.0 + crescent_level * 8.0) * visual_hit_scale, Color(1.0, 0.84, 0.44, 0.76), 5.0, 0.12)
-
-	if target_enemy != null and is_instance_valid(target_enemy) and target_enemy.has_method("apply_bleed"):
-		target_enemy.apply_bleed(owner._get_role_damage("swordsman") * (0.68 + pursuit_level * 0.1), 2.8 + float(crescent_level) * 0.35)
-
-	if slash_index == slash_count - 1:
-		owner._queue_camera_shake(15.0, 0.22)
-		owner._spawn_burst_effect(end_position, (94.0 + crescent_level * 10.0) * visual_hit_scale, Color(1.0, 0.78, 0.35, 0.28), 0.2)
-		owner._spawn_ring_effect(end_position, (108.0 + thrust_level * 10.0) * visual_hit_scale, Color(1.0, 0.92, 0.58, 0.9), 10.0, 0.18)
-		var finisher_hits: int = owner._damage_enemies_in_line(start_position, end_position + travel_direction * (168.0 * visual_hit_scale), scar_width + 18.0 * visual_hit_scale, owner._get_role_damage("swordsman") * (1.55 + pursuit_level * 0.14) * damage_multiplier * ULTIMATE_GUNNER_ULTIMATE_OUTPUT_RATIO, 0.1, 1.0, 0.0, "swordsman")
-		if finisher_hits > 0 and not _uses_batched_ultimate_damage(owner):
-			owner._register_attack_result("swordsman", finisher_hits, false)
-		if target_enemy != null and is_instance_valid(target_enemy):
-			var finisher_kill: bool = owner._deal_damage_to_enemy(target_enemy, owner._get_role_damage("swordsman") * (0.92 + pursuit_level * 0.1) * damage_multiplier * ULTIMATE_GUNNER_ULTIMATE_OUTPUT_RATIO, "swordsman", 0.12, 2.4, 1.0, 0.0)
-			owner._register_attack_result("swordsman", 1, finisher_kill)
 
 func _get_ultimate_skill_tier(owner) -> int:
 	if owner != null and owner.has_method("_get_blessing_skill_tier"):
@@ -338,6 +315,13 @@ func _get_ultimate_priority_boss_target(owner, origin: Vector2) -> Node2D:
 	if randf() > ULTIMATE_BOSS_TARGET_WEIGHT:
 		return null
 	return owner._get_priority_boss_target(origin)
+
+func _get_ultimate_target_position(owner, target_enemy: Node2D, origin: Vector2) -> Vector2:
+	if target_enemy == null or not is_instance_valid(target_enemy):
+		return origin
+	if owner != null and owner.has_method("_get_enemy_aim_point"):
+		return owner._get_enemy_aim_point(target_enemy, origin)
+	return target_enemy.global_position
 
 func _get_ultimate_combo_scales(owner) -> Array[float]:
 	if owner != null and owner.has_method("_get_blessing_skill_combo_scales"):

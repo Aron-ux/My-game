@@ -2,8 +2,9 @@ extends RefCounted
 
 const PICKUP_COMPACTOR := preload("res://scripts/game/pickup_compactor.gd")
 
-const HEART_DROP_CHANCE := 0.012
-const HEART_DROP_CHANCE_ELITE := 0.02
+const HEART_HEAL_AMOUNT := 25.0
+const HEART_DROP_CHANCE := 0.006
+const HEART_DROP_CHANCE_ELITE := 0.012
 const HEART_DROP_CHANCE_BOSS := 0.044
 
 static func drop_experience_gem(enemy) -> void:
@@ -52,7 +53,7 @@ static func maybe_drop_heart(enemy) -> void:
 
 	var spawn_position: Vector2 = enemy.global_position + Vector2(randf_range(-10.0, 10.0), randf_range(-8.0, 8.0))
 	if PICKUP_COMPACTOR.should_merge_new_heart(current_scene):
-		if PICKUP_COMPACTOR.merge_heal_into_existing(current_scene, spawn_position, 50.0):
+		if PICKUP_COMPACTOR.merge_heal_into_existing(current_scene, spawn_position, HEART_HEAL_AMOUNT):
 			return
 
 	var heart_pickup: Node = _take_pickup_from_pool(current_scene, "heart_pickups")
@@ -63,7 +64,7 @@ static func maybe_drop_heart(enemy) -> void:
 
 	current_scene.add_child(heart_pickup)
 	if heart_pickup.has_method("reset_pickup"):
-		heart_pickup.reset_pickup(spawn_position, 50.0)
+		heart_pickup.reset_pickup(spawn_position, HEART_HEAL_AMOUNT)
 	else:
 		heart_pickup.global_position = spawn_position
 

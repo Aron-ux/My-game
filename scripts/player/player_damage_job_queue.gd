@@ -156,7 +156,7 @@ func _apply_job_at_index(index: int) -> void:
 		else:
 			killed = bool(source_player._deal_damage_to_enemy(enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, suppress_status_visual, kill_energy_bonus))
 	elif enemy.has_method("take_damage"):
-		killed = bool(enemy.take_damage(damage_amount))
+		killed = bool(_deal_batched_damage_to_enemy(enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, kill_energy_bonus, suppress_status_visual))
 	_queue_attack_result(source_role_id, hit_counts[index], killed)
 
 
@@ -222,6 +222,11 @@ func _flush_pending_kill_energy() -> void:
 
 func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float, vulnerability_duration: float, slow_multiplier: float, slow_duration: float, source_position: Variant, kill_energy_bonus: float, suppress_status_visual: bool) -> bool:
 	var final_damage := damage_amount
+	var was_critical := false
+	if source_role_id != "" and source_player.has_method("_roll_critical_hit") and source_player.has_method("_get_critical_damage_multiplier"):
+		was_critical = bool(source_player._roll_critical_hit(source_role_id))
+		if was_critical:
+			final_damage *= float(source_player._get_critical_damage_multiplier(source_role_id))
 	if source_role_id == "gunner" and source_player.has_method("_get_gunner_distance_damage_multiplier"):
 		var attack_origin: Vector2 = source_player.global_position
 		if source_position is Vector2:
@@ -237,6 +242,8 @@ func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_rol
 		killed = bool(enemy.take_batched_damage(final_damage))
 	elif enemy.has_method("take_damage"):
 		killed = bool(enemy.take_damage(final_damage))
+	if source_player.has_method("_record_attack_result_instance"):
+		source_player._record_attack_result_instance(source_role_id, was_critical, killed)
 	if source_player.has_method("_add_switch_energy_from_damage"):
 		source_player._add_switch_energy_from_damage(final_damage, source_role_id)
 	if source_player.has_method("_apply_role_damage_lifesteal"):

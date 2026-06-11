@@ -139,7 +139,7 @@ static func _build_buff_status_slots(owner) -> Array:
 		slots.append({
 			"id": "aging",
 			"name": "衰老",
-			"description": "每秒受到最大生命值6%的伤害。",
+			"description": "每秒流失最大生命值6%的体力，不视为受到伤害。",
 			"text": "衰",
 			"icon_id": "aging",
 			"color": Color(0.50, 0.18, 0.56, 0.96),

@@ -162,6 +162,11 @@ static func try_switch_role(owner, new_role_index: int) -> void:
 	var previous_role_index: int = owner.active_role_index
 	var previous_position: Vector2 = owner.global_position
 	var previous_role_id: String = str(owner.roles[previous_role_index].get("id", ""))
+	if previous_role_id == "swordsman":
+		if owner.swordsman_death_defiance_will_remaining > 0.0:
+			if owner.switch_invulnerability_remaining <= owner.swordsman_death_defiance_will_remaining + 0.001:
+				owner.switch_invulnerability_remaining = 0.0
+			owner.swordsman_death_defiance_will_remaining = 0.0
 	var should_trigger_entry: bool = owner.has_method("_consume_switch_energy_for_entry") and owner._consume_switch_energy_for_entry(previous_role_id)
 	if owner.has_method("_save_active_role_health"):
 		owner._save_active_role_health()
@@ -178,7 +183,7 @@ static func try_switch_role(owner, new_role_index: int) -> void:
 	owner.switch_cooldown_remaining = 0.0 if DEVELOPER_MODE.should_ignore_cooldowns() else _get_switch_cooldown_duration(owner)
 	var active_role_index: int = owner.active_role_index
 	var active_role_id: String = str(owner.roles[active_role_index]["id"])
-	owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, SWITCH_INVULNERABILITY)
+	owner.switch_invulnerability_remaining = SWITCH_INVULNERABILITY
 	owner.hidden_invulnerability_status_remaining = max(owner.hidden_invulnerability_status_remaining, SWITCH_INVULNERABILITY)
 	var switch_direction: Vector2 = owner.velocity if owner.velocity.length_squared() > 0.001 else owner.facing_direction
 	owner._update_active_role_state()

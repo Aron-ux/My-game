@@ -1,6 +1,6 @@
 extends Node2D
 
-const HEAL_AMOUNT := 50.0
+const HEAL_AMOUNT := 25.0
 const DESPAWN_SECONDS := 45.0
 
 @export var heal_amount: float = HEAL_AMOUNT

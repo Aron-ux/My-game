@@ -36,7 +36,7 @@ animations = [{
 "duration": 1.0,
 "texture": ExtResource("8_d4fgs")
 }],
-"loop": false,
+"loop": true,
 "name": &"fan",
 "speed": 16.0
 }]
@@ -49,7 +49,7 @@ rotation = -1.3296887
 scale = Vector2(15.468567, 14.436414)
 sprite_frames = SubResource("SpriteFrames_s83mk")
 animation = &"fan"
-frame = 7
-frame_progress = 1.0
+frame = 5
+frame_progress = 0.8780287
 speed_scale = 2.0
 offset = Vector2(-68.54768, -86.19653)

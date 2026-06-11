@@ -37,6 +37,12 @@ static func update_timers(owner, delta: float) -> void:
 		owner.swordsman_death_defiance_cooldown_remaining = max(0.0, owner.swordsman_death_defiance_cooldown_remaining - delta)
 	if owner.swordsman_entry_trait_share_remaining > 0.0:
 		owner.swordsman_entry_trait_share_remaining = max(0.0, owner.swordsman_entry_trait_share_remaining - delta)
+		if owner.swordsman_entry_trait_share_remaining > 0.0:
+			owner.swordsman_bloodthirst_heal_multiplier = max(owner.swordsman_bloodthirst_heal_multiplier, 1.0)
+		else:
+			owner.swordsman_bloodthirst_heal_multiplier = 1.0
+	else:
+		owner.swordsman_bloodthirst_heal_multiplier = 1.0
 	if owner.mage_arcane_surplus_remaining > 0.0:
 		var previous_arcane_surplus_remaining: float = owner.mage_arcane_surplus_remaining
 		owner.mage_arcane_surplus_remaining = max(0.0, owner.mage_arcane_surplus_remaining - delta)

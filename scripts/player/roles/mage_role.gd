@@ -224,7 +224,7 @@ func perform_background(owner) -> void:
 		var target_enemy: Node2D = owner._get_closest_enemy()
 		if target_enemy == null:
 			return
-		cluster_position = target_enemy.global_position
+		cluster_position = owner._get_enemy_aim_point(target_enemy, owner.global_position) if owner.has_method("_get_enemy_aim_point") else target_enemy.global_position
 
 	var radius: float = (44.0 + support_level * 8.0 + echo_level * 4.0 + frost_level * 4.0) * MAGE_ATTACK_EFFECT_SCALE * owner._get_role_attribute_range_multiplier("mage")
 	var damage_amount: float = owner._get_role_damage("mage") * (0.32 + support_level * 0.06)
@@ -238,10 +238,11 @@ func perform_background(owner) -> void:
 		for secondary_target in secondary_targets:
 			if secondary_target == null or not is_instance_valid(secondary_target):
 				continue
-			if secondary_target.global_position.distance_to(cluster_position) < 40.0:
+			var secondary_center: Vector2 = owner._get_enemy_aim_point(secondary_target, cluster_position) if owner.has_method("_get_enemy_aim_point") else secondary_target.global_position
+			if secondary_center.distance_to(cluster_position) < 40.0:
 				continue
 			owner._start_basic_mage_bombardment(
-				secondary_target.global_position,
+				secondary_center,
 				(34.0 + support_level * 5.0) * MAGE_ATTACK_EFFECT_SCALE,
 				owner._get_role_damage("mage") * (0.18 + support_level * 0.04),
 				0.0,
@@ -379,13 +380,13 @@ func _get_ultimate_bombard_lock_center(owner, fallback_center: Vector2) -> Vecto
 	if owner != null and owner.has_method("_get_priority_boss_target") and randf() <= ULTIMATE_BOSS_TARGET_WEIGHT:
 		priority_boss = owner._get_priority_boss_target(owner.global_position)
 	if priority_boss != null and is_instance_valid(priority_boss):
-		return priority_boss.global_position
+		return owner._get_enemy_aim_point(priority_boss, owner.global_position) if owner.has_method("_get_enemy_aim_point") else priority_boss.global_position
 	var cluster_center: Vector2 = owner._get_enemy_cluster_center()
 	if cluster_center != Vector2.ZERO:
 		return cluster_center
 	var target_enemy: Node2D = owner._get_closest_enemy()
 	if target_enemy != null and is_instance_valid(target_enemy):
-		return target_enemy.global_position
+		return owner._get_enemy_aim_point(target_enemy, owner.global_position) if owner.has_method("_get_enemy_aim_point") else target_enemy.global_position
 	return fallback_center
 
 func _get_ultimate_skill_tier(owner) -> int:

@@ -127,7 +127,8 @@ static func get_mage_mouse_bombard_center(owner, base_range: float) -> Vector2:
 	if bool(owner.get("auto_attack_enabled")):
 		var target_enemy: Node2D = owner._get_closest_enemy()
 		if target_enemy != null and is_instance_valid(target_enemy):
-			var target_offset: Vector2 = target_enemy.global_position - owner.global_position
+			var aim_point: Vector2 = owner._get_enemy_aim_point(target_enemy, owner.global_position) if owner.has_method("_get_enemy_aim_point") else target_enemy.global_position
+			var target_offset: Vector2 = aim_point - owner.global_position
 			if target_offset.length() > max_distance:
 				target_offset = target_offset.normalized() * max_distance
 			return owner.global_position + target_offset

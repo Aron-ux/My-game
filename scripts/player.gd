@@ -97,7 +97,7 @@ const BACKGROUND_ULTIMATE_ENERGY_GAIN_RATIO := 0.3
 const ULTIMATE_COST := 90.0
 const ULTIMATE_ENERGY_REQUIRED := 100.0
 const SWITCH_ENTRY_ENERGY_REQUIRED := 100.0
-const SWITCH_ENTRY_ENERGY_PER_DAMAGE := 0.04
+const SWITCH_ENTRY_ENERGY_PER_DAMAGE := 0.02
 const ULTIMATE_ENERGY_LOCK_AFTER_CAST := 3.2
 const SWORD_ULTIMATE_SLASH_INTERVAL := 0.12
 const GUNNER_ULTIMATE_WAVE_INTERVAL := 0.14
@@ -117,6 +117,7 @@ const MAGE_ARCANE_CHARGE_SELF_ENERGY_PER_STACK := 0.02
 const SWORDSMAN_BLOODTHIRST_DURATION := 3.0
 const SWORDSMAN_DEATH_DEFIANCE_COOLDOWN := 80.0
 const SWORDSMAN_DEATH_DEFIANCE_INVULNERABILITY := 1.5
+const BASE_CRITICAL_DAMAGE_MULTIPLIER := 1.5
 const SHOW_GAMEPLAY_TEXT_HINTS := false
 
 const FIRE_RATE_STEP := 0.05
@@ -258,6 +259,10 @@ var equipment_skill_range_multiplier: float = 1.0
 var equipment_cooldown_multiplier: float = 1.0
 var attribute_training_levels: Dictionary = {}
 var role_special_states: Dictionary = {}
+var attack_result_context_tags: Dictionary = {}
+var pending_attack_result_hit_count_by_role: Dictionary = {}
+var pending_attack_result_kill_count_by_role: Dictionary = {}
+var pending_attack_result_critical_hit_count_by_role: Dictionary = {}
 var swordsman_blade_storm_ability = SWORDSMAN_BLADE_STORM_ABILITY.new()
 var swordsman_crescent_wave_ability = SWORDSMAN_CRESCENT_WAVE_ABILITY.new()
 var camera_node: Camera2D
@@ -283,6 +288,8 @@ var swordsman_trait_heal_cooldown_remaining: float = 0.0
 var swordsman_death_defiance_cooldown_remaining: float = 0.0
 var swordsman_death_defiance_will_remaining: float = 0.0
 var swordsman_entry_trait_share_remaining: float = 0.0
+var swordsman_bloodthirst_heal_multiplier: float = 1.0
+var swordsman_ultimate_crit_bonus_chance: float = 0.0
 var mage_arcane_surplus_remaining: float = 0.0
 var mage_arcane_charge_stacks: int = 0
 var greed_heal_cooldown_remaining: float = 0.0
@@ -552,6 +559,50 @@ func _get_swordsman_trait_heal_amount() -> float:
 
 func _get_swordsman_trait_heal_proc_chance() -> float:
 	return PLAYER_ATTRIBUTE_FLOW.get_swordsman_trait_heal_proc_chance(self)
+
+func _get_role_base_critical_chance(role_id: String) -> float:
+	if role_id == "swordsman":
+		return 0.10
+	return 0.0
+
+func _get_role_critical_chance(role_id: String) -> float:
+	var critical_chance: float = _get_role_base_critical_chance(role_id)
+	if role_id == "swordsman":
+		critical_chance += swordsman_ultimate_crit_bonus_chance
+	return clamp(critical_chance, 0.0, 1.0)
+
+func _get_critical_damage_multiplier(_role_id: String) -> float:
+	return BASE_CRITICAL_DAMAGE_MULTIPLIER
+
+func _roll_critical_hit(role_id: String) -> bool:
+	var critical_chance: float = _get_role_critical_chance(role_id)
+	return critical_chance > 0.0 and randf() <= critical_chance
+
+func _record_attack_result_instance(role_id: String, was_critical: bool, killed: bool) -> void:
+	if role_id == "":
+		return
+	pending_attack_result_hit_count_by_role[role_id] = int(pending_attack_result_hit_count_by_role.get(role_id, 0)) + 1
+	if was_critical:
+		pending_attack_result_critical_hit_count_by_role[role_id] = int(pending_attack_result_critical_hit_count_by_role.get(role_id, 0)) + 1
+	if killed:
+		pending_attack_result_kill_count_by_role[role_id] = int(pending_attack_result_kill_count_by_role.get(role_id, 0)) + 1
+
+func _consume_pending_attack_result_hit_count(role_id: String, fallback_hit_count: int) -> int:
+	var pending_hit_count: int = int(pending_attack_result_hit_count_by_role.get(role_id, 0))
+	pending_attack_result_hit_count_by_role.erase(role_id)
+	return pending_hit_count if pending_hit_count > 0 else fallback_hit_count
+
+func _consume_pending_attack_result_kill_count(role_id: String, fallback_kill_count: int, killed: bool) -> int:
+	var pending_kill_count: int = int(pending_attack_result_kill_count_by_role.get(role_id, 0))
+	pending_attack_result_kill_count_by_role.erase(role_id)
+	if pending_kill_count > 0:
+		return pending_kill_count
+	return 1 if killed else fallback_kill_count
+
+func _consume_pending_attack_result_critical_hit_count(role_id: String) -> int:
+	var pending_critical_hit_count: int = int(pending_attack_result_critical_hit_count_by_role.get(role_id, 0))
+	pending_attack_result_critical_hit_count_by_role.erase(role_id)
+	return pending_critical_hit_count
 
 func _get_mage_kill_energy_proc_chance() -> float:
 	return PLAYER_ATTRIBUTE_FLOW.get_mage_kill_energy_proc_chance(self)
@@ -1048,7 +1099,7 @@ func _get_swordsman_bloodthirst_buff_slot() -> Dictionary:
 		return {}
 	return {
 		"name": "嗜血",
-		"description": "3秒内无敌，且剑士造成的吸血回复会同步作用到另外两名角色",
+		"description": "无敌期间，战意与贪婪触发的回复会同步作用到另外两名角色。无敌斩结束后会进入4.5秒的强化嗜血，回复效果提升至1.5倍",
 		"text": "嗜",
 		"stacks": 0,
 		"remaining": swordsman_entry_trait_share_remaining,
@@ -1061,11 +1112,11 @@ func _get_swordsman_bloodthirst_buff_slot() -> Dictionary:
 func _get_swordsman_will_buff_slot() -> Dictionary:
 	if swordsman_death_defiance_will_remaining > 0.0:
 		return {
-			"name": "\u6218\u610F",
-			"description": "\u81F4\u547D\u4F24\u5BB3\u540E\u4FDD\u75591\u70B9\u751F\u547D\u5E76\u83B7\u5F97\u65E0\u654C",
-			"text": "\u6218",
+			"name": "骑士荣耀",
+			"description": "受到致命伤害时不会立刻死亡，而是保留1点生命并进入无敌",
+			"text": "荣",
 			"stacks": 0,
-			"remaining": SWORDSMAN_DEATH_DEFIANCE_INVULNERABILITY,
+			"remaining": swordsman_death_defiance_will_remaining,
 			"duration": SWORDSMAN_DEATH_DEFIANCE_INVULNERABILITY,
 			"color": Color(0.28, 0.58, 1.0, 0.88),
 			"cooldown": false,
@@ -1073,9 +1124,9 @@ func _get_swordsman_will_buff_slot() -> Dictionary:
 		}
 	if swordsman_death_defiance_cooldown_remaining > 0.0:
 		return {
-			"name": "\u6218\u610F\u51B7\u5374",
-			"description": "\u6218\u610F\u51B7\u5374\u4E2D",
-			"text": "\u6218",
+			"name": "骑士荣耀冷却",
+			"description": "骑士荣耀冷却中",
+			"text": "荣",
 			"stacks": 0,
 			"remaining": swordsman_death_defiance_cooldown_remaining,
 			"duration": SWORDSMAN_DEATH_DEFIANCE_COOLDOWN,
@@ -1444,6 +1495,8 @@ func _sync_invulnerability_status() -> void:
 	if visible_invulnerability_remaining > 0.0:
 		if swordsman_entry_trait_share_remaining > 0.0:
 			_sync_duration_status("invulnerable", "嗜血", visible_invulnerability_remaining, 90, Color(0.96, 0.82, 0.24, 0.95))
+		elif swordsman_death_defiance_will_remaining > 0.0:
+			_sync_duration_status("invulnerable", "骑士荣耀", visible_invulnerability_remaining, 90, Color(0.28, 0.58, 1.0, 0.88))
 		else:
 			_sync_duration_status("invulnerable", "无敌", visible_invulnerability_remaining, 90, Color(0.95, 0.82, 0.22, 0.96))
 	else:
@@ -1601,6 +1654,9 @@ func _get_low_health_enemy() -> Node2D:
 func _get_priority_boss_target(origin: Vector2) -> Node2D:
 	return PLAYER_TARGETING.get_owner_priority_boss_target(self, origin)
 
+func _get_enemy_aim_point(enemy: Node2D, origin: Vector2) -> Vector2:
+	return PLAYER_TARGETING.get_enemy_aim_point(enemy, origin)
+
 func _get_enemy_in_aim_cone(max_angle_degrees: float, max_distance: float = INF) -> Node2D:
 	return PLAYER_TARGETING.get_owner_enemy_in_aim_cone(self, max_angle_degrees, max_distance)
 
@@ -1686,6 +1742,25 @@ func _get_ultimate_level_damage_multiplier() -> float:
 
 func _register_attack_result(role_id: String, hit_count: int, killed: bool, kill_count: int = 0) -> void:
 	PLAYER_COMBAT_RESULT_FLOW.register_attack_result(self, role_id, hit_count, killed, kill_count)
+
+func _push_attack_result_context_tag(tag_id: String) -> void:
+	if tag_id == "":
+		return
+	attack_result_context_tags[tag_id] = int(attack_result_context_tags.get(tag_id, 0)) + 1
+
+func _pop_attack_result_context_tag(tag_id: String) -> void:
+	if tag_id == "":
+		return
+	var next_count: int = int(attack_result_context_tags.get(tag_id, 0)) - 1
+	if next_count > 0:
+		attack_result_context_tags[tag_id] = next_count
+	else:
+		attack_result_context_tags.erase(tag_id)
+
+func _has_attack_result_context_tag(tag_id: String) -> bool:
+	if tag_id == "":
+		return false
+	return int(attack_result_context_tags.get(tag_id, 0)) > 0
 
 
 func _apply_theme_hit_returns(role_id: String, hit_count: int, killed: bool) -> void:

@@ -24,8 +24,6 @@ static func apply_role_damage_lifesteal(owner, source_role_id: String, damage_am
 
 	var trait_level: float = float(owner._get_role_attribute_level("swordsman", "swordsman_trait"))
 	var proc_chance: float = ROLE_ATTRIBUTE_RULES.get_swordsman_trait_heal_proc_chance(trait_level)
-	if owner.max_health > 0.0 and owner.current_health / owner.max_health <= 0.05:
-		proc_chance *= 2.0
 	if randf() > min(proc_chance, 1.0):
 		return
 

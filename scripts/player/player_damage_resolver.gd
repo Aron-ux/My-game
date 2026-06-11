@@ -34,6 +34,11 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 	if enemy == null or not is_instance_valid(enemy):
 		return false
 	var final_damage := damage_amount
+	var was_critical := false
+	if owner != null and source_role_id != "" and owner.has_method("_roll_critical_hit") and owner.has_method("_get_critical_damage_multiplier"):
+		was_critical = bool(owner._roll_critical_hit(source_role_id))
+		if was_critical:
+			final_damage *= float(owner._get_critical_damage_multiplier(source_role_id))
 	if owner != null and source_role_id == "gunner" and enemy is Node2D:
 		var attack_origin: Vector2 = owner.global_position if owner is Node2D else (enemy as Node2D).global_position
 		if source_position is Vector2:
@@ -43,6 +48,8 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 	var killed := false
 	if damage_amount > 0.0 and enemy.has_method("take_damage"):
 		killed = bool(enemy.take_damage(final_damage))
+		if owner != null and owner.has_method("_record_attack_result_instance"):
+			owner._record_attack_result_instance(source_role_id, was_critical, killed)
 		if owner != null and owner.has_method("_add_switch_energy_from_damage"):
 			owner._add_switch_energy_from_damage(final_damage, source_role_id)
 		if owner != null and owner.has_method("_apply_role_damage_lifesteal"):

@@ -535,7 +535,17 @@ func _apply_hit(enemy: Node2D) -> void:
 		queued_damage = true
 	else:
 		if enemy.has_method("take_damage"):
-			killed = bool(enemy.take_damage(damage))
+			killed = bool(PLAYER_DAMAGE_RESOLVER.deal_damage_to_enemy(
+				source_player,
+				enemy,
+				damage,
+				source_role_id,
+				vulnerability_bonus,
+				vulnerability_duration,
+				slow_multiplier,
+				slow_duration,
+				global_position
+			))
 		if slow_duration > 0.0 and enemy.has_method("apply_slow"):
 			enemy.apply_slow(slow_multiplier, slow_duration)
 		if vulnerability_duration > 0.0 and enemy.has_method("apply_vulnerability"):

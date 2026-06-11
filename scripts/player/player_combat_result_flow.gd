@@ -16,7 +16,6 @@ const SWORDSMAN_TRAIT_HEAL_COOLDOWN := 1.0
 const GREED_HEAL_COOLDOWN := 1.0
 const LIFESTEAL_MAX_ROLL_HITS := 6
 const LIFESTEAL_MAX_PROC_CHANCE := 0.80
-const SWORDSMAN_LOW_HEALTH_LIFESTEAL_RATIO := 0.05
 
 
 static func add_kill_energy(owner, amount: float, bypass_lock_role_id: String = "", source_role_id: String = "") -> void:
@@ -87,8 +86,17 @@ static func get_boss_damage_energy(damage_amount: float) -> float:
 
 
 static func register_attack_result(owner, role_id: String, hit_count: int, killed: bool, kill_count: int = 0) -> void:
-	apply_swordsman_trait_heal_on_hit(owner, role_id, hit_count)
-	apply_greed_heal_on_hit(owner, role_id, hit_count)
+	if owner != null and owner.has_method("_consume_pending_attack_result_hit_count"):
+		hit_count = int(owner._consume_pending_attack_result_hit_count(role_id, hit_count))
+	if owner != null and owner.has_method("_consume_pending_attack_result_kill_count"):
+		kill_count = int(owner._consume_pending_attack_result_kill_count(role_id, kill_count, killed))
+		killed = kill_count > 0
+	var suppress_swordsman_trait_heal: bool = owner.has_method("_has_attack_result_context_tag") and owner._has_attack_result_context_tag("suppress_swordsman_trait_heal")
+	var suppress_greed_heal: bool = owner.has_method("_has_attack_result_context_tag") and owner._has_attack_result_context_tag("suppress_greed_heal")
+	if not suppress_swordsman_trait_heal:
+		apply_swordsman_trait_heal_on_hit(owner, role_id, hit_count)
+	if not suppress_greed_heal:
+		apply_greed_heal_on_hit(owner, role_id, hit_count)
 	apply_role_flat_heal_on_hit(owner, role_id, hit_count)
 	apply_entry_lifesteal(owner, role_id, hit_count, killed)
 	if killed and owner._has_elite_relic("elite_execution_pact") and not owner.execution_pact_burst_active:
@@ -120,19 +128,24 @@ static func apply_swordsman_trait_heal_on_hit(owner, role_id: String, hit_count:
 	var missing_heal_ratio: float = ROLE_ATTRIBUTE_RULES.SWORDSMAN_TRAIT_MISSING_HEAL_RATIO
 	if proc_chance <= 0.0 or (heal_ratio <= 0.0 and missing_heal_ratio <= 0.0):
 		return
-	var proc_rolls: int = max(1, min(hit_count, LIFESTEAL_MAX_ROLL_HITS))
-	var combined_chance: float = 1.0 - pow(max(0.0, 1.0 - clamp(proc_chance, 0.0, 1.0)), float(proc_rolls))
-	if combined_chance <= 0.0 or randf() > combined_chance:
-		return
-	var role_max_health: float = _get_role_max_health_value(owner, "swordsman")
-	var role_current_health: float = _get_role_current_health_value(owner, "swordsman")
-	var missing_health: float = max(0.0, role_max_health - role_current_health)
-	var heal_amount: float = role_max_health * heal_ratio + missing_health * missing_heal_ratio
-	if heal_amount <= 0.0:
-		return
-	owner.swordsman_trait_heal_cooldown_remaining = SWORDSMAN_TRAIT_HEAL_COOLDOWN
-	owner._heal(heal_amount)
-	_share_swordsman_entry_lifesteal(owner, heal_amount)
+	var max_trigger_count: int = min(hit_count, LIFESTEAL_MAX_ROLL_HITS)
+	var successful_triggers: int = 0
+	for _index in range(max_trigger_count):
+		if randf() > clamp(proc_chance, 0.0, 1.0):
+			continue
+		var role_max_health: float = _get_role_max_health_value(owner, "swordsman")
+		var role_current_health: float = _get_role_current_health_value(owner, "swordsman")
+		var missing_health: float = max(0.0, role_max_health - role_current_health)
+		var heal_amount: float = role_max_health * heal_ratio + missing_health * missing_heal_ratio
+		if heal_amount <= 0.0:
+			continue
+		if owner.has_method("_get_swordsman_bloodthirst_ratio"):
+			heal_amount *= max(0.0, float(owner.swordsman_bloodthirst_heal_multiplier))
+		owner._heal(heal_amount)
+		_share_swordsman_entry_lifesteal(owner, heal_amount)
+		successful_triggers += 1
+	if successful_triggers > 0:
+		owner.swordsman_trait_heal_cooldown_remaining = SWORDSMAN_TRAIT_HEAL_COOLDOWN
 
 
 static func _get_role_health_ratio(owner, role_id: String) -> float:
@@ -238,8 +251,6 @@ static func apply_role_flat_heal_on_hit(owner, role_id: String, hit_count: int) 
 		var special_data: Dictionary = owner._get_role_special_state("swordsman")
 		if float(special_data.get("ultimate_lifesteal_multiplier_remaining", 0.0)) > 0.0:
 			proc_chance *= max(0.0, float(special_data.get("ultimate_lifesteal_chance_multiplier", 2.0)))
-	if _is_swordsman_lifesteal_low_health(owner):
-		proc_chance *= 2.0
 	var capped_hits: int = min(hit_count, LIFESTEAL_MAX_ROLL_HITS)
 	var combined_chance: float = 1.0 - pow(max(0.0, 1.0 - proc_chance), float(capped_hits))
 	if randf() > clamp(combined_chance, 0.0, LIFESTEAL_MAX_PROC_CHANCE):
@@ -265,10 +276,6 @@ static func apply_entry_lifesteal(owner, role_id: String, hit_count: int, killed
 		owner._heal(heal_amount)
 		if role_id == "swordsman":
 			_share_swordsman_entry_lifesteal(owner, heal_amount)
-
-
-static func _is_swordsman_lifesteal_low_health(owner) -> bool:
-	return _get_role_health_ratio(owner, "swordsman") < SWORDSMAN_LOW_HEALTH_LIFESTEAL_RATIO
 
 
 static func trigger_chain_reaction(owner, role_id: String) -> void:

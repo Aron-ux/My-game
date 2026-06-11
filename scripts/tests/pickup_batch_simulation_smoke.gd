@@ -27,7 +27,7 @@ func _run() -> void:
 
 	var heart := HEART_PICKUP_SCENE.instantiate() as Node2D
 	scene.add_child(heart)
-	heart.reset_pickup(Vector2(64.0, 0.0), 50.0)
+	heart.reset_pickup(Vector2(64.0, 0.0), 25.0)
 	heart.age_seconds = 44.95
 
 	PICKUP_BATCH_SIMULATION.update_pickups(scene, 0.1)

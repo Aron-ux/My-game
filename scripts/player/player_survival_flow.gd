@@ -118,14 +118,13 @@ static func _apply_aging_damage(owner, delta: float) -> void:
 		return
 	var raw_damage: float = max(1.0, float(owner.max_health)) * 0.06 * delta
 	owner.aging_damage_carry += raw_damage
-	var damage_to_apply: float = floor(owner.aging_damage_carry)
-	if damage_to_apply < 1.0:
+	var stamina_loss_to_apply: float = floor(owner.aging_damage_carry)
+	if stamina_loss_to_apply < 1.0:
 		return
-	owner.aging_damage_carry -= damage_to_apply
+	owner.aging_damage_carry -= stamina_loss_to_apply
 	var previous_health: float = float(owner.current_health)
-	owner.current_health = max(1.0, previous_health - damage_to_apply)
-	if damage_to_apply > 0.0 and owner.has_method("_break_gunner_flash_trait"):
-		owner._break_gunner_flash_trait()
+	# Aging is stamina drain: it reduces health without counting as taking damage.
+	owner.current_health = max(1.0, previous_health - stamina_loss_to_apply)
 	if owner.has_method("_save_active_role_health"):
 		owner._save_active_role_health()
 	if owner.current_health != previous_health:
@@ -377,9 +376,9 @@ static func _try_trigger_swordsman_death_defiance(owner) -> bool:
 	if owner.has_method("_sync_invulnerability_status"):
 		owner._sync_invulnerability_status()
 	if owner.has_method("_spawn_forced_combat_tag"):
-		owner._spawn_forced_combat_tag(owner.global_position + Vector2(0.0, -42.0), "\u4E0D\u5C48", Color(1.0, 0.72, 0.32, 1.0))
+		owner._spawn_forced_combat_tag(owner.global_position + Vector2(0.0, -42.0), "骑士荣耀", Color(1.0, 0.72, 0.32, 1.0))
 	else:
-		owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -42.0), "\u4E0D\u5C48", Color(1.0, 0.72, 0.32, 1.0))
+		owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -42.0), "骑士荣耀", Color(1.0, 0.72, 0.32, 1.0))
 	owner._play_player_hurt_feedback()
 	return true
 

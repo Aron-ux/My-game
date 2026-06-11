@@ -114,10 +114,32 @@ static func heal(owner, amount: float) -> void:
 		return
 	if owner.has_method("is_healing_blocked") and owner.is_healing_blocked():
 		return
+	var previous_health: float = owner.current_health
 	owner.current_health = min(owner.max_health, owner.current_health + amount)
+	var actual_heal_amount: float = owner.current_health - previous_health
+	if actual_heal_amount <= 0.0:
+		return
 	if owner.has_method("_save_active_role_health"):
 		owner._save_active_role_health()
 	owner.health_changed.emit(owner.current_health, owner.max_health)
+	if owner.has_method("_spawn_forced_combat_tag"):
+		owner._spawn_forced_combat_tag(
+			owner.global_position + Vector2(0.0, -56.0),
+			_format_heal_combat_text(actual_heal_amount),
+			Color(0.48, 1.0, 0.66, 1.0)
+		)
+	elif owner.has_method("_spawn_combat_tag"):
+		owner._spawn_combat_tag(
+			owner.global_position + Vector2(0.0, -56.0),
+			_format_heal_combat_text(actual_heal_amount),
+			Color(0.48, 1.0, 0.66, 1.0)
+		)
+
+
+static func _format_heal_combat_text(amount: float) -> String:
+	if is_equal_approx(amount, roundf(amount)):
+		return "+%d" % int(roundf(amount))
+	return "+%.1f" % amount
 
 
 static func die(owner) -> void:

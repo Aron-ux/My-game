@@ -141,7 +141,7 @@ func _populate_scene(scene: BenchmarkRuntimeRoot, target: Node2D) -> void:
 	for i in range(HEART_COUNT):
 		var heart := HEART_PICKUP_SCENE.instantiate() as Node2D
 		scene.add_child(heart)
-		heart.reset_pickup(Vector2(280.0 + float(i % 8) * 24.0, -180.0 + float(i / 8) * 18.0), 50.0)
+		heart.reset_pickup(Vector2(280.0 + float(i % 8) * 24.0, -180.0 + float(i / 8) * 18.0), 25.0)
 
 
 func _build_frame_snapshot(samples: Array[float]) -> Dictionary:

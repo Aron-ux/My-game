@@ -218,6 +218,7 @@ func perform_background(owner) -> void:
 	for target_enemy in targets:
 		if target_enemy == null or not is_instance_valid(target_enemy):
 			continue
+		var target_center: Vector2 = owner._get_enemy_aim_point(target_enemy, owner.global_position) if owner.has_method("_get_enemy_aim_point") else target_enemy.global_position
 		var bullet = owner._spawn_bullet(target_enemy, owner._get_role_damage("gunner") * (0.34 + support_level * 0.06), Color(1.0, 0.58, 0.38, 0.9), "gunner", owner.global_position + owner._get_support_offset("gunner", false))
 		if bullet != null:
 			bullet.speed = 500.0 + 24.0 * support_level
@@ -226,11 +227,11 @@ func perform_background(owner) -> void:
 			if focus_level > 0:
 				bullet.vulnerability_bonus = 0.02 * focus_level
 				bullet.vulnerability_duration = 0.9 + 0.16 * focus_level
-		if lock_level > 0 and owner.global_position.distance_to(target_enemy.global_position) >= 180.0:
-			owner._spawn_target_lock_effect(target_enemy.global_position, 16.0 + lock_level * 3.0, Color(1.0, 0.8, 0.42, 0.9), 0.18)
+		if lock_level > 0 and owner.global_position.distance_to(target_center) >= 180.0:
+			owner._spawn_target_lock_effect(target_center, 16.0 + lock_level * 3.0, Color(1.0, 0.8, 0.42, 0.9), 0.18)
 		if scatter_level >= 2:
 			for angle_sign in [-1.0, 1.0]:
-				var fire_direction: Vector2 = owner.global_position.direction_to(target_enemy.global_position).rotated(0.16 * angle_sign)
+				var fire_direction: Vector2 = owner.global_position.direction_to(target_center).rotated(0.16 * angle_sign)
 				var spread_bullet = owner._spawn_directional_bullet(fire_direction, owner._get_role_damage("gunner") * 0.18, Color(1.0, 0.66, 0.42, 0.86), "gunner", owner.global_position + owner._get_support_offset("gunner", false))
 				if spread_bullet != null:
 					spread_bullet.speed = 460.0
@@ -562,7 +563,8 @@ func apply_lock(owner, target_enemy: Node2D, lock_level: int) -> void:
 	var locked_kill := false
 	locked_kill = owner._deal_damage_to_enemy(target_enemy, bonus_damage, "gunner")
 	if lock_level >= 2:
-		var splash_hits: int = owner._damage_enemies_in_radius(target_enemy.global_position, 26.0 + lock_level * 5.0, owner._get_role_damage("gunner") * (0.12 + lock_level * 0.03), 0.02, 1.0, 0.0)
+		var splash_center: Vector2 = owner._get_enemy_aim_point(target_enemy, owner.global_position) if owner.has_method("_get_enemy_aim_point") else target_enemy.global_position
+		var splash_hits: int = owner._damage_enemies_in_radius(splash_center, 26.0 + lock_level * 5.0, owner._get_role_damage("gunner") * (0.12 + lock_level * 0.03), 0.02, 1.0, 0.0)
 		if splash_hits > 0:
 			owner._register_attack_result("gunner", splash_hits, false)
 	owner._register_attack_result("gunner", 1, locked_kill)

@@ -260,6 +260,7 @@ static func apply_save_data(enemy, data: Dictionary, target_node: Node2D) -> voi
 	enemy.glutton_absorb_elapsed = float(data.get("glutton_absorb_elapsed", 0.0))
 
 	enemy.target = target_node
+	enemy._sync_trait_flags()
 	enemy.profile_initialized = true
 	ENEMY_PROFILE_RESTORE.restore_profile_resources(enemy)
 	enemy._ensure_status_visuals()
