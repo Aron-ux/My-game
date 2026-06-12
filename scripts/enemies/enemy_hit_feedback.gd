@@ -47,7 +47,7 @@ static func clear_runtime_state() -> void:
 static func update_feedback_animations(delta: float) -> void:
 	_update_static_feedback_animations(delta)
 
-static func play_hit_feedback(enemy, damage_amount: float, killed: bool) -> void:
+static func play_hit_feedback(enemy, damage_amount: float, killed: bool, is_critical: bool = false) -> void:
 	_update_static_feedback_animations(1.0 / float(Engine.physics_ticks_per_second))
 	if killed or _consume_hit_flash_budget():
 		enemy.hit_flash_remaining = HIT_FLASH_DURATION
@@ -58,7 +58,7 @@ static func play_hit_feedback(enemy, damage_amount: float, killed: bool) -> void
 
 	var can_show_damage_number := _consume_kill_damage_number_budget() if killed else _consume_damage_number_budget()
 	if can_show_damage_number:
-		show_damage_number(enemy, damage_amount, killed)
+		show_damage_number(enemy, damage_amount, killed, is_critical)
 	if killed and _consume_death_burst_budget():
 		spawn_death_burst(enemy)
 
@@ -192,7 +192,7 @@ static func _should_apply_immediate_model_flash(enemy) -> bool:
 	var kind: String = str(enemy.get("enemy_kind"))
 	return kind == "small_boss" or kind == "boss"
 
-static func show_damage_number(enemy, damage_amount: float, killed: bool) -> void:
+static func show_damage_number(enemy, damage_amount: float, killed: bool, is_critical: bool = false) -> void:
 	var current_scene: Node = _get_enemy_current_scene(enemy)
 	if current_scene == null:
 		return
@@ -206,9 +206,13 @@ static func show_damage_number(enemy, damage_amount: float, killed: bool) -> voi
 	if killed:
 		label_color = Color(1.0, 0.95, 0.75, 1.0)
 		label_font_size = 18
+	if is_critical:
+		label_color = Color(1.0, 0.58, 0.18, 1.0)
 	label.modulate = label_color
 	label.scale = Vector2.ONE
 	label.add_theme_font_size_override("font_size", label_font_size)
+	label.add_theme_constant_override("outline_size", 4 if is_critical else 0)
+	label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 1.0) if is_critical else Color(0.0, 0.0, 0.0, 0.0))
 	label.z_index = 20
 	label.global_position = enemy.global_position + Vector2(-10.0, -28.0)
 

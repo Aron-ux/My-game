@@ -239,6 +239,8 @@ static func get_role_damage(owner, role_id: String) -> float:
 			damage_amount *= float(owner._get_gunner_flash_damage_multiplier())
 		if role_id == "mage" and owner.has_method("_get_mage_arcane_charge_damage_multiplier"):
 			damage_amount *= float(owner._get_mage_arcane_charge_damage_multiplier())
+		if role_id == "mage" and owner.has_method("_get_mage_arcane_surplus_damage_multiplier"):
+			damage_amount *= float(owner._get_mage_arcane_surplus_damage_multiplier())
 		return damage_amount
 	return 0.0
 

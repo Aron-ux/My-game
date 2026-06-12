@@ -3,10 +3,10 @@ extends RefCounted
 const ENEMY_SKULLTOMB_BEHAVIOR := preload("res://scripts/enemies/enemy_skulltomb_behavior.gd")
 const ENEMY_BOSS_STATE := preload("res://scripts/enemies/enemy_boss_state.gd")
 
-static func take_damage(enemy, amount: float) -> bool:
-	return apply_damage(enemy, amount, true)
+static func take_damage(enemy, amount: float, is_critical: bool = false) -> bool:
+	return apply_damage(enemy, amount, true, is_critical)
 
-static func apply_damage(enemy, amount: float, show_feedback: bool = true) -> bool:
+static func apply_damage(enemy, amount: float, show_feedback: bool = true, is_critical: bool = false) -> bool:
 	if enemy.enemy_kind == "boss" and (enemy.boss_phase_transition_target > 0 or enemy.boss_phase_three_intro_remaining > 0.0):
 		return false
 	if enemy.rebirth_timer > 0.0:
@@ -17,7 +17,7 @@ static func apply_damage(enemy, amount: float, show_feedback: bool = true) -> bo
 	enemy.current_health -= adjusted_damage
 	var killed: bool = enemy.current_health <= 0.0
 	if show_feedback:
-		enemy._play_hit_feedback(adjusted_damage, killed)
+		enemy._play_hit_feedback(adjusted_damage, killed, is_critical)
 	if enemy.enemy_kind == "boss" and killed and int(enemy.boss_phase) < 3:
 		ENEMY_BOSS_STATE.start_phase_transition(enemy, int(enemy.boss_phase) + 1)
 		return false

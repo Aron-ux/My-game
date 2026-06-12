@@ -128,16 +128,15 @@ static func get_role_attribute_description(_role_id: String, attribute_key: Stri
 				SWORDSMAN_TRAIT_HEAL_PROC_CHANCE_PER_LEVEL * 100.0
 			]
 		ATTR_GUNNER:
-			return "枪手特性提升到 Lv.%s：升级闪避概率 %.1f%%，基础 15%%，每级提供 2%% 闪避；枪手额外自带 15%% 闪避。未受伤时每2秒叠加 1 层瞬杀，最多 10 层，每层提升 3%% 伤害和移速，受伤后清空并进入 10s CD。本次提升：升级闪避 +%.1f%%。" % [
+			return "枪手特性提升到 Lv.%s：升级闪避概率 %.1f%%，基础 15%%，每级提供 2%% 闪避；枪手额外自带 15%% 闪避，并拥有半径115的猎杀安全区，圈内敌人承受枪手伤害降至40%%。未受伤时每2秒叠加1层瞬杀，最多10层，每层提升3%%伤害、3%%移速和2%%闪避，受伤后清空并进入15s CD。本次提升：升级闪避 +%.1f%%。" % [
 				_format_level(level),
 				get_gunner_trait_dodge_chance(level) * 100.0,
 				GUNNER_TRAIT_DODGE_PER_LEVEL * 100.0
 			]
 		ATTR_MAGE:
-			return "术师特性提升到 Lv.%s：造成击杀伤害时有 %.1f%% 概率回复 %.0f 倍大招能量；每次触发后获得 1 层奥数充能。术师大招能量满后，术师击杀产生的击杀回能会 100%% 分享给另外两名角色。入场后进入 5s 奥法盈余，期间术师获得的大招能量也会 100%% 分享给另外两名角色；自然结束时会获得 3 层奥数充能。奥数充能每层提供 10%% 回能效率、2.5%% 术师伤害，以及 10%% 分享给另外两名角色的大招能量，最多 10 层。本次提升：击杀额外回能概率 +%.1f%%。" % [
+			return "法师特性提升到 Lv.%s：每次击杀有 %.1f%% 概率获得 1 层奥数充能。奥数充能每层提供 2%% 法师自身大招回能效率，并将法师自身获得的大招能量的 10%% 同步给另外两名角色，最多 10 层。法师释放登场技或大招后会进入 5s 奥法盈余：全员大招回能效率 +20%%、切人回能效率 +20%%、伤害 +10%%；若自然结束时当前站场角色仍为法师，则额外获得 3 层奥数充能。本次提升：击杀获得奥数充能概率 +%.1f%%。" % [
 				_format_level(level),
 				get_mage_trait_kill_energy_proc_chance(level) * 100.0,
-				MAGE_TRAIT_KILL_ENERGY_MULTIPLIER,
 				MAGE_TRAIT_KILL_ENERGY_CHANCE_PER_LEVEL * 100.0
 			]
 	return ""

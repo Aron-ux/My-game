@@ -237,11 +237,11 @@ func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_rol
 	feedback_jobs_used_this_frame += 1
 	var killed := false
 	if show_feedback and enemy.has_method("take_damage"):
-		killed = bool(enemy.take_damage(final_damage))
+		killed = bool(enemy.take_damage(final_damage, was_critical))
 	elif enemy.has_method("take_batched_damage"):
 		killed = bool(enemy.take_batched_damage(final_damage))
 	elif enemy.has_method("take_damage"):
-		killed = bool(enemy.take_damage(final_damage))
+		killed = bool(enemy.take_damage(final_damage, was_critical))
 	if source_player.has_method("_record_attack_result_instance"):
 		source_player._record_attack_result_instance(source_role_id, was_critical, killed)
 	if source_player.has_method("_add_switch_energy_from_damage"):

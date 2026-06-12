@@ -26,7 +26,6 @@ static func add_kill_energy(owner, amount: float, bypass_lock_role_id: String = 
 		return
 	var active_role_id: String = owner._get_active_role_id()
 	var arcane_surplus_active: bool = active_role_id == "mage" and owner.mage_arcane_surplus_remaining > 0.0
-	var mage_full_energy_share_active: bool = source_role_id == "mage" and owner._get_role_mana("mage") >= owner._get_ultimate_energy_cost()
 	var mage_self_energy_gain: float = 0.0
 	for role_data in owner.roles:
 		var role_id: String = str(role_data.get("id", ""))
@@ -35,7 +34,7 @@ static func add_kill_energy(owner, amount: float, bypass_lock_role_id: String = 
 		if role_id != bypass_lock_role_id and owner._get_role_ultimate_lock_remaining(role_id) > 0.0 and not DEVELOPER_MODE.should_unlock_ultimate_freely():
 			continue
 		var gain_scale: float = BACKGROUND_ULTIMATE_ENERGY_GAIN_RATIO
-		if role_id == active_role_id or arcane_surplus_active or (mage_full_energy_share_active and role_id != "mage"):
+		if role_id == active_role_id or arcane_surplus_active:
 			gain_scale = 1.0
 		var base_energy_gain_multiplier: float = owner.energy_gain_multiplier - owner.equipment_energy_gain_bonus + owner._get_role_equipment_energy_gain_bonus(role_id)
 		var adjusted_amount: float = amount * ULTIMATE_ENERGY_GAIN_GLOBAL_MULTIPLIER * gain_scale * max(0.01, base_energy_gain_multiplier) * owner._get_ultimate_energy_gain_multiplier_for_role(role_id)
@@ -215,10 +214,8 @@ static func try_apply_mage_kill_energy_proc(owner, source_role_id: String, base_
 	var proc_chance: float = owner._get_mage_kill_energy_proc_chance() if owner.has_method("_get_mage_kill_energy_proc_chance") else 0.0
 	if proc_chance <= 0.0 or randf() > clamp(proc_chance, 0.0, 1.0):
 		return
-	var multiplier: float = owner._get_mage_kill_energy_proc_multiplier() if owner.has_method("_get_mage_kill_energy_proc_multiplier") else 3.0
 	if owner.has_method("_add_mage_arcane_charge_stack"):
 		owner._add_mage_arcane_charge_stack()
-	owner._add_kill_energy(base_energy * max(0.0, multiplier - 1.0), bypass_lock_role_id, source_role_id)
 
 
 static func _apply_mage_arcane_charge_energy_share(owner, mage_self_energy_gain: float, bypass_lock_role_id: String, source_role_id: String) -> void:

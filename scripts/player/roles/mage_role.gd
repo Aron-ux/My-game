@@ -8,20 +8,18 @@ const ULTIMATE_SKILL_ID := "mage_ultimate"
 const ULTIMATE_COMBO_INTERVAL := 0.18
 const ULTIMATE_DURATION := 4.0
 const ULTIMATE_BOMBARD_INTERVAL := 0.25
-const ULTIMATE_KILL_ENERGY_MULTIPLIER := 2.0
 const ULTIMATE_BASE_DAMAGE_RATIO := 1.14
 const ULTIMATE_GUNNER_ULTIMATE_OUTPUT_RATIO := 0.75
 const ULTIMATE_BOSS_TARGET_WEIGHT := 0.35
 const ULTIMATE_EXTRA_BOMBARDS := 8
 const ULTIMATE_TIER_TWO_EXTRA_BOMBARDS := 6
 const ULTIMATE_TIER_THREE_EXTRA_BOMBARDS := 3
-const ULTIMATE_TIER_THREE_KILL_ENERGY := 0.45
 const ENTRY_ARCANE_SURPLUS_DURATION := 5.0
 const ENTRY_ARCANE_SURPLUS_STATUS_ID := "mage_arcane_surplus"
 const ENTRY_LIGHTNING_COUNT := 5
-const ENTRY_LIGHTNING_DISTANCE := 92.0
+const ENTRY_LIGHTNING_DISTANCE := 124.0
 const ENTRY_LIGHTNING_RADIUS := 52.0 * MAGE_ATTACK_EFFECT_SCALE
-const ENTRY_LIGHTNING_DAMAGE_SCALE := 1.08
+const ENTRY_LIGHTNING_DAMAGE_SCALE := 1.0
 
 func perform_attack(owner) -> void:
 	var contexts: Array = _build_attack_contexts(owner)
@@ -258,10 +256,20 @@ func perform_background(owner) -> void:
 			break
 
 func perform_enter(owner, role_id: String, _assault_level: int, _assault_multiplier: float) -> int:
-	owner._show_switch_banner("\u8FDB\u573A", "\u5965\u6CD5\u76C8\u4F59", Color(0.34, 0.72, 1.0, 1.0))
+	owner._show_switch_banner("\u8FDB\u573A", "\u5BC6\u96C6\u96F7\u7FA4", Color(0.34, 0.72, 1.0, 1.0))
 	var hit_count: int = _cast_entry_lightning_ring(owner, role_id)
 	owner.mage_arcane_surplus_remaining = ENTRY_ARCANE_SURPLUS_DURATION
 	owner._start_duration_status(ENTRY_ARCANE_SURPLUS_STATUS_ID, "\u5965\u6CD5\u76C8\u4F59", ENTRY_ARCANE_SURPLUS_DURATION, 18, Color(0.34, 0.72, 1.0, 0.95))
+	if owner.get_tree() != null and owner.has_method("_schedule_repeating_sequence"):
+		owner._schedule_repeating_sequence(0.0, 1, func(_index: int) -> void:
+			if not is_instance_valid(owner):
+				return
+			if owner.mage_arcane_surplus_remaining > 0.0:
+				return
+			if str(owner._get_active_role().get("id", "")) != "mage":
+				return
+			owner._add_mage_arcane_charge_stacks(3)
+		, ENTRY_ARCANE_SURPLUS_DURATION)
 	return hit_count
 
 func _cast_entry_lightning_ring(owner, role_id: String) -> int:
@@ -287,7 +295,7 @@ func _resolve_entry_lightning_ring(owner, role_id: String, centers: Array[Vector
 	var total_hits: int = 0
 	for center in centers:
 		owner._spawn_mage_boom_scene_effect(center, ENTRY_LIGHTNING_RADIUS)
-		total_hits += owner._damage_enemies_in_radius(center, ENTRY_LIGHTNING_RADIUS, damage_amount, 0.04, 0.78, 1.2, role_id)
+		total_hits += owner._damage_enemies_in_radius(center, ENTRY_LIGHTNING_RADIUS, damage_amount, 0.0, 1.0, 0.0, role_id)
 	return total_hits
 
 func perform_exit(_owner, _role_id: String, _rearguard_level: int) -> int:
@@ -296,9 +304,6 @@ func perform_exit(_owner, _role_id: String, _rearguard_level: int) -> int:
 func perform_ultimate(owner, cast_payload: Dictionary) -> void:
 	var special_data: Dictionary = owner._get_role_special_state("mage")
 	var storm_level: int = int(special_data.get("storm_level", 0))
-	var frost_level: int = int(special_data.get("frost_level", 0))
-	var echo_level: int = int(special_data.get("echo_level", 0))
-	var gravity_level: int = int(special_data.get("gravity_level", 0))
 	var center: Vector2 = owner._get_enemy_cluster_center()
 	if center == Vector2.ZERO:
 		center = owner.global_position
@@ -311,21 +316,22 @@ func perform_ultimate(owner, cast_payload: Dictionary) -> void:
 	owner._queue_camera_shake(18.5, 0.58)
 	owner._delay_level_up_requests(total_sequence_duration)
 	owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -34.0), "奥数轰炸", Color(0.82, 0.96, 1.0, 1.0))
-	owner._spawn_vortex_effect(center, 58.0 + gravity_level * 12.0, Color(0.76, 0.84, 1.0, 0.54), 0.32)
+	owner.mage_arcane_surplus_remaining = max(owner.mage_arcane_surplus_remaining, ENTRY_ARCANE_SURPLUS_DURATION)
+	owner._start_duration_status(ENTRY_ARCANE_SURPLUS_STATUS_ID, "\u5965\u6CD5\u76C8\u4F59", ENTRY_ARCANE_SURPLUS_DURATION, 18, Color(0.34, 0.72, 1.0, 0.95))
 	owner._spawn_ring_effect(center, 118.0 + storm_level * 10.0, Color(0.72, 0.96, 1.0, 0.82), 10.0, 0.22)
-	_schedule_ultimate_bombardment_sequence(owner, bombard_scales, storm_level, frost_level, echo_level, gravity_level, _get_ultimate_damage_multiplier(owner, cast_payload), ultimate_tier, center, 0.0)
+	_schedule_ultimate_bombardment_sequence(owner, bombard_scales, storm_level, _get_ultimate_damage_multiplier(owner, cast_payload), ultimate_tier, center, 0.0)
 	owner._apply_post_ultimate_bonuses("mage", total_sequence_duration)
 
-func _schedule_ultimate_bombardment_sequence(owner, bombard_scales: Array[float], storm_level: int, frost_level: int, echo_level: int, gravity_level: int, cast_damage_multiplier: float, ultimate_tier: int, cast_center: Vector2, start_delay: float) -> void:
+func _schedule_ultimate_bombardment_sequence(owner, bombard_scales: Array[float], storm_level: int, cast_damage_multiplier: float, ultimate_tier: int, cast_center: Vector2, start_delay: float) -> void:
 	var bombard_count: int = bombard_scales.size()
 	var sequence_callback := func(pulse_index: int) -> void:
-		_trigger_ultimate_bombardment(owner, bombard_scales, storm_level, frost_level, echo_level, gravity_level, cast_damage_multiplier, pulse_index, ultimate_tier, cast_center)
+		_trigger_ultimate_bombardment(owner, bombard_scales, storm_level, cast_damage_multiplier, pulse_index, ultimate_tier, cast_center)
 	if start_delay <= 0.0:
 		owner._schedule_repeating_sequence(ULTIMATE_BOMBARD_INTERVAL, bombard_count, sequence_callback)
 		return
 	owner._schedule_repeating_sequence(ULTIMATE_BOMBARD_INTERVAL, bombard_count, sequence_callback, start_delay)
 
-func _trigger_ultimate_bombardment(owner, bombard_scales: Array[float], storm_level: int, frost_level: int, echo_level: int, gravity_level: int, cast_damage_multiplier: float, pulse_index: int, ultimate_tier: int = 1, cast_center: Vector2 = Vector2.ZERO) -> void:
+func _trigger_ultimate_bombardment(owner, bombard_scales: Array[float], storm_level: int, cast_damage_multiplier: float, pulse_index: int, ultimate_tier: int = 1, cast_center: Vector2 = Vector2.ZERO) -> void:
 	if owner.is_dead:
 		return
 
@@ -337,41 +343,24 @@ func _trigger_ultimate_bombardment(owner, bombard_scales: Array[float], storm_le
 	if cluster_center == Vector2.ZERO:
 		cluster_center = owner.global_position
 	var phase: float = float(pulse_index) / float(max(1, pulse_count - 1))
-	var orbit_angle: float = phase * TAU * (1.6 + float(echo_level) * 0.18)
+	var orbit_angle: float = phase * TAU * 1.6
 	var main_center: Vector2 = cluster_center + Vector2.RIGHT.rotated(orbit_angle) * (12.0 + 8.0 * sin(orbit_angle * 1.4))
 	var tier_damage_multiplier: float = 1.16 if ultimate_tier >= 2 else 1.0
-	var pulse_radius: float = (72.0 + storm_level * 9.0 + frost_level * 4.0) * owner._get_story_style_range_multiplier("mage") * owner._get_role_attribute_range_multiplier("mage")
-	var pulse_damage: float = owner._get_role_damage("mage") * (ULTIMATE_BASE_DAMAGE_RATIO + storm_level * 0.08 + echo_level * 0.04) * cast_damage_multiplier * max(0.0, effect_scale) * tier_damage_multiplier * ULTIMATE_GUNNER_ULTIMATE_OUTPUT_RATIO
+	var pulse_radius: float = (72.0 + storm_level * 9.0) * owner._get_story_style_range_multiplier("mage") * owner._get_role_attribute_range_multiplier("mage")
+	var pulse_damage: float = owner._get_role_damage("mage") * (ULTIMATE_BASE_DAMAGE_RATIO + storm_level * 0.08) * cast_damage_multiplier * max(0.0, effect_scale) * tier_damage_multiplier * ULTIMATE_GUNNER_ULTIMATE_OUTPUT_RATIO
 	owner._queue_camera_shake(6.4 + float(storm_level) * 0.28, 0.12)
-	if gravity_level > 0:
-		owner._pull_enemies_toward(cluster_center, 132.0 + gravity_level * 18.0, 20.0 + gravity_level * 10.0)
-		owner._spawn_vortex_effect(cluster_center, 40.0 + gravity_level * 14.0, Color(0.76, 0.82, 1.0, 0.42), 0.18)
 	if _should_spawn_ultimate_pulse_visual(pulse_index):
 		owner._spawn_ring_effect(main_center, pulse_radius, Color(0.72, 0.96, 1.0, 0.76), 6.0, 0.18)
 		owner._spawn_burst_effect(main_center, pulse_radius, Color(0.5, 0.92, 1.0, 0.24), 0.2)
-		owner._spawn_frost_sigils_effect(main_center, 34.0 + frost_level * 8.0, Color(0.86, 0.98, 1.0, 0.82), 0.18)
-	var shape_hits: int = owner._damage_enemies_in_radius_with_kill_energy(
+	var shape_hits: int = owner._damage_enemies_in_radius(
 		main_center,
 		pulse_radius,
 		pulse_damage,
-		0.08 + frost_level * 0.025,
-		max(0.24, 0.46 - frost_level * 0.03),
-		2.2 + storm_level * 0.22,
-		"mage",
-		_get_ultimate_kill_energy_bonus(owner)
+		0.0,
+		1.0,
+		0.0,
+		"mage"
 	)
-
-	if frost_level >= 2 and pulse_index % 3 == 0:
-		owner._spawn_pulsing_field(main_center, 44.0 + frost_level * 10.0, Color(0.56, 0.92, 1.0, 0.16), 2, 0.1, owner._get_role_damage("mage") * (0.18 + frost_level * 0.04), 0.05, max(0.24, 0.4 - frost_level * 0.03), 1.8 + frost_level * 0.2)
-
-	if echo_level > 0:
-		var secondary_enemy: Node2D = owner._get_enemy_nearest_to_position(cluster_center + Vector2.RIGHT.rotated(orbit_angle + 1.8) * 84.0)
-		if secondary_enemy != null and is_instance_valid(secondary_enemy):
-			var echo_center: Vector2 = secondary_enemy.global_position
-			if echo_center.distance_to(main_center) > 28.0:
-				var echo_radius: float = 46.0 + echo_level * 8.0
-				owner._spawn_burst_effect(echo_center, echo_radius, Color(0.68, 0.96, 1.0, 0.18), 0.18)
-				shape_hits += owner._damage_enemies_in_radius(echo_center, echo_radius, owner._get_role_damage("mage") * (0.3 + echo_level * 0.05) * max(0.0, effect_scale) * tier_damage_multiplier * ULTIMATE_GUNNER_ULTIMATE_OUTPUT_RATIO, 0.04, max(0.3, 0.52 - frost_level * 0.03), 1.8, "mage")
 	if shape_hits > 0 and not _uses_batched_damage(owner):
 		owner._register_attack_result("mage", shape_hits, false)
 
@@ -412,12 +401,6 @@ func _get_ultimate_damage_multiplier(owner, cast_payload: Dictionary) -> float:
 	if owner != null and owner.has_method("_get_blessing_ultimate_damage_multiplier"):
 		multiplier *= float(owner._get_blessing_ultimate_damage_multiplier(ULTIMATE_SKILL_ID))
 	return multiplier
-
-func _get_ultimate_kill_energy_bonus(owner) -> float:
-	var special_multiplier: float = 1.0
-	if owner != null and owner.has_method("_get_blessing_ultimate_special_effect_multiplier"):
-		special_multiplier = max(0.0, float(owner._get_blessing_ultimate_special_effect_multiplier(ULTIMATE_SKILL_ID)))
-	return max(0.0, ULTIMATE_KILL_ENERGY_MULTIPLIER * special_multiplier - 1.0)
 
 func _should_spawn_ultimate_pulse_visual(pulse_index: int) -> bool:
 	var fps: int = Engine.get_frames_per_second()

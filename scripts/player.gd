@@ -110,10 +110,19 @@ const GUNNER_FLASH_STACK_INTERVAL := 2.0
 const GUNNER_FLASH_MAX_STACKS := 10
 const GUNNER_FLASH_DAMAGE_PER_STACK := 0.03
 const GUNNER_FLASH_SPEED_PER_STACK := 0.03
-const GUNNER_FLASH_COOLDOWN := 10.0
+const GUNNER_FLASH_COOLDOWN := 15.0
+const GUNNER_FLASH_DODGE_PER_STACK := 0.02
+const GUNNER_SAFE_ZONE_RADIUS := 115.0
+const GUNNER_SAFE_ZONE_FILL_COLOR := Color(0.24, 0.58, 1.0, 0.10)
+const GUNNER_SAFE_ZONE_OUTLINE_COLOR := Color(0.38, 0.72, 1.0, 0.42)
+const GUNNER_SAFE_ZONE_OUTLINE_WIDTH := 2.0
 const MAGE_ARCANE_CHARGE_MAX_STACKS := 10
 const MAGE_ARCANE_CHARGE_SHARE_PER_STACK := 0.10
 const MAGE_ARCANE_CHARGE_SELF_ENERGY_PER_STACK := 0.02
+const MAGE_ARCANE_SURPLUS_DURATION := 5.0
+const MAGE_ARCANE_SURPLUS_TEAM_ULTIMATE_ENERGY_BONUS := 0.20
+const MAGE_ARCANE_SURPLUS_SWITCH_ENERGY_BONUS := 0.20
+const MAGE_ARCANE_SURPLUS_DAMAGE_BONUS := 0.10
 const SWORDSMAN_BLOODTHIRST_DURATION := 3.0
 const SWORDSMAN_DEATH_DEFIANCE_COOLDOWN := 80.0
 const SWORDSMAN_DEATH_DEFIANCE_INVULNERABILITY := 1.5
@@ -943,7 +952,7 @@ func _try_equipment_dodge() -> bool:
 func _get_gunner_flash_dodge_chance() -> float:
 	if str(_get_active_role().get("id", "")) != "gunner":
 		return 0.0
-	return GUNNER_FLASH_DODGE_CHANCE
+	return GUNNER_FLASH_DODGE_CHANCE + float(max(gunner_flash_stacks, 0)) * GUNNER_FLASH_DODGE_PER_STACK
 
 func _lock_player_actions(duration: float) -> void:
 	player_action_lock_remaining = max(player_action_lock_remaining, max(0.0, duration))
@@ -987,6 +996,27 @@ func _physics_process(delta: float) -> void:
 	PLAYER_SURVIVAL_FLOW.physics_process(self, delta)
 	if not is_dead:
 		PLAYER_MAP_BOUNDS_FLOW.clamp_to_active_map_bounds(self)
+	queue_redraw()
+
+func _draw() -> void:
+	if is_dead:
+		return
+	if str(_get_active_role().get("id", "")) != "gunner":
+		return
+	var safe_zone_radius := _get_gunner_safe_zone_radius()
+	if safe_zone_radius <= 0.0:
+		return
+	draw_circle(Vector2.ZERO, safe_zone_radius, GUNNER_SAFE_ZONE_FILL_COLOR)
+	draw_arc(
+		Vector2.ZERO,
+		safe_zone_radius,
+		0.0,
+		TAU,
+		64,
+		GUNNER_SAFE_ZONE_OUTLINE_COLOR,
+		GUNNER_SAFE_ZONE_OUTLINE_WIDTH,
+		true
+	)
 
 func _update_timers(delta: float) -> void:
 	PLAYER_TIMER_FLOW.update_timers(self, delta)
@@ -1028,13 +1058,16 @@ func _get_gunner_flash_damage_multiplier() -> float:
 func _get_gunner_flash_move_speed_multiplier() -> float:
 	return 1.0 + float(max(gunner_flash_stacks, 0)) * GUNNER_FLASH_SPEED_PER_STACK
 
+func _get_gunner_safe_zone_radius() -> float:
+	return GUNNER_SAFE_ZONE_RADIUS
+
 func _get_gunner_flash_buff_slot() -> Dictionary:
 	if str(_get_active_role().get("id", "")) != "gunner":
 		return {}
 	if gunner_flash_cooldown_remaining > 0.0:
 		return {
 			"name": "\u77AC\u6740\u51B7\u5374",
-			"description": "\u77AC\u6740\u51B7\u5374\u4E2D",
+			"description": "\u53D7\u4F24\u540E\u77AC\u6740\u8FDB\u516515\u79D2\u51B7\u5374",
 			"text": "\u77AC",
 			"stacks": 0,
 			"remaining": gunner_flash_cooldown_remaining,
@@ -1046,7 +1079,7 @@ func _get_gunner_flash_buff_slot() -> Dictionary:
 		return {}
 	return {
 		"name": "\u77AC\u6740",
-		"description": "\u6BCF\u5C42\u63D0\u53473%\u4F24\u5BB3\u548C\u79FB\u901F",
+		"description": "\u6BCF2\u79D2\u83B7\u5F971\u5C42\uff0c\u6BCF\u5C42\u63D0\u4F9B3%\u4F24\u5BB3\u30013%\u79FB\u901F\u548C2%\u95EA\u907F\uff0C\u6700\u591A10\u5C42",
 		"text": "\u77AC",
 		"stacks": gunner_flash_stacks,
 		"remaining": GUNNER_FLASH_STACK_INTERVAL,
@@ -1076,20 +1109,40 @@ func _get_mage_arcane_charge_self_energy_multiplier() -> float:
 	return 1.0 + float(clampi(mage_arcane_charge_stacks, 0, MAGE_ARCANE_CHARGE_MAX_STACKS)) * MAGE_ARCANE_CHARGE_SELF_ENERGY_PER_STACK
 
 func _get_mage_arcane_charge_damage_multiplier() -> float:
-	return 1.0 + float(clampi(mage_arcane_charge_stacks, 0, MAGE_ARCANE_CHARGE_MAX_STACKS)) * 0.025
+	return 1.0
+
+func _is_mage_arcane_surplus_active() -> bool:
+	return mage_arcane_surplus_remaining > 0.0
+
+func _get_mage_arcane_surplus_damage_multiplier() -> float:
+	if not _is_mage_arcane_surplus_active():
+		return 1.0
+	return 1.0 + MAGE_ARCANE_SURPLUS_DAMAGE_BONUS
+
+func _get_mage_arcane_surplus_team_ultimate_energy_bonus() -> float:
+	if not _is_mage_arcane_surplus_active():
+		return 0.0
+	return MAGE_ARCANE_SURPLUS_TEAM_ULTIMATE_ENERGY_BONUS
+
+func _get_mage_arcane_surplus_switch_energy_bonus() -> float:
+	if not _is_mage_arcane_surplus_active():
+		return 0.0
+	return MAGE_ARCANE_SURPLUS_SWITCH_ENERGY_BONUS
 
 func _get_mage_arcane_charge_buff_slot() -> Dictionary:
-	if str(_get_active_role().get("id", "")) != "mage":
+	if str(_get_active_role().get("id", "")) != "mage" and mage_arcane_surplus_remaining <= 0.0:
 		return {}
-	if mage_arcane_charge_stacks <= 0:
+	var name := "奥法盈余" if mage_arcane_surplus_remaining > 0.0 else "奥数充能"
+	var description := "持续5秒：全员大招回能效率+20%，切人回能效率+20%，伤害+10%" if mage_arcane_surplus_remaining > 0.0 else "每层提升法师自身2%大招回能效率，并将法师自身获得的大招能量的10%同步给另外两名角色"
+	if mage_arcane_surplus_remaining <= 0.0 and mage_arcane_charge_stacks <= 0:
 		return {}
 	return {
-		"name": "\u5965\u672F\u5145\u80FD",
-		"description": "\u6BCF\u5C42\u63D0\u5347\u672F\u5E08\u81EA\u8EAB2%\u5927\u62DB\u56DE\u80FD\u6548\u7387\uFF0C\u5E76\u5C06\u81EA\u8EAB\u5927\u62DB\u56DE\u80FD\u768410%\u540C\u6B65\u7ED9\u5176\u4ED6\u89D2\u8272",
-		"text": "\u5965",
+		"name": name,
+		"description": description,
+		"text": "盈" if mage_arcane_surplus_remaining > 0.0 else "奥",
 		"stacks": clampi(mage_arcane_charge_stacks, 0, MAGE_ARCANE_CHARGE_MAX_STACKS),
-		"remaining": 1.0,
-		"duration": 1.0,
+		"remaining": mage_arcane_surplus_remaining if mage_arcane_surplus_remaining > 0.0 else 1.0,
+		"duration": MAGE_ARCANE_SURPLUS_DURATION if mage_arcane_surplus_remaining > 0.0 else 1.0,
 		"color": Color(0.25, 0.74, 1.0, 0.95),
 		"cooldown": false
 	}
@@ -1703,7 +1756,10 @@ func _add_switch_energy_from_damage(damage_amount: float, source_role_id: String
 	if damage_amount <= 0.0:
 		return
 	var resolved_role_id: String = source_role_id if source_role_id != "" else _get_active_role_id()
-	_set_role_switch_energy(resolved_role_id, _get_role_switch_energy(resolved_role_id) + damage_amount * SWITCH_ENTRY_ENERGY_PER_DAMAGE)
+	var gain_amount: float = damage_amount * SWITCH_ENTRY_ENERGY_PER_DAMAGE
+	if _is_mage_arcane_surplus_active():
+		gain_amount *= 1.0 + _get_mage_arcane_surplus_switch_energy_bonus()
+	_set_role_switch_energy(resolved_role_id, _get_role_switch_energy(resolved_role_id) + gain_amount)
 
 func _has_full_switch_energy(role_id: String = "") -> bool:
 	var resolved_role_id: String = role_id if role_id != "" else _get_active_role_id()

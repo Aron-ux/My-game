@@ -47,7 +47,7 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 			final_damage *= float(owner._get_gunner_distance_damage_multiplier(attack_origin.distance_to((enemy as Node2D).global_position)))
 	var killed := false
 	if damage_amount > 0.0 and enemy.has_method("take_damage"):
-		killed = bool(enemy.take_damage(final_damage))
+		killed = bool(enemy.take_damage(final_damage, was_critical))
 		if owner != null and owner.has_method("_record_attack_result_instance"):
 			owner._record_attack_result_instance(source_role_id, was_critical, killed)
 		if owner != null and owner.has_method("_add_switch_energy_from_damage"):
@@ -289,6 +289,16 @@ static func _uses_shadow_touch_damage_shape(enemy: Node) -> bool:
 static func get_enemy_touch_damage_shape(enemy: Node2D) -> Dictionary:
 	if enemy == null or not is_instance_valid(enemy) or not _uses_shadow_touch_damage_shape(enemy):
 		return {}
+	if str(enemy.get("archetype_id")) == "smallboss_glutton":
+		var active_glutton_shape: Dictionary = {}
+		if enemy.has_method("get_glutton_player_touch_shape"):
+			active_glutton_shape = enemy.call("get_glutton_player_touch_shape")
+		if not active_glutton_shape.is_empty():
+			return active_glutton_shape
+		if enemy.has_method("get_glutton_passive_player_touch_shape"):
+			var passive_glutton_shape: Dictionary = enemy.call("get_glutton_passive_player_touch_shape")
+			if not passive_glutton_shape.is_empty():
+				return passive_glutton_shape
 	var visual: Node = enemy.get_node_or_null("ProfileVisual")
 	if visual == null:
 		visual = enemy.get_node_or_null("BossVisual")

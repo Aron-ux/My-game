@@ -240,9 +240,9 @@ func perform_background(owner) -> void:
 					spread_bullet.visual_scale_multiplier *= GUNNER_BULLET_VISUAL_SCALE
 
 func perform_enter(owner, role_id: String, _assault_level: int, _assault_multiplier: float) -> int:
-	owner._show_switch_banner("\u8FDB\u573A", "\u5FEB\u62D4\u538B\u5236", Color(1.0, 0.58, 0.36, 1.0))
+	owner._show_switch_banner("\u8FDB\u573A", "\u67AA\u706B\u5178\u793C", Color(1.0, 0.58, 0.36, 1.0))
 	owner._fire_gunner_entry_wave(role_id, 0)
-	var wave_count := 2
+	var wave_count := 3
 	if owner.has_method("_schedule_repeating_sequence") and wave_count > 1:
 		owner._schedule_repeating_sequence(0.08, wave_count - 1, func(index: int) -> void:
 			owner._fire_gunner_entry_wave(role_id, index + 1)
@@ -353,12 +353,10 @@ func _spawn_ultimate_cone_visuals(owner, barrage_level: int, focus_level: int, s
 	var bullet_speed: float = ULTIMATE_VISUAL_BULLET_SPEED + focus_level * ULTIMATE_VISUAL_FOCUS_SPEED_BONUS + barrage_level * ULTIMATE_VISUAL_BARRAGE_SPEED_BONUS
 	var bullet_lifetime: float = max(0.20, range_value / bullet_speed)
 	var bullet_count: int = _get_ultimate_visual_bullets_per_pulse() + min(3, barrage_level) + min(2, scatter_level)
-	var phase: float = float(visual_index) * 0.37
 	for bullet_index in range(bullet_count):
 		var ratio: float = 0.5 if bullet_count <= 1 else float(bullet_index) / float(bullet_count - 1)
 		var centered_ratio: float = ratio * 2.0 - 1.0
-		var jitter: float = sin(phase + float(bullet_index) * 1.7) * 0.08
-		var shot_direction: Vector2 = direction.rotated(deg_to_rad(cone_degrees) * 0.5 * centered_ratio + jitter)
+		var shot_direction: Vector2 = direction.rotated(deg_to_rad(cone_degrees) * 0.5 * centered_ratio)
 		var origin_offset: Vector2 = direction * 18.0 + direction.orthogonal() * (centered_ratio * 10.0)
 		owner._spawn_batched_directional_bullet_values(
 			shot_direction,

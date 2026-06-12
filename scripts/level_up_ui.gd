@@ -47,13 +47,13 @@ const OPENING_TRAIT_BUTTON_VISUAL_OFFSETS := {
 }
 const TRAIT_OPENING_DESCRIPTIONS := {
 	"level_trait_swordsman": "剑士攻击命中时有概率回复最大生命值的5％+已损失生命值的7.5％，基础概率5％，每升一级额外提升5％；该效果每秒最多生效1次。受到致命伤时保留1点生命并进入1.5s战意，之后进入80s CD。",
-	"level_trait_gunner": "枪手受到攻击时有几率闪避当前攻击，每级提供2％。枪手额外自带15％闪避；未受伤时每2秒叠加1层瞬杀，最多10层，每层提升3％伤害和移速。",
-	"level_trait_mage": "术师造成击杀后有几率回复3倍大招能量，每级提供2％。术师大招能量满后，击杀回能会100％分享给另外两名角色。"
+	"level_trait_gunner": "枪手受到攻击时有几率闪避当前攻击，每级提供2％。枪手额外自带15％闪避，并拥有半径115的猎杀安全区，圈内敌人承受枪手伤害降至40％；未受伤时每2秒叠加1层瞬杀，最多10层，每层提升3％伤害、3％移速和2％闪避，受伤后清空并进入15秒冷却。",
+	"level_trait_mage": "法师每击杀一个怪物都有15％概率获得1层奥数充能。每层提供2％法师自身大招回能效率，并将法师自身获得的大招能量的10％同步给另外两名角色。释放登场技或大招后进入5秒奥法盈余：全员大招回能效率+20％，切人回能效率+20％，伤害+10％。"
 }
 const TRAIT_DETAIL_DESCRIPTIONS := {
 	"level_trait_swordsman": "提供5％剑士特性触发概率。",
 	"level_trait_gunner": "提供2％闪避。",
-	"level_trait_mage": "提供2％击杀3倍回能概率。"
+	"level_trait_mage": "提供2％击杀获得奥数充能概率。"
 }
 const TRAIT_BUTTON_DESCRIPTION_GAP := 4.0
 const OPENING_TRAIT_DESCRIPTION_OFFSETS := {

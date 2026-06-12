@@ -512,6 +512,8 @@ func _build_stats_text(role_data: Dictionary) -> String:
 	var current_health_text := "%.0f / %.0f" % [current_health, max_health]
 	var base_energy: float = float(cached_player.get("energy_gain_multiplier")) - float(active_bonus.get("energy_gain_bonus", 0.0))
 	var energy_gain: float = base_energy + float(bonus.get("energy_gain_bonus", 0.0))
+	if cached_player.has_method("_get_ultimate_energy_gain_multiplier_for_role"):
+		energy_gain = float(cached_player._get_ultimate_energy_gain_multiplier_for_role(role_id)) * (1.0 + float(bonus.get("energy_gain_bonus", 0.0)))
 	var pickup_radius: float = float(cached_player.get("pickup_radius"))
 	if cached_player.has_method("_get_attribute_pickup_range_bonus"):
 		pickup_radius += float(cached_player._get_attribute_pickup_range_bonus())
@@ -525,6 +527,9 @@ func _build_stats_text(role_data: Dictionary) -> String:
 	if cached_player.has_method("_get_attribute_health_regen_per_second"):
 		health_regen += float(cached_player._get_attribute_health_regen_per_second())
 	var mana_regen: float = float(cached_player._get_attribute_mana_regen_per_second()) if cached_player.has_method("_get_attribute_mana_regen_per_second") else 0.0
+	var extra_damage_taken_ratio: float = 0.0
+	if role_id == "gunner":
+		extra_damage_taken_ratio = 0.25
 	var swordsman_trait_level: float = float(cached_player._get_attribute_level("swordsman_trait")) if cached_player.has_method("_get_attribute_level") else 0.0
 	var gunner_trait_level: float = float(cached_player._get_attribute_level("gunner_trait")) if cached_player.has_method("_get_attribute_level") else 0.0
 	var mage_trait_level: float = float(cached_player._get_attribute_level("mage_trait")) if cached_player.has_method("_get_attribute_level") else 0.0
@@ -546,18 +551,19 @@ func _build_stats_text(role_data: Dictionary) -> String:
 		float(bonus.get("skill_range_multiplier", 1.0)),
 		float(bonus.get("cooldown_multiplier", 1.0))
 	])
-	lines.append("闪避 %.1f%%    回血 %.1f/s" % [
+	lines.append("闪避 %.1f%%    回血 %.1f/s    承伤 +%.0f%%" % [
 		dodge_chance * 100.0,
-		health_regen
+		health_regen,
+		extra_damage_taken_ratio * 100.0
 	])
 	lines.append("")
 	lines.append("[b]英雄特性[/b]")
-	lines.append("剑士 Lv.%s    枪手 Lv.%s    术师 Lv.%s" % [
+	lines.append("剑士 Lv.%s    枪手 Lv.%s    法师 Lv.%s" % [
 		_format_panel_attribute_level(swordsman_trait_level),
 		_format_panel_attribute_level(gunner_trait_level),
 		_format_panel_attribute_level(mage_trait_level)
 	])
-	lines.append("特性影响对应英雄的普攻与定位加成。")
+	lines.append("特性影响对应英雄的核心机制与定位加成。")
 	return "\n".join(lines)
 
 func _format_panel_attribute_level(level: float) -> String:

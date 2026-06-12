@@ -25,7 +25,7 @@ const ROLE_DATA := [
 		"name": "\u67AA\u624B",
 		"color": Color(1.0, 0.35, 0.32, 1.0),
 		"speed_scale": 1.0,
-		"move_speed": 165.0,
+		"move_speed": 150.0,
 		"base_health": 50.0,
 		"attack_interval": 0.39,
 		"damage": 15.0,
@@ -39,7 +39,7 @@ const ROLE_DATA := [
 	},
 	{
 		"id": "mage",
-		"name": "\u672F\u5E08",
+		"name": "\u6CD5\u5E08",
 		"color": Color(0.44, 0.86, 1.0, 1.0),
 		"speed_scale": 1.0,
 		"move_speed": 130.0,
@@ -50,7 +50,7 @@ const ROLE_DATA := [
 		"background_interval": 3.0,
 		"trait_key": "mage_trait",
 		"trait_option_id": "level_trait_mage",
-		"trait_name": "\u672F\u5E08\u7279\u6027",
+		"trait_name": "\u6CD5\u5E08\u7279\u6027",
 		"trait_effect_type": "mage_training",
 		"trait_damage_role_id": "mage"
 	}

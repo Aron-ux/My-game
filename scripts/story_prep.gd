@@ -283,7 +283,7 @@ func _get_role_name(role_id: String) -> String:
 		"gunner":
 			return "枪手"
 		"mage":
-			return "术师"
+			return "法师"
 	return role_id
 
 func _on_move_team_role(from_index: int, to_index: int) -> void:

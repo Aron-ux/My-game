@@ -56,8 +56,11 @@ static func apply_role_damage_lifesteal(owner, source_role_id: String, damage_am
 
 static func get_gunner_distance_damage_multiplier(distance: float, trait_bonus: float = 0.0) -> float:
 	var safe_distance: float = max(0.0, distance)
-	var multiplier: float = 0.30 + (0.70 + max(0.0, trait_bonus)) * sqrt(safe_distance / 160.0)
-	return clamp(multiplier, 0.60, 1.65 + max(0.0, trait_bonus) * 1.5)
+	if safe_distance <= 115.0:
+		return 0.4
+	var outside_distance: float = safe_distance - 115.0
+	var multiplier: float = 1.0 + outside_distance / 100.0 * 0.05 + max(0.0, trait_bonus)
+	return max(0.4, multiplier)
 
 static func get_enemy_hit_radius(enemy: Node) -> float:
 	if enemy == null or not is_instance_valid(enemy):

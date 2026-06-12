@@ -47,5 +47,5 @@ static func _get_basic_attack_description(role_id: String, attack_interval: floa
 		"gunner":
 			role_name = "枪手"
 		"mage":
-			role_name = "术师"
+			role_name = "法师"
 	return "%s普攻冷却。攻击间隔 %.2f 秒；冷却结束后按当前攻击模式出手。" % [role_name, max(attack_interval, 0.01)]

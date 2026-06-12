@@ -9,7 +9,7 @@ const SAVE_SELECT_SCENE_PATH := "res://scenes/save_select.tscn"
 const ROLE_POOL := [
 	{"id": "swordsman", "name": "剑士", "available": true},
 	{"id": "gunner", "name": "枪手", "available": true},
-	{"id": "mage", "name": "术师", "available": true},
+	{"id": "mage", "name": "法师", "available": true},
 	{"id": "reserved_4", "name": "角色4", "available": false},
 	{"id": "reserved_5", "name": "角色5", "available": false}
 ]
@@ -83,7 +83,7 @@ const ROLE_STYLES := {
 		"default": {
 			"id": "default",
 			"name": "默认",
-			"short_description": "维持当前术师表现。"
+			"short_description": "维持当前法师表现。"
 		},
 		"frostfield": {
 			"id": "frostfield",

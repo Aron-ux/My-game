@@ -1,6 +1,7 @@
 extends RefCounted
 
 const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
+const PLAYER_SKILL_COOLDOWN_FLOW := preload("res://scripts/player/player_skill_cooldown_flow.gd")
 const PLAYER_SWITCH_BANNER_FLOW := preload("res://scripts/player/player_switch_banner_flow.gd")
 const PLAYER_SWITCH_ENTRY_FLOW := preload("res://scripts/player/player_switch_entry_flow.gd")
 const PLAYER_SWITCH_JOB_QUEUE := preload("res://scripts/player/player_switch_job_queue.gd")
@@ -183,6 +184,8 @@ static func try_switch_role(owner, new_role_index: int) -> void:
 	owner.switch_cooldown_remaining = 0.0 if DEVELOPER_MODE.should_ignore_cooldowns() else _get_switch_cooldown_duration(owner)
 	var active_role_index: int = owner.active_role_index
 	var active_role_id: String = str(owner.roles[active_role_index]["id"])
+	if not should_trigger_entry and not DEVELOPER_MODE.should_ignore_cooldowns():
+		PLAYER_SKILL_COOLDOWN_FLOW.apply_switch_lock_to_role_skills(owner, active_role_id, owner.switch_cooldown_remaining)
 	owner.switch_invulnerability_remaining = SWITCH_INVULNERABILITY
 	owner.hidden_invulnerability_status_remaining = max(owner.hidden_invulnerability_status_remaining, SWITCH_INVULNERABILITY)
 	var switch_direction: Vector2 = owner.velocity if owner.velocity.length_squared() > 0.001 else owner.facing_direction

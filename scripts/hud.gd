@@ -172,7 +172,7 @@ func _build_team_panel(root: Control) -> void:
 	title.add_theme_font_size_override("font_size", 18)
 	content.add_child(title)
 
-	for role_name in ["剑士", "枪手", "术师"]:
+	for role_name in ["剑士", "枪手", "法师"]:
 		var label := Label.new()
 		label.text = role_name
 		label.add_theme_font_size_override("font_size", 18)
@@ -460,7 +460,7 @@ func update_stats(summary: Dictionary) -> void:
 	_update_attack_mode_hint(bool(summary.get("auto_attack_enabled", false)))
 	_set_label_text(role_label, "角色 %s" % str(summary.get("role_name", "剑士")))
 	var active_role_index := int(summary.get("active_role_index", 0))
-	var team_roles: Array = summary.get("team_roles", ["剑士", "枪手", "术师"])
+	var team_roles: Array = summary.get("team_roles", ["剑士", "枪手", "法师"])
 	for index in range(team_role_labels.size()):
 		var label := team_role_labels[index]
 		var role_name := str(team_roles[index]) if index < team_roles.size() else "-"

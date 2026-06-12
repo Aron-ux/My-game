@@ -56,7 +56,7 @@ static func build_attribute_upgrade_options(
 		},
 		{
 			"id": "level_trait_mage",
-			"title": "术师特性 Lv.%s" % _format_level(mage_next_level),
+			"title": "法师特性 Lv.%s" % _format_level(mage_next_level),
 			"description": mage_description,
 			"evolved": mage_evolved,
 			"title_color": evolved_color

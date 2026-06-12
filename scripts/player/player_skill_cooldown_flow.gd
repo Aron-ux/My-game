@@ -21,6 +21,18 @@ static func get_active_skill_cooldown_slots(owner, attack_interval: float, inclu
 	return slots
 
 
+static func apply_switch_lock_to_role_skills(owner, role_id: String, duration: float) -> void:
+	if owner == null or not is_instance_valid(owner) or duration <= 0.0:
+		return
+	for property_name in _get_role_skill_property_names(role_id):
+		var ability: Variant = _get_owner_property(owner, property_name)
+		if ability == null:
+			continue
+		if ability.get("cooldown_remaining") == null:
+			continue
+		ability.cooldown_remaining = max(float(ability.cooldown_remaining), duration)
+
+
 static func _append_blessing_active_skill_slot(owner, role_id: String, extra_slots: Array) -> void:
 	match role_id:
 		"swordsman":
@@ -32,6 +44,17 @@ static func _append_blessing_active_skill_slot(owner, role_id: String, extra_slo
 		"mage":
 			_append_ability_slot_if_unlocked(owner, extra_slots, "surging_wave", "mage_tidal_surge_ability")
 			_append_ability_slot_if_unlocked(owner, extra_slots, "meta_field", "mage_meta_field_ability")
+
+
+static func _get_role_skill_property_names(role_id: String) -> Array[String]:
+	match role_id:
+		"swordsman":
+			return ["swordsman_blade_storm_ability", "swordsman_crescent_wave_ability"]
+		"gunner":
+			return ["gunner_infinite_reload_ability", "gunner_shrapnel_field_ability"]
+		"mage":
+			return ["mage_tidal_surge_ability", "mage_meta_field_ability"]
+	return []
 
 
 static func _append_ability_slot_if_unlocked(owner, extra_slots: Array, skill_id: String, property_name: String) -> void:

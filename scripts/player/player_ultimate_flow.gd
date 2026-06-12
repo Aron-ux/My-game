@@ -18,8 +18,8 @@ const ULTIMATE_DISPLAY := {
 		"description": "枪手大招：进入爆发射击节奏，向目标方向连续倾泻弹幕。"
 	},
 	"mage": {
-		"name": "奥术潮汐",
-		"description": "术师大招：在敌群区域引爆多段法术轰击。"
+		"name": "奥数轰炸",
+		"description": "法师大招：释放多轮轰炸圈打击敌人。"
 	}
 }
 
@@ -31,11 +31,11 @@ const ULTIMATE_DISPLAY_OVERRIDE := {
 	},
 	"gunner": {
 		"name": "火箭弹幕",
-		"description": "枪手大招：向目标方向释放持续弹幕，并用锥形区域造成伤害。"
+		"description": "枪手大招：向目标方向释放持续弹幕，并用锥形区域造成伤害。持续4秒，期间闪避+30%，移动速度提升至1.3倍。"
 	},
 	"mage": {
 		"name": "奥数轰炸",
-		"description": "术师大招：在敌群区域连续引发多段奥数轰炸。"
+		"description": "法师大招：释放多轮轰炸圈打击敌人，保留原有视觉效果与伤害轮次。"
 	}
 }
 

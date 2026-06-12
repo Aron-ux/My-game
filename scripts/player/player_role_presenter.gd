@@ -22,7 +22,7 @@ static func get_role_detail_summary(role_id: String, _special_data: Dictionary) 
 		"swordsman":
 			return "\u795D\u798F\u9A71\u52A8"
 		"gunner":
-			return "\u795D\u798F\u9A71\u52A8"
+			return "\u5708\u5916\u5904\u51B3"
 		"mage":
 			return "\u795D\u798F\u9A71\u52A8"
 		_:
@@ -33,7 +33,7 @@ static func get_role_route_summary(role_id: String, _special_data: Dictionary) -
 		"swordsman":
 			return "\u795D\u798F\u6210\u957F"
 		"gunner":
-			return "\u795D\u798F\u6210\u957F"
+			return "\u65E0\u4F24\u6EDA\u96EA\u7403"
 		"mage":
 			return "\u795D\u798F\u6210\u957F"
 		_:
@@ -44,7 +44,7 @@ static func get_role_core_summary(role_id: String) -> String:
 		"swordsman":
 			return "\u56FA\u6709 \u8D34\u8EAB\u7834\u950B"
 		"gunner":
-			return "\u56FA\u6709 \u8FDC\u8DDD\u8FFD\u730E"
+			return "\u56FA\u6709 \u730E\u6740\u77AC\u6740"
 		"mage":
 			return "\u56FA\u6709 \u5E7F\u57DF\u56DE\u54CD"
 		_:

@@ -75,7 +75,7 @@ func get_cooldown_slot(owner = null) -> Dictionary:
 		"remaining": clamp(cooldown_remaining, 0.0, duration),
 		"duration": duration,
 		"color": Color(0.62, 0.84, 1.0, 1.0),
-		"description": "波涛涌动：术师荡阵进化。向多方向释放冲击波组，覆盖大范围敌人。"
+		"description": "波涛涌动：法师荡阵进化。向多方向释放冲击波组，覆盖大范围敌人。"
 	}
 
 func _fire_direction_group(owner, origin: Vector2, damage_amount: float, directions: Array, effect_scale: float) -> void:
@@ -95,6 +95,8 @@ func _spawn_wave(owner, origin: Vector2, fire_direction: Vector2, damage_amount:
 	)
 	if wave == null:
 		return null
+	wave.z_as_relative = false
+	wave.z_index = 30
 	var distance_scale: float = max(0.05, effect_scale)
 	var range_multiplier: float = float(owner._get_story_style_range_multiplier("mage")) * float(owner._get_role_attribute_range_multiplier("mage")) * _get_visual_range_multiplier(owner)
 	wave.speed = WAVE_SPEED

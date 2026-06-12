@@ -381,11 +381,11 @@ func _update_status_timers(delta: float) -> void:
 func _update_bleed(delta: float) -> void:
 	ENEMY_STATUS_EFFECTS.tick_bleed(self, delta)
 
-func take_damage(amount: float) -> bool:
-	return ENEMY_DAMAGE.take_damage(self, amount * ENEMY_GLUTTON_SKILL_BEHAVIOR.get_damage_taken_multiplier(self))
+func take_damage(amount: float, is_critical: bool = false) -> bool:
+	return ENEMY_DAMAGE.take_damage(self, amount * ENEMY_GLUTTON_SKILL_BEHAVIOR.get_damage_taken_multiplier(self), is_critical)
 
-func take_batched_damage(amount: float) -> bool:
-	return ENEMY_DAMAGE.apply_damage(self, amount * ENEMY_GLUTTON_SKILL_BEHAVIOR.get_damage_taken_multiplier(self), false)
+func take_batched_damage(amount: float, is_critical: bool = false) -> bool:
+	return ENEMY_DAMAGE.apply_damage(self, amount * ENEMY_GLUTTON_SKILL_BEHAVIOR.get_damage_taken_multiplier(self), false, is_critical)
 
 func activate_pooled_enemy() -> void:
 	batch_simulation_enabled = false
@@ -446,14 +446,17 @@ func get_glutton_player_touch_radius() -> float:
 func get_glutton_player_touch_shape() -> Dictionary:
 	return ENEMY_GLUTTON_BEHAVIOR.get_player_touch_shape(self)
 
+func get_glutton_passive_player_touch_shape() -> Dictionary:
+	return ENEMY_GLUTTON_BEHAVIOR.get_passive_player_touch_shape(self)
+
 func get_save_data() -> Dictionary:
 	return ENEMY_SAVE_DATA.get_save_data(self)
 
 func apply_save_data(data: Dictionary, target_node: Node2D) -> void:
 	ENEMY_SAVE_DATA.apply_save_data(self, data, target_node)
 
-func _play_hit_feedback(damage_amount: float, killed: bool) -> void:
-	ENEMY_HIT_FEEDBACK.play_hit_feedback(self, damage_amount, killed)
+func _play_hit_feedback(damage_amount: float, killed: bool, is_critical: bool = false) -> void:
+	ENEMY_HIT_FEEDBACK.play_hit_feedback(self, damage_amount, killed, is_critical)
 
 func _get_hit_flash_alpha() -> float:
 	return ENEMY_HIT_FEEDBACK.get_hit_flash_alpha(hit_flash_remaining)

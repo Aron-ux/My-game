@@ -281,6 +281,8 @@ static func get_role_attack_interval_flat_reduction(_owner, _role_id: String) ->
 
 
 static func get_ultimate_energy_gain_multiplier_for_role(_owner, _role_id: String) -> float:
+	if _role_id == "mage":
+		return 1.2
 	return 1.0
 
 

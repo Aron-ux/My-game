@@ -25,6 +25,8 @@ static func is_last_stand_active(owner) -> bool:
 
 static func get_effective_damage_taken_multiplier(owner) -> float:
 	var multiplier: float = owner.damage_taken_multiplier
+	if owner != null and owner.has_method("_get_active_role_id") and str(owner._get_active_role_id()) == "gunner":
+		multiplier *= 1.25
 	if is_last_stand_active(owner):
 		multiplier *= 0.82
 	multiplier *= owner._get_equipment_low_health_damage_taken_multiplier()

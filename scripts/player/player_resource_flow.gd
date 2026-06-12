@@ -103,7 +103,7 @@ static func add_energy(owner, amount: float) -> void:
 			var role_id: String = str(role_data.get("id", ""))
 			if role_id == "" or role_id == active_role_id:
 				continue
-			add_role_mana(owner, role_id, amount, false)
+			add_role_mana(owner, role_id, amount * (1.0 + float(owner._get_mage_arcane_surplus_team_ultimate_energy_bonus())), false)
 	if owner._has_elite_relic("elite_reactor") and is_equal_approx(updated_mana, owner.max_mana):
 		owner._activate_switch_power(active_role_id, "\u6EE1\u80FD\u53CD\u5E94", 2.8, 1.14, 0.04)
 	emit_active_mana_changed(owner)

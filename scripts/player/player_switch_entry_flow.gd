@@ -1,6 +1,6 @@
 extends RefCounted
 
-const GUNNER_ENTRY_WAVE_BULLET_COUNT := 16
+const GUNNER_ENTRY_WAVE_BULLET_COUNT := 8
 const GUNNER_ENTRY_WAVE_BATCH_SIZE := 4
 const GUNNER_ENTRY_WAVE_BATCH_INTERVAL := 0.012
 const GUNNER_ENTRY_BULLET_DAMAGE_MULTIPLIER := 2.0
@@ -21,7 +21,7 @@ static func spawn_gunner_entry_wave_batch(owner, role_id: String, wave_index: in
 	var end_index: int = min(start_index + GUNNER_ENTRY_WAVE_BATCH_SIZE, bullet_count)
 	for bullet_index in range(start_index, end_index):
 		var shot_angle: float = TAU * float(bullet_index) / float(bullet_count) + angle_offset
-		var bullet_damage: float = owner._get_role_damage(role_id) * 0.22 * GUNNER_ENTRY_BULLET_DAMAGE_MULTIPLIER * max(0.0, damage_scale)
+		var bullet_damage: float = owner._get_role_damage(role_id) * GUNNER_ENTRY_BULLET_DAMAGE_MULTIPLIER * max(0.0, damage_scale)
 		var bullet = owner._spawn_directional_bullet(Vector2.RIGHT.rotated(shot_angle), bullet_damage, Color(1.0, 0.55, 0.32, 1.0), role_id, owner.global_position)
 		if bullet != null:
 			bullet.speed = 1000.0
