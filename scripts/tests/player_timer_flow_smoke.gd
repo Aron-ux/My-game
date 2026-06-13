@@ -12,6 +12,7 @@ func _init() -> void:
 
 func _run() -> void:
 	_check_timer_expiry_and_entry_rescue()
+	_check_mage_surplus_requires_active_mage()
 	_check_developer_no_cooldown()
 	DeveloperMode.deactivate()
 	if failures.is_empty():
@@ -98,6 +99,22 @@ func _check_timer_expiry_and_entry_rescue() -> void:
 	owner.free()
 
 
+func _check_mage_surplus_requires_active_mage() -> void:
+	var owner := TimerOwnerStub.new()
+	owner.roles = [
+		{"id": "mage"},
+		{"id": "gunner"}
+	]
+	owner.active_role_id = "gunner"
+	owner.mage_arcane_surplus_remaining = 0.1
+
+	PlayerTimerFlow.update_timers(owner, 0.25)
+
+	if owner.mage_arcane_charge_stacks != 0:
+		failures.append("expiring mage arcane surplus should not grant arcane charge when mage is inactive")
+	owner.free()
+
+
 func _check_developer_no_cooldown() -> void:
 	var owner := TimerOwnerStub.new()
 	owner.switch_cooldown_remaining = 3.0
@@ -154,6 +171,9 @@ class TimerOwnerStub:
 	var swordsman_entry_trait_share_remaining: float = 0.0
 	var mage_arcane_surplus_remaining: float = 0.0
 	var mage_arcane_charge_stacks: int = 0
+	var mage_arcane_charge_transfer_remaining: float = 0.0
+	var mage_arcane_charge_transfer_duration: float = 0.0
+	var mage_arcane_charge_transfer_target_role_id: String = ""
 	var greed_heal_cooldown_remaining: float = 0.0
 	var role_special_states: Dictionary = {}
 	var enemy_move_slow_remaining: float = 0.0
@@ -244,6 +264,11 @@ class TimerOwnerStub:
 		if active_role_id != "mage" or count <= 0:
 			return
 		mage_arcane_charge_stacks += count
+
+	func _clear_mage_arcane_charge_transfer(_emit_stats_changed: bool = true) -> void:
+		mage_arcane_charge_transfer_remaining = 0.0
+		mage_arcane_charge_transfer_duration = 0.0
+		mage_arcane_charge_transfer_target_role_id = ""
 
 	func _get_active_role() -> Dictionary:
 		return {"id": active_role_id}

@@ -260,16 +260,6 @@ func perform_enter(owner, role_id: String, _assault_level: int, _assault_multipl
 	var hit_count: int = _cast_entry_lightning_ring(owner, role_id)
 	owner.mage_arcane_surplus_remaining = ENTRY_ARCANE_SURPLUS_DURATION
 	owner._start_duration_status(ENTRY_ARCANE_SURPLUS_STATUS_ID, "\u5965\u6CD5\u76C8\u4F59", ENTRY_ARCANE_SURPLUS_DURATION, 18, Color(0.34, 0.72, 1.0, 0.95))
-	if owner.get_tree() != null and owner.has_method("_schedule_repeating_sequence"):
-		owner._schedule_repeating_sequence(0.0, 1, func(_index: int) -> void:
-			if not is_instance_valid(owner):
-				return
-			if owner.mage_arcane_surplus_remaining > 0.0:
-				return
-			if str(owner._get_active_role().get("id", "")) != "mage":
-				return
-			owner._add_mage_arcane_charge_stacks(3)
-		, ENTRY_ARCANE_SURPLUS_DURATION)
 	return hit_count
 
 func _cast_entry_lightning_ring(owner, role_id: String) -> int:
@@ -316,20 +306,28 @@ func perform_ultimate(owner, cast_payload: Dictionary) -> void:
 	owner._queue_camera_shake(18.5, 0.58)
 	owner._delay_level_up_requests(total_sequence_duration)
 	owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -34.0), "奥数轰炸", Color(0.82, 0.96, 1.0, 1.0))
-	owner.mage_arcane_surplus_remaining = max(owner.mage_arcane_surplus_remaining, ENTRY_ARCANE_SURPLUS_DURATION)
-	owner._start_duration_status(ENTRY_ARCANE_SURPLUS_STATUS_ID, "\u5965\u6CD5\u76C8\u4F59", ENTRY_ARCANE_SURPLUS_DURATION, 18, Color(0.34, 0.72, 1.0, 0.95))
 	owner._spawn_ring_effect(center, 118.0 + storm_level * 10.0, Color(0.72, 0.96, 1.0, 0.82), 10.0, 0.22)
-	_schedule_ultimate_bombardment_sequence(owner, bombard_scales, storm_level, _get_ultimate_damage_multiplier(owner, cast_payload), ultimate_tier, center, 0.0)
+	_schedule_ultimate_bombardment_sequence(owner, bombard_scales, storm_level, _get_ultimate_damage_multiplier(owner, cast_payload), ultimate_tier, center, 0.0, total_sequence_duration)
 	owner._apply_post_ultimate_bonuses("mage", total_sequence_duration)
 
-func _schedule_ultimate_bombardment_sequence(owner, bombard_scales: Array[float], storm_level: int, cast_damage_multiplier: float, ultimate_tier: int, cast_center: Vector2, start_delay: float) -> void:
+func _schedule_ultimate_bombardment_sequence(owner, bombard_scales: Array[float], storm_level: int, cast_damage_multiplier: float, ultimate_tier: int, cast_center: Vector2, start_delay: float, surplus_delay: float = 0.0) -> void:
 	var bombard_count: int = bombard_scales.size()
 	var sequence_callback := func(pulse_index: int) -> void:
 		_trigger_ultimate_bombardment(owner, bombard_scales, storm_level, cast_damage_multiplier, pulse_index, ultimate_tier, cast_center)
 	if start_delay <= 0.0:
 		owner._schedule_repeating_sequence(ULTIMATE_BOMBARD_INTERVAL, bombard_count, sequence_callback)
+	else:
+		owner._schedule_repeating_sequence(ULTIMATE_BOMBARD_INTERVAL, bombard_count, sequence_callback, start_delay)
+	if surplus_delay <= 0.0 or not owner.has_method("_schedule_repeating_sequence"):
+		owner.mage_arcane_surplus_remaining = max(owner.mage_arcane_surplus_remaining, ENTRY_ARCANE_SURPLUS_DURATION)
+		owner._start_duration_status(ENTRY_ARCANE_SURPLUS_STATUS_ID, "\u5965\u6CD5\u76C8\u4F59", ENTRY_ARCANE_SURPLUS_DURATION, 18, Color(0.34, 0.72, 1.0, 0.95))
 		return
-	owner._schedule_repeating_sequence(ULTIMATE_BOMBARD_INTERVAL, bombard_count, sequence_callback, start_delay)
+	owner._schedule_repeating_sequence(0.0, 1, func(_index: int) -> void:
+		if not is_instance_valid(owner):
+			return
+		owner.mage_arcane_surplus_remaining = max(owner.mage_arcane_surplus_remaining, ENTRY_ARCANE_SURPLUS_DURATION)
+		owner._start_duration_status(ENTRY_ARCANE_SURPLUS_STATUS_ID, "\u5965\u6CD5\u76C8\u4F59", ENTRY_ARCANE_SURPLUS_DURATION, 18, Color(0.34, 0.72, 1.0, 0.95))
+	, surplus_delay)
 
 func _trigger_ultimate_bombardment(owner, bombard_scales: Array[float], storm_level: int, cast_damage_multiplier: float, pulse_index: int, ultimate_tier: int = 1, cast_center: Vector2 = Vector2.ZERO) -> void:
 	if owner.is_dead:

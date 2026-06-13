@@ -40,6 +40,10 @@ static func get_save_data(player) -> Dictionary:
 		"swordsman_entry_trait_share_remaining": player.swordsman_entry_trait_share_remaining,
 		"mage_arcane_surplus_remaining": player.mage_arcane_surplus_remaining,
 		"mage_arcane_charge_stacks": player.mage_arcane_charge_stacks,
+		"mage_arcane_charge_transfer_stacks": player.mage_arcane_charge_transfer_stacks,
+		"mage_arcane_charge_transfer_remaining": player.mage_arcane_charge_transfer_remaining,
+		"mage_arcane_charge_transfer_duration": player.mage_arcane_charge_transfer_duration,
+		"mage_arcane_charge_transfer_target_role_id": player.mage_arcane_charge_transfer_target_role_id,
 		"level_up_delay_remaining": player.level_up_delay_remaining,
 		"switch_cooldown_remaining": player.switch_cooldown_remaining,
 		"greed_heal_cooldown_remaining": player.greed_heal_cooldown_remaining,
@@ -334,6 +338,10 @@ static func _apply_switch_buff_save_data(player, data: Dictionary) -> void:
 	player.swordsman_entry_trait_share_remaining = max(0.0, float(data.get("swordsman_entry_trait_share_remaining", 0.0)))
 	player.mage_arcane_surplus_remaining = max(0.0, float(data.get("mage_arcane_surplus_remaining", 0.0)))
 	player.mage_arcane_charge_stacks = clampi(int(data.get("mage_arcane_charge_stacks", 0)), 0, player.MAGE_ARCANE_CHARGE_MAX_STACKS)
+	player.mage_arcane_charge_transfer_stacks = clampi(int(data.get("mage_arcane_charge_transfer_stacks", 0)), 0, player.MAGE_ARCANE_CHARGE_MAX_STACKS)
+	player.mage_arcane_charge_transfer_remaining = max(0.0, float(data.get("mage_arcane_charge_transfer_remaining", 0.0)))
+	player.mage_arcane_charge_transfer_duration = max(0.0, float(data.get("mage_arcane_charge_transfer_duration", 0.0)))
+	player.mage_arcane_charge_transfer_target_role_id = str(data.get("mage_arcane_charge_transfer_target_role_id", ""))
 	if player.has_method("_sync_invulnerability_status"):
 		player._sync_invulnerability_status()
 	if player.mage_arcane_surplus_remaining > 0.0 and player.has_method("_sync_duration_status"):

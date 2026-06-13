@@ -5,7 +5,7 @@ const DEATH_SPACE_WARNING_COLOR := Color(1.0, 0.14, 0.08, 0.9)
 const DEATH_SPACE_WARNING_FILL_COLOR := Color(1.0, 0.14, 0.08, 0.22)
 const SUMMON_RING_START_RADIUS := 230.0
 const SUMMON_AREA_RADIUS := 583.2
-const SUMMON_AREA_DURATION := 10.0
+const SUMMON_AREA_DURATION := 7.0
 const SUMMON_AREA_VERTEX_VISUAL_SCALE := 1.0
 const SUMMON_AREA_LINE_COLOR := Color(0.08, 0.42, 0.38, 0.92)
 const SUMMON_AREA_COLLISION_LAYER := 1 << 6
@@ -69,7 +69,7 @@ static func _update_summon_channel(enemy, delta: float) -> void:
 	if enemy.skulltomb_summon_timer > 0.0:
 		return
 	enemy.skulltomb_summon_timer += max(0.5, enemy.skulltomb_summon_interval)
-	enemy.skulltomb_area_center = _get_death_space_center(enemy)
+	enemy.skulltomb_summon_target_center = _get_death_space_center(enemy)
 	enemy.skulltomb_summon_windup_remaining = max(0.15, enemy.skulltomb_summon_windup)
 	_update_channel_ring(enemy)
 
@@ -349,8 +349,11 @@ static func _get_vertex_spawn_position(enemy, vertex_index: int) -> Vector2:
 
 static func _start_summon_area(enemy) -> void:
 	_clear_summon_area(enemy)
-	if enemy.skulltomb_area_center == Vector2.ZERO:
+	if enemy.skulltomb_summon_target_center != Vector2.ZERO:
+		enemy.skulltomb_area_center = enemy.skulltomb_summon_target_center
+	elif enemy.skulltomb_area_center == Vector2.ZERO:
 		enemy.skulltomb_area_center = _get_death_space_center(enemy)
+	enemy.skulltomb_summon_target_center = Vector2.ZERO
 	enemy.skulltomb_area_radius = SUMMON_AREA_RADIUS
 	enemy.skulltomb_area_remaining = SUMMON_AREA_DURATION
 	enemy.skulltomb_area_damage_elapsed = 0.0
@@ -449,6 +452,7 @@ static func _clear_summon_area(enemy) -> void:
 	enemy.skulltomb_area_remaining = 0.0
 	enemy.skulltomb_area_damage_elapsed = 0.0
 	enemy.skulltomb_area_radius = 0.0
+	enemy.skulltomb_summon_target_center = Vector2.ZERO
 
 
 static func _build_triangle_vertices(radius: float) -> PackedVector2Array:
@@ -614,7 +618,7 @@ static func _update_channel_ring(enemy) -> void:
 	var progress: float = 1.0 - clamp(float(enemy.skulltomb_summon_windup_remaining) / max(0.001, float(enemy.skulltomb_summon_windup)), 0.0, 1.0)
 	var warning_radius: float = lerpf(max(18.0, enemy.contact_radius * 0.45), SUMMON_AREA_RADIUS, progress)
 	var vertices: PackedVector2Array = _build_triangle_vertices(warning_radius)
-	var center: Vector2 = enemy.skulltomb_area_center
+	var center: Vector2 = enemy.skulltomb_summon_target_center if enemy.skulltomb_summon_target_center != Vector2.ZERO else enemy.skulltomb_area_center
 	ring.position = enemy.to_local(center)
 	ring.points = vertices
 	ring.modulate.a = 0.4 + 0.45 * progress

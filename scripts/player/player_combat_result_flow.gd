@@ -36,10 +36,8 @@ static func add_kill_energy(owner, amount: float, bypass_lock_role_id: String = 
 		var gain_scale: float = BACKGROUND_ULTIMATE_ENERGY_GAIN_RATIO
 		if role_id == active_role_id or arcane_surplus_active:
 			gain_scale = 1.0
-		var base_energy_gain_multiplier: float = owner.energy_gain_multiplier - owner.equipment_energy_gain_bonus + owner._get_role_equipment_energy_gain_bonus(role_id)
-		var adjusted_amount: float = amount * ULTIMATE_ENERGY_GAIN_GLOBAL_MULTIPLIER * gain_scale * max(0.01, base_energy_gain_multiplier) * owner._get_ultimate_energy_gain_multiplier_for_role(role_id)
-		if source_role_id == "mage" and role_id == "mage" and owner.has_method("_get_mage_arcane_charge_self_energy_multiplier"):
-			adjusted_amount *= max(0.0, float(owner._get_mage_arcane_charge_self_energy_multiplier()))
+		var total_energy_multiplier: float = owner._get_role_total_ultimate_energy_gain_multiplier(role_id) if owner.has_method("_get_role_total_ultimate_energy_gain_multiplier") else 1.0
+		var adjusted_amount: float = amount * ULTIMATE_ENERGY_GAIN_GLOBAL_MULTIPLIER * gain_scale * max(0.01, total_energy_multiplier)
 		if adjusted_amount <= 0.0:
 			continue
 		var updated_mana: float = owner._add_role_mana(role_id, adjusted_amount, false)
@@ -219,9 +217,12 @@ static func try_apply_mage_kill_energy_proc(owner, source_role_id: String, base_
 
 
 static func _apply_mage_arcane_charge_energy_share(owner, mage_self_energy_gain: float, bypass_lock_role_id: String, source_role_id: String) -> void:
-	if source_role_id != "mage" or mage_self_energy_gain <= 0.0:
+	if mage_self_energy_gain <= 0.0:
 		return
-	var share_ratio: float = owner._get_mage_arcane_charge_share_ratio() if owner.has_method("_get_mage_arcane_charge_share_ratio") else 0.0
+	var effect_role_id: String = owner._get_mage_arcane_charge_holder_role_id() if owner.has_method("_get_mage_arcane_charge_holder_role_id") else ""
+	if effect_role_id == "":
+		return
+	var share_ratio: float = owner._get_mage_arcane_charge_share_ratio_for_role(effect_role_id) if owner.has_method("_get_mage_arcane_charge_share_ratio_for_role") else 0.0
 	if share_ratio <= 0.0:
 		return
 	var share_amount: float = mage_self_energy_gain * share_ratio
@@ -229,7 +230,7 @@ static func _apply_mage_arcane_charge_energy_share(owner, mage_self_energy_gain:
 		return
 	for role_data in owner.roles:
 		var role_id: String = str(role_data.get("id", ""))
-		if role_id == "" or role_id == "mage":
+		if role_id == "" or role_id == effect_role_id:
 			continue
 		if role_id != bypass_lock_role_id and owner._get_role_ultimate_lock_remaining(role_id) > 0.0 and not DEVELOPER_MODE.should_unlock_ultimate_freely():
 			continue

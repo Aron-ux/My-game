@@ -173,17 +173,13 @@ static func try_switch_role(owner, new_role_index: int) -> void:
 		owner._save_active_role_health()
 	if previous_role_id == "gunner" and owner.has_method("_clear_gunner_flash_trait_on_switch"):
 		owner._clear_gunner_flash_trait_on_switch()
-	if previous_role_id == "mage" and owner.mage_arcane_surplus_remaining > 0.0:
-		owner.mage_arcane_surplus_remaining = 0.0
-		if owner.has_method("_clear_duration_status"):
-			owner._clear_duration_status("mage_arcane_surplus")
-	if previous_role_id == "mage" and owner.has_method("_clear_mage_arcane_charge_on_switch"):
-		owner._clear_mage_arcane_charge_on_switch()
 	apply_exit_skill(owner, previous_role_index)
 	owner.active_role_index = new_role_index
 	owner.switch_cooldown_remaining = 0.0 if DEVELOPER_MODE.should_ignore_cooldowns() else _get_switch_cooldown_duration(owner)
 	var active_role_index: int = owner.active_role_index
 	var active_role_id: String = str(owner.roles[active_role_index]["id"])
+	if previous_role_id == "mage" and owner.has_method("_transfer_mage_arcane_charge_to_role_on_switch"):
+		owner._transfer_mage_arcane_charge_to_role_on_switch(active_role_id)
 	if not should_trigger_entry and not DEVELOPER_MODE.should_ignore_cooldowns():
 		PLAYER_SKILL_COOLDOWN_FLOW.apply_switch_lock_to_role_skills(owner, active_role_id, owner.switch_cooldown_remaining)
 	owner.switch_invulnerability_remaining = SWITCH_INVULNERABILITY
@@ -205,7 +201,7 @@ static func try_switch_role(owner, new_role_index: int) -> void:
 		])
 	var symbol_level: int = 0
 	if symbol_level > 0:
-		owner._add_energy((4.0 + symbol_level * 1.8) * owner.energy_gain_multiplier)
+		owner._add_energy(4.0 + symbol_level * 1.8)
 	if owner._has_elite_relic("elite_reactor"):
 		owner._add_energy(12.0)
 	if previous_position != owner.global_position:
@@ -296,7 +292,7 @@ static func clear_entry_blessing(owner) -> void:
 
 static func apply_switch_payoff(owner, hit_count: int, energy_gain: float, cooldown_refund: float) -> void:
 	if hit_count > 0 and energy_gain > 0.0:
-		owner._add_energy(energy_gain * owner.energy_gain_multiplier)
+		owner._add_energy(energy_gain)
 	if cooldown_refund > 0.0:
 		owner.switch_cooldown_remaining = max(0.0, owner.switch_cooldown_remaining - cooldown_refund)
 

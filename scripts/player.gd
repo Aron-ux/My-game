@@ -119,6 +119,7 @@ const GUNNER_SAFE_ZONE_OUTLINE_WIDTH := 2.0
 const MAGE_ARCANE_CHARGE_MAX_STACKS := 10
 const MAGE_ARCANE_CHARGE_SHARE_PER_STACK := 0.10
 const MAGE_ARCANE_CHARGE_SELF_ENERGY_PER_STACK := 0.02
+const MAGE_ARCANE_CHARGE_TRANSFER_DURATION_PER_STACK := 1.0
 const MAGE_ARCANE_SURPLUS_DURATION := 5.0
 const MAGE_ARCANE_SURPLUS_TEAM_ULTIMATE_ENERGY_BONUS := 0.20
 const MAGE_ARCANE_SURPLUS_SWITCH_ENERGY_BONUS := 0.20
@@ -301,6 +302,10 @@ var swordsman_bloodthirst_heal_multiplier: float = 1.0
 var swordsman_ultimate_crit_bonus_chance: float = 0.0
 var mage_arcane_surplus_remaining: float = 0.0
 var mage_arcane_charge_stacks: int = 0
+var mage_arcane_charge_transfer_stacks: int = 0
+var mage_arcane_charge_transfer_remaining: float = 0.0
+var mage_arcane_charge_transfer_duration: float = 0.0
+var mage_arcane_charge_transfer_target_role_id: String = ""
 var greed_heal_cooldown_remaining: float = 0.0
 var entry_haste_interval_bonus: float = 0.0
 var entry_haste_move_speed_multiplier: float = 1.0
@@ -712,6 +717,16 @@ func _get_role_equipment_damage_multiplier_bonus(role_id: String) -> float:
 func _get_role_equipment_energy_gain_bonus(role_id: String) -> float:
 	return PLAYER_EQUIPMENT_FLOW.get_role_energy_gain_bonus(self, role_id) + _get_role_blessing_stat_bonus(role_id, "energy_gain")
 
+func _get_role_total_ultimate_energy_gain_multiplier(role_id: String) -> float:
+	var total_bonus: float = 0.0
+	total_bonus += max(0.0, energy_gain_multiplier - 1.0)
+	total_bonus += max(0.0, _get_role_equipment_energy_gain_bonus(role_id))
+	total_bonus += max(0.0, _get_ultimate_energy_gain_multiplier_for_role(role_id) - 1.0)
+	if _is_mage_arcane_surplus_active():
+		total_bonus += max(0.0, _get_mage_arcane_surplus_team_ultimate_energy_bonus())
+	total_bonus += max(0.0, _get_mage_arcane_charge_self_energy_multiplier_for_role(role_id) - 1.0)
+	return 1.0 + total_bonus
+
 func _get_role_equipment_skill_range_multiplier(role_id: String) -> float:
 	return float(PLAYER_EQUIPMENT_FLOW.get_role_bonus_summary(self, role_id).get("skill_range_multiplier", 1.0)) + _get_role_blessing_stat_bonus(role_id, "skill_range")
 
@@ -1101,12 +1116,58 @@ func _add_mage_arcane_charge_stacks(count: int) -> void:
 
 func _clear_mage_arcane_charge_on_switch() -> void:
 	mage_arcane_charge_stacks = 0
+	_clear_mage_arcane_charge_transfer(false)
+	stats_changed.emit(get_frame_hud_summary())
+
+func _transfer_mage_arcane_charge_to_role_on_switch(target_role_id: String) -> void:
+	var transfer_stacks: int = clampi(mage_arcane_charge_stacks, 0, MAGE_ARCANE_CHARGE_MAX_STACKS)
+	mage_arcane_charge_stacks = 0
+	if transfer_stacks <= 0 or target_role_id == "":
+		_clear_mage_arcane_charge_transfer(false)
+		stats_changed.emit(get_frame_hud_summary())
+		return
+	mage_arcane_charge_transfer_stacks = transfer_stacks
+	mage_arcane_charge_transfer_target_role_id = target_role_id
+	mage_arcane_charge_transfer_duration = float(transfer_stacks) * MAGE_ARCANE_CHARGE_TRANSFER_DURATION_PER_STACK
+	mage_arcane_charge_transfer_remaining = mage_arcane_charge_transfer_duration
+	stats_changed.emit(get_frame_hud_summary())
+
+func _clear_mage_arcane_charge_transfer(emit_stats_changed: bool = true) -> void:
+	mage_arcane_charge_transfer_stacks = 0
+	mage_arcane_charge_transfer_remaining = 0.0
+	mage_arcane_charge_transfer_duration = 0.0
+	mage_arcane_charge_transfer_target_role_id = ""
+	if emit_stats_changed:
+		stats_changed.emit(get_frame_hud_summary())
+
+func _get_mage_arcane_charge_effective_stacks_for_role(role_id: String) -> int:
+	if role_id == "mage":
+		return clampi(mage_arcane_charge_stacks, 0, MAGE_ARCANE_CHARGE_MAX_STACKS)
+	if role_id != "" and role_id == mage_arcane_charge_transfer_target_role_id and mage_arcane_charge_transfer_remaining > 0.0:
+		return clampi(mage_arcane_charge_transfer_stacks, 0, MAGE_ARCANE_CHARGE_MAX_STACKS)
+	return 0
+
+func _does_role_hold_mage_arcane_charge_effect(role_id: String) -> bool:
+	return _get_mage_arcane_charge_effective_stacks_for_role(role_id) > 0
+
+func _get_mage_arcane_charge_holder_role_id() -> String:
+	if mage_arcane_charge_transfer_remaining > 0.0 and mage_arcane_charge_transfer_target_role_id != "":
+		return mage_arcane_charge_transfer_target_role_id
+	if mage_arcane_charge_stacks > 0:
+		return "mage"
+	return ""
+
+func _get_mage_arcane_charge_share_ratio_for_role(role_id: String) -> float:
+	return float(_get_mage_arcane_charge_effective_stacks_for_role(role_id)) * MAGE_ARCANE_CHARGE_SHARE_PER_STACK
 
 func _get_mage_arcane_charge_share_ratio() -> float:
-	return float(clampi(mage_arcane_charge_stacks, 0, MAGE_ARCANE_CHARGE_MAX_STACKS)) * MAGE_ARCANE_CHARGE_SHARE_PER_STACK
+	return _get_mage_arcane_charge_share_ratio_for_role(str(_get_active_role().get("id", "")))
+
+func _get_mage_arcane_charge_self_energy_multiplier_for_role(role_id: String) -> float:
+	return 1.0 + float(_get_mage_arcane_charge_effective_stacks_for_role(role_id)) * MAGE_ARCANE_CHARGE_SELF_ENERGY_PER_STACK
 
 func _get_mage_arcane_charge_self_energy_multiplier() -> float:
-	return 1.0 + float(clampi(mage_arcane_charge_stacks, 0, MAGE_ARCANE_CHARGE_MAX_STACKS)) * MAGE_ARCANE_CHARGE_SELF_ENERGY_PER_STACK
+	return _get_mage_arcane_charge_self_energy_multiplier_for_role(str(_get_active_role().get("id", "")))
 
 func _get_mage_arcane_charge_damage_multiplier() -> float:
 	return 1.0
@@ -1130,19 +1191,22 @@ func _get_mage_arcane_surplus_switch_energy_bonus() -> float:
 	return MAGE_ARCANE_SURPLUS_SWITCH_ENERGY_BONUS
 
 func _get_mage_arcane_charge_buff_slot() -> Dictionary:
-	if str(_get_active_role().get("id", "")) != "mage" and mage_arcane_surplus_remaining <= 0.0:
+	var active_role_id: String = str(_get_active_role().get("id", ""))
+	var transfer_active: bool = active_role_id == mage_arcane_charge_transfer_target_role_id and mage_arcane_charge_transfer_remaining > 0.0
+	if active_role_id != "mage" and mage_arcane_surplus_remaining <= 0.0 and not transfer_active:
 		return {}
 	var name := "奥法盈余" if mage_arcane_surplus_remaining > 0.0 else "奥数充能"
-	var description := "持续5秒：全员大招回能效率+20%，切人回能效率+20%，伤害+10%" if mage_arcane_surplus_remaining > 0.0 else "每层提升法师自身2%大招回能效率，并将法师自身获得的大招能量的10%同步给另外两名角色"
-	if mage_arcane_surplus_remaining <= 0.0 and mage_arcane_charge_stacks <= 0:
+	var description := "持续5秒：全员大招回能效率+20%，切人回能效率+20%，伤害+10%" if mage_arcane_surplus_remaining > 0.0 else "每层提升法师自身2%大招回能效率，并将法师自身获得的大招能量的10%同步给另外两名角色；切人后会按当前层数完整继承给下一个角色，并持续同等秒数"
+	var display_stacks: int = _get_mage_arcane_charge_effective_stacks_for_role(active_role_id)
+	if mage_arcane_surplus_remaining <= 0.0 and display_stacks <= 0:
 		return {}
 	return {
 		"name": name,
 		"description": description,
 		"text": "盈" if mage_arcane_surplus_remaining > 0.0 else "奥",
-		"stacks": clampi(mage_arcane_charge_stacks, 0, MAGE_ARCANE_CHARGE_MAX_STACKS),
-		"remaining": mage_arcane_surplus_remaining if mage_arcane_surplus_remaining > 0.0 else 1.0,
-		"duration": MAGE_ARCANE_SURPLUS_DURATION if mage_arcane_surplus_remaining > 0.0 else 1.0,
+		"stacks": display_stacks,
+		"remaining": mage_arcane_surplus_remaining if mage_arcane_surplus_remaining > 0.0 else (mage_arcane_charge_transfer_remaining if transfer_active else 1.0),
+		"duration": MAGE_ARCANE_SURPLUS_DURATION if mage_arcane_surplus_remaining > 0.0 else (max(1.0, mage_arcane_charge_transfer_duration) if transfer_active else 1.0),
 		"color": Color(0.25, 0.74, 1.0, 0.95),
 		"cooldown": false
 	}

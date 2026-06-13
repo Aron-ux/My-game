@@ -94,16 +94,9 @@ static func add_energy(owner, amount: float) -> void:
 	if effective_amount <= 0.0:
 		return
 	var active_role_id: String = get_active_role_id(owner)
-	var self_amount: float = amount
-	if active_role_id == "mage" and owner.has_method("_get_mage_arcane_charge_self_energy_multiplier"):
-		self_amount *= max(0.0, float(owner._get_mage_arcane_charge_self_energy_multiplier()))
+	var total_energy_multiplier: float = owner._get_role_total_ultimate_energy_gain_multiplier(active_role_id) if owner.has_method("_get_role_total_ultimate_energy_gain_multiplier") else 1.0
+	var self_amount: float = amount * max(0.01, total_energy_multiplier)
 	var updated_mana: float = add_role_mana(owner, active_role_id, self_amount, false)
-	if active_role_id == "mage" and owner.mage_arcane_surplus_remaining > 0.0:
-		for role_data in owner.roles:
-			var role_id: String = str(role_data.get("id", ""))
-			if role_id == "" or role_id == active_role_id:
-				continue
-			add_role_mana(owner, role_id, amount * (1.0 + float(owner._get_mage_arcane_surplus_team_ultimate_energy_bonus())), false)
 	if owner._has_elite_relic("elite_reactor") and is_equal_approx(updated_mana, owner.max_mana):
 		owner._activate_switch_power(active_role_id, "\u6EE1\u80FD\u53CD\u5E94", 2.8, 1.14, 0.04)
 	emit_active_mana_changed(owner)

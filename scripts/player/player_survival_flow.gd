@@ -97,7 +97,7 @@ static func physics_process(owner, delta: float) -> void:
 static func regenerate_energy(owner, delta: float) -> void:
 	if owner.ENERGY_PASSIVE_REGEN <= 0.0:
 		return
-	owner._add_energy(owner.ENERGY_PASSIVE_REGEN * owner.energy_gain_multiplier * delta)
+	owner._add_energy(owner.ENERGY_PASSIVE_REGEN * delta)
 
 
 static func _update_area_control_states(owner, delta: float) -> void:

@@ -29,6 +29,7 @@ const ENEMY_VISUALS := preload("res://scripts/enemies/enemy_visuals.gd")
 const ENEMY_OCCLUSION_SORT := preload("res://scripts/enemies/enemy_occlusion_sort.gd")
 const ENEMY_GLUTTON_BEHAVIOR := preload("res://scripts/enemies/enemy_glutton_behavior.gd")
 const ENEMY_GLUTTON_SKILL_BEHAVIOR := preload("res://scripts/enemies/enemy_glutton_skill_behavior.gd")
+const ENEMY_SKULLTOMB_BEHAVIOR := preload("res://scripts/enemies/enemy_skulltomb_behavior.gd")
 
 @export var speed: float = 80.0
 @export var max_health: float = 20.0
@@ -157,6 +158,7 @@ var skulltomb_area_instance: Node2D
 var skulltomb_area_remaining: float = 0.0
 var skulltomb_area_damage_elapsed: float = 0.0
 var skulltomb_area_center: Vector2 = Vector2.ZERO
+var skulltomb_summon_target_center: Vector2 = Vector2.ZERO
 var skulltomb_area_radius: float = 0.0
 var skulltomb_pending_spawns: Array = []
 var skulltomb_spawn_elapsed: float = 0.0
@@ -310,6 +312,12 @@ func get_boss_ui_payload() -> Dictionary:
 			"label": "战争践踏",
 			"remaining": float(glutton_war_stomp_remaining),
 			"duration": ENEMY_GLUTTON_SKILL_BEHAVIOR.get_war_stomp_duration()
+		}
+	elif behavior_id == "skulltomb" and float(skulltomb_area_remaining) > 0.0:
+		payload["status"] = {
+			"label": "亡者领域",
+			"remaining": float(skulltomb_area_remaining),
+			"duration": ENEMY_SKULLTOMB_BEHAVIOR.SUMMON_AREA_DURATION
 		}
 	return payload
 

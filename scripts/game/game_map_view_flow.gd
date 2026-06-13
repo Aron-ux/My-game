@@ -1,16 +1,8 @@
 extends RefCounted
 
 const MAP_BOUNDARY_VIEW := preload("res://scripts/map/map_boundary_view.gd")
-const BATTLE_MAP_SCENE := preload("res://assets/tile/map.tscn")
-const RUNTIME_BACKGROUND_PATHS: Array[String] = [
-	"res://assets/maps/grassland_4.png",
-	"res://assets/maps/temp_reference_map.png",
-	"res://assets/maps/battle_map.png"
-]
+const DEFAULT_MAP_BOUNDS := Rect2(Vector2(-1600.0, -900.0), Vector2(3200.0, 1800.0))
 
-const EDITOR_ONLY_MAP_NODES := {
-	"BorderGuide_3200x1800": true
-}
 const TILE_MAP_LAYER_NAMES := {
 	"GroundLayer": true,
 	"RoadLayer": true,
@@ -40,64 +32,23 @@ static func setup_boundary_view(main: Node) -> void:
 
 
 static func create_battle_map_view() -> Node2D:
-	var map_scene: Node = BATTLE_MAP_SCENE.instantiate()
-	if map_scene is Node2D:
-		prepare_battle_map_scene(map_scene)
-		return map_scene
 	return MAP_BOUNDARY_VIEW.new()
 
 
-static func prepare_battle_map_scene(map_scene: Node) -> void:
-	for child in map_scene.get_children():
-		if child.name in EDITOR_ONLY_MAP_NODES and child is CanvasItem:
-			(child as CanvasItem).visible = false
-		elif child.name == "ReferenceImage" and child is CanvasItem:
-			var reference: CanvasItem = child as CanvasItem
-			reference.visible = false
-		elif child.name == "RuinsVisual" and child is CanvasItem:
-			(child as CanvasItem).visible = false
-		elif child.name in TILE_MAP_LAYER_NAMES and child is CanvasItem:
-			(child as CanvasItem).visible = false
-	add_grassland_background(map_scene)
+static func prepare_battle_map_scene(_map_scene: Node) -> void:
+	pass
 
 
-static func add_grassland_background(map_scene: Node) -> void:
-	var texture: Texture2D = load_first_runtime_background()
-	if texture == null:
-		return
-	var sprite := Sprite2D.new()
-	sprite.name = "GrasslandBackground"
-	sprite.texture = texture
-	sprite.centered = true
-	sprite.z_index = -100
-	var tex_size: Vector2 = texture.get_size()
-	var target_bounds := Rect2(Vector2(-1600.0, -900.0), Vector2(3200.0, 1800.0))
-	if map_scene is Node2D:
-		var tile_bounds: Rect2 = calculate_tile_map_bounds(map_scene as Node2D)
-		if tile_bounds.size.x > 0.0 and tile_bounds.size.y > 0.0:
-			target_bounds = tile_bounds
-	sprite.global_position = target_bounds.get_center()
-	if tex_size.x > 0.0 and tex_size.y > 0.0:
-		sprite.scale = target_bounds.size / tex_size
-	map_scene.add_child(sprite)
-	map_scene.move_child(sprite, 0)
-
-
-static func load_first_runtime_background() -> Texture2D:
-	for path in RUNTIME_BACKGROUND_PATHS:
-		if not ResourceLoader.exists(path, "Texture2D"):
-			continue
-		var texture := load(path) as Texture2D
-		if texture != null:
-			return texture
-	return null
+static func add_grassland_background(_map_scene: Node) -> void:
+	pass
 
 
 static func apply_tile_map_bounds_to_main(main: Node, map_scene: Node2D) -> void:
 	var tile_bounds: Rect2 = calculate_tile_map_bounds(map_scene)
-	if tile_bounds.size.x <= 0.0 or tile_bounds.size.y <= 0.0:
+	if tile_bounds.size.x > 0.0 and tile_bounds.size.y > 0.0:
+		main.map_bounds = tile_bounds.grow(MAP_BOUNDS_PADDING)
 		return
-	main.map_bounds = tile_bounds.grow(MAP_BOUNDS_PADDING)
+	main.map_bounds = DEFAULT_MAP_BOUNDS
 
 
 static func calculate_tile_map_bounds(map_scene: Node2D) -> Rect2:

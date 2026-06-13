@@ -46,10 +46,15 @@ static func update_timers(owner, delta: float) -> void:
 	if owner.mage_arcane_surplus_remaining > 0.0:
 		var previous_arcane_surplus_remaining: float = owner.mage_arcane_surplus_remaining
 		owner.mage_arcane_surplus_remaining = max(0.0, owner.mage_arcane_surplus_remaining - delta)
-		if previous_arcane_surplus_remaining > 0.0 and owner.mage_arcane_surplus_remaining <= 0.0 and owner.has_method("_add_mage_arcane_charge_stacks"):
+		var active_role_id: String = str(owner._get_active_role().get("id", "")) if owner.has_method("_get_active_role") else ""
+		if previous_arcane_surplus_remaining > 0.0 and owner.mage_arcane_surplus_remaining <= 0.0 and active_role_id == "mage" and owner.has_method("_add_mage_arcane_charge_stacks"):
 			owner._add_mage_arcane_charge_stacks(MAGE_ARCANE_SURPLUS_EXPIRE_CHARGE_STACKS)
 		if owner.has_method("_sync_duration_status"):
 			owner._sync_duration_status("mage_arcane_surplus", "\u5965\u6CD5\u76C8\u4F59", owner.mage_arcane_surplus_remaining, 18, Color(0.34, 0.72, 1.0, 0.95))
+	if owner.mage_arcane_charge_transfer_remaining > 0.0:
+		owner.mage_arcane_charge_transfer_remaining = max(0.0, owner.mage_arcane_charge_transfer_remaining - delta)
+		if owner.mage_arcane_charge_transfer_remaining <= 0.0 and owner.has_method("_clear_mage_arcane_charge_transfer"):
+			owner._clear_mage_arcane_charge_transfer()
 	if owner.greed_heal_cooldown_remaining > 0.0:
 		owner.greed_heal_cooldown_remaining = max(0.0, owner.greed_heal_cooldown_remaining - delta)
 	if owner.has_method("_tick_gunner_flash_trait"):

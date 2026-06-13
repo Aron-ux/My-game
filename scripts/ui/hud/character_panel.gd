@@ -510,10 +510,9 @@ func _build_stats_text(role_data: Dictionary) -> String:
 	var max_health: float = float(cached_player._get_role_max_health(role_id)) if cached_player.has_method("_get_role_max_health") else float(cached_player.get("max_health")) - float(active_bonus.get("max_health_bonus", 0.0)) + float(bonus.get("max_health_bonus", 0.0))
 	var current_health: float = float(cached_player._get_role_current_health(role_id)) if cached_player.has_method("_get_role_current_health") else float(cached_player.get("current_health"))
 	var current_health_text := "%.0f / %.0f" % [current_health, max_health]
-	var base_energy: float = float(cached_player.get("energy_gain_multiplier")) - float(active_bonus.get("energy_gain_bonus", 0.0))
-	var energy_gain: float = base_energy + float(bonus.get("energy_gain_bonus", 0.0))
-	if cached_player.has_method("_get_ultimate_energy_gain_multiplier_for_role"):
-		energy_gain = float(cached_player._get_ultimate_energy_gain_multiplier_for_role(role_id)) * (1.0 + float(bonus.get("energy_gain_bonus", 0.0)))
+	var energy_gain: float = 1.0
+	if cached_player.has_method("_get_role_total_ultimate_energy_gain_multiplier"):
+		energy_gain = float(cached_player._get_role_total_ultimate_energy_gain_multiplier(role_id))
 	var pickup_radius: float = float(cached_player.get("pickup_radius"))
 	if cached_player.has_method("_get_attribute_pickup_range_bonus"):
 		pickup_radius += float(cached_player._get_attribute_pickup_range_bonus())
