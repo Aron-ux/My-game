@@ -12,6 +12,18 @@ const SWITCH_WIDGET_WIDTH := 176.0
 const SWITCH_WIDGET_HEIGHT := 72.0
 const SWITCH_WIDGET_GAP := 18.0
 const SKILL_PANEL_WIDTH := 382.0
+const TEAM_STACK_WIDTH := 1008.0
+const TEAM_STACK_MIN_WIDTH := 680.0
+const TEAM_STACK_HEIGHT := 154.0
+const TEAM_STACK_ROW_ACTIVE_HEIGHT := 52.0
+const TEAM_STACK_ROW_STANDBY_HEIGHT := 35.0
+const TEAM_STACK_ROW_GAP := 4.0
+const TEAM_STACK_ACTIVE_INDENT := 8.0
+const TEAM_STACK_SLOT_SIZE_ACTIVE := 36.0
+const TEAM_STACK_SLOT_SIZE_STANDBY := 28.0
+const TEAM_STACK_SLOT_GAP_ACTIVE := 7.0
+const TEAM_STACK_SLOT_GAP_STANDBY := 6.0
+const TEAM_STACK_SLOT_COUNT := SKILL_CD_SLOT_COUNT
 const COOLDOWN_REDRAW_EPSILON: float = 0.01
 const ENERGY_REDRAW_EPSILON: float = 0.0001
 const ENERGY_READY_RATIO_EPSILON: float = 0.001
@@ -561,6 +573,160 @@ class UltimateEnergyDisplay:
 				2.0
 			)
 
+class TeamRoleStatusRow:
+	extends Control
+
+	var key_text: String = ""
+	var role_name: String = ""
+	var role_id: String = ""
+	var state_text: String = ""
+	var active: bool = false
+	var role_color: Color = Color(0.36, 0.76, 1.0, 1.0)
+	var current_health: float = 0.0
+	var max_health: float = 1.0
+	var current_mana: float = 0.0
+	var max_mana: float = 1.0
+	var switch_energy: float = 0.0
+	var switch_energy_required: float = 100.0
+
+	func set_status(data: Dictionary, next_key_text: String, next_state_text: String, next_active: bool) -> void:
+		key_text = next_key_text
+		state_text = next_state_text
+		active = next_active
+		role_id = str(data.get("role_id", ""))
+		role_name = str(data.get("role_name", role_id))
+		var color_value: Variant = data.get("color", role_color)
+		if color_value is Color:
+			role_color = color_value
+		current_health = max(0.0, float(data.get("current_health", 0.0)))
+		max_health = max(1.0, float(data.get("max_health", 1.0)))
+		current_mana = max(0.0, float(data.get("current_mana", 0.0)))
+		max_mana = max(1.0, float(data.get("max_mana", 1.0)))
+		switch_energy = max(0.0, float(data.get("switch_energy", 0.0)))
+		switch_energy_required = max(1.0, float(data.get("switch_energy_required", 100.0)))
+		queue_redraw()
+
+	func _draw() -> void:
+		var outer_rect := Rect2(Vector2.ZERO, size)
+		var fill_color := Color(0.12, 0.12, 0.14, 0.78) if active else Color(0.04, 0.07, 0.11, 0.48)
+		var border_color := Color(1.0, 0.76, 0.25, 0.72) if active else Color(0.36, 0.48, 0.62, 0.38)
+		if active:
+			_draw_soft_glow(outer_rect)
+		_draw_rounded_fill(outer_rect, 12.0, fill_color)
+		draw_rect(outer_rect.grow(-0.8), border_color, false, 2.0 if active else 1.0)
+		if active:
+			_draw_rounded_fill(Rect2(Vector2(4.0, 7.0), Vector2(7.0, max(8.0, size.y - 14.0))), 4.0, Color(1.0, 0.78, 0.26, 0.9))
+			var pointer := PackedVector2Array([
+				Vector2(size.x - 1.0, size.y * 0.33),
+				Vector2(size.x + 12.0, size.y * 0.5),
+				Vector2(size.x - 1.0, size.y * 0.67)
+			])
+			draw_colored_polygon(pointer, Color(1.0, 0.78, 0.26, 0.72))
+		_draw_key_tag()
+		_draw_role_emblem()
+		_draw_role_text()
+		_draw_resource_bars()
+		_draw_connector_rail()
+
+	func _draw_soft_glow(rect: Rect2) -> void:
+		for index in range(2):
+			var grow_amount: float = 3.0 + float(index) * 4.0
+			var alpha: float = 0.06 - float(index) * 0.018
+			_draw_rounded_fill(rect.grow(grow_amount), 14.0 + grow_amount, Color(1.0, 0.62, 0.16, alpha))
+
+	func _draw_key_tag() -> void:
+		var tag_width: float = 68.0 if active else 52.0
+		var tag_height: float = 25.0 if active else 24.0
+		var tag_pos := Vector2(18.0, (size.y - tag_height) * 0.5)
+		var tag_rect := Rect2(tag_pos, Vector2(tag_width, tag_height))
+		var tag_fill := Color(0.38, 0.28, 0.08, 0.92) if active else Color(0.12, 0.18, 0.25, 0.82)
+		var tag_border := Color(1.0, 0.82, 0.34, 0.95) if active else Color(0.48, 0.64, 0.82, 0.62)
+		_draw_rounded_fill(tag_rect, 8.0, tag_fill)
+		draw_rect(tag_rect.grow(-0.5), tag_border, false, 1.0)
+		_draw_text_center(tag_rect, key_text, 18 if active else 19, Color(1.0, 0.95, 0.72, 1.0) if active else Color(0.88, 0.95, 1.0, 0.88))
+
+	func _draw_role_emblem() -> void:
+		var emblem_size: float = 34.0 if active else 25.0
+		var tag_width: float = 68.0 if active else 52.0
+		var center := Vector2(18.0 + tag_width + 14.0 + emblem_size * 0.5, size.y * 0.5)
+		var radius: float = emblem_size * 0.5
+		draw_circle(center, radius + 3.0, Color(1.0, 0.72, 0.24, 0.25) if active else Color(role_color.r, role_color.g, role_color.b, 0.16))
+		draw_circle(center, radius, Color(0.04, 0.055, 0.07, 0.95))
+		draw_arc(center, radius - 1.0, 0.0, TAU, 40, Color(1.0, 0.78, 0.28, 0.95) if active else Color(0.46, 0.62, 0.82, 0.66), 2.0)
+		var head_rect := Rect2(center - Vector2(radius * 0.32, radius * 0.52), Vector2(radius * 0.64, radius * 0.56))
+		var body_rect := Rect2(center - Vector2(radius * 0.52, -radius * 0.06), Vector2(radius * 1.04, radius * 0.58))
+		draw_rect(head_rect, Color(role_color.r, role_color.g, role_color.b, 0.92), true)
+		draw_rect(body_rect, Color(max(role_color.r - 0.12, 0.0), max(role_color.g - 0.12, 0.0), max(role_color.b - 0.12, 0.0), 0.88), true)
+
+	func _draw_role_text() -> void:
+		var name_position := _get_name_position()
+		var font := get_theme_default_font()
+		var role_font_size: int = 19 if active else 15
+		draw_string(font, name_position + Vector2(1.0, 1.0), role_name, HORIZONTAL_ALIGNMENT_LEFT, -1.0, role_font_size, Color(0.0, 0.0, 0.0, 0.82))
+		draw_string(font, name_position, role_name, HORIZONTAL_ALIGNMENT_LEFT, -1.0, role_font_size, Color(1.0, 0.91, 0.58, 1.0) if active else Color(0.78, 0.85, 0.94, 0.84))
+		var state_font_size: int = 10
+		var state_pos := Vector2(name_position.x, size.y - 6.0)
+		draw_string(font, state_pos, state_text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, state_font_size, Color(0.50, 0.82, 1.0, 0.9) if active else Color(0.50, 0.62, 0.76, 0.74))
+
+	func _draw_resource_bars() -> void:
+		var bar_x: float = 236.0
+		var bar_width: float = 188.0 if active else 168.0
+		var hp_y: float = 10.0 if active else 7.0
+		var mp_y: float = 30.0 if active else 22.0
+		var hp_height: float = 10.0 if active else 8.0
+		var mp_height: float = 8.0 if active else 6.0
+		var hp_ratio: float = clamp(current_health / max_health, 0.0, 1.0)
+		var mp_ratio: float = clamp(current_mana / max_mana, 0.0, 1.0)
+		var hp_color := Color(0.34, 0.82, 0.34, 0.95) if hp_ratio > 0.35 else Color(0.92, 0.20, 0.16, 0.96)
+		_draw_bar(Vector2(bar_x, hp_y), Vector2(bar_width, hp_height), hp_ratio, hp_color, "HP")
+		_draw_bar(Vector2(bar_x, mp_y), Vector2(bar_width, mp_height), mp_ratio, Color(0.22, 0.62, 1.0, 0.94), "MP")
+		var font := get_theme_default_font()
+		var value_size: int = 11
+		draw_string(font, Vector2(bar_x + bar_width + 8.0, hp_y + hp_height - 1.0), "%.0f/%.0f" % [current_health, max_health], HORIZONTAL_ALIGNMENT_LEFT, -1.0, value_size, Color(0.90, 0.98, 0.90, 0.88))
+		draw_string(font, Vector2(bar_x + bar_width + 8.0, mp_y + mp_height + 1.0), "%.0f/%.0f" % [current_mana, max_mana], HORIZONTAL_ALIGNMENT_LEFT, -1.0, value_size, Color(0.76, 0.90, 1.0, 0.88))
+
+	func _draw_connector_rail() -> void:
+		var rail_start_x: float = 474.0
+		var rail_end_x: float = max(rail_start_x + 24.0, size.x - ((TEAM_STACK_SLOT_SIZE_ACTIVE if active else TEAM_STACK_SLOT_SIZE_STANDBY) * TEAM_STACK_SLOT_COUNT + (TEAM_STACK_SLOT_GAP_ACTIVE if active else TEAM_STACK_SLOT_GAP_STANDBY) * float(TEAM_STACK_SLOT_COUNT - 1)) - 34.0)
+		if rail_end_x <= rail_start_x:
+			return
+		var rail_y: float = size.y * 0.5
+		var rail_color := Color(1.0, 0.76, 0.25, 0.24) if active else Color(0.42, 0.64, 0.84, 0.16)
+		draw_line(Vector2(rail_start_x, rail_y), Vector2(rail_end_x, rail_y), rail_color, 2.0 if active else 1.0)
+		draw_line(Vector2(rail_start_x, rail_y + 4.0), Vector2(rail_end_x, rail_y + 4.0), Color(0.0, 0.0, 0.0, 0.24), 1.0)
+
+	func _draw_bar(pos: Vector2, bar_size: Vector2, ratio: float, fill_color: Color, label: String) -> void:
+		var rect := Rect2(pos, bar_size)
+		_draw_rounded_fill(rect, 4.0, Color(0.02, 0.03, 0.05, 0.78))
+		var fill_width: float = max(0.0, bar_size.x * ratio)
+		if fill_width > 2.0:
+			_draw_rounded_fill(Rect2(pos + Vector2(1.0, 1.0), Vector2(fill_width - 2.0, bar_size.y - 2.0)), 3.0, fill_color)
+			draw_line(pos + Vector2(5.0, 2.0), pos + Vector2(max(5.0, fill_width - 5.0), 2.0), Color(1.0, 1.0, 1.0, 0.16), 1.0)
+		draw_rect(rect.grow(-0.5), Color(0.0, 0.0, 0.0, 0.72), false, 1.0)
+		var font := get_theme_default_font()
+		draw_string(font, pos + Vector2(5.0, bar_size.y - 1.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 10, Color(0.92, 0.98, 1.0, 0.86))
+
+	func _draw_rounded_fill(rect: Rect2, radius: float, color: Color) -> void:
+		var resolved_radius: float = min(radius, min(rect.size.x, rect.size.y) * 0.5)
+		draw_rect(Rect2(rect.position + Vector2(resolved_radius, 0.0), Vector2(max(0.0, rect.size.x - resolved_radius * 2.0), rect.size.y)), color, true)
+		draw_rect(Rect2(rect.position + Vector2(0.0, resolved_radius), Vector2(rect.size.x, max(0.0, rect.size.y - resolved_radius * 2.0))), color, true)
+		draw_circle(rect.position + Vector2(resolved_radius, resolved_radius), resolved_radius, color)
+		draw_circle(rect.position + Vector2(rect.size.x - resolved_radius, resolved_radius), resolved_radius, color)
+		draw_circle(rect.position + Vector2(resolved_radius, rect.size.y - resolved_radius), resolved_radius, color)
+		draw_circle(rect.position + Vector2(rect.size.x - resolved_radius, rect.size.y - resolved_radius), resolved_radius, color)
+
+	func _draw_text_center(rect: Rect2, text: String, font_size: int, color: Color) -> void:
+		var font := get_theme_default_font()
+		var text_size: Vector2 = font.get_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, -1.0, font_size)
+		var text_position := rect.position + (rect.size - text_size) * 0.5 + Vector2(0.0, text_size.y * 0.78)
+		draw_string(font, text_position + Vector2(1.0, 1.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, Color(0.0, 0.0, 0.0, 0.82))
+		draw_string(font, text_position, text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, color)
+
+	func _get_name_position() -> Vector2:
+		var tag_width: float = 68.0 if active else 52.0
+		var emblem_size: float = 42.0 if active else 30.0
+		return Vector2(18.0 + tag_width + 14.0 + emblem_size + 12.0, 20.0 if active else 18.0)
+
 var switch_cd_left_key_label: Label
 var switch_cd_right_key_label: Label
 var switch_cd_time_label: Label
@@ -569,6 +735,11 @@ var switch_cd_active_role_id: String = ""
 var switch_cd_layout_initialized: bool = false
 var switch_cd_layout_tween: Tween
 var switch_cd_widget: Control
+var switch_cooldown_remaining_value: float = 0.0
+var switch_cooldown_duration_value: float = 0.5
+var team_stack_widget: Control
+var team_role_rows: Array = []
+var team_role_status_by_id: Dictionary = {}
 var skill_cd_slots: Array = []
 var buff_status_bar: HBoxContainer
 var buff_status_slots: Array = []
@@ -583,18 +754,21 @@ var hover_detail: Control
 var action_key_labels_ready: bool = false
 
 func _ready() -> void:
-	anchor_left = 0.5
+	anchor_left = 0.0
 	anchor_top = 1.0
-	anchor_right = 0.5
+	anchor_right = 1.0
 	anchor_bottom = 1.0
-	var total_width: float = SWITCH_WIDGET_WIDTH + SWITCH_WIDGET_GAP + SKILL_PANEL_WIDTH + ULTIMATE_WIDGET_GAP + ULTIMATE_WIDGET_SIZE
-	offset_left = -total_width * 0.5
-	offset_top = -128.0
-	offset_right = total_width * 0.5
-	offset_bottom = -10.0
+	offset_left = 18.0
+	offset_top = -172.0
+	offset_right = -252.0
+	offset_bottom = -18.0
 	_build_widgets()
 	hover_detail = SURVIVORS_HOVER_DETAIL.new()
 	add_child(hover_detail)
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED:
+		_apply_team_stack_layout()
 
 func update_experience(current_experience: int, required_experience: int) -> void:
 	if experience_bar != null:
@@ -610,6 +784,8 @@ func update_experience(current_experience: int, required_experience: int) -> voi
 
 func update_switch_cooldown(role_id: String, cooldown_remaining: float, cooldown_duration: float, switch_energy: float = 0.0, switch_energy_required: float = 100.0, switch_energy_by_role: Dictionary = {}) -> void:
 	_refresh_switch_key_labels()
+	switch_cooldown_remaining_value = max(0.0, cooldown_remaining)
+	switch_cooldown_duration_value = max(0.01, cooldown_duration)
 	if switch_cd_portraits.is_empty():
 		return
 	var duration: float = max(cooldown_duration, 0.01)
@@ -726,98 +902,85 @@ func update_buff_slots(buff_data_list: Array) -> void:
 		slot_nodes["description"] = "%s\n%s" % [str(buff_data.get("description", "")), time_label % [remaining, duration]]
 
 func _build_widgets() -> void:
-	switch_cd_widget = Control.new()
-	switch_cd_widget.position = Vector2(0.0, 0.0)
-	switch_cd_widget.custom_minimum_size = Vector2(SWITCH_WIDGET_WIDTH, SWITCH_WIDGET_HEIGHT)
-	switch_cd_widget.size = Vector2(SWITCH_WIDGET_WIDTH, SWITCH_WIDGET_HEIGHT)
-	add_child(switch_cd_widget)
+	team_stack_widget = Control.new()
+	team_stack_widget.position = Vector2.ZERO
+	team_stack_widget.custom_minimum_size = Vector2(TEAM_STACK_WIDTH, TEAM_STACK_HEIGHT)
+	team_stack_widget.size = Vector2(TEAM_STACK_WIDTH, TEAM_STACK_HEIGHT)
+	add_child(team_stack_widget)
 
-	var left_arrow_box := Control.new()
-	left_arrow_box.position = Vector2(0.0, 0.0)
-	left_arrow_box.custom_minimum_size = Vector2(38.0, SWITCH_WIDGET_HEIGHT)
-	left_arrow_box.z_index = 3
-	switch_cd_widget.add_child(left_arrow_box)
+	_build_team_role_rows()
+	_build_buff_bar()
+	_build_experience_strip()
 
-	var left_arrow_label := Label.new()
-	left_arrow_label.text = "<"
-	left_arrow_label.position = Vector2(0.0, 17.0)
-	left_arrow_label.custom_minimum_size = Vector2(38.0, 32.0)
-	left_arrow_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	left_arrow_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	left_arrow_label.add_theme_font_size_override("font_size", 28)
-	left_arrow_label.add_theme_color_override("font_color", Color(0.98, 0.98, 0.98, 1.0))
-	left_arrow_box.add_child(left_arrow_label)
+	_refresh_action_key_labels(true)
+	_apply_team_stack_layout()
+	_apply_empty_team_statuses()
 
-	switch_cd_left_key_label = Label.new()
-	switch_cd_left_key_label.position = Vector2(0.0, 47.0)
-	switch_cd_left_key_label.custom_minimum_size = Vector2(38.0, 22.0)
-	switch_cd_left_key_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	switch_cd_left_key_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	switch_cd_left_key_label.add_theme_font_size_override("font_size", 16)
-	left_arrow_box.add_child(switch_cd_left_key_label)
+func _build_team_role_rows() -> void:
+	team_role_rows.clear()
+	var row_specs := [
+		{"key": "Q", "state": "PREV", "active": false, "position": Vector2(0.0, 0.0), "size": Vector2(TEAM_STACK_WIDTH - 36.0, TEAM_STACK_ROW_STANDBY_HEIGHT)},
+		{"key": "当前", "state": "ON FIELD", "active": true, "position": Vector2(TEAM_STACK_ACTIVE_INDENT, TEAM_STACK_ROW_STANDBY_HEIGHT + TEAM_STACK_ROW_GAP), "size": Vector2(TEAM_STACK_WIDTH - 24.0, TEAM_STACK_ROW_ACTIVE_HEIGHT)},
+		{"key": "E", "state": "NEXT", "active": false, "position": Vector2(0.0, TEAM_STACK_ROW_STANDBY_HEIGHT + TEAM_STACK_ROW_GAP + TEAM_STACK_ROW_ACTIVE_HEIGHT + TEAM_STACK_ROW_GAP), "size": Vector2(TEAM_STACK_WIDTH - 36.0, TEAM_STACK_ROW_STANDBY_HEIGHT)}
+	]
+	for row_index in range(row_specs.size()):
+		var spec: Dictionary = row_specs[row_index]
+		var row := TeamRoleStatusRow.new()
+		row.position = spec["position"]
+		row.size = spec["size"]
+		row.custom_minimum_size = spec["size"]
+		row.mouse_filter = Control.MOUSE_FILTER_STOP
+		row.mouse_entered.connect(_on_team_role_row_hovered.bind(row_index))
+		row.mouse_exited.connect(_on_skill_slot_unhovered)
+		team_stack_widget.add_child(row)
+		var slot_nodes: Array = []
+		for slot_index in range(TEAM_STACK_SLOT_COUNT):
+			var slot_icon := SkillCooldownIcon.new()
+			slot_icon.set_state(false, Color(0.12, 0.13, 0.16, 1.0), 0.0)
+			slot_icon.tooltip_text = ""
+			slot_icon.mouse_entered.connect(_on_team_role_skill_slot_hovered.bind(row_index, slot_index, slot_icon))
+			slot_icon.mouse_exited.connect(_on_skill_slot_unhovered)
+			row.add_child(slot_icon)
 
-	for switch_role_id in SWITCH_ROLE_ORDER:
-		var switch_role_id_string: String = str(switch_role_id)
-		var portrait := SwitchPortraitDisplay.new()
-		portrait.size = Vector2(56.0, 56.0) * SWITCH_HEAD_SIZE_MULTIPLIER
-		portrait.custom_minimum_size = Vector2(56.0, 56.0) * SWITCH_HEAD_SIZE_MULTIPLIER
-		var scene_value: Variant = SWITCH_HEAD_SCENES.get(switch_role_id_string, null)
-		if scene_value is PackedScene:
-			portrait.set_role_scene(switch_role_id_string, scene_value)
-		switch_cd_widget.add_child(portrait)
-		switch_cd_portraits[switch_role_id_string] = portrait
+			var label := Label.new()
+			label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			label.set_anchors_preset(Control.PRESET_FULL_RECT)
+			label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			label.add_theme_font_size_override("font_size", 12 if not bool(spec["active"]) else 14)
+			label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 1.0))
+			label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.9))
+			label.add_theme_constant_override("shadow_offset_x", 1)
+			label.add_theme_constant_override("shadow_offset_y", 1)
+			label.text = ""
+			slot_icon.add_child(label)
 
-	switch_cd_time_label = Label.new()
-	switch_cd_time_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	switch_cd_time_label.position = Vector2(22.0, 75.0)
-	switch_cd_time_label.custom_minimum_size = Vector2(132.0, 40.0)
-	switch_cd_time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	switch_cd_time_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	switch_cd_time_label.add_theme_font_size_override("font_size", 15)
-	switch_cd_time_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 1.0))
-	switch_cd_time_label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.95))
-	switch_cd_time_label.add_theme_constant_override("shadow_offset_x", 1)
-	switch_cd_time_label.add_theme_constant_override("shadow_offset_y", 1)
-	switch_cd_time_label.text = ""
-	switch_cd_widget.add_child(switch_cd_time_label)
+			slot_nodes.append({
+				"view": slot_icon,
+				"label": label,
+				"title": "",
+				"description": "",
+				"base_description": "",
+				"skill_id": "",
+				"slot_label": ""
+			})
+		team_role_rows.append({
+			"row": row,
+			"slots": slot_nodes,
+			"data": {},
+			"key": str(spec["key"]),
+			"state": str(spec["state"]),
+			"active": bool(spec["active"])
+		})
+		_layout_team_role_slots(row_index)
 
-	var right_arrow_box := Control.new()
-	right_arrow_box.position = Vector2(SWITCH_WIDGET_WIDTH - 38.0, 0.0)
-	right_arrow_box.custom_minimum_size = Vector2(38.0, SWITCH_WIDGET_HEIGHT)
-	right_arrow_box.z_index = 3
-	switch_cd_widget.add_child(right_arrow_box)
-
-	var right_arrow_label := Label.new()
-	right_arrow_label.text = ">"
-	right_arrow_label.position = Vector2(0.0, 17.0)
-	right_arrow_label.custom_minimum_size = Vector2(38.0, 32.0)
-	right_arrow_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	right_arrow_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	right_arrow_label.add_theme_font_size_override("font_size", 28)
-	right_arrow_label.add_theme_color_override("font_color", Color(0.98, 0.98, 0.98, 1.0))
-	right_arrow_box.add_child(right_arrow_label)
-
-	switch_cd_right_key_label = Label.new()
-	switch_cd_right_key_label.position = Vector2(0.0, 47.0)
-	switch_cd_right_key_label.custom_minimum_size = Vector2(38.0, 22.0)
-	switch_cd_right_key_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	switch_cd_right_key_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	switch_cd_right_key_label.add_theme_font_size_override("font_size", 16)
-	right_arrow_box.add_child(switch_cd_right_key_label)
-
-	var skill_cd_panel := HBoxContainer.new()
-	skill_cd_panel.position = Vector2(SWITCH_WIDGET_WIDTH + SWITCH_WIDGET_GAP, 10.0)
-	skill_cd_panel.alignment = BoxContainer.ALIGNMENT_CENTER
-	skill_cd_panel.add_theme_constant_override("separation", 14)
-	add_child(skill_cd_panel)
-
+func _build_buff_bar() -> void:
 	buff_status_bar = HBoxContainer.new()
-	buff_status_bar.position = skill_cd_panel.position + Vector2(0.0, -BUFF_SLOT_SIZE - 6.0)
-	buff_status_bar.alignment = BoxContainer.ALIGNMENT_CENTER
+	buff_status_bar.position = Vector2(6.0, -BUFF_SLOT_SIZE - 7.0)
+	buff_status_bar.alignment = BoxContainer.ALIGNMENT_BEGIN
 	buff_status_bar.add_theme_constant_override("separation", BUFF_SLOT_GAP)
 	buff_status_bar.visible = false
 	add_child(buff_status_bar)
-
 	for index in range(SKILL_CD_SLOT_COUNT):
 		var buff_icon: BuffStatusIcon = BuffStatusIcon.new()
 		buff_icon.custom_minimum_size = Vector2(BUFF_SLOT_SIZE, BUFF_SLOT_SIZE)
@@ -832,94 +995,227 @@ func _build_widgets() -> void:
 			"description": ""
 		})
 
-	for index in range(SKILL_CD_SLOT_COUNT):
-		var slot_icon := SkillCooldownIcon.new()
-		slot_icon.custom_minimum_size = Vector2(SKILL_CD_SLOT_SIZE, SKILL_CD_SLOT_SIZE)
-		slot_icon.set_state(false, Color(0.12, 0.13, 0.16, 1.0), 0.0)
-		slot_icon.tooltip_text = ""
-		slot_icon.mouse_entered.connect(_on_skill_slot_hovered.bind(slot_icon, index))
-		slot_icon.mouse_exited.connect(_on_skill_slot_unhovered)
-		skill_cd_panel.add_child(slot_icon)
-
-		var label := Label.new()
-		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		label.set_anchors_preset(Control.PRESET_FULL_RECT)
-		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		label.add_theme_font_size_override("font_size", 15)
-		label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 1.0))
-		label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.9))
-		label.add_theme_constant_override("shadow_offset_x", 1)
-		label.add_theme_constant_override("shadow_offset_y", 1)
-		label.text = ""
-		slot_icon.add_child(label)
-
-		skill_cd_slots.append({
-			"view": slot_icon,
-			"label": label,
-			"title": "",
-			"description": "",
-			"slot_label": ""
-		})
-
-	ultimate_energy_widget = UltimateEnergyDisplay.new()
-	ultimate_energy_widget.position = Vector2(SWITCH_WIDGET_WIDTH + SWITCH_WIDGET_GAP + SKILL_PANEL_WIDTH + ULTIMATE_WIDGET_GAP, -18.0)
-	ultimate_energy_widget.size = Vector2(ULTIMATE_WIDGET_SIZE, ULTIMATE_WIDGET_SIZE)
-	ultimate_energy_widget.custom_minimum_size = Vector2(ULTIMATE_WIDGET_SIZE, ULTIMATE_WIDGET_SIZE)
-	ultimate_energy_widget.set_state(0.0)
-	ultimate_energy_widget.tooltip_text = ""
-	ultimate_energy_widget.mouse_entered.connect(_on_ultimate_energy_hovered)
-	ultimate_energy_widget.mouse_exited.connect(_on_skill_slot_unhovered)
-	add_child(ultimate_energy_widget)
-
-	ultimate_key_label = Label.new()
-	ultimate_key_label.position = ultimate_energy_widget.position + Vector2(0.0, ULTIMATE_WIDGET_SIZE - 4.0)
-	ultimate_key_label.custom_minimum_size = Vector2(ULTIMATE_WIDGET_SIZE, 24.0)
-	ultimate_key_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ultimate_key_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	ultimate_key_label.add_theme_font_size_override("font_size", 16)
-	ultimate_key_label.add_theme_color_override("font_color", Color(0.98, 0.98, 0.98, 1.0))
-	ultimate_key_label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.95))
-	ultimate_key_label.add_theme_constant_override("shadow_offset_x", 1)
-	ultimate_key_label.add_theme_constant_override("shadow_offset_y", 1)
-	add_child(ultimate_key_label)
-
+func _build_experience_strip() -> void:
 	experience_bar = ProgressBar.new()
-	experience_bar.position = Vector2(SWITCH_WIDGET_WIDTH + SWITCH_WIDGET_GAP, 78.0)
-	experience_bar.custom_minimum_size = Vector2(SKILL_PANEL_WIDTH, 14.0)
+	experience_bar.position = Vector2(0.0, TEAM_STACK_HEIGHT - 15.0)
+	experience_bar.custom_minimum_size = Vector2(TEAM_STACK_WIDTH - 36.0, 12.0)
+	experience_bar.size = Vector2(TEAM_STACK_WIDTH - 36.0, 12.0)
 	experience_bar.show_percentage = false
 	var exp_fill := StyleBoxFlat.new()
-	exp_fill.bg_color = Color(1.0, 0.82, 0.16, 0.95)
+	exp_fill.bg_color = Color(1.0, 0.82, 0.16, 0.72)
 	exp_fill.set_corner_radius_all(5)
 	var exp_background := StyleBoxFlat.new()
-	exp_background.bg_color = Color(0.12, 0.1, 0.04, 0.82)
-	exp_background.border_color = Color(0.92, 0.72, 0.16, 0.9)
+	exp_background.bg_color = Color(0.12, 0.1, 0.04, 0.38)
+	exp_background.border_color = Color(0.92, 0.72, 0.16, 0.46)
 	exp_background.set_border_width_all(1)
 	exp_background.set_corner_radius_all(5)
 	experience_bar.add_theme_stylebox_override("fill", exp_fill)
 	experience_bar.add_theme_stylebox_override("background", exp_background)
-	add_child(experience_bar)
+	team_stack_widget.add_child(experience_bar)
 
 	experience_label = Label.new()
-	experience_label.position = Vector2(SWITCH_WIDGET_WIDTH + SWITCH_WIDGET_GAP, 72.0)
-	experience_label.custom_minimum_size = Vector2(SKILL_PANEL_WIDTH, 26.0)
+	experience_label.position = Vector2(0.0, TEAM_STACK_HEIGHT - 22.0)
+	experience_label.custom_minimum_size = Vector2(TEAM_STACK_WIDTH - 36.0, 22.0)
 	experience_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	experience_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	experience_label.add_theme_font_size_override("font_size", 13)
-	experience_label.add_theme_color_override("font_color", Color(1.0, 0.96, 0.62, 1.0))
+	experience_label.add_theme_font_size_override("font_size", 11)
+	experience_label.add_theme_color_override("font_color", Color(1.0, 0.96, 0.62, 0.76))
 	experience_label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.95))
 	experience_label.add_theme_constant_override("shadow_offset_x", 1)
 	experience_label.add_theme_constant_override("shadow_offset_y", 1)
 	experience_label.text = "0 / 30 XP"
-	add_child(experience_label)
+	team_stack_widget.add_child(experience_label)
 
-	_refresh_action_key_labels()
-	_layout_switch_portraits("gunner", false)
+func _apply_team_stack_layout() -> void:
+	if team_stack_widget == null:
+		return
+	var stack_width: float = _get_team_stack_width()
+	team_stack_widget.position = Vector2.ZERO
+	team_stack_widget.size = Vector2(stack_width, TEAM_STACK_HEIGHT)
+	team_stack_widget.custom_minimum_size = Vector2(stack_width, TEAM_STACK_HEIGHT)
+	for row_index in range(team_role_rows.size()):
+		var row_entry: Dictionary = team_role_rows[row_index]
+		var row: TeamRoleStatusRow = row_entry["row"] as TeamRoleStatusRow
+		if row == null:
+			continue
+		var row_active: bool = bool(row_entry.get("active", row_index == 1))
+		var row_height: float = TEAM_STACK_ROW_ACTIVE_HEIGHT if row_active else TEAM_STACK_ROW_STANDBY_HEIGHT
+		var row_y: float = 0.0
+		if row_index == 1:
+			row_y = TEAM_STACK_ROW_STANDBY_HEIGHT + TEAM_STACK_ROW_GAP
+		elif row_index == 2:
+			row_y = TEAM_STACK_ROW_STANDBY_HEIGHT + TEAM_STACK_ROW_GAP + TEAM_STACK_ROW_ACTIVE_HEIGHT + TEAM_STACK_ROW_GAP
+		row.position = Vector2(TEAM_STACK_ACTIVE_INDENT if row_active else 0.0, row_y)
+		row.size = Vector2(stack_width - (24.0 if row_active else 36.0), row_height)
+		row.custom_minimum_size = row.size
+		_layout_team_role_slots(row_index)
+	if experience_bar != null:
+		experience_bar.position = Vector2(0.0, TEAM_STACK_HEIGHT - 9.0)
+		experience_bar.size = Vector2(stack_width - 36.0, 7.0)
+		experience_bar.custom_minimum_size = experience_bar.size
+	if experience_label != null:
+		experience_label.position = Vector2(0.0, TEAM_STACK_HEIGHT - 18.0)
+		experience_label.custom_minimum_size = Vector2(stack_width - 36.0, 18.0)
+		experience_label.size = Vector2(stack_width - 36.0, 18.0)
+
+func _get_team_stack_width() -> float:
+	if size.x > 1.0:
+		return max(TEAM_STACK_MIN_WIDTH, size.x)
+	return TEAM_STACK_WIDTH
+
+func update_team_role_statuses(statuses: Array, active_role_id: String, active_role_index: int = 0) -> void:
+	if team_role_rows.is_empty():
+		return
+	if statuses.is_empty():
+		_apply_empty_team_statuses()
+		return
+	team_role_status_by_id.clear()
+	var role_ids: Array[String] = []
+	for status_value in statuses:
+		if status_value is not Dictionary:
+			continue
+		var status: Dictionary = status_value
+		var role_id: String = str(status.get("role_id", ""))
+		if role_id == "":
+			continue
+		role_ids.append(role_id)
+		team_role_status_by_id[role_id] = status
+	if role_ids.is_empty():
+		_apply_empty_team_statuses()
+		return
+	var resolved_active_index: int = active_role_index
+	if resolved_active_index < 0 or resolved_active_index >= role_ids.size() or role_ids[resolved_active_index] != active_role_id:
+		resolved_active_index = role_ids.find(active_role_id)
+	if resolved_active_index < 0:
+		resolved_active_index = 0
+	var count: int = role_ids.size()
+	var ordered_role_ids: Array[String] = [
+		role_ids[(resolved_active_index + count - 1) % count],
+		role_ids[resolved_active_index],
+		role_ids[(resolved_active_index + 1) % count]
+	]
+	var key_texts: Array[String] = [_get_switch_prev_key_text(), "当前", _get_switch_next_key_text()]
+	var state_texts: Array[String] = [
+		_get_switch_target_state_text("上一位"),
+		"站场",
+		_get_switch_target_state_text("下一位")
+	]
+	for row_index in range(team_role_rows.size()):
+		var row_entry: Dictionary = team_role_rows[row_index]
+		var role_id: String = ordered_role_ids[row_index] if row_index < ordered_role_ids.size() else ""
+		var status: Dictionary = team_role_status_by_id.get(role_id, {})
+		var row_active: bool = row_index == 1
+		status = status.duplicate(true)
+		status["is_active"] = row_active
+		row_entry["data"] = status
+		row_entry["key"] = key_texts[row_index]
+		row_entry["state"] = state_texts[row_index]
+		row_entry["active"] = row_active
+		var row: TeamRoleStatusRow = row_entry["row"] as TeamRoleStatusRow
+		if row != null:
+			row.set_status(status, key_texts[row_index], state_texts[row_index], row_active)
+		_update_team_role_slots(row_index, status.get("cooldown_slots", []))
+
+func _apply_empty_team_statuses() -> void:
+	var defaults := [
+		{"role_id": "swordsman", "role_name": "剑士", "color": Color(1.0, 0.66, 0.35, 1.0), "current_health": 100.0, "max_health": 100.0, "current_mana": 0.0, "max_mana": 100.0, "cooldown_slots": []},
+		{"role_id": "gunner", "role_name": "枪手", "color": Color(1.0, 0.35, 0.32, 1.0), "current_health": 50.0, "max_health": 50.0, "current_mana": 0.0, "max_mana": 100.0, "cooldown_slots": []},
+		{"role_id": "mage", "role_name": "法师", "color": Color(0.44, 0.86, 1.0, 1.0), "current_health": 50.0, "max_health": 50.0, "current_mana": 0.0, "max_mana": 100.0, "cooldown_slots": []}
+	]
+	update_team_role_statuses(defaults, "gunner", 1)
+
+func _get_switch_target_state_text(default_text: String) -> String:
+	if switch_cooldown_remaining_value > 0.05:
+		return "CD %.1fs" % switch_cooldown_remaining_value
+	return default_text
+
+func _layout_team_role_slots(row_index: int) -> void:
+	if row_index < 0 or row_index >= team_role_rows.size():
+		return
+	var row_entry: Dictionary = team_role_rows[row_index]
+	var row: TeamRoleStatusRow = row_entry["row"] as TeamRoleStatusRow
+	if row == null:
+		return
+	var row_active: bool = bool(row_entry.get("active", row_index == 1))
+	var slot_size: float = TEAM_STACK_SLOT_SIZE_ACTIVE if row_active else TEAM_STACK_SLOT_SIZE_STANDBY
+	var slot_gap: float = TEAM_STACK_SLOT_GAP_ACTIVE if row_active else TEAM_STACK_SLOT_GAP_STANDBY
+	var slots: Array = row_entry["slots"]
+	var slot_area_width: float = float(slots.size()) * slot_size + max(0.0, float(slots.size() - 1)) * slot_gap
+	var start_x: float = row.size.x - slot_area_width - 18.0
+	var start_y: float = (row.size.y - slot_size) * 0.5
+	for slot_index in range(slots.size()):
+		var slot_nodes: Dictionary = slots[slot_index]
+		var slot_view: SkillCooldownIcon = slot_nodes["view"] as SkillCooldownIcon
+		var label: Label = slot_nodes["label"] as Label
+		if slot_view != null:
+			slot_view.position = Vector2(start_x + float(slot_index) * (slot_size + slot_gap), start_y)
+			slot_view.size = Vector2(slot_size, slot_size)
+			slot_view.custom_minimum_size = Vector2(slot_size, slot_size)
+		if label != null:
+			label.add_theme_font_size_override("font_size", 14 if row_active else 12)
+
+func _update_team_role_slots(row_index: int, slot_data_list: Array) -> void:
+	if row_index < 0 or row_index >= team_role_rows.size():
+		return
+	_layout_team_role_slots(row_index)
+	var row_entry: Dictionary = team_role_rows[row_index]
+	var slots: Array = row_entry["slots"]
+	var row_active: bool = bool(row_entry.get("active", row_index == 1))
+	for slot_index in range(slots.size()):
+		var slot_nodes: Dictionary = slots[slot_index]
+		var slot_view: SkillCooldownIcon = slot_nodes["view"] as SkillCooldownIcon
+		var label: Label = slot_nodes["label"] as Label
+		if slot_index >= slot_data_list.size():
+			slot_view.set_state(false, Color(0.12, 0.13, 0.16, 1.0), 0.0)
+			if label.text != "":
+				label.text = ""
+			slot_nodes["title"] = "空技能槽"
+			slot_nodes["description"] = "该位置保留给此角色后续解锁的技能。"
+			slot_nodes["base_description"] = ""
+			slot_nodes["skill_id"] = ""
+			slot_nodes["slot_label"] = "预留槽"
+			continue
+
+		var slot_data: Dictionary = slot_data_list[slot_index]
+		var slot_color: Color = Color(1.0, 1.0, 1.0, 1.0)
+		var color_value: Variant = slot_data.get("color", slot_color)
+		if color_value is Color:
+			slot_color = color_value
+		if not row_active:
+			slot_color = Color(slot_color.r * 0.72, slot_color.g * 0.72, slot_color.b * 0.72, 0.88)
+		var duration: float = max(float(slot_data.get("duration", 1.0)), 0.01)
+		var remaining: float = clamp(float(slot_data.get("remaining", 0.0)), 0.0, duration)
+		var ratio: float = remaining / duration
+		slot_view.set_state(true, slot_color, ratio)
+		var slot_name: String = str(slot_data.get("name", "技能"))
+		var display_text: String = _get_slot_display_text(slot_name, row_active)
+		if label.text != display_text:
+			label.text = display_text
+		slot_view.tooltip_text = ""
+		slot_nodes["title"] = slot_name
+		var skill_id: String = str(slot_data.get("skill_id", ""))
+		var base_description: String = str(slot_data.get("description", ""))
+		if base_description == "" and str(slot_nodes.get("skill_id", "")) == skill_id:
+			base_description = str(slot_nodes.get("base_description", ""))
+		elif base_description != "":
+			slot_nodes["base_description"] = base_description
+		slot_nodes["skill_id"] = skill_id
+		var tooltip_data := slot_data.duplicate(true)
+		tooltip_data["description"] = base_description
+		slot_nodes["description"] = _build_slot_tooltip(tooltip_data, duration, remaining)
+		slot_nodes["slot_label"] = str(slot_data.get("slot_label", "技能冷却"))
+
+func _get_slot_display_text(slot_name: String, _row_active: bool) -> String:
+	var max_length: int = 2
+	if slot_name.length() <= max_length:
+		return slot_name
+	return slot_name.substr(0, max_length)
 
 func set_switch_widget_visible(visible_value: bool) -> void:
-	if switch_cd_widget == null:
-		return
-	switch_cd_widget.visible = visible_value
+	if team_stack_widget != null:
+		team_stack_widget.visible = visible_value
+	if switch_cd_widget != null:
+		switch_cd_widget.visible = visible_value
 
 func _layout_switch_portraits(active_role_id: String, animate: bool) -> void:
 	var active_index: int = SWITCH_ROLE_ORDER.find(active_role_id)
@@ -963,6 +1259,61 @@ func _build_slot_tooltip(slot_data: Dictionary, duration: float, remaining: floa
 	else:
 		description = "%s\n%s" % [description, status]
 	return description
+
+func _on_team_role_row_hovered(row_index: int) -> void:
+	if row_index < 0 or row_index >= team_role_rows.size():
+		return
+	var row_entry: Dictionary = team_role_rows[row_index]
+	var row: Control = row_entry["row"] as Control
+	var data: Dictionary = row_entry.get("data", {})
+	if data.is_empty() or row == null:
+		return
+	var role_name: String = str(data.get("role_name", "角色"))
+	var current_health: float = float(data.get("current_health", 0.0))
+	var max_health: float = max(1.0, float(data.get("max_health", 1.0)))
+	var current_mana: float = float(data.get("current_mana", 0.0))
+	var max_mana: float = max(1.0, float(data.get("max_mana", 1.0)))
+	var switch_energy: float = float(data.get("switch_energy", 0.0))
+	var switch_energy_required: float = max(1.0, float(data.get("switch_energy_required", 100.0)))
+	var key_text: String = str(row_entry.get("key", ""))
+	var slot_label: String = "当前站场" if bool(row_entry.get("active", false)) else "%s 切换目标" % key_text
+	var item := {
+		"title": role_name,
+		"slot_label": slot_label,
+		"description": "HP %.0f / %.0f\nMP %.0f / %.0f\n切换能量 %.0f / %.0f\n切换冷却 %s\n\n上方为上一位，下方为下一位；当前站场角色固定在中间并高亮。" % [
+			current_health,
+			max_health,
+			current_mana,
+			max_mana,
+			switch_energy,
+			switch_energy_required,
+			("%.1f 秒" % switch_cooldown_remaining_value) if switch_cooldown_remaining_value > 0.05 else "就绪"
+		]
+	}
+	if hover_detail != null and hover_detail.has_method("show_item"):
+		hover_detail.show_item(item, get_viewport().get_mouse_position(), Rect2(row.global_position, row.size))
+
+func _on_team_role_skill_slot_hovered(row_index: int, slot_index: int, slot_icon: Control) -> void:
+	if row_index < 0 or row_index >= team_role_rows.size():
+		return
+	var row_entry: Dictionary = team_role_rows[row_index]
+	var slots: Array = row_entry.get("slots", [])
+	if slot_index < 0 or slot_index >= slots.size():
+		return
+	var slot_nodes: Dictionary = slots[slot_index]
+	var title := str(slot_nodes.get("title", "技能"))
+	var description := str(slot_nodes.get("description", ""))
+	if description == "":
+		return
+	var row_data: Dictionary = row_entry.get("data", {})
+	var role_name := str(row_data.get("role_name", "角色"))
+	var item := {
+		"title": title,
+		"slot_label": "%s / %s" % [role_name, str(slot_nodes.get("slot_label", "技能冷却"))],
+		"description": description
+	}
+	if hover_detail != null and hover_detail.has_method("show_item"):
+		hover_detail.show_item(item, get_viewport().get_mouse_position(), Rect2(slot_icon.global_position, slot_icon.size))
 
 func _on_skill_slot_hovered(slot_icon: Control, index: int) -> void:
 	if index < 0 or index >= skill_cd_slots.size():
@@ -1032,13 +1383,19 @@ func _on_skill_slot_unhovered() -> void:
 func _refresh_switch_key_labels() -> void:
 	_refresh_action_key_labels()
 
+func _get_switch_prev_key_text() -> String:
+	return GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(GAME_SETTINGS.ACTION_SWITCH_PREV))
+
+func _get_switch_next_key_text() -> String:
+	return GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(GAME_SETTINGS.ACTION_SWITCH_NEXT))
+
 func _refresh_action_key_labels(force: bool = false) -> void:
 	if action_key_labels_ready and not force:
 		return
 	if switch_cd_left_key_label != null:
-		switch_cd_left_key_label.text = GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(GAME_SETTINGS.ACTION_SWITCH_PREV))
+		switch_cd_left_key_label.text = _get_switch_prev_key_text()
 	if switch_cd_right_key_label != null:
-		switch_cd_right_key_label.text = GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(GAME_SETTINGS.ACTION_SWITCH_NEXT))
+		switch_cd_right_key_label.text = _get_switch_next_key_text()
 	if ultimate_key_label != null:
 		ultimate_key_label.text = GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(GAME_SETTINGS.ACTION_ULTIMATE))
 	action_key_labels_ready = true
