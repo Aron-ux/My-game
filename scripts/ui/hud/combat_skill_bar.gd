@@ -752,23 +752,82 @@ var experience_bar: ProgressBar
 var experience_label: Label
 var hover_detail: Control
 var action_key_labels_ready: bool = false
+var hud_layout: String = GAME_SETTINGS.DEFAULT_HUD_LAYOUT
 
 func _ready() -> void:
-	anchor_left = 0.0
-	anchor_top = 1.0
-	anchor_right = 1.0
-	anchor_bottom = 1.0
-	offset_left = 18.0
-	offset_top = -172.0
-	offset_right = -252.0
-	offset_bottom = -18.0
+	hud_layout = GAME_SETTINGS.load_hud_layout()
+	_apply_hud_layout_anchor()
 	_build_widgets()
 	hover_detail = SURVIVORS_HOVER_DETAIL.new()
 	add_child(hover_detail)
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_RESIZED:
+	if what == NOTIFICATION_RESIZED and hud_layout == GAME_SETTINGS.HUD_LAYOUT_TEAM_BAND:
 		_apply_team_stack_layout()
+
+func sync_hud_layout_from_settings() -> void:
+	set_hud_layout(GAME_SETTINGS.load_hud_layout())
+
+func set_hud_layout(layout_key: String) -> void:
+	var normalized_layout := GAME_SETTINGS.normalize_hud_layout(layout_key)
+	if normalized_layout == hud_layout:
+		return
+	hud_layout = normalized_layout
+	_rebuild_widgets_for_layout()
+
+func _rebuild_widgets_for_layout() -> void:
+	if switch_cd_layout_tween != null and switch_cd_layout_tween.is_valid():
+		switch_cd_layout_tween.kill()
+	_clear_layout_widgets()
+	_apply_hud_layout_anchor()
+	_build_widgets()
+	if hover_detail != null:
+		move_child(hover_detail, get_child_count() - 1)
+
+func _clear_layout_widgets() -> void:
+	for child in get_children():
+		if child == hover_detail:
+			continue
+		remove_child(child)
+		child.queue_free()
+	switch_cd_left_key_label = null
+	switch_cd_right_key_label = null
+	switch_cd_time_label = null
+	switch_cd_portraits.clear()
+	switch_cd_active_role_id = ""
+	switch_cd_layout_initialized = false
+	switch_cd_layout_tween = null
+	switch_cd_widget = null
+	team_stack_widget = null
+	team_role_rows.clear()
+	team_role_status_by_id.clear()
+	skill_cd_slots.clear()
+	buff_status_bar = null
+	buff_status_slots.clear()
+	ultimate_energy_widget = null
+	ultimate_key_label = null
+	experience_bar = null
+	experience_label = null
+	action_key_labels_ready = false
+
+func _apply_hud_layout_anchor() -> void:
+	anchor_top = 1.0
+	anchor_bottom = 1.0
+	if hud_layout == GAME_SETTINGS.HUD_LAYOUT_TEAM_BAND:
+		anchor_left = 0.0
+		anchor_right = 1.0
+		offset_left = 18.0
+		offset_top = -172.0
+		offset_right = -252.0
+		offset_bottom = -18.0
+		return
+	anchor_left = 0.5
+	anchor_right = 0.5
+	var total_width := SWITCH_WIDGET_WIDTH + SWITCH_WIDGET_GAP + SKILL_PANEL_WIDTH + ULTIMATE_WIDGET_GAP + ULTIMATE_WIDGET_SIZE
+	offset_left = -total_width * 0.5
+	offset_top = -128.0
+	offset_right = total_width * 0.5
+	offset_bottom = -10.0
 
 func update_experience(current_experience: int, required_experience: int) -> void:
 	if experience_bar != null:
@@ -902,6 +961,204 @@ func update_buff_slots(buff_data_list: Array) -> void:
 		slot_nodes["description"] = "%s\n%s" % [str(buff_data.get("description", "")), time_label % [remaining, duration]]
 
 func _build_widgets() -> void:
+	if hud_layout == GAME_SETTINGS.HUD_LAYOUT_TEAM_BAND:
+		_build_team_band_widgets()
+		return
+	_build_legacy_widgets()
+
+func _build_legacy_widgets() -> void:
+	switch_cd_widget = Control.new()
+	switch_cd_widget.position = Vector2(0.0, 0.0)
+	switch_cd_widget.custom_minimum_size = Vector2(SWITCH_WIDGET_WIDTH, SWITCH_WIDGET_HEIGHT)
+	switch_cd_widget.size = Vector2(SWITCH_WIDGET_WIDTH, SWITCH_WIDGET_HEIGHT)
+	add_child(switch_cd_widget)
+
+	var left_arrow_box := Control.new()
+	left_arrow_box.position = Vector2(0.0, 0.0)
+	left_arrow_box.custom_minimum_size = Vector2(38.0, SWITCH_WIDGET_HEIGHT)
+	left_arrow_box.z_index = 3
+	switch_cd_widget.add_child(left_arrow_box)
+
+	var left_arrow_label := Label.new()
+	left_arrow_label.text = "<"
+	left_arrow_label.position = Vector2(0.0, 17.0)
+	left_arrow_label.custom_minimum_size = Vector2(38.0, 32.0)
+	left_arrow_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	left_arrow_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	left_arrow_label.add_theme_font_size_override("font_size", 28)
+	left_arrow_label.add_theme_color_override("font_color", Color(0.98, 0.98, 0.98, 1.0))
+	left_arrow_box.add_child(left_arrow_label)
+
+	switch_cd_left_key_label = Label.new()
+	switch_cd_left_key_label.position = Vector2(0.0, 47.0)
+	switch_cd_left_key_label.custom_minimum_size = Vector2(38.0, 22.0)
+	switch_cd_left_key_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	switch_cd_left_key_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	switch_cd_left_key_label.add_theme_font_size_override("font_size", 16)
+	left_arrow_box.add_child(switch_cd_left_key_label)
+
+	for switch_role_id in SWITCH_ROLE_ORDER:
+		var switch_role_id_string: String = str(switch_role_id)
+		var portrait := SwitchPortraitDisplay.new()
+		portrait.size = Vector2(56.0, 56.0) * SWITCH_HEAD_SIZE_MULTIPLIER
+		portrait.custom_minimum_size = Vector2(56.0, 56.0) * SWITCH_HEAD_SIZE_MULTIPLIER
+		var scene_value: Variant = SWITCH_HEAD_SCENES.get(switch_role_id_string, null)
+		if scene_value is PackedScene:
+			portrait.set_role_scene(switch_role_id_string, scene_value)
+		switch_cd_widget.add_child(portrait)
+		switch_cd_portraits[switch_role_id_string] = portrait
+
+	switch_cd_time_label = Label.new()
+	switch_cd_time_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	switch_cd_time_label.position = Vector2(22.0, 75.0)
+	switch_cd_time_label.custom_minimum_size = Vector2(132.0, 40.0)
+	switch_cd_time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	switch_cd_time_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	switch_cd_time_label.add_theme_font_size_override("font_size", 15)
+	switch_cd_time_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 1.0))
+	switch_cd_time_label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.95))
+	switch_cd_time_label.add_theme_constant_override("shadow_offset_x", 1)
+	switch_cd_time_label.add_theme_constant_override("shadow_offset_y", 1)
+	switch_cd_time_label.text = ""
+	switch_cd_widget.add_child(switch_cd_time_label)
+
+	var right_arrow_box := Control.new()
+	right_arrow_box.position = Vector2(SWITCH_WIDGET_WIDTH - 38.0, 0.0)
+	right_arrow_box.custom_minimum_size = Vector2(38.0, SWITCH_WIDGET_HEIGHT)
+	right_arrow_box.z_index = 3
+	switch_cd_widget.add_child(right_arrow_box)
+
+	var right_arrow_label := Label.new()
+	right_arrow_label.text = ">"
+	right_arrow_label.position = Vector2(0.0, 17.0)
+	right_arrow_label.custom_minimum_size = Vector2(38.0, 32.0)
+	right_arrow_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	right_arrow_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	right_arrow_label.add_theme_font_size_override("font_size", 28)
+	right_arrow_label.add_theme_color_override("font_color", Color(0.98, 0.98, 0.98, 1.0))
+	right_arrow_box.add_child(right_arrow_label)
+
+	switch_cd_right_key_label = Label.new()
+	switch_cd_right_key_label.position = Vector2(0.0, 47.0)
+	switch_cd_right_key_label.custom_minimum_size = Vector2(38.0, 22.0)
+	switch_cd_right_key_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	switch_cd_right_key_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	switch_cd_right_key_label.add_theme_font_size_override("font_size", 16)
+	right_arrow_box.add_child(switch_cd_right_key_label)
+
+	var skill_cd_panel := HBoxContainer.new()
+	skill_cd_panel.position = Vector2(SWITCH_WIDGET_WIDTH + SWITCH_WIDGET_GAP, 10.0)
+	skill_cd_panel.alignment = BoxContainer.ALIGNMENT_CENTER
+	skill_cd_panel.add_theme_constant_override("separation", 14)
+	add_child(skill_cd_panel)
+
+	buff_status_bar = HBoxContainer.new()
+	buff_status_bar.position = skill_cd_panel.position + Vector2(0.0, -BUFF_SLOT_SIZE - 6.0)
+	buff_status_bar.alignment = BoxContainer.ALIGNMENT_CENTER
+	buff_status_bar.add_theme_constant_override("separation", BUFF_SLOT_GAP)
+	buff_status_bar.visible = false
+	add_child(buff_status_bar)
+
+	for index in range(SKILL_CD_SLOT_COUNT):
+		var buff_icon: BuffStatusIcon = BuffStatusIcon.new()
+		buff_icon.custom_minimum_size = Vector2(BUFF_SLOT_SIZE, BUFF_SLOT_SIZE)
+		buff_icon.size = Vector2(BUFF_SLOT_SIZE, BUFF_SLOT_SIZE)
+		buff_icon.visible = false
+		buff_icon.mouse_entered.connect(_on_buff_slot_hovered.bind(buff_icon, index))
+		buff_icon.mouse_exited.connect(_on_skill_slot_unhovered)
+		buff_status_bar.add_child(buff_icon)
+		buff_status_slots.append({
+			"view": buff_icon,
+			"title": "",
+			"description": ""
+		})
+
+	for index in range(SKILL_CD_SLOT_COUNT):
+		var slot_icon := SkillCooldownIcon.new()
+		slot_icon.custom_minimum_size = Vector2(SKILL_CD_SLOT_SIZE, SKILL_CD_SLOT_SIZE)
+		slot_icon.set_state(false, Color(0.12, 0.13, 0.16, 1.0), 0.0)
+		slot_icon.tooltip_text = ""
+		slot_icon.mouse_entered.connect(_on_skill_slot_hovered.bind(slot_icon, index))
+		slot_icon.mouse_exited.connect(_on_skill_slot_unhovered)
+		skill_cd_panel.add_child(slot_icon)
+
+		var label := Label.new()
+		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		label.set_anchors_preset(Control.PRESET_FULL_RECT)
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		label.add_theme_font_size_override("font_size", 15)
+		label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 1.0))
+		label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.9))
+		label.add_theme_constant_override("shadow_offset_x", 1)
+		label.add_theme_constant_override("shadow_offset_y", 1)
+		label.text = ""
+		slot_icon.add_child(label)
+
+		skill_cd_slots.append({
+			"view": slot_icon,
+			"label": label,
+			"title": "",
+			"description": "",
+			"slot_label": ""
+		})
+
+	ultimate_energy_widget = UltimateEnergyDisplay.new()
+	ultimate_energy_widget.position = Vector2(SWITCH_WIDGET_WIDTH + SWITCH_WIDGET_GAP + SKILL_PANEL_WIDTH + ULTIMATE_WIDGET_GAP, -18.0)
+	ultimate_energy_widget.size = Vector2(ULTIMATE_WIDGET_SIZE, ULTIMATE_WIDGET_SIZE)
+	ultimate_energy_widget.custom_minimum_size = Vector2(ULTIMATE_WIDGET_SIZE, ULTIMATE_WIDGET_SIZE)
+	ultimate_energy_widget.set_state(0.0)
+	ultimate_energy_widget.tooltip_text = ""
+	ultimate_energy_widget.mouse_entered.connect(_on_ultimate_energy_hovered)
+	ultimate_energy_widget.mouse_exited.connect(_on_skill_slot_unhovered)
+	add_child(ultimate_energy_widget)
+
+	ultimate_key_label = Label.new()
+	ultimate_key_label.position = ultimate_energy_widget.position + Vector2(0.0, ULTIMATE_WIDGET_SIZE - 4.0)
+	ultimate_key_label.custom_minimum_size = Vector2(ULTIMATE_WIDGET_SIZE, 24.0)
+	ultimate_key_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ultimate_key_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	ultimate_key_label.add_theme_font_size_override("font_size", 16)
+	ultimate_key_label.add_theme_color_override("font_color", Color(0.98, 0.98, 0.98, 1.0))
+	ultimate_key_label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.95))
+	ultimate_key_label.add_theme_constant_override("shadow_offset_x", 1)
+	ultimate_key_label.add_theme_constant_override("shadow_offset_y", 1)
+	add_child(ultimate_key_label)
+
+	experience_bar = ProgressBar.new()
+	experience_bar.position = Vector2(SWITCH_WIDGET_WIDTH + SWITCH_WIDGET_GAP, 78.0)
+	experience_bar.custom_minimum_size = Vector2(SKILL_PANEL_WIDTH, 14.0)
+	experience_bar.show_percentage = false
+	var exp_fill := StyleBoxFlat.new()
+	exp_fill.bg_color = Color(1.0, 0.82, 0.16, 0.95)
+	exp_fill.set_corner_radius_all(5)
+	var exp_background := StyleBoxFlat.new()
+	exp_background.bg_color = Color(0.12, 0.1, 0.04, 0.82)
+	exp_background.border_color = Color(0.92, 0.72, 0.16, 0.9)
+	exp_background.set_border_width_all(1)
+	exp_background.set_corner_radius_all(5)
+	experience_bar.add_theme_stylebox_override("fill", exp_fill)
+	experience_bar.add_theme_stylebox_override("background", exp_background)
+	add_child(experience_bar)
+
+	experience_label = Label.new()
+	experience_label.position = Vector2(SWITCH_WIDGET_WIDTH + SWITCH_WIDGET_GAP, 72.0)
+	experience_label.custom_minimum_size = Vector2(SKILL_PANEL_WIDTH, 26.0)
+	experience_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	experience_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	experience_label.add_theme_font_size_override("font_size", 13)
+	experience_label.add_theme_color_override("font_color", Color(1.0, 0.96, 0.62, 1.0))
+	experience_label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.95))
+	experience_label.add_theme_constant_override("shadow_offset_x", 1)
+	experience_label.add_theme_constant_override("shadow_offset_y", 1)
+	experience_label.text = "0 / 30 XP"
+	add_child(experience_label)
+
+	_refresh_action_key_labels()
+	_layout_switch_portraits("gunner", false)
+
+
+func _build_team_band_widgets() -> void:
 	team_stack_widget = Control.new()
 	team_stack_widget.position = Vector2.ZERO
 	team_stack_widget.custom_minimum_size = Vector2(TEAM_STACK_WIDTH, TEAM_STACK_HEIGHT)

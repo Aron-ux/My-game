@@ -69,6 +69,8 @@ static func _setup_pause_menu(main: Node) -> void:
 	_connect_if_present(main.pause_menu, "resume_requested", Callable(main, "_on_resume_requested"))
 	_connect_if_present(main.pause_menu, "restart_requested", Callable(main, "_on_restart_requested"))
 	_connect_if_present(main.pause_menu, "main_menu_requested", Callable(main, "_on_main_menu_requested"))
+	if main.hud != null and main.hud.has_method("set_hud_layout"):
+		_connect_if_present(main.pause_menu, "hud_layout_changed", Callable(main.hud, "set_hud_layout"))
 
 static func _setup_game_over_ui(main: Node) -> void:
 	if main.game_over_ui_scene == null:
