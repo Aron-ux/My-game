@@ -488,6 +488,14 @@ func update_stats(summary: Dictionary) -> void:
 			float(summary.get("switch_energy_required", 100.0)),
 			switch_energy_by_role
 		)
+	if combat_skill_bar != null and combat_skill_bar.has_method("update_team_role_statuses"):
+		var team_role_statuses_value: Variant = summary.get("team_role_statuses", [])
+		var team_role_statuses: Array = team_role_statuses_value if team_role_statuses_value is Array else []
+		combat_skill_bar.update_team_role_statuses(
+			team_role_statuses,
+			str(summary.get("role_id", "swordsman")),
+			int(summary.get("active_role_index", 0))
+		)
 
 	var switch_power_name := str(summary.get("switch_power_label", ""))
 	var switch_power_remaining := float(summary.get("switch_power_remaining", 0.0))

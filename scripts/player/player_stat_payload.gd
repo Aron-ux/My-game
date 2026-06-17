@@ -13,6 +13,7 @@ static func build_from_player(owner) -> Dictionary:
 	var role_special_data: Dictionary = owner._get_role_special_state(role_id)
 	var ultimate_display: Dictionary = _build_ultimate_display(owner, role_id)
 	var buff_status_slots: Array = _build_buff_status_slots(owner)
+	var team_role_statuses: Array = _build_team_role_statuses(owner, role_id, true)
 	return build_stat_summary({
 		"level": owner.level,
 		"move_speed": owner._get_current_move_speed(),
@@ -53,6 +54,7 @@ static func build_from_player(owner) -> Dictionary:
 		"entry_blessing_remaining": owner.entry_blessing_remaining,
 		"entry_blessing_role_id": owner.entry_blessing_role_id,
 		"skill_cooldown_slots": skill_cooldown_slots,
+		"team_role_statuses": team_role_statuses,
 		"buff_status_slots": buff_status_slots
 	})
 
@@ -69,6 +71,7 @@ static func build_frame_hud_from_player(owner) -> Dictionary:
 	PERFORMANCE_RECORDER.end_scope("hud_payload_cooldown_slots_ms")
 	PERFORMANCE_RECORDER.begin_scope("hud_payload_misc_ms")
 	var buff_status_slots: Array = _build_buff_status_slots(owner)
+	var team_role_statuses: Array = _build_team_role_statuses(owner, role_id, false)
 	var summary: Dictionary = {
 		"current_mana": owner._get_role_mana(role_id),
 		"max_mana": owner.max_mana,
@@ -90,6 +93,7 @@ static func build_frame_hud_from_player(owner) -> Dictionary:
 		"entry_blessing_label": owner.entry_blessing_label,
 		"entry_blessing_remaining": owner.entry_blessing_remaining,
 		"skill_cooldown_slots": cooldown_slots,
+		"team_role_statuses": team_role_statuses,
 		"buff_status_slots": buff_status_slots
 	}
 	PERFORMANCE_RECORDER.end_scope("hud_payload_misc_ms")
@@ -117,6 +121,38 @@ static func _build_switch_energy_by_role(owner) -> Dictionary:
 			continue
 		energy_by_role[role_id] = owner._get_role_switch_energy(role_id)
 	return energy_by_role
+
+static func _build_team_role_statuses(owner, active_role_id: String, include_descriptions: bool) -> Array:
+	var statuses: Array = []
+	for index in range(owner.roles.size()):
+		var role_data: Dictionary = owner.roles[index]
+		var role_id: String = str(role_data.get("id", ""))
+		if role_id == "":
+			continue
+		var attack_interval: float = owner._get_effective_attack_interval(role_id)
+		var cooldown_slots: Array = []
+		if owner.has_method("_get_role_skill_cooldown_slots"):
+			cooldown_slots = owner._get_role_skill_cooldown_slots(role_id, attack_interval, include_descriptions)
+		var max_health: float = max(1.0, float(owner._get_role_max_health(role_id)) if owner.has_method("_get_role_max_health") else float(owner.max_health))
+		var current_health: float = clamp(float(owner._get_role_current_health(role_id)) if owner.has_method("_get_role_current_health") else float(owner.current_health), 0.0, max_health)
+		var max_mana: float = max(1.0, float(owner.max_mana))
+		var current_mana: float = clamp(float(owner._get_role_mana(role_id)), 0.0, max_mana)
+		statuses.append({
+			"role_id": role_id,
+			"role_name": str(role_data.get("name", role_id)),
+			"role_index": index,
+			"is_active": role_id == active_role_id,
+			"current_health": current_health,
+			"max_health": max_health,
+			"current_mana": current_mana,
+			"max_mana": max_mana,
+			"ultimate_energy_cost": owner._get_ultimate_energy_cost(),
+			"switch_energy": owner._get_role_switch_energy(role_id),
+			"switch_energy_required": owner.SWITCH_ENTRY_ENERGY_REQUIRED,
+			"color": role_data.get("color", Color.WHITE),
+			"cooldown_slots": cooldown_slots
+		})
+	return statuses
 
 static func _build_buff_status_slots(owner) -> Array:
 	var slots: Array = []
@@ -207,5 +243,6 @@ static func build_stat_summary(context: Dictionary) -> Dictionary:
 		"entry_blessing_remaining": context.get("entry_blessing_remaining", 0.0),
 		"entry_blessing_role_id": context.get("entry_blessing_role_id", ""),
 		"skill_cooldown_slots": context.get("skill_cooldown_slots", []),
+		"team_role_statuses": context.get("team_role_statuses", []),
 		"buff_status_slots": context.get("buff_status_slots", [])
 	}
