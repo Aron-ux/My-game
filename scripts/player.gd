@@ -1958,6 +1958,9 @@ func _emit_deferred_level_up_requested() -> void:
 func _get_active_skill_cooldown_slots(attack_interval: float, include_descriptions: bool = true) -> Array:
 	return PLAYER_SKILL_COOLDOWN_FLOW.get_active_skill_cooldown_slots(self, attack_interval, include_descriptions)
 
+func _get_role_skill_cooldown_slots(role_id: String, attack_interval: float, include_descriptions: bool = true) -> Array:
+	return PLAYER_SKILL_COOLDOWN_FLOW.get_role_skill_cooldown_slots(self, role_id, attack_interval, include_descriptions)
+
 func get_final_core_options() -> Array:
 	return PLAYER_LEVEL_OPTIONS.get_final_core_options()
 

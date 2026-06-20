@@ -6,8 +6,13 @@ const PLAYER_SKILL_COOLDOWN_SLOTS := preload("res://scripts/player/player_skill_
 static func get_active_skill_cooldown_slots(owner, attack_interval: float, include_descriptions: bool = true) -> Array:
 	var role_data: Dictionary = owner._get_active_role()
 	var role_id: String = str(role_data.get("id", ""))
+	return get_role_skill_cooldown_slots(owner, role_id, attack_interval, include_descriptions)
+
+
+static func get_role_skill_cooldown_slots(owner, role_id: String, attack_interval: float, include_descriptions: bool = true) -> Array:
 	var attack_remaining: float = 0.0
-	if owner.fire_timer != null and not owner.fire_timer.is_stopped():
+	var active_role_id: String = str(owner._get_active_role().get("id", ""))
+	if role_id == active_role_id and owner.fire_timer != null and not owner.fire_timer.is_stopped():
 		attack_remaining = clamp(owner.fire_timer.time_left, 0.0, attack_interval)
 
 	var extra_slots: Array = []

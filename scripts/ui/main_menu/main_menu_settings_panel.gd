@@ -18,6 +18,8 @@ const TEXT_WINDOW_MODE := "\u7a97\u53e3\u6a21\u5f0f"
 const TEXT_WINDOWED := "\u7a97\u53e3"
 const TEXT_FULLSCREEN := "\u5168\u5c4f"
 const TEXT_WINDOW_SIZE := "\u7a97\u53e3\u5927\u5c0f"
+const TEXT_HUD_LAYOUT := "HUD \u5e03\u5c40"
+const TEXT_HUD_LAYOUT_HINT := "\u9ed8\u8ba4\u4f7f\u7528\u65e7\u7248\u5e95\u90e8\u6280\u80fd\u680f\uff1b\u65b0\u7248\u4e09\u884c\u961f\u4f0d\u72b6\u6001\u5e26\u53ef\u540c\u65f6\u67e5\u770b\u4e09\u540d\u89d2\u8272\u7684 HP\u3001MP/\u5927\u62db\u80fd\u91cf\u548c\u6280\u80fd\u51b7\u5374\u3002"
 const TEXT_ASPECT_LOCKED := "\u753b\u9762\u6bd4\u4f8b\u5df2\u56fa\u5b9a\u4e3a 16:9\uff1b\u7a97\u53e3\u62d6\u62fd\u8c03\u6574\u65f6\u4f1a\u81ea\u52a8\u6821\u6b63\u6bd4\u4f8b\u3002"
 const TEXT_KEY_HELP := "\u70b9\u51fb\u53f3\u4fa7\u6309\u94ae\u540e\uff0c\u6309\u4e0b\u65b0\u6309\u952e\u3002"
 const TEXT_WAITING_KEY := "\u6309\u4e0b\u65b0\u6309\u952e\uff0cESC \u53d6\u6d88"
@@ -49,6 +51,7 @@ var mute_checkbox: CheckBox
 var performance_trace_checkbox: CheckBox
 var window_mode_option: OptionButton
 var window_size_option: OptionButton
+var hud_layout_option: OptionButton
 var keybind_buttons: Dictionary = {}
 var keybind_status_label: Label
 var waiting_for_key_action: String = ""
@@ -297,6 +300,26 @@ func _build_display_page() -> VBoxContainer:
 	help_label.modulate = Color(0.82, 0.88, 0.95, 0.96)
 	page.add_child(help_label)
 
+	var hud_layout_label := Label.new()
+	hud_layout_label.text = TEXT_HUD_LAYOUT
+	hud_layout_label.add_theme_font_size_override("font_size", 18)
+	page.add_child(hud_layout_label)
+
+	hud_layout_option = OptionButton.new()
+	hud_layout_option.custom_minimum_size = Vector2(300, 40)
+	for layout_key in GAME_SETTINGS.get_hud_layout_options():
+		hud_layout_option.add_item(GAME_SETTINGS.get_hud_layout_label(layout_key))
+		hud_layout_option.set_item_metadata(hud_layout_option.item_count - 1, layout_key)
+	hud_layout_option.item_selected.connect(_on_hud_layout_selected)
+	page.add_child(hud_layout_option)
+
+	var hud_layout_hint := Label.new()
+	hud_layout_hint.text = TEXT_HUD_LAYOUT_HINT
+	hud_layout_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hud_layout_hint.add_theme_font_size_override("font_size", 14)
+	hud_layout_hint.modulate = Color(0.82, 0.88, 0.95, 0.96)
+	page.add_child(hud_layout_hint)
+
 	return page
 
 func _build_keybind_page() -> VBoxContainer:
@@ -384,6 +407,8 @@ func _refresh_display_controls() -> void:
 		_select_option_by_metadata(window_mode_option, GAME_SETTINGS.load_window_mode())
 	if window_size_option != null:
 		_select_option_by_metadata(window_size_option, GAME_SETTINGS.load_window_size_key())
+	if hud_layout_option != null:
+		_select_option_by_metadata(hud_layout_option, GAME_SETTINGS.load_hud_layout())
 
 func _refresh_audio_controls() -> void:
 	if volume_slider != null:
@@ -475,4 +500,10 @@ func _on_window_size_selected(index: int) -> void:
 		manager.apply_window_size(size_key)
 	else:
 		GAME_SETTINGS.save_window_size_key(size_key)
+	_refresh_display_controls()
+
+func _on_hud_layout_selected(index: int) -> void:
+	if hud_layout_option == null:
+		return
+	GAME_SETTINGS.save_hud_layout(str(hud_layout_option.get_item_metadata(index)))
 	_refresh_display_controls()

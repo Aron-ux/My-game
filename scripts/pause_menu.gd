@@ -8,19 +8,21 @@ const SURVIVORS_THEME := preload("res://scripts/ui/theme/survivors_ui_theme.gd")
 signal resume_requested
 signal restart_requested
 signal main_menu_requested
+signal hud_layout_changed(layout_key: String)
 
 var modal: Control
 var volume_slider: HSlider
 var volume_value_label: Label
 var mute_checkbox: CheckBox
 var performance_trace_checkbox: CheckBox
+var hud_layout_option: OptionButton
 
 func _ready() -> void:
 	layer = 3
 	process_mode = Node.PROCESS_MODE_WHEN_PAUSED
 
 	modal = SURVIVORS_MODAL.new()
-	modal.configure(Vector2(420.0, 510.0), 0.36, 0.70, Vector2(280.0, 300.0))
+	modal.configure(Vector2(440.0, 570.0), 0.36, 0.74, Vector2(280.0, 320.0))
 	modal.set_title("暂停")
 	modal.set_hint("")
 	add_child(modal)
@@ -79,6 +81,21 @@ func _build_content() -> void:
 	performance_trace_checkbox.toggled.connect(_on_performance_trace_toggled)
 	content.add_child(performance_trace_checkbox)
 
+	var hud_layout_label := Label.new()
+	hud_layout_label.text = "HUD 布局"
+	hud_layout_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	SURVIVORS_THEME.apply_label_font(hud_layout_label, 16, SURVIVORS_THEME.COLOR_TEXT_MUTED)
+	content.add_child(hud_layout_label)
+
+	hud_layout_option = OptionButton.new()
+	hud_layout_option.custom_minimum_size = Vector2(0.0, 38.0)
+	hud_layout_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for layout_key in GAME_SETTINGS.get_hud_layout_options():
+		hud_layout_option.add_item(GAME_SETTINGS.get_hud_layout_label(layout_key))
+		hud_layout_option.set_item_metadata(hud_layout_option.item_count - 1, layout_key)
+	hud_layout_option.item_selected.connect(_on_hud_layout_selected)
+	content.add_child(hud_layout_option)
+
 func _make_action_button(text_value: String, callback: Callable, kind: String = "normal") -> Button:
 	var button := Button.new()
 	button.text = text_value
@@ -98,6 +115,8 @@ func _refresh_audio_controls() -> void:
 		mute_checkbox.set_pressed_no_signal(BGM_PLAYER_SCRIPT.load_music_muted())
 	if performance_trace_checkbox != null:
 		performance_trace_checkbox.set_pressed_no_signal(GAME_SETTINGS.load_performance_trace_enabled())
+	if hud_layout_option != null:
+		_select_option_by_metadata(hud_layout_option, GAME_SETTINGS.load_hud_layout())
 
 func _apply_saved_music_volume() -> void:
 	var parent_scene := get_parent()
@@ -128,3 +147,17 @@ func _on_mute_toggled(toggled_on: bool) -> void:
 
 func _on_performance_trace_toggled(toggled_on: bool) -> void:
 	GAME_SETTINGS.save_performance_trace_enabled(toggled_on)
+
+func _select_option_by_metadata(option: OptionButton, metadata: String) -> void:
+	for index in range(option.item_count):
+		if str(option.get_item_metadata(index)) == metadata:
+			option.select(index)
+			return
+
+func _on_hud_layout_selected(index: int) -> void:
+	if hud_layout_option == null:
+		return
+	GAME_SETTINGS.save_hud_layout(str(hud_layout_option.get_item_metadata(index)))
+	var saved_layout := GAME_SETTINGS.load_hud_layout()
+	_select_option_by_metadata(hud_layout_option, saved_layout)
+	hud_layout_changed.emit(saved_layout)

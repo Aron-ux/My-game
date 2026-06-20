@@ -5,6 +5,7 @@ const KEY_SECTION := "keybinds"
 const DISPLAY_SECTION := "display"
 const GAMEPLAY_SECTION := "gameplay"
 const PERFORMANCE_TRACE_ENABLED_KEY := "performance_trace_enabled"
+const HUD_LAYOUT_KEY := "hud_layout"
 
 const WINDOW_MODE_WINDOWED := "windowed"
 const WINDOW_MODE_FULLSCREEN := "fullscreen"
@@ -14,6 +15,9 @@ const WINDOW_SIZE_1920X1080 := "1920x1080"
 const DEFAULT_WINDOW_MODE := WINDOW_MODE_WINDOWED
 const DEFAULT_WINDOW_SIZE := WINDOW_SIZE_1280X720
 const DEFAULT_PERFORMANCE_TRACE_ENABLED := false
+const HUD_LAYOUT_LEGACY := "legacy"
+const HUD_LAYOUT_TEAM_BAND := "team_band"
+const DEFAULT_HUD_LAYOUT := HUD_LAYOUT_LEGACY
 const ASPECT_WIDTH := 16
 const ASPECT_HEIGHT := 9
 const MIN_WINDOW_WIDTH := 960
@@ -149,6 +153,30 @@ static func save_performance_trace_enabled(enabled: bool) -> void:
 	var config := _get_config()
 	config.set_value(GAMEPLAY_SECTION, PERFORMANCE_TRACE_ENABLED_KEY, enabled)
 	config.save(SETTINGS_PATH)
+
+static func load_hud_layout() -> String:
+	var config := _get_config()
+	return normalize_hud_layout(str(config.get_value(GAMEPLAY_SECTION, HUD_LAYOUT_KEY, DEFAULT_HUD_LAYOUT)))
+
+static func save_hud_layout(layout_key: String) -> void:
+	var config := _get_config()
+	config.set_value(GAMEPLAY_SECTION, HUD_LAYOUT_KEY, normalize_hud_layout(layout_key))
+	config.save(SETTINGS_PATH)
+
+static func normalize_hud_layout(layout_key: String) -> String:
+	if layout_key == HUD_LAYOUT_TEAM_BAND:
+		return HUD_LAYOUT_TEAM_BAND
+	return HUD_LAYOUT_LEGACY
+
+static func get_hud_layout_options() -> Array[String]:
+	return [HUD_LAYOUT_LEGACY, HUD_LAYOUT_TEAM_BAND]
+
+static func get_hud_layout_label(layout_key: String) -> String:
+	match normalize_hud_layout(layout_key):
+		HUD_LAYOUT_TEAM_BAND:
+			return "新版：三行队伍状态带"
+		_:
+			return "旧版：底部技能栏"
 
 static func get_window_size(size_key: String = "") -> Vector2i:
 	var resolved_key := size_key if size_key != "" else load_window_size_key()

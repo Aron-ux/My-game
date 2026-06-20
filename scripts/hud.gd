@@ -198,6 +198,14 @@ func _build_skill_cooldown_panel(root: Control) -> void:
 	combat_skill_bar = COMBAT_SKILL_BAR.new()
 	root.add_child(combat_skill_bar)
 
+func set_hud_layout(layout_key: String) -> void:
+	if combat_skill_bar != null and combat_skill_bar.has_method("set_hud_layout"):
+		combat_skill_bar.set_hud_layout(layout_key)
+
+func sync_hud_layout_from_settings() -> void:
+	if combat_skill_bar != null and combat_skill_bar.has_method("sync_hud_layout_from_settings"):
+		combat_skill_bar.sync_hud_layout_from_settings()
+
 func _build_attack_mode_hint(root: Control) -> void:
 	attack_mode_hint_panel = PanelContainer.new()
 	attack_mode_hint_panel.anchor_left = 1.0
@@ -457,6 +465,7 @@ func update_mana(current_mana: float, max_mana: float) -> void:
 	_set_label_text(mana_label, "大招能量 %.0f / %.0f" % [current_mana, max_mana])
 
 func update_stats(summary: Dictionary) -> void:
+	sync_hud_layout_from_settings()
 	_update_attack_mode_hint(bool(summary.get("auto_attack_enabled", false)))
 	_set_label_text(role_label, "角色 %s" % str(summary.get("role_name", "剑士")))
 	var active_role_index := int(summary.get("active_role_index", 0))
@@ -487,6 +496,14 @@ func update_stats(summary: Dictionary) -> void:
 			float(summary.get("switch_energy", 0.0)),
 			float(summary.get("switch_energy_required", 100.0)),
 			switch_energy_by_role
+		)
+	if combat_skill_bar != null and combat_skill_bar.has_method("update_team_role_statuses"):
+		var team_role_statuses_value: Variant = summary.get("team_role_statuses", [])
+		var team_role_statuses: Array = team_role_statuses_value if team_role_statuses_value is Array else []
+		combat_skill_bar.update_team_role_statuses(
+			team_role_statuses,
+			str(summary.get("role_id", "swordsman")),
+			int(summary.get("active_role_index", 0))
 		)
 
 	var switch_power_name := str(summary.get("switch_power_label", ""))
