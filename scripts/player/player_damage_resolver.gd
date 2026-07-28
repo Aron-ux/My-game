@@ -17,6 +17,7 @@ const BOSS_TOUCH_DAMAGE_SHADOW_RADIUS_SCALE := 1.048808848
 const BOSS_TOUCH_DAMAGE_CURRENT_SIZE_SCALE := 0.8
 const BOSS_PLAYER_HIT_SHAPE_SCALE := 1.2
 const BOSS_TOUCH_DAMAGE_QUERY_PADDING := 260.0
+const GUNNER_NO_HUNT_SOURCE_ROLE_ID := "gunner_no_hunt"
 
 static var cached_live_enemies: Array = []
 static var cached_live_enemies_frame: int = -1
@@ -31,42 +32,41 @@ static var reusable_seen_enemy_ids: Dictionary = {}
 static var reusable_bounds_list: Array[Rect2] = []
 
 static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, suppress_status_visual: bool = false, kill_energy_bonus: float = 0.0) -> bool:
-	if enemy == null or not is_instance_valid(enemy):
+	if not _is_live_enemy(enemy):
 		return false
 	var final_damage := damage_amount
+	var resolved_source_role_id: String = _resolve_damage_source_role_id(source_role_id)
 	var was_critical := false
-	if owner != null and source_role_id != "" and owner.has_method("_roll_critical_hit") and owner.has_method("_get_critical_damage_multiplier"):
-		was_critical = bool(owner._roll_critical_hit(source_role_id))
+	if owner != null and resolved_source_role_id != "" and owner.has_method("_roll_critical_hit") and owner.has_method("_get_critical_damage_multiplier"):
+		was_critical = bool(owner._roll_critical_hit(resolved_source_role_id))
 		if was_critical:
-			final_damage *= float(owner._get_critical_damage_multiplier(source_role_id))
-	if owner != null and source_role_id == "gunner" and enemy is Node2D:
-		var attack_origin: Vector2 = owner.global_position if owner is Node2D else (enemy as Node2D).global_position
-		if source_position is Vector2:
-			attack_origin = source_position
+			final_damage *= float(owner._get_critical_damage_multiplier(resolved_source_role_id))
+	if owner != null and _should_apply_gunner_hunt_multiplier(source_role_id, resolved_source_role_id) and enemy is Node2D:
+		var attack_origin: Vector2 = _get_gunner_damage_origin(owner, enemy as Node2D)
 		if owner.has_method("_get_gunner_distance_damage_multiplier"):
 			final_damage *= float(owner._get_gunner_distance_damage_multiplier(attack_origin.distance_to((enemy as Node2D).global_position)))
 	var killed := false
 	if damage_amount > 0.0 and enemy.has_method("take_damage"):
-		killed = bool(enemy.take_damage(final_damage, was_critical))
+		killed = _call_enemy_take_damage(enemy, final_damage, was_critical)
 		if owner != null and owner.has_method("_record_attack_result_instance"):
-			owner._record_attack_result_instance(source_role_id, was_critical, killed)
+			owner._record_attack_result_instance(resolved_source_role_id, was_critical, killed)
 		if owner != null and owner.has_method("_add_switch_energy_from_damage"):
-			owner._add_switch_energy_from_damage(final_damage, source_role_id)
+			owner._add_switch_energy_from_damage(final_damage, resolved_source_role_id)
 		if owner != null and owner.has_method("_apply_role_damage_lifesteal"):
-			owner._apply_role_damage_lifesteal(source_role_id, final_damage)
-		if owner != null and enemy.get("enemy_kind") != null and str(enemy.get("enemy_kind")) == "boss" and owner.has_method("_add_boss_damage_energy") and owner.has_method("_get_boss_damage_energy"):
+			owner._apply_role_damage_lifesteal(resolved_source_role_id, final_damage)
+		if owner != null and enemy.get("enemy_kind") != null and str(enemy.get("enemy_kind")) in ["boss", "small_boss"] and owner.has_method("_add_boss_damage_energy") and owner.has_method("_get_boss_damage_energy"):
 			owner._add_boss_damage_energy(owner._get_boss_damage_energy(final_damage))
 		if killed and owner != null and owner.has_method("_add_kill_energy") and owner.has_method("_get_kill_energy_from_enemy"):
 			var kill_energy: float = owner._get_kill_energy_from_enemy(enemy)
-			var bypass_lock_role_id: String = source_role_id if source_role_id == "mage" and kill_energy_bonus > 0.0 else ""
-			owner._add_kill_energy(kill_energy, bypass_lock_role_id, source_role_id)
+			var bypass_lock_role_id: String = resolved_source_role_id if resolved_source_role_id == "mage" and kill_energy_bonus > 0.0 else ""
+			owner._add_kill_energy(kill_energy, bypass_lock_role_id, resolved_source_role_id)
 			if owner.has_method("_try_apply_mage_kill_energy_proc"):
-				owner._try_apply_mage_kill_energy_proc(source_role_id, kill_energy, bypass_lock_role_id)
+				owner._try_apply_mage_kill_energy_proc(resolved_source_role_id, kill_energy, bypass_lock_role_id)
 			if kill_energy_bonus > 0.0:
 				var bonus_energy: float = kill_energy * kill_energy_bonus
-				owner._add_kill_energy(bonus_energy, bypass_lock_role_id, source_role_id)
+				owner._add_kill_energy(bonus_energy, bypass_lock_role_id, resolved_source_role_id)
 				if owner.has_method("_try_apply_mage_kill_energy_proc"):
-					owner._try_apply_mage_kill_energy_proc(source_role_id, bonus_energy, bypass_lock_role_id)
+					owner._try_apply_mage_kill_energy_proc(resolved_source_role_id, bonus_energy, bypass_lock_role_id)
 	if vulnerability_bonus > 0.0 and enemy.has_method("apply_vulnerability"):
 		enemy.apply_vulnerability(vulnerability_bonus, vulnerability_duration)
 	if slow_duration > 0.0:
@@ -75,6 +75,27 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 		elif enemy.has_method("apply_slow"):
 			enemy.apply_slow(slow_multiplier, slow_duration)
 	return killed
+
+static func _call_enemy_take_damage(enemy: Node, amount: float, is_critical: bool) -> bool:
+	if enemy == null or not is_instance_valid(enemy) or not enemy.has_method("take_damage"):
+		return false
+	if _method_accepts_argument_count(enemy, "take_damage", 2):
+		return bool(enemy.take_damage(amount, is_critical))
+	return bool(enemy.take_damage(amount))
+
+static func _method_accepts_argument_count(target: Object, method_name: String, argument_count: int) -> bool:
+	for method in target.get_method_list():
+		if method is not Dictionary:
+			continue
+		var method_data: Dictionary = method
+		if str(method_data.get("name", "")) != method_name:
+			continue
+		var args: Array = method_data.get("args", [])
+		var default_args: Array = method_data.get("default_args", [])
+		var max_args: int = args.size()
+		var min_args: int = max(0, max_args - default_args.size())
+		return argument_count >= min_args and argument_count <= max_args
+	return false
 
 static func queue_damage_to_enemy(owner, enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, prefer_silent_feedback: bool = false, suppress_status_visual: bool = false) -> void:
 	var queue := _get_or_create_damage_job_queue(owner)
@@ -810,12 +831,31 @@ static func _resolve_role_id(owner, source_role_id: String) -> String:
 		return str(owner._get_active_role().get("id", ""))
 	return ""
 
+static func _resolve_damage_source_role_id(source_role_id: String) -> String:
+	if source_role_id == GUNNER_NO_HUNT_SOURCE_ROLE_ID:
+		return "gunner"
+	return source_role_id
+
+static func _should_apply_gunner_hunt_multiplier(source_role_id: String, resolved_source_role_id: String) -> bool:
+	return resolved_source_role_id == "gunner" and source_role_id != GUNNER_NO_HUNT_SOURCE_ROLE_ID
+
+static func _get_gunner_damage_origin(owner, enemy: Node2D) -> Vector2:
+	if owner != null and owner is Node2D:
+		return (owner as Node2D).global_position
+	return enemy.global_position if enemy != null else Vector2.ZERO
+
 static func _is_live_enemy(enemy) -> bool:
 	if enemy == null or not is_instance_valid(enemy):
 		return false
 	if enemy is Node and (enemy as Node).is_queued_for_deletion():
 		return false
+	var pooled_inactive_value: Variant = enemy.get("pooled_inactive")
+	if pooled_inactive_value != null and bool(pooled_inactive_value):
+		return false
 	var rebirth_timer_value: Variant = enemy.get("rebirth_timer")
 	if rebirth_timer_value != null and float(rebirth_timer_value) > 0.0:
+		return false
+	var current_health_value: Variant = enemy.get("current_health")
+	if current_health_value != null and float(current_health_value) <= 0.0:
 		return false
 	return true

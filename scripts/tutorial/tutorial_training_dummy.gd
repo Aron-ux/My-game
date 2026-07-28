@@ -50,7 +50,7 @@ func _spawn_visual() -> void:
 	animated_sprite.frame_progress = 0.0
 
 
-func take_damage(amount: float) -> bool:
+func take_damage(amount: float, _is_critical: bool = false) -> bool:
 	current_health = max(0.0, current_health - max(0.0, amount))
 	_play_hit_flash()
 	if not hit_once:

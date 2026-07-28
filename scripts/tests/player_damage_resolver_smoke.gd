@@ -131,7 +131,7 @@ class DamageOwner:
 	func _get_enemy_hit_radius(enemy: Node) -> float:
 		return float(enemy.get("contact_radius"))
 
-	func _register_attack_result(_role_id: String, _hit_count: int, _killed: bool) -> void:
+	func _register_attack_result(_role_id: String, _hit_count: int, _killed: bool, _kill_count: int = 0) -> void:
 		register_calls += 1
 
 	func _get_active_role() -> Dictionary:

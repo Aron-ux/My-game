@@ -2,16 +2,17 @@ extends RefCounted
 
 const MAGE_GATHERING_EFFECT_SCENE := preload("res://effects/wizard/wave/gathering/gatering.tscn")
 const MAGE_WAVE_EFFECT_SCENE := preload("res://effects/wizard/wave/wave.tscn")
+const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 
-const TIER_ONE_COOLDOWN := 18.0
+const TIER_ONE_COOLDOWN := 20.0
 const TIER_TWO_COOLDOWN := 16.0
 const TIER_THREE_COOLDOWN := 16.0
 const WAVE_REPEAT_INTERVAL := 0.3
 const BASE_SCALE_MULTIPLIER := 1.5
 const HUICHAO_WIDTH_BONUS := 0.12
-const WAVE_SPEED := 120.0
-const WAVE_LIFETIME := 3.84
-const WAVE_HIT_RADIUS := 28.0
+const WAVE_SPEED := 115.0
+const WAVE_LIFETIME := 4.0
+const WAVE_HIT_RADIUS := 29.932
 const WAVE_VISUAL_SCALE := 5.2
 const WAVE_WIDTH_MULTIPLIER := 0.7
 const TIDAL_SURGE_RANGE_MULTIPLIER := 0.7
@@ -98,8 +99,8 @@ func _spawn_wave(owner, origin: Vector2, fire_direction: Vector2, damage_amount:
 	wave.z_as_relative = false
 	wave.z_index = 30
 	var distance_scale: float = max(0.05, effect_scale)
-	var range_multiplier: float = float(owner._get_story_style_range_multiplier("mage")) * float(owner._get_role_attribute_range_multiplier("mage")) * _get_visual_range_multiplier(owner)
-	wave.speed = WAVE_SPEED
+	var range_multiplier: float = float(owner._get_role_attribute_range_multiplier("mage")) * float(owner._get_role_equipment_skill_range_multiplier("mage")) * float(owner._get_role_attribute_range_multiplier("mage")) * _get_visual_range_multiplier(owner)
+	wave.speed = _get_wave_speed(owner)
 	wave.lifetime = _get_lifetime(owner) * distance_scale
 	wave.hit_radius = WAVE_HIT_RADIUS * range_multiplier * WAVE_WIDTH_MULTIPLIER
 	wave.pierce_count = 999
@@ -108,6 +109,9 @@ func _spawn_wave(owner, origin: Vector2, fire_direction: Vector2, damage_amount:
 	wave.enemy_hit_radius_min = 12.0
 	wave.enemy_hit_radius_max = 72.0 * _get_scale_multiplier(owner) * WAVE_WIDTH_MULTIPLIER
 	return wave
+
+func _get_wave_speed(owner) -> float:
+	return WAVE_SPEED + PLAYER_BUILD_SYSTEM.get_surging_wave_speed_bonus(owner)
 
 func _get_scale_multiplier(owner) -> float:
 	var quantity_bonus := float(_get_quantity_extra_count(owner)) * HUICHAO_WIDTH_BONUS
@@ -153,7 +157,7 @@ func _get_cooldown(owner) -> float:
 		base_cooldown = TIER_THREE_COOLDOWN
 	elif tier >= 2:
 		base_cooldown = TIER_TWO_COOLDOWN
-	var cooldown_multiplier: float = 1.0
+	var cooldown_multiplier: float = PLAYER_BUILD_SYSTEM.get_surging_wave_cooldown_multiplier(owner)
 	if owner != null and is_instance_valid(owner) and owner.has_method("_get_equipment_cooldown_multiplier"):
 		cooldown_multiplier *= float(owner._get_equipment_cooldown_multiplier())
 	if owner != null and is_instance_valid(owner) and owner.has_method("_get_kebiru_magic_cooldown_multiplier"):
@@ -198,12 +202,14 @@ func _get_lifetime(owner) -> float:
 	var lifetime := WAVE_LIFETIME * _get_lifetime_multiplier(owner)
 	if owner != null and owner.has_method("_get_blessing_skill_duration_flat_bonus"):
 		lifetime += float(owner._get_blessing_skill_duration_flat_bonus(SURGE_SKILL_ID))
+	lifetime += PLAYER_BUILD_SYSTEM.get_surging_wave_duration_bonus(owner)
 	return lifetime
 
 func _get_damage_multiplier(owner) -> float:
 	var tier: int = _get_tier(owner)
+	var multiplier: float = 1.2
 	if tier >= 3:
-		return 2.0
-	if tier >= 2:
-		return 1.5
-	return 1.0
+		multiplier = 2.0
+	elif tier >= 2:
+		multiplier = 1.5
+	return multiplier + PLAYER_BUILD_SYSTEM.get_surging_wave_damage_multiplier_bonus(owner)

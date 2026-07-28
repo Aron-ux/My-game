@@ -9,6 +9,10 @@ static func update_timers(owner, delta: float) -> void:
 	owner.role_visual_time += delta
 	if owner.has_method("_tick_duration_statuses"):
 		owner._tick_duration_statuses(delta)
+	if owner.has_method("_tick_temporary_health_stacks"):
+		owner._tick_temporary_health_stacks(delta)
+	if owner.has_method("_tick_blessing_health_regen"):
+		owner._tick_blessing_health_regen(delta)
 	ROLE_RESOURCE_STATE.tick_locks(owner.role_ultimate_energy_lock_remaining, owner.roles, delta)
 	owner._sync_active_role_ultimate_state()
 	if owner.hurt_cooldown_remaining > 0.0:
@@ -35,12 +39,17 @@ static func update_timers(owner, delta: float) -> void:
 			owner.swordsman_death_defiance_cooldown_remaining = owner.SWORDSMAN_DEATH_DEFIANCE_COOLDOWN
 	if owner.swordsman_death_defiance_cooldown_remaining > 0.0:
 		owner.swordsman_death_defiance_cooldown_remaining = max(0.0, owner.swordsman_death_defiance_cooldown_remaining - delta)
+	if owner.swordsman_bloodthirst_cooldown_remaining > 0.0:
+		owner.swordsman_bloodthirst_cooldown_remaining = max(0.0, owner.swordsman_bloodthirst_cooldown_remaining - delta)
 	if owner.swordsman_entry_trait_share_remaining > 0.0:
+		var previous_bloodthirst_remaining: float = owner.swordsman_entry_trait_share_remaining
 		owner.swordsman_entry_trait_share_remaining = max(0.0, owner.swordsman_entry_trait_share_remaining - delta)
 		if owner.swordsman_entry_trait_share_remaining > 0.0:
 			owner.swordsman_bloodthirst_heal_multiplier = max(owner.swordsman_bloodthirst_heal_multiplier, 1.0)
 		else:
 			owner.swordsman_bloodthirst_heal_multiplier = 1.0
+			if previous_bloodthirst_remaining > 0.0:
+				owner.swordsman_bloodthirst_cooldown_remaining = max(owner.swordsman_bloodthirst_cooldown_remaining, owner.SWORDSMAN_BLOODTHIRST_INTERNAL_COOLDOWN)
 	else:
 		owner.swordsman_bloodthirst_heal_multiplier = 1.0
 	if owner.mage_arcane_surplus_remaining > 0.0:

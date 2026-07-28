@@ -2,6 +2,7 @@ extends RefCounted
 
 const PLAYER_STATE_FACTORY := preload("res://scripts/player/player_state_factory.gd")
 const ROLE_ATTRIBUTE_RULES := preload("res://scripts/player/roles/role_attribute_rules.gd")
+const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 
 const COMMON_PROSPERITY_KEY := "common_prosperity"
 const COMMON_PROSPERITY_TRAIT_GAIN := 0.35
@@ -78,14 +79,21 @@ static func get_attribute_mana_regen_per_second(_owner) -> float:
 	return 0.0
 
 
-static func get_attribute_dodge_chance(owner) -> float:
+static func get_attribute_dodge_value(owner) -> float:
 	var active_role_id: String = str(owner._get_active_role().get("id", "")) if owner != null and owner.has_method("_get_active_role") else ""
-	var dodge_chance: float = 0.0
-	if active_role_id == "gunner":
-		dodge_chance = ROLE_ATTRIBUTE_RULES.get_gunner_trait_dodge_chance(get_attribute_level(owner, ROLE_ATTRIBUTE_RULES.ATTR_GUNNER))
-	elif _is_role_in_background(owner, "gunner"):
-		dodge_chance = ROLE_ATTRIBUTE_RULES.get_gunner_trait_dodge_chance(get_attribute_level(owner, ROLE_ATTRIBUTE_RULES.ATTR_GUNNER)) * BACKGROUND_TRAIT_SUPPORT_RATIO
-	return dodge_chance
+	return get_role_attribute_dodge_value(owner, active_role_id)
+
+
+static func get_role_attribute_dodge_value(owner, role_id: String) -> float:
+	if owner == null:
+		return 0.0
+	if role_id == "gunner":
+		return ROLE_ATTRIBUTE_RULES.get_gunner_trait_dodge_value(get_attribute_level(owner, ROLE_ATTRIBUTE_RULES.ATTR_GUNNER))
+	return 0.0
+
+
+static func get_attribute_dodge_chance(owner) -> float:
+	return get_attribute_dodge_value(owner) / 100.0
 
 
 static func get_attribute_pickup_range_bonus(_owner) -> float:
@@ -94,6 +102,7 @@ static func get_attribute_pickup_range_bonus(_owner) -> float:
 
 static func get_swordsman_trait_heal_amount(owner) -> float:
 	var heal_amount: float = ROLE_ATTRIBUTE_RULES.get_swordsman_trait_heal_amount(get_attribute_level(owner, ROLE_ATTRIBUTE_RULES.ATTR_SWORDSMAN))
+	heal_amount += PLAYER_BUILD_SYSTEM.get_swordsman_trait_heal_bonus(owner)
 	if _is_role_in_background(owner, "swordsman"):
 		heal_amount *= BACKGROUND_TRAIT_SUPPORT_RATIO
 	return heal_amount
@@ -107,10 +116,12 @@ static func get_swordsman_trait_heal_proc_chance(owner) -> float:
 
 static func get_mage_kill_energy_proc_chance(owner) -> float:
 	var proc_chance: float = ROLE_ATTRIBUTE_RULES.get_mage_trait_kill_energy_proc_chance(get_attribute_level(owner, ROLE_ATTRIBUTE_RULES.ATTR_MAGE))
+	proc_chance += PLAYER_BUILD_SYSTEM.get_mage_arcane_charge_proc_chance_bonus(owner)
+	proc_chance = clamp(proc_chance, 0.0, 1.0)
 	if _is_role_active(owner, "mage"):
 		return proc_chance
 	if _is_role_in_background(owner, "mage"):
-		return proc_chance * BACKGROUND_TRAIT_SUPPORT_RATIO
+		return clamp(proc_chance * BACKGROUND_TRAIT_SUPPORT_RATIO, 0.0, 1.0)
 	return 0.0
 
 
@@ -132,10 +143,6 @@ static func _is_role_in_background(owner, role_id: String) -> bool:
 		if role_data is Dictionary and str((role_data as Dictionary).get("id", "")) == role_id:
 			return true
 	return false
-
-
-static func get_primary_attribute_damage_bonus(owner, role_id: String) -> float:
-	return ROLE_ATTRIBUTE_RULES.get_primary_attribute_damage_bonus(role_id, normalize_attribute_training_data(owner.attribute_training_levels))
 
 
 static func get_role_trait_level(owner, role_id: String) -> float:

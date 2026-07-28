@@ -41,7 +41,9 @@ static func build_from_player(owner) -> Dictionary:
 		"energy_gain_multiplier": owner.energy_gain_multiplier,
 		"background_interval_multiplier": owner.background_interval_multiplier,
 		"ultimate_cost_multiplier": owner.ultimate_cost_multiplier,
-		"damage_taken_multiplier": owner.damage_taken_multiplier,
+		"damage_reduction_value": owner._get_role_damage_reduction_value(role_id) if owner.has_method("_get_role_damage_reduction_value") else 0.0,
+		"damage_reduction_rate": owner._get_role_damage_reduction_rate(role_id) if owner.has_method("_get_role_damage_reduction_rate") else 0.0,
+		"damage_taken_multiplier": owner._get_effective_damage_taken_multiplier() if owner.has_method("_get_effective_damage_taken_multiplier") else 1.0,
 		"attribute_swordsman_trait_level": owner._get_attribute_level("swordsman_trait") if owner.has_method("_get_attribute_level") else 0.0,
 		"attribute_gunner_trait_level": owner._get_attribute_level("gunner_trait") if owner.has_method("_get_attribute_level") else 0.0,
 		"attribute_mage_trait_level": owner._get_attribute_level("mage_trait") if owner.has_method("_get_attribute_level") else 0.0,
@@ -135,6 +137,7 @@ static func _build_team_role_statuses(owner, active_role_id: String, include_des
 			cooldown_slots = owner._get_role_skill_cooldown_slots(role_id, attack_interval, include_descriptions)
 		var max_health: float = max(1.0, float(owner._get_role_max_health(role_id)) if owner.has_method("_get_role_max_health") else float(owner.max_health))
 		var current_health: float = clamp(float(owner._get_role_current_health(role_id)) if owner.has_method("_get_role_current_health") else float(owner.current_health), 0.0, max_health)
+		var temporary_health: float = max(0.0, float(owner._get_role_temporary_health(role_id)) if owner.has_method("_get_role_temporary_health") else float(owner.current_temporary_health))
 		var max_mana: float = max(1.0, float(owner.max_mana))
 		var current_mana: float = clamp(float(owner._get_role_mana(role_id)), 0.0, max_mana)
 		statuses.append({
@@ -143,6 +146,7 @@ static func _build_team_role_statuses(owner, active_role_id: String, include_des
 			"role_index": index,
 			"is_active": role_id == active_role_id,
 			"current_health": current_health,
+			"temporary_health": temporary_health,
 			"max_health": max_health,
 			"current_mana": current_mana,
 			"max_mana": max_mana,
@@ -230,6 +234,8 @@ static func build_stat_summary(context: Dictionary) -> Dictionary:
 		"energy_gain_multiplier": context.get("energy_gain_multiplier", 1.0),
 		"background_interval_multiplier": context.get("background_interval_multiplier", 1.0),
 		"ultimate_cost_multiplier": context.get("ultimate_cost_multiplier", 1.0),
+		"damage_reduction_value": context.get("damage_reduction_value", 0.0),
+		"damage_reduction_rate": context.get("damage_reduction_rate", 0.0),
 		"damage_taken_multiplier": context.get("damage_taken_multiplier", 1.0),
 		"attribute_swordsman_trait_level": context.get("attribute_swordsman_trait_level", 0.0),
 		"attribute_gunner_trait_level": context.get("attribute_gunner_trait_level", 0.0),

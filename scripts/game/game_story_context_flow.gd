@@ -21,10 +21,7 @@ static func apply_story_loadout(main: Node) -> void:
 	if not main.story_mode_active or main.player == null or not main.player.has_method("configure_story_loadout"):
 		return
 	var profile := SAVE_MANAGER.load_story_profile()
-	main.player.configure_story_loadout(
-		profile.get("team_order", ["swordsman", "gunner", "mage"]),
-		profile.get("equipped_styles", {})
-	)
+	main.player.configure_story_loadout(profile.get("team_order", ["swordsman", "gunner", "mage"]))
 
 static func get_effective_boss_spawn_time(main: Node) -> float:
 	return ENEMY_DIRECTOR.get_effective_boss_spawn_time(

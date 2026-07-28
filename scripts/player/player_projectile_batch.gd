@@ -293,6 +293,8 @@ func _find_hit_enemy(projectile_index: int, grid: Dictionary) -> Node2D:
 			for enemy in grid[cell] as Array:
 				if enemy == null or not is_instance_valid(enemy) or enemy is not Node2D:
 					continue
+				if not PLAYER_DAMAGE_RESOLVER._is_live_enemy(enemy):
+					continue
 				if _has_projectile_hit_enemy(projectile_index, enemy as Node2D):
 					continue
 				if _projectile_hits_enemy_shape(projectile_position, hit_radii[projectile_index], enemy as Node2D, enemy_hit_radius_scales[projectile_index], enemy_hit_radius_mins[projectile_index], enemy_hit_radius_maxs[projectile_index]):

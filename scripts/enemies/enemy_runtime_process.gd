@@ -32,13 +32,15 @@ static func physics_process(enemy, delta: float) -> void:
 		enemy.ENEMY_OCCLUSION_SORT.update_scene_from_occluder(enemy)
 	if enemy.status_root != null or enemy.boss_visual_instance != null or enemy.hit_flash_remaining > 0.0 or enemy._has_status_visual_pressure():
 		enemy.status_visual_time += delta
-	if enemy.hit_flash_remaining > 0.0:
+	var had_hit_flash: bool = enemy.hit_flash_remaining > 0.0
+	if had_hit_flash:
 		enemy.hit_flash_remaining = max(0.0, enemy.hit_flash_remaining - delta)
+	var hit_flash_finished: bool = had_hit_flash and enemy.hit_flash_remaining <= 0.0
 	if enemy.slow_timer > 0.0 or enemy.vulnerability_timer > 0.0 or enemy.bleed_timer > 0.0 or enemy.skull_soldier_speed_timer > 0.0 or enemy.skull_damage_immune_timer > 0.0 or enemy.skullshot_attack_frequency_timer > 0.0:
 		enemy._update_status_timers(delta)
 	if enemy.bleed_timer > 0.0 and enemy.bleed_damage_per_second > 0.0:
 		enemy._update_bleed(delta)
-	if (enemy.status_root != null or enemy.hit_flash_remaining > 0.0 or enemy._has_status_visual_pressure() or enemy.skull_damage_immune_timer > 0.0 or enemy.boss_phase_three_intro_remaining > 0.0) and enemy._should_update_status_visual_frame():
+	if (enemy.status_root != null or had_hit_flash or enemy.hit_flash_remaining > 0.0 or enemy._has_status_visual_pressure() or enemy.skull_damage_immune_timer > 0.0 or enemy.boss_phase_three_intro_remaining > 0.0) and (hit_flash_finished or enemy._should_update_status_visual_frame()):
 		enemy._update_status_visuals()
 
 	if enemy.target == null or not is_instance_valid(enemy.target):

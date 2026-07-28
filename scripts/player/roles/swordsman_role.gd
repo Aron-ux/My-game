@@ -1,5 +1,7 @@
 extends RefCounted
 
+const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
+
 const BASIC_COMBO_INTERVAL := 0.14
 const ULTIMATE_SKILL_ID := "swordsman_ultimate"
 const ULTIMATE_BASE_DURATION := 3.0
@@ -17,6 +19,15 @@ const ULTIMATE_TIER_THREE_VISUAL_HIT_SCALE := 1.38
 const ULTIMATE_TIER_THREE_DAMAGE_MULTIPLIER := 1.0
 const ENTRY_INVULNERABILITY_DURATION := 3.0
 const POST_ULTIMATE_BLOODTHIRST_DURATION := 4.5
+func _try_start_bloodthirst(owner, duration: float, heal_multiplier: float) -> bool:
+	if owner.swordsman_entry_trait_share_remaining > 0.0:
+		return false
+	if owner.swordsman_bloodthirst_cooldown_remaining > 0.0:
+		return false
+	owner.swordsman_entry_trait_share_remaining = max(0.0, duration)
+	owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, duration)
+	owner.swordsman_bloodthirst_heal_multiplier = max(owner.swordsman_bloodthirst_heal_multiplier, heal_multiplier)
+	return true
 
 func perform_attack(owner) -> void:
 	var base_direction: Vector2 = owner._get_attack_aim_direction(owner.facing_direction)
@@ -42,14 +53,14 @@ func _perform_attack_variant(owner, attack_direction: Vector2, effect_scale: flo
 	var normal_attack_scale: float = owner._get_swordsman_normal_attack_scale(heart_level)
 	var normal_attack_width_scale: float = owner._get_swordsman_normal_attack_width_scale(heart_level)
 	var basic_range_multiplier: float = _get_basic_attack_range_multiplier(owner)
-	var attack_range: float = (float(role_data["range"]) + float(upgrade_data.get("range_bonus", 0.0))) * owner._get_story_style_range_multiplier(role_data["id"]) * basic_range_multiplier
-	var attack_damage: float = owner._get_role_damage(role_data["id"]) * 1.5 * max(0.0, effect_scale)
+	var attack_range: float = (float(role_data["range"]) + float(upgrade_data.get("range_bonus", 0.0))) * owner._get_role_attribute_range_multiplier(role_data["id"]) * owner._get_role_equipment_skill_range_multiplier(role_data["id"]) * basic_range_multiplier
+	var attack_damage: float = owner._get_role_damage(role_data["id"]) * 1.5 * max(0.0, effect_scale) * PLAYER_BUILD_SYSTEM.get_basic_attack_damage_multiplier(owner, "swordsman")
 	var slash_axis: Vector2 = owner._get_downward_perpendicular(attack_direction)
 	var slash_mirror: bool = attack_direction.x > 0.0
-	var slash_length: float = (58.0 + float(upgrade_data.get("range_bonus", 0.0)) * 0.19) * owner._get_story_style_range_multiplier(role_data["id"]) * basic_range_multiplier
-	var slash_width: float = 8.0 * normal_attack_width_scale
+	var slash_length: float = (58.0 + float(upgrade_data.get("range_bonus", 0.0)) * 0.19) * owner._get_role_attribute_range_multiplier(role_data["id"]) * owner._get_role_equipment_skill_range_multiplier(role_data["id"]) * basic_range_multiplier
+	var slash_width: float = 8.0 * normal_attack_width_scale * basic_range_multiplier
 	var slash_forward_distance: float = 42.0
-	var style_color: Color = Color(0.48, 0.86, 1.0, 0.95) if owner._get_story_style_id(role_data["id"]) == "moon_edge" else Color(1.0, 0.74, 0.34, 0.95)
+	var slash_color: Color = Color(1.0, 0.74, 0.34, 0.95)
 	slash_length *= normal_attack_scale
 	var slash_visual_width: float = _get_slash_visual_width(slash_width)
 	var slash_mirror_forward_offset: float = _get_slash_mirror_forward_offset(owner, slash_visual_width)
@@ -60,7 +71,7 @@ func _perform_attack_variant(owner, attack_direction: Vector2, effect_scale: flo
 		slash_effect_center,
 		slash_axis,
 		slash_length * 0.5,
-		style_color,
+		slash_color,
 		0.16,
 		slash_width,
 		slash_mirror
@@ -111,9 +122,11 @@ func _get_skill_effect_scales(owner, stat: String) -> Array[float]:
 	return []
 
 func _get_basic_attack_range_multiplier(owner) -> float:
+	var multiplier: float = 1.0
 	if owner != null and owner.has_method("_get_basic_attack_range_multiplier"):
-		return float(owner._get_basic_attack_range_multiplier("swordsman_basic_attack"))
-	return 1.0
+		multiplier *= float(owner._get_basic_attack_range_multiplier("swordsman_basic_attack"))
+	multiplier *= PLAYER_BUILD_SYSTEM.get_basic_attack_range_multiplier(owner, "swordsman")
+	return multiplier
 
 func _uses_batched_basic_attack_damage(owner) -> bool:
 	return owner != null and owner.has_method("_damage_enemies_in_oriented_rect_unique")
@@ -143,7 +156,7 @@ func perform_background(owner) -> void:
 		owner._damage_enemies_in_line(owner.global_position, target_enemy.global_position, bg_thrust_width, damage_amount * 0.5, 0.04 * thrust_level, 1.0, 0.0, "swordsman")
 	owner._register_attack_result("swordsman", 1, killed)
 
-func perform_enter(owner, role_id: String, _assault_level: int, _assault_multiplier: float) -> int:
+func perform_enter(owner, role_id: String, _assault_level: int, assault_multiplier: float) -> int:
 	var previous_position: Vector2 = owner.global_position
 	var travel_direction: Vector2 = owner._get_live_mouse_aim_direction(owner.facing_direction)
 	if travel_direction.length_squared() <= 0.001:
@@ -159,12 +172,10 @@ func perform_enter(owner, role_id: String, _assault_level: int, _assault_multipl
 	var scar_center: Vector2 = previous_position.lerp(scar_end, 0.5)
 	var scar_length: float = previous_position.distance_to(scar_end)
 	owner._spawn_sword_omnislash_scene_effect(scar_center, travel_direction, scar_length, scar_width * 1.08)
-	owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, ENTRY_INVULNERABILITY_DURATION)
-	owner.swordsman_entry_trait_share_remaining = max(owner.swordsman_entry_trait_share_remaining, ENTRY_INVULNERABILITY_DURATION)
-	owner.swordsman_bloodthirst_heal_multiplier = max(owner.swordsman_bloodthirst_heal_multiplier, 1.0)
+	_try_start_bloodthirst(owner, ENTRY_INVULNERABILITY_DURATION, 1.0)
 	owner._push_attack_result_context_tag("suppress_swordsman_trait_heal")
 	owner._push_attack_result_context_tag("suppress_greed_heal")
-	var hits: int = owner._damage_enemies_in_line(previous_position, scar_end, scar_width, owner._get_role_damage(role_id) * 1.5, 0.1, 1.0, 0.0, role_id)
+	var hits: int = owner._damage_enemies_in_line(previous_position, scar_end, scar_width, owner._get_role_damage(role_id) * 1.5 * max(0.0, assault_multiplier), 0.1, 1.0, 0.0, role_id)
 	owner._pop_attack_result_context_tag("suppress_greed_heal")
 	owner._pop_attack_result_context_tag("suppress_swordsman_trait_heal")
 	return hits
@@ -211,17 +222,13 @@ func perform_ultimate(owner, cast_payload: Dictionary) -> void:
 			owner._pop_attack_result_context_tag("suppress_greed_heal")
 			owner._pop_attack_result_context_tag("suppress_swordsman_trait_heal")
 			owner.swordsman_ultimate_crit_bonus_chance = 0.0
-			owner.swordsman_entry_trait_share_remaining = max(owner.swordsman_entry_trait_share_remaining, POST_ULTIMATE_BLOODTHIRST_DURATION)
-			owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, POST_ULTIMATE_BLOODTHIRST_DURATION)
-			owner.swordsman_bloodthirst_heal_multiplier = max(owner.swordsman_bloodthirst_heal_multiplier, 1.5)
+			_try_start_bloodthirst(owner, POST_ULTIMATE_BLOODTHIRST_DURATION, 1.5)
 		, total_sequence_duration)
 	else:
 		owner._pop_attack_result_context_tag("suppress_greed_heal")
 		owner._pop_attack_result_context_tag("suppress_swordsman_trait_heal")
 		owner.swordsman_ultimate_crit_bonus_chance = 0.0
-		owner.swordsman_entry_trait_share_remaining = max(owner.swordsman_entry_trait_share_remaining, POST_ULTIMATE_BLOODTHIRST_DURATION)
-		owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, POST_ULTIMATE_BLOODTHIRST_DURATION)
-		owner.swordsman_bloodthirst_heal_multiplier = max(owner.swordsman_bloodthirst_heal_multiplier, 1.5)
+		_try_start_bloodthirst(owner, POST_ULTIMATE_BLOODTHIRST_DURATION, 1.5)
 
 func _schedule_ultimate_sequence(owner, slash_scales: Array[float], pursuit_level: int, crescent_level: int, thrust_level: int, cast_damage_multiplier: float, ultimate_tier: int, start_delay: float, combo_start_index: int = -1, combo_end_index: int = -1) -> void:
 	var slash_count: int = slash_scales.size()
@@ -340,6 +347,7 @@ func _get_ultimate_damage_multiplier(owner, cast_payload: Dictionary) -> float:
 	var multiplier: float = float(cast_payload.get("damage_multiplier", 1.0))
 	if owner != null and owner.has_method("_get_blessing_ultimate_damage_multiplier"):
 		multiplier *= float(owner._get_blessing_ultimate_damage_multiplier(ULTIMATE_SKILL_ID))
+	multiplier *= PLAYER_BUILD_SYSTEM.get_swordsman_ultimate_damage_multiplier(owner)
 	return multiplier
 
 func _get_ultimate_special_effect_multiplier(owner) -> float:

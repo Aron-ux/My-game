@@ -5,6 +5,7 @@ const PLAYER_SKILL_COOLDOWN_FLOW := preload("res://scripts/player/player_skill_c
 const PLAYER_SWITCH_BANNER_FLOW := preload("res://scripts/player/player_switch_banner_flow.gd")
 const PLAYER_SWITCH_ENTRY_FLOW := preload("res://scripts/player/player_switch_entry_flow.gd")
 const PLAYER_SWITCH_JOB_QUEUE := preload("res://scripts/player/player_switch_job_queue.gd")
+const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 
 const ROLE_SWITCH_COOLDOWN := 0.5
 const SWITCH_INVULNERABILITY := 0.1
@@ -171,6 +172,8 @@ static func try_switch_role(owner, new_role_index: int) -> void:
 	var should_trigger_entry: bool = owner.has_method("_consume_switch_energy_for_entry") and owner._consume_switch_energy_for_entry(previous_role_id)
 	if owner.has_method("_save_active_role_health"):
 		owner._save_active_role_health()
+	if owner.has_method("_save_active_role_temporary_health"):
+		owner._save_active_role_temporary_health()
 	if previous_role_id == "gunner" and owner.has_method("_clear_gunner_flash_trait_on_switch"):
 		owner._clear_gunner_flash_trait_on_switch()
 	apply_exit_skill(owner, previous_role_index)
@@ -223,6 +226,9 @@ static func apply_enter_skill(owner, role_index: int) -> int:
 	var role_id: String = owner.roles[role_index]["id"]
 	var assault_level: int = 0
 	var assault_multiplier: float = 1.0 + float(assault_level) * 0.16
+	if owner.has_method("_get_role_blessing_stat_bonus"):
+		assault_multiplier *= max(0.0, 1.0 + float(owner._get_role_blessing_stat_bonus(role_id, "entry_damage")))
+	assault_multiplier *= PLAYER_BUILD_SYSTEM.get_entry_damage_multiplier(owner, role_id)
 	owner._queue_camera_shake(5.0, 0.12)
 	owner._pulse_player_visual(1.14, 0.14)
 	match role_id:

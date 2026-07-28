@@ -466,6 +466,9 @@ func apply_save_data(data: Dictionary, target_node: Node2D) -> void:
 func _play_hit_feedback(damage_amount: float, killed: bool, is_critical: bool = false) -> void:
 	ENEMY_HIT_FEEDBACK.play_hit_feedback(self, damage_amount, killed, is_critical)
 
+func _play_light_hit_feedback() -> void:
+	ENEMY_HIT_FEEDBACK.play_light_hit_feedback(self)
+
 func _get_hit_flash_alpha() -> float:
 	return ENEMY_HIT_FEEDBACK.get_hit_flash_alpha(hit_flash_remaining)
 

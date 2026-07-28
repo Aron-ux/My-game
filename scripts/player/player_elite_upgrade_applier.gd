@@ -1,5 +1,7 @@
 extends RefCounted
 
+const PLAYER_COMBAT_MODIFIERS := preload("res://scripts/player/player_combat_modifiers.gd")
+
 
 static func apply_elite_upgrade(owner, option_id: String) -> void:
 	owner._unlock_elite_relic(option_id)
@@ -7,7 +9,7 @@ static func apply_elite_upgrade(owner, option_id: String) -> void:
 		"elite_behemoth":
 			owner.max_health += 45.0
 			owner.current_health = min(owner.max_health, owner.current_health + 45.0)
-			owner.damage_taken_multiplier = max(0.48, owner.damage_taken_multiplier - 0.08)
+			owner.passive_damage_reduction_value += PLAYER_COMBAT_MODIFIERS.damage_reduction_value_from_rate(0.08)
 			owner.health_changed.emit(owner.current_health, owner.max_health)
 		"elite_gale":
 			owner.speed += 30.0

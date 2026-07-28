@@ -39,9 +39,9 @@ func _check_milestone_totals() -> void:
 	if total_to_12 < 1680 or total_to_12 > 1920:
 		failures.append("level 12 total should still be reachable before midgame slowdown, got %d" % total_to_12)
 	if total_to_18 < 13200 or total_to_18 > 13760:
-		failures.append("level 18 total should target roughly 12-minute level 18 pacing, got %d" % total_to_18)
-	if total_to_25 < 55600 or total_to_25 > 59600:
-		failures.append("level 25 total should strongly slow late endless progression, got %d" % total_to_25)
+		failures.append("level 18 total should preserve the pre-20 pacing baseline, got %d" % total_to_18)
+	if total_to_25 < 50500 or total_to_25 > 52500:
+		failures.append("level 25 total should follow the post-20 first-cycle pacing target, got %d" % total_to_25)
 
 func _check_save_normalization() -> void:
 	var old_required := 10366

@@ -4,11 +4,13 @@ const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
 const PLAYER_DAMAGE_RESOLVER := preload("res://scripts/player/player_damage_resolver.gd")
 const PLAYER_BLESSING_SYSTEM := preload("res://scripts/player/player_blessing_system.gd")
 const ROLE_ATTRIBUTE_RULES := preload("res://scripts/player/roles/role_attribute_rules.gd")
+const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 
 const ULTIMATE_ENERGY_GAIN_GLOBAL_MULTIPLIER := 0.9295
 const ULTIMATE_ENERGY_GAIN_OUTPUT_MULTIPLIER := 0.625
 const BOSS_DAMAGE_ENERGY_OUTPUT_MULTIPLIER := 1.0
 const SMALL_ENEMY_KILL_ENERGY_MULTIPLIER := 0.75
+const KILL_AND_SPECIAL_DAMAGE_ENERGY_MULTIPLIER := 1.20
 const BACKGROUND_ULTIMATE_ENERGY_GAIN_RATIO := 0.3
 const LIFESTEAL_PROC_HEAL_AMOUNT := 1.0
 const LIFESTEAL_PROC_COOLDOWN := 0.15
@@ -16,6 +18,7 @@ const SWORDSMAN_TRAIT_HEAL_COOLDOWN := 1.0
 const GREED_HEAL_COOLDOWN := 1.0
 const LIFESTEAL_MAX_ROLL_HITS := 6
 const LIFESTEAL_MAX_PROC_CHANCE := 0.80
+const SWORDSMAN_TRAIT_MAX_ROLL_HITS := ROLE_ATTRIBUTE_RULES.SWORDSMAN_TRAIT_MAX_ROLL_HITS
 
 
 static func add_kill_energy(owner, amount: float, bypass_lock_role_id: String = "", source_role_id: String = "") -> void:
@@ -59,27 +62,27 @@ static func get_kill_energy_from_enemy(enemy: Node) -> float:
 	if enemy == null or not is_instance_valid(enemy):
 		return 0.0
 	var enemy_kind: String = str(enemy.get("enemy_kind"))
-	if enemy_kind == "boss":
+	if enemy_kind in ["boss", "small_boss"]:
 		return 0.0
 	if enemy_kind == "elite":
-		return 10.0 * SMALL_ENEMY_KILL_ENERGY_MULTIPLIER
+		return 10.0 * SMALL_ENEMY_KILL_ENERGY_MULTIPLIER * KILL_AND_SPECIAL_DAMAGE_ENERGY_MULTIPLIER
 	var reward_tier: int = int(enemy.get("reward_tier"))
 	match reward_tier:
 		2:
-			return 1.1 * SMALL_ENEMY_KILL_ENERGY_MULTIPLIER
+			return 1.1 * SMALL_ENEMY_KILL_ENERGY_MULTIPLIER * KILL_AND_SPECIAL_DAMAGE_ENERGY_MULTIPLIER
 		3:
-			return 1.5 * SMALL_ENEMY_KILL_ENERGY_MULTIPLIER
+			return 1.5 * SMALL_ENEMY_KILL_ENERGY_MULTIPLIER * KILL_AND_SPECIAL_DAMAGE_ENERGY_MULTIPLIER
 		4:
-			return 2.0 * SMALL_ENEMY_KILL_ENERGY_MULTIPLIER
+			return 2.0 * SMALL_ENEMY_KILL_ENERGY_MULTIPLIER * KILL_AND_SPECIAL_DAMAGE_ENERGY_MULTIPLIER
 		_:
-			return 0.8 * SMALL_ENEMY_KILL_ENERGY_MULTIPLIER
+			return 0.8 * SMALL_ENEMY_KILL_ENERGY_MULTIPLIER * KILL_AND_SPECIAL_DAMAGE_ENERGY_MULTIPLIER
 
 
 static func get_boss_damage_energy(damage_amount: float) -> float:
 	if damage_amount <= 0.0:
 		return 0.0
 	var energy_amount: float = sqrt(damage_amount) * 0.18
-	return clamp(energy_amount, 0.25, 2.0)
+	return clamp(energy_amount, 0.25, 2.0) * KILL_AND_SPECIAL_DAMAGE_ENERGY_MULTIPLIER
 
 
 static func register_attack_result(owner, role_id: String, hit_count: int, killed: bool, kill_count: int = 0) -> void:
@@ -122,10 +125,10 @@ static func apply_swordsman_trait_heal_on_hit(owner, role_id: String, hit_count:
 		return
 	var proc_chance: float = owner._get_swordsman_trait_heal_proc_chance() if owner.has_method("_get_swordsman_trait_heal_proc_chance") else 0.0
 	var heal_ratio: float = owner._get_swordsman_trait_heal_amount() if owner.has_method("_get_swordsman_trait_heal_amount") else 0.0
-	var missing_heal_ratio: float = ROLE_ATTRIBUTE_RULES.SWORDSMAN_TRAIT_MISSING_HEAL_RATIO
+	var missing_heal_ratio: float = ROLE_ATTRIBUTE_RULES.SWORDSMAN_TRAIT_MISSING_HEAL_RATIO + PLAYER_BUILD_SYSTEM.get_swordsman_trait_heal_bonus(owner)
 	if proc_chance <= 0.0 or (heal_ratio <= 0.0 and missing_heal_ratio <= 0.0):
 		return
-	var max_trigger_count: int = min(hit_count, LIFESTEAL_MAX_ROLL_HITS)
+	var max_trigger_count: int = min(hit_count, SWORDSMAN_TRAIT_MAX_ROLL_HITS + PLAYER_BUILD_SYSTEM.get_swordsman_trait_extra_rolls(owner))
 	var successful_triggers: int = 0
 	for _index in range(max_trigger_count):
 		if randf() > clamp(proc_chance, 0.0, 1.0):
@@ -179,14 +182,17 @@ static func apply_greed_heal_on_hit(owner, role_id: String, hit_count: int) -> v
 	if owner.greed_heal_cooldown_remaining > 0.0:
 		return
 	var proc_chance: float = PLAYER_BLESSING_SYSTEM.get_greed_proc_chance(owner)
-	var heal_ratio: float = PLAYER_BLESSING_SYSTEM.get_greed_heal_ratio(owner)
-	if proc_chance <= 0.0 or heal_ratio <= 0.0:
+	var heal_amount_per_trigger: float = PLAYER_BLESSING_SYSTEM.get_greed_heal_amount(owner, role_id)
+	if proc_chance <= 0.0 or heal_amount_per_trigger <= 0.0:
 		return
-	var proc_rolls: int = max(1, min(hit_count, LIFESTEAL_MAX_ROLL_HITS))
-	var combined_chance: float = 1.0 - pow(max(0.0, 1.0 - clamp(proc_chance, 0.0, 1.0)), float(proc_rolls))
-	if combined_chance <= 0.0 or randf() > combined_chance:
+	var proc_rolls: int = max(1, min(hit_count, PLAYER_BLESSING_SYSTEM.get_greed_max_roll_hits(owner)))
+	var successful_triggers: int = 0
+	for _index in range(proc_rolls):
+		if randf() <= clamp(proc_chance, 0.0, 1.0):
+			successful_triggers += 1
+	if successful_triggers <= 0:
 		return
-	var heal_amount: float = _get_role_max_health_value(owner, role_id) * heal_ratio
+	var heal_amount: float = heal_amount_per_trigger * float(successful_triggers)
 	if heal_amount <= 0.0:
 		return
 	owner.greed_heal_cooldown_remaining = GREED_HEAL_COOLDOWN

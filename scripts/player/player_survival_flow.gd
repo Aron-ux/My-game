@@ -3,7 +3,9 @@ extends RefCounted
 const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
 const GAME_SETTINGS := preload("res://scripts/game_settings.gd")
 const PLAYER_LEVEL_CURVE := preload("res://scripts/player/player_level_curve.gd")
+const PLAYER_LEVEL_FLOW := preload("res://scripts/player/player_level_flow.gd")
 const PLAYER_TARGETING := preload("res://scripts/player/player_targeting.gd")
+const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 
 const EXPERIENCE_GAIN_MULTIPLIER := 2.43
 const EXPERIENCE_FRACTION_CARRY_KEY := "__experience_fraction_carry"
@@ -13,6 +15,7 @@ const PICKUP_SCAN_BATCH_SIZE := 80
 const HEART_SCAN_BATCH_SIZE := 28
 const SWORDSMAN_DEATH_DEFIANCE_COOLDOWN := 80.0
 const SWORDSMAN_DEATH_DEFIANCE_INVULNERABILITY := 1.5
+const DEATH_HEALTH_BAR_ANIMATION_DELAY := 0.95
 
 static func unhandled_input(owner, event: InputEvent) -> void:
 	if owner.is_dead or owner.get_tree().paused:
@@ -45,6 +48,9 @@ static func physics_process(owner, delta: float) -> void:
 	if owner.is_dead:
 		owner.velocity = Vector2.ZERO
 		owner.move_and_slide()
+		if owner.has_method("_update_player_health_bar"):
+			owner._update_player_health_bar(owner._get_active_role())
+		_tick_death_sequence(owner, delta)
 		return
 
 	owner._update_timers(delta)
@@ -295,7 +301,7 @@ static func gain_experience(owner, amount: int) -> void:
 		owner.experience -= owner.experience_to_next_level
 		owner.level += 1
 		owner.experience_to_next_level = PLAYER_LEVEL_CURVE.get_next_required_experience_after_level_up(owner.level)
-		owner.pending_level_ups += 1
+		PLAYER_LEVEL_FLOW.handle_reached_level(owner, owner.level)
 		level_up_guard += 1
 	if level_up_guard >= 100:
 		owner.experience = min(owner.experience, max(0, owner.experience_to_next_level - 1))
@@ -322,7 +328,7 @@ static func _get_adjusted_experience_gain(owner, amount: int) -> int:
 static func grant_developer_level_up(owner) -> void:
 	owner.level += 1
 	owner.experience_to_next_level = PLAYER_LEVEL_CURVE.get_next_required_experience_after_level_up(owner.level)
-	owner.pending_level_ups += 1
+	PLAYER_LEVEL_FLOW.handle_reached_level(owner, owner.level)
 	owner.experience_changed.emit(owner.experience, owner.experience_to_next_level, owner.level)
 	owner._try_request_level_up()
 
@@ -344,7 +350,15 @@ static func take_damage(owner, amount: float) -> void:
 			amount *= max(0.84, 0.96 - min(nearby_enemy_count, 3) * 0.04)
 
 	var adjusted_damage: float = amount * owner._get_effective_damage_taken_multiplier()
-	owner.current_health = max(0.0, owner.current_health - adjusted_damage)
+	var remaining_damage: float = adjusted_damage
+	if adjusted_damage > 0.0 and owner.current_temporary_health > 0.0:
+		var absorbed_damage: float = owner._consume_temporary_health(adjusted_damage) if owner.has_method("_consume_temporary_health") else min(owner.current_temporary_health, adjusted_damage)
+		if not owner.has_method("_consume_temporary_health"):
+			owner.current_temporary_health = max(0.0, owner.current_temporary_health - absorbed_damage)
+		remaining_damage = max(0.0, remaining_damage - absorbed_damage)
+		if not owner.has_method("_consume_temporary_health") and owner.has_method("_save_active_role_temporary_health"):
+			owner._save_active_role_temporary_health()
+	owner.current_health = max(0.0, owner.current_health - remaining_damage)
 	if adjusted_damage > 0.0 and owner.has_method("_break_gunner_flash_trait"):
 		owner._break_gunner_flash_trait()
 	if owner.current_health <= 0.0 and _try_trigger_swordsman_death_defiance(owner):
@@ -356,6 +370,28 @@ static func take_damage(owner, amount: float) -> void:
 	owner._play_player_hurt_feedback()
 
 	if owner.current_health <= 0.0:
+		_start_death_sequence(owner)
+
+
+static func _start_death_sequence(owner) -> void:
+	if owner.death_sequence_pending:
+		return
+	owner.death_sequence_pending = true
+	owner.death_sequence_remaining = DEATH_HEALTH_BAR_ANIMATION_DELAY
+	owner.is_dead = true
+	owner.level_up_active = false
+	owner.velocity = Vector2.ZERO
+	if owner.fire_timer != null:
+		owner.fire_timer.stop()
+	if owner.has_method("_update_player_health_bar"):
+		owner._update_player_health_bar(owner._get_active_role())
+
+
+static func _tick_death_sequence(owner, delta: float) -> void:
+	if not owner.death_sequence_pending:
+		return
+	owner.death_sequence_remaining = max(0.0, owner.death_sequence_remaining - max(delta, 0.0))
+	if owner.death_sequence_remaining <= 0.0:
 		owner._die()
 
 
@@ -369,8 +405,9 @@ static func _try_trigger_swordsman_death_defiance(owner) -> bool:
 	owner.current_health = 1.0
 	if owner.has_method("_save_active_role_health"):
 		owner._save_active_role_health()
-	owner.swordsman_death_defiance_will_remaining = SWORDSMAN_DEATH_DEFIANCE_INVULNERABILITY
-	owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, SWORDSMAN_DEATH_DEFIANCE_INVULNERABILITY)
+	var invulnerability_duration: float = SWORDSMAN_DEATH_DEFIANCE_INVULNERABILITY + PLAYER_BUILD_SYSTEM.get_swordsman_knight_glory_duration_bonus(owner)
+	owner.swordsman_death_defiance_will_remaining = invulnerability_duration
+	owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, invulnerability_duration)
 	owner.hurt_cooldown_remaining = owner.hurt_cooldown
 	owner.health_changed.emit(owner.current_health, owner.max_health)
 	if owner.has_method("_sync_invulnerability_status"):

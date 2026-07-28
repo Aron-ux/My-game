@@ -10,6 +10,8 @@ const EXACT_KEYS := [
 	"experience_to_next_level",
 	"pending_level_ups",
 	"role_health_values",
+	"temporary_health_stacks",
+	"role_temporary_health_values",
 	"role_mana_values",
 	"role_ultimate_energy_lock_remaining",
 	"hurt_cooldown_remaining",
@@ -78,14 +80,14 @@ const EXACT_KEYS := [
 	"owned_magic_stones",
 	"blessing_skill_state",
 	"role_special_states",
-	"roles",
-	"story_equipped_styles"
+	"roles"
 ]
 
 const APPROX_KEYS := [
 	"max_health",
 	"max_mana",
 	"current_health",
+	"current_temporary_health",
 	"current_mana",
 	"ultimate_energy_lock_remaining",
 	"speed",
@@ -95,6 +97,7 @@ const APPROX_KEYS := [
 	"background_interval_multiplier",
 	"ultimate_cost_multiplier",
 	"damage_taken_multiplier",
+	"passive_damage_reduction_value",
 	"equipment_damage_multiplier_bonus",
 	"equipment_speed_bonus",
 	"equipment_max_health_bonus",
@@ -103,6 +106,7 @@ const APPROX_KEYS := [
 	"equipment_health_regen_per_second",
 	"equipment_low_health_threshold",
 	"equipment_low_health_damage_taken_multiplier",
+	"equipment_low_health_damage_reduction_value",
 	"equipment_skill_range_multiplier",
 	"equipment_cooldown_multiplier",
 	"role_switch_cooldown_bonus"
@@ -163,6 +167,15 @@ func _seed_run_state(player: Node) -> void:
 		"gunner": 81.0,
 		"mage": 73.0
 	}
+	player.role_temporary_health_values = {
+		"swordsman": 21.0,
+		"gunner": 21.0,
+		"mage": 21.0
+	}
+	player.temporary_health_stacks = [
+		{"amount": 10.0, "remaining": 28.0},
+		{"amount": 11.0, "remaining": 30.0}
+	]
 	player.role_mana_values = {
 		"swordsman": 11.0,
 		"gunner": 64.0,
@@ -174,6 +187,7 @@ func _seed_run_state(player: Node) -> void:
 		"mage": 2.8
 	}
 	player.current_health = 81.0
+	player.current_temporary_health = 21.0
 	player.current_mana = 64.0
 	player.max_mana = 145.0
 
@@ -217,11 +231,6 @@ func _seed_run_state(player: Node) -> void:
 	player.elite_relics_unlocked = {"stability_relic": true}
 	player.role_special_states["swordsman"] = {"ultimate_lifesteal_multiplier_remaining": 3.0}
 	player.role_special_states["gunner"] = {"lock_bonus_stacks": 2}
-	player.story_equipped_styles = {
-		"swordsman": "default",
-		"gunner": "default",
-		"mage": "default"
-	}
 
 	PLAYER_BLESSING_SYSTEM.apply_blessing(player, "divine_grace", 1)
 	PLAYER_BLESSING_SYSTEM.apply_blessing(player, "blazing_sun", 2)

@@ -31,7 +31,7 @@ const ULTIMATE_DISPLAY_OVERRIDE := {
 	},
 	"gunner": {
 		"name": "火箭弹幕",
-		"description": "枪手大招：向目标方向释放持续弹幕，并用锥形区域造成伤害。持续4秒，期间闪避+30%，移动速度提升至1.3倍。"
+		"description": "枪手大招：向目标方向释放持续弹幕，并用锥形区域造成伤害。持续4秒，期间临时闪避强化+45%，移动速度提升至1.3倍。"
 	},
 	"mage": {
 		"name": "奥数轰炸",
@@ -80,8 +80,6 @@ static func _make_ultimate_enhancement_description(_owner, _role_id: String) -> 
 
 static func can_use_ultimate(owner) -> bool:
 	if owner.has_method("_is_player_action_locked") and owner._is_player_action_locked():
-		return false
-	if owner._get_active_role_id() == "gunner" and owner.is_gunner_infinite_reload_active():
 		return false
 	if DEVELOPER_MODE.should_unlock_ultimate_freely():
 		return true

@@ -365,33 +365,6 @@ static func complete_current_story_stage(material_reward: int = 0) -> Dictionary
 	clear_save()
 	return profile
 
-static func unlock_style(role_id: String, style_id: String) -> bool:
-	var profile := load_story_profile()
-	if profile.is_empty():
-		return false
-	var unlocked_styles: Dictionary = profile.get("unlocked_styles", {}).duplicate(true)
-	var role_styles: Array = unlocked_styles.get(role_id, []).duplicate()
-	if role_styles.has(style_id):
-		return true
-	var boss_cores: int = int(profile.get("boss_core_fragments", 0))
-	if boss_cores <= 0:
-		return false
-	role_styles.append(style_id)
-	unlocked_styles[role_id] = role_styles
-	profile["unlocked_styles"] = unlocked_styles
-	profile["boss_core_fragments"] = boss_cores - 1
-	save_story_profile(profile)
-	return true
-
-static func equip_style(role_id: String, style_id: String) -> void:
-	var profile := load_story_profile()
-	if profile.is_empty():
-		return
-	var equipped_styles: Dictionary = profile.get("equipped_styles", {}).duplicate(true)
-	equipped_styles[role_id] = style_id
-	profile["equipped_styles"] = equipped_styles
-	save_story_profile(profile)
-
 static func update_team_order(team_order: Array) -> void:
 	var profile := load_story_profile()
 	if profile.is_empty():

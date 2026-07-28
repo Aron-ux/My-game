@@ -1,32 +1,35 @@
 extends RefCounted
 
 const PLAYER_AUTHORED_EFFECTS := preload("res://scripts/player/player_authored_effects.gd")
-const COOLDOWN := 19.0
-const BASE_DURATION := 1.0
-const TIER_TWO_DURATION := 2.0
+const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
+const COOLDOWN := 20.0
+const BASE_DURATION := 3.0
+const TIER_TWO_DURATION := 3.0
 const TIER_THREE_DURATION := 3.0
 const TICK_INTERVAL := 0.1
 const MAX_CATCH_UP_TICKS := 6
 const MAX_VISUALS := 7
 const EXTRA_VISUALS_PER_WIDTH_LEVEL := 3
-const BEAM_LENGTH := 250.0
+const BEAM_LENGTH := 400.0
 const BEAM_THICKNESS := 34.0
 const BASE_WIDTH_MULTIPLIER := 5.0
-const GATHER_VISUAL_LENGTH_MULTIPLIER := 1.12
 const DIELANG_RANGE_BONUS := 0.42
 const DIELANG_DURATION_BONUS := 0.67
 const HUICHAO_WIDTH_BONUS := 0.36
 const VISUAL_WIDTH_SPREAD_SCALE := 0.92
 const INFINITE_RELOAD_SKILL_ID := "infinite_reload"
 const TIER_TWO_RANGE_MULTIPLIER := 2.0
+const TIER_ONE_MOVE_SPEED_MULTIPLIER := 1.05
 const TIER_TWO_MOVE_SPEED_MULTIPLIER := 1.5
 const TIER_TWO_TICK_INTERVAL_MULTIPLIER := 0.58
 const TIER_THREE_RANGE_MULTIPLIER := 2.5
 const TIER_THREE_MOVE_SPEED_MULTIPLIER := 2.0
 const TIER_THREE_TICK_INTERVAL_MULTIPLIER := 0.38
-const BASE_DAMAGE_RATIO := 0.78
-const TIER_TWO_DAMAGE_MULTIPLIER := 1.25
-const TIER_THREE_DAMAGE_MULTIPLIER := 1.50
+const BASE_DAMAGE_RATIO := 1.0
+const TIER_TWO_DAMAGE_MULTIPLIER := 1.0
+const TIER_THREE_DAMAGE_MULTIPLIER := 1.0
+const ACTIVE_CAMERA_SHAKE_STRENGTH := 1.4
+const ACTIVE_CAMERA_SHAKE_DURATION := 0.045
 
 var cooldown_remaining: float = 0.0
 var active_remaining: float = 0.0
@@ -47,6 +50,8 @@ func update(owner, delta: float) -> void:
 		return
 
 	active_remaining = max(0.0, active_remaining - delta)
+	if active_remaining > 0.0:
+		_queue_active_camera_shake(owner)
 	tick_remaining -= delta
 	var catch_up_ticks := 0
 	while tick_remaining <= 0.0 and active_remaining > 0.0 and catch_up_ticks < MAX_CATCH_UP_TICKS:
@@ -98,6 +103,10 @@ func stop(owner = null) -> void:
 func is_active() -> bool:
 	return active_remaining > 0.0
 
+func _queue_active_camera_shake(owner) -> void:
+	if owner != null and owner.has_method("_queue_camera_shake"):
+		owner._queue_camera_shake(ACTIVE_CAMERA_SHAKE_STRENGTH, ACTIVE_CAMERA_SHAKE_DURATION)
+
 func register_effect(effect: Node2D, max_visuals: int = MAX_VISUALS) -> void:
 	if effect == null or not is_instance_valid(effect):
 		return
@@ -120,7 +129,7 @@ func get_cooldown_slot(owner = null) -> Dictionary:
 		"remaining": clamp(cooldown_remaining, 0.0, duration),
 		"duration": duration,
 		"color": Color(1.0, 0.56, 0.28, 1.0),
-		"description": "无限装填：枪手荡阵进化。短时间高速释放贯穿火力，冷却结束后可再次触发。"
+		"description": "无限装填：枪手荡阵进化。持续高速释放贯穿火力，期间可正常释放其他技能与大招，冷却结束后可再次触发。"
 	}
 
 func get_save_data() -> Dictionary:
@@ -133,7 +142,7 @@ func get_save_data() -> Dictionary:
 
 func apply_save_data(data: Dictionary) -> void:
 	cooldown_remaining = clamp(float(data.get("cooldown_remaining", 0.0)), 0.0, COOLDOWN)
-	active_remaining = clamp(float(data.get("active_remaining", 0.0)), 0.0, TIER_TWO_DURATION + 3.0 * DIELANG_DURATION_BONUS)
+	active_remaining = clamp(float(data.get("active_remaining", 0.0)), 0.0, TIER_THREE_DURATION + 3.0 * DIELANG_DURATION_BONUS)
 	tick_remaining = clamp(float(data.get("tick_remaining", 0.0)), 0.0, TICK_INTERVAL)
 	var direction_data: Array = data.get("locked_aim_direction", [locked_aim_direction.x, locked_aim_direction.y])
 	if direction_data.size() >= 2:
@@ -148,22 +157,57 @@ func _trigger_tick(owner) -> void:
 		aim_direction = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
 	owner.facing_direction = aim_direction
 	var range_multiplier: float = _get_range_multiplier(owner) * float(owner._get_role_attribute_range_multiplier("gunner")) * owner._get_equipment_skill_range_multiplier()
-	var beam_length: float = BEAM_LENGTH * range_multiplier
+	var beam_length: float = (BEAM_LENGTH + PLAYER_BUILD_SYSTEM.get_infinite_reload_range_bonus(owner)) * range_multiplier
 	var hit_width: float = BEAM_THICKNESS * BASE_WIDTH_MULTIPLIER * _get_width_multiplier(owner)
 	var base_origin: Vector2 = owner.global_position + aim_direction * 20.0
 	var damage_amount: float = float(owner._get_role_damage("gunner")) * BASE_DAMAGE_RATIO * _get_damage_multiplier(owner)
-	var hit_count: int = _fire_piercing_beam(owner, base_origin, aim_direction, beam_length, hit_width, damage_amount, 1.0)
-	for combo_scale in _get_combo_scales(owner):
+	var combo_scales: Array[float] = _get_combo_scales(owner)
+	_spawn_visuals(owner, base_origin, aim_direction, beam_length, hit_width)
+	for combo_scale in combo_scales:
 		var offset_origin: Vector2 = _get_random_origin_in_hit_width(owner, base_origin, aim_direction, hit_width)
-		hit_count += _fire_piercing_beam(owner, offset_origin, aim_direction, beam_length, hit_width, damage_amount, float(combo_scale))
+		_spawn_visuals(owner, offset_origin, aim_direction, beam_length, hit_width)
+	var damage_scale: float = _get_combined_damage_scale(combo_scales)
+	var hit_count: int = _apply_piercing_beam_damage(owner, base_origin, aim_direction, beam_length, hit_width * 2.0, damage_amount * damage_scale)
 	if hit_count > 0 and not _uses_batched_damage(owner):
 		owner._register_attack_result("gunner", hit_count, false)
 
-func _fire_piercing_beam(owner, base_origin: Vector2, aim_direction: Vector2, beam_length: float, hit_width: float, damage_amount: float, effect_scale: float) -> int:
-	var safe_scale: float = max(0.05, effect_scale)
-	_spawn_visuals(owner, base_origin, aim_direction, beam_length, hit_width)
+func _apply_piercing_beam_damage(owner, base_origin: Vector2, aim_direction: Vector2, beam_length: float, hit_width: float, damage_amount: float) -> int:
 	var hit_center: Vector2 = base_origin + aim_direction * (beam_length * 0.5)
-	return owner._damage_enemies_in_oriented_rect(hit_center, aim_direction, beam_length, hit_width, damage_amount * safe_scale, 0.0, 1.0, 0.0, "gunner")
+	var beam_shapes: Array[Dictionary] = [{
+		"type": "oriented_rect",
+		"center": hit_center,
+		"axis": aim_direction,
+		"length": beam_length,
+		"width": hit_width,
+		"damage_amount": damage_amount,
+		"vulnerability_bonus": 0.0,
+		"vulnerability_duration": 2.0,
+		"slow_multiplier": 1.0,
+		"slow_duration": 0.0,
+		"source_position": hit_center,
+		"source_role_id": "gunner"
+	}]
+	return _apply_piercing_beam_shapes(owner, beam_shapes)
+
+func _apply_piercing_beam_shapes(owner, beam_shapes: Array[Dictionary]) -> int:
+	if beam_shapes.is_empty():
+		return 0
+	if owner.has_method("_damage_enemies_in_shapes_batched"):
+		return int(owner._damage_enemies_in_shapes_batched(beam_shapes))
+	var hit_count := 0
+	for shape in beam_shapes:
+		hit_count += int(owner._damage_enemies_in_oriented_rect(
+			shape.get("center", Vector2.ZERO),
+			shape.get("axis", Vector2.RIGHT),
+			float(shape.get("length", 1.0)),
+			float(shape.get("width", 1.0)),
+			float(shape.get("damage_amount", 0.0)),
+			float(shape.get("vulnerability_bonus", 0.0)),
+			float(shape.get("slow_multiplier", 1.0)),
+			float(shape.get("slow_duration", 0.0)),
+			str(shape.get("source_role_id", "gunner"))
+		))
+	return hit_count
 
 func _get_random_origin_in_hit_width(owner, base_origin: Vector2, aim_direction: Vector2, hit_width: float) -> Vector2:
 	var perpendicular: Vector2 = owner._get_downward_perpendicular(aim_direction).normalized()
@@ -176,6 +220,7 @@ func _spawn_visuals(owner, base_origin: Vector2, aim_direction: Vector2, beam_le
 	var max_visuals: int = _get_max_visuals(owner)
 	if effects.size() >= max_visuals:
 		return
+	var visual_beam_length: float = _get_effect_parameter_length(owner, beam_length)
 	var perpendicular: Vector2 = owner._get_downward_perpendicular(aim_direction).normalized()
 	if perpendicular.length_squared() <= 0.001:
 		perpendicular = aim_direction.orthogonal().normalized()
@@ -192,8 +237,14 @@ func _spawn_visuals(owner, base_origin: Vector2, aim_direction: Vector2, beam_le
 			var lane_min := -visual_half_width + lane_width * float(visual_index)
 			offset = randf_range(lane_min, lane_min + lane_width)
 		var visual_origin: Vector2 = base_origin + perpendicular * offset
-		var effect := owner._spawn_gunner_intersect_scene_effect(visual_origin, aim_direction, beam_length, BEAM_THICKNESS, BEAM_LENGTH * GATHER_VISUAL_LENGTH_MULTIPLIER) as Node2D
+		var effect := owner._spawn_gunner_intersect_scene_effect(visual_origin, aim_direction, visual_beam_length, BEAM_THICKNESS, visual_beam_length) as Node2D
 		register_effect(effect, max_visuals)
+
+func _get_effect_parameter_length(owner, target_visible_length: float) -> float:
+	var visual_scale := 1.0
+	if owner != null:
+		visual_scale = float(owner.GUNNER_INTERSECT_VISUAL_SCALE)
+	return target_visible_length / max(0.001, visual_scale)
 
 func _cleanup_effects() -> void:
 	var valid_effects: Array[Node2D] = []
@@ -242,9 +293,10 @@ func _has_required_unlock(owner) -> bool:
 	return bool(owner._is_blessing_skill_unlocked(INFINITE_RELOAD_SKILL_ID))
 
 func _get_cooldown(owner) -> float:
+	var cooldown_multiplier: float = PLAYER_BUILD_SYSTEM.get_infinite_reload_cooldown_multiplier(owner)
 	if owner != null and is_instance_valid(owner) and owner.has_method("_get_equipment_cooldown_multiplier"):
-		return COOLDOWN * owner._get_equipment_cooldown_multiplier()
-	return COOLDOWN
+		cooldown_multiplier *= float(owner._get_equipment_cooldown_multiplier())
+	return COOLDOWN * cooldown_multiplier
 
 func _get_tier(owner) -> int:
 	if owner != null and owner.has_method("_get_blessing_skill_tier"):
@@ -263,24 +315,32 @@ func get_move_speed_multiplier(owner) -> float:
 	if not is_active():
 		return 1.0
 	var tier: int = _get_tier(owner)
+	var multiplier: float = TIER_ONE_MOVE_SPEED_MULTIPLIER
 	if tier >= 3:
-		return TIER_THREE_MOVE_SPEED_MULTIPLIER
-	if tier >= 2:
-		return TIER_TWO_MOVE_SPEED_MULTIPLIER
-	return 1.0
+		multiplier = TIER_THREE_MOVE_SPEED_MULTIPLIER
+	elif tier >= 2:
+		multiplier = TIER_TWO_MOVE_SPEED_MULTIPLIER
+	return multiplier + PLAYER_BUILD_SYSTEM.get_infinite_reload_move_speed_multiplier_bonus(owner)
 
 func _get_damage_multiplier(owner) -> float:
 	var tier: int = _get_tier(owner)
+	var multiplier: float = 1.0
 	if tier >= 3:
-		return TIER_THREE_DAMAGE_MULTIPLIER
-	if tier >= 2:
-		return TIER_TWO_DAMAGE_MULTIPLIER
-	return 1.0
+		multiplier = TIER_THREE_DAMAGE_MULTIPLIER
+	elif tier >= 2:
+		multiplier = TIER_TWO_DAMAGE_MULTIPLIER
+	return multiplier + PLAYER_BUILD_SYSTEM.get_infinite_reload_damage_multiplier_bonus(owner)
 
 func _get_combo_scales(owner) -> Array[float]:
 	if owner == null or not owner.has_method("_get_blessing_skill_combo_scales"):
 		return []
 	return owner._get_blessing_skill_combo_scales(INFINITE_RELOAD_SKILL_ID) as Array[float]
 
+func _get_combined_damage_scale(combo_scales: Array[float]) -> float:
+	var damage_scale: float = 1.0
+	for combo_scale in combo_scales:
+		damage_scale += max(0.0, float(combo_scale))
+	return damage_scale
+
 func _uses_batched_damage(owner) -> bool:
-	return owner != null and owner.has_method("_damage_enemies_in_oriented_rect")
+	return owner != null and owner.has_method("_damage_enemies_in_shapes_batched")

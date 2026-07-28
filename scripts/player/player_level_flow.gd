@@ -7,6 +7,51 @@ const PLAYER_EQUIPMENT_FLOW := preload("res://scripts/player/player_equipment_fl
 const PLAYER_LEVEL_OPTIONS := preload("res://scripts/player/player_level_options.gd")
 const PLAYER_REWARD_APPLIER := preload("res://scripts/player/player_reward_applier.gd")
 
+const BUILD_CHOICE_LEVELS := {
+	4: true,
+	7: true,
+	10: true,
+	12: true,
+	14: true,
+	16: true,
+	17: true,
+	19: true,
+	20: true,
+	22: true,
+	24: true,
+	25: true,
+	27: true,
+	28: true,
+	30: true,
+	31: true,
+	32: true,
+	34: true,
+	37: true,
+	39: true,
+	40: true,
+	42: true,
+	43: true,
+	45: true,
+	46: true,
+	47: true,
+	48: true,
+	49: true,
+	51: true,
+	52: true,
+	53: true,
+	54: true,
+	55: true,
+	58: true,
+	59: true,
+	60: true,
+	62: true,
+	64: true,
+	66: true,
+	68: true
+}
+const ENDLESS_BUILD_CHOICE_START_LEVEL := 68
+const ENDLESS_BUILD_CHOICE_LEVEL_STEP := 2
+
 
 static func get_attribute_upgrade_options(owner) -> Array:
 	var trait_options: Array = []
@@ -89,9 +134,9 @@ static func _make_choose_blessing_option() -> Dictionary:
 		"slot": "card",
 		"slot_label": "技能奖励",
 		"title": "兜底祝福",
-		"description": "小 Boss：随机获得 3 个当前轮次级别祝福。Boss：从所有 II 级祝福里自选 2 个。",
+		"description": "小Boss：随机获得 3 个当前轮次级别祝福。Boss：从所有 II 级祝福里自选 2 个。",
 		"preview_description": "根据 Boss 类型获得祝福兜底奖励。",
-		"exact_description": "小 Boss 选择后会随机获得 3 个当前轮次级别祝福；正式 Boss 选择后会连续进行 2 次 II 级祝福自选。"
+		"exact_description": "小Boss 选择后会随机获得 3 个当前轮次级别祝福；正式 Boss 选择后会连续进行 2 次 II 级祝福自选。"
 	}
 
 
@@ -103,6 +148,19 @@ static func delay_level_up_requests(owner, duration: float) -> void:
 	if duration <= 0.0:
 		return
 	owner.level_up_delay_remaining = max(owner.level_up_delay_remaining, duration)
+
+
+static func handle_reached_level(owner, _reached_level: int) -> void:
+	owner.pending_level_ups += 1
+
+
+static func should_offer_build_choice_for_level(level: int) -> bool:
+	var safe_level: int = max(1, level)
+	if BUILD_CHOICE_LEVELS.has(safe_level):
+		return true
+	if safe_level >= ENDLESS_BUILD_CHOICE_START_LEVEL:
+		return (safe_level - ENDLESS_BUILD_CHOICE_START_LEVEL) % ENDLESS_BUILD_CHOICE_LEVEL_STEP == 0
+	return false
 
 
 static func try_request_level_up(owner) -> void:
@@ -140,6 +198,15 @@ static func refresh_upgrade_options(owner) -> Array:
 	if current_offer.is_empty():
 		return build_blessing_upgrade_options(owner)
 	var offer := PLAYER_BLESSING_SYSTEM.refresh_offer_for_owner(owner, current_offer)
+	owner.current_blessing_offer = offer
+	return offer.get("options", [])
+
+
+static func refresh_upgrade_card(owner, option_index: int) -> Array:
+	var current_offer: Dictionary = owner.current_blessing_offer if owner.current_blessing_offer is Dictionary else {}
+	if current_offer.is_empty():
+		return build_blessing_upgrade_options(owner)
+	var offer := PLAYER_BLESSING_SYSTEM.refresh_offer_card_for_owner(owner, current_offer, option_index)
 	owner.current_blessing_offer = offer
 	return offer.get("options", [])
 

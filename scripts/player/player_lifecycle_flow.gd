@@ -22,13 +22,16 @@ static func ready(owner) -> void:
 	owner.role_special_states = owner._build_role_special_state_data()
 	owner.role_standby_elapsed = owner._build_role_timing_state_data(0.0)
 	owner.role_health_values = owner._build_role_health_state()
+	owner.role_temporary_health_values = owner._build_role_temporary_health_state()
 	owner.role_mana_values = owner._build_role_timing_state_data(0.0)
 	owner.role_switch_energy_values = owner._build_role_resource_state_data(0.0)
 	owner.role_ultimate_energy_lock_remaining = owner._build_role_timing_state_data(0.0)
+	owner.temporary_health_stacks = owner._build_temporary_health_stack_state()
 	owner.experience_to_next_level = PLAYER_LEVEL_CURVE.normalize_required_experience(owner.level, owner.experience_to_next_level)
 
 	owner.speed = owner.base_speed
 	owner.pickup_radius = owner.base_pickup_radius
+	owner.passive_damage_reduction_value = 0.0
 	owner.equipment_damage_multiplier_bonus = 0.0
 	owner.equipment_speed_bonus = 0.0
 	owner.equipment_max_health_bonus = 0.0
@@ -37,9 +40,17 @@ static func ready(owner) -> void:
 	owner.equipment_health_regen_per_second = 0.0
 	owner.equipment_low_health_threshold = 0.0
 	owner.equipment_low_health_damage_taken_multiplier = 1.0
+	owner.equipment_low_health_damage_reduction_value = 0.0
 	owner.equipment_skill_range_multiplier = 1.0
 	owner.equipment_cooldown_multiplier = 1.0
 	owner.player_action_lock_remaining = 0.0
+	owner.current_temporary_health = 0.0
+	owner.blessing_health_regen_elapsed = 0.0
+	if owner.has_method("_sync_temporary_health_state"):
+		owner._sync_temporary_health_state(false)
+	owner.is_dead = false
+	owner.death_sequence_pending = false
+	owner.death_sequence_remaining = 0.0
 	if owner.has_method("_sync_active_role_max_health"):
 		owner._sync_active_role_max_health(false, false)
 	owner._sync_active_role_ultimate_state()

@@ -1,42 +1,55 @@
-extends RefCounted
+﻿extends RefCounted
 
 const PLAYER_REWARD_APPLIER := preload("res://scripts/player/player_reward_applier.gd")
 const PLAYER_EQUIPMENT_FLOW := preload("res://scripts/player/player_equipment_flow.gd")
 const PLAYER_FINAL_UPGRADE_APPLIER := preload("res://scripts/player/player_final_upgrade_applier.gd")
 const PLAYER_BLESSING_SYSTEM := preload("res://scripts/player/player_blessing_system.gd")
+const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const POST_UPGRADE_NEXT_POPUP_DELAY := 0.08
 
 
 static func apply_upgrade(owner, option_id: String) -> void:
-	if PLAYER_REWARD_APPLIER.is_noop_upgrade(option_id):
-		_finish_upgrade(owner)
-		return
-	var blessing_result: Dictionary = PLAYER_BLESSING_SYSTEM.apply_option_with_result(owner, option_id)
-	if not blessing_result.is_empty():
-		if str(blessing_result.get("type", "")) == PLAYER_BLESSING_SYSTEM.CATEGORY_MAGIC_STONE:
-			_finish_upgrade(owner, true, true)
-			return
-		if owner.has_method("_refresh_blessing_skill_unlocks"):
-			owner._refresh_blessing_skill_unlocks(
-				str(blessing_result.get("blessing_id", "")),
-				int(blessing_result.get("tier", 0)),
-				str(blessing_result.get("binding", ""))
-			)
-		_finish_upgrade(owner, true, true)
-		return
-	if PLAYER_EQUIPMENT_FLOW.apply_equipment_reward(owner, option_id):
-		_finish_upgrade(owner, true, true)
-		return
-	if PLAYER_REWARD_APPLIER.apply_small_boss_reward(owner, option_id):
-		_finish_upgrade(owner, true, true)
-		return
-	if _apply_final_core(owner, option_id):
-		_finish_upgrade(owner, true, true)
-		return
+	apply_upgrades(owner, [option_id])
+
+
+static func apply_upgrades(owner, option_ids: Array) -> void:
+	var refresh_stats := false
+	var refresh_health := false
+	for raw_option_id in option_ids:
+		var option_id := str(raw_option_id)
+		if option_id == "":
+			continue
+		if PLAYER_REWARD_APPLIER.is_noop_upgrade(option_id):
+			continue
+		var blessing_result: Dictionary = PLAYER_BLESSING_SYSTEM.apply_option_with_result(owner, option_id)
+		if not blessing_result.is_empty():
+			refresh_stats = true
+			refresh_health = true
+			var result_type := str(blessing_result.get("type", ""))
+			if result_type != PLAYER_BLESSING_SYSTEM.CATEGORY_MAGIC_STONE and result_type != PLAYER_BUILD_SYSTEM.CATEGORY_ROLE_BUILD:
+				if owner.has_method("_refresh_blessing_skill_unlocks"):
+					owner._refresh_blessing_skill_unlocks(
+						str(blessing_result.get("blessing_id", "")),
+						int(blessing_result.get("tier", 0)),
+						str(blessing_result.get("binding", ""))
+					)
+			continue
+		if PLAYER_EQUIPMENT_FLOW.apply_equipment_reward(owner, option_id):
+			refresh_stats = true
+			refresh_health = true
+			continue
+		if PLAYER_REWARD_APPLIER.apply_small_boss_reward(owner, option_id):
+			refresh_stats = true
+			refresh_health = true
+			continue
+		if _apply_final_core(owner, option_id):
+			refresh_stats = true
+			refresh_health = true
+			continue
 
 	# Unknown ids are ignored intentionally. Stale save/editor option ids should
 	# not mutate current runs.
-	_finish_upgrade(owner)
+	_finish_upgrade(owner, refresh_stats, refresh_health)
 
 
 static func _apply_final_core(owner, option_id: String) -> bool:

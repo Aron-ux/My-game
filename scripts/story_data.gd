@@ -54,45 +54,6 @@ const STORY_STAGES := [
 	}
 ]
 
-const ROLE_STYLES := {
-	"swordsman": {
-		"default": {
-			"id": "default",
-			"name": "默认",
-			"short_description": "维持当前剑士表现。"
-		},
-		"moon_edge": {
-			"id": "moon_edge",
-			"name": "月锋",
-			"short_description": "斩击范围更大，伤害略低。"
-		}
-	},
-	"gunner": {
-		"default": {
-			"id": "default",
-			"name": "默认",
-			"short_description": "维持当前枪手表现。"
-		},
-		"star_pierce": {
-			"id": "star_pierce",
-			"name": "穿星",
-			"short_description": "子弹更快并追加穿透，伤害略低。"
-		}
-	},
-	"mage": {
-		"default": {
-			"id": "default",
-			"name": "默认",
-			"short_description": "维持当前法师表现。"
-		},
-		"frostfield": {
-			"id": "frostfield",
-			"name": "霜环",
-			"short_description": "轰炸范围更大且减速更强，节奏略慢。"
-		}
-	}
-}
-
 static func build_default_story_profile(slot_id: int) -> Dictionary:
 	return {
 		"slot_id": slot_id,
@@ -101,16 +62,6 @@ static func build_default_story_profile(slot_id: int) -> Dictionary:
 		"boss_core_fragments": 0,
 		"unlocked_role_ids": ["swordsman", "gunner", "mage"],
 		"team_order": ["swordsman", "gunner", "mage"],
-		"unlocked_styles": {
-			"swordsman": [],
-			"gunner": [],
-			"mage": []
-		},
-		"equipped_styles": {
-			"swordsman": "default",
-			"gunner": "default",
-			"mage": "default"
-		},
 		"created_unix": Time.get_unix_time_from_system(),
 		"last_updated_unix": Time.get_unix_time_from_system()
 	}
@@ -125,17 +76,3 @@ static func get_stage(stage_index: int) -> Dictionary:
 
 static func get_stage_count() -> int:
 	return STORY_STAGES.size()
-
-static func get_role_style(role_id: String, style_id: String) -> Dictionary:
-	var role_styles: Dictionary = ROLE_STYLES.get(role_id, {})
-	return role_styles.get(style_id, role_styles.get("default", {})).duplicate(true)
-
-static func get_unlock_style_id(role_id: String) -> String:
-	match role_id:
-		"swordsman":
-			return "moon_edge"
-		"gunner":
-			return "star_pierce"
-		"mage":
-			return "frostfield"
-	return "default"

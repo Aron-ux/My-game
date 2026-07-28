@@ -1,20 +1,21 @@
 extends RefCounted
 
 const SWORD_TORNADO_EFFECT_SCENE := preload("res://effects/sword/tornado/tornado.tscn")
+const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 
-const COOLDOWN := 18.0
-const BASE_DURATION := 1.0
+const COOLDOWN := 22.0
+const BASE_DURATION := 2.7
 const TIER_TWO_DURATION := 1.5
 const TIER_THREE_DURATION := 2.0
-const BASE_TICK_INTERVAL := 0.5
+const BASE_TICK_INTERVAL := 0.3
 const TIER_TWO_TICK_INTERVAL := 0.4
 const TIER_THREE_TICK_INTERVAL := 0.2
 const BASE_DAMAGE_RATIO := 0.8
 const TIER_THREE_DAMAGE_RATIO := 1.05
 const MAX_CATCH_UP_TICKS := 5
 const ROTATION_SPEED := -TAU * 5.175
-const BASE_RADIUS := 350.0 * 0.6
-const BASE_VISUAL_SCALE := 1.4 * 0.6
+const BASE_RADIUS := 120.0
+const BASE_VISUAL_SCALE := 0.48
 const DIELANG_DURATION_BONUS := 0.24
 const DIELANG_RADIUS_BONUS := 0.1
 const BLADE_STORM_SKILL_ID := "blade_storm"
@@ -110,7 +111,7 @@ func get_save_data() -> Dictionary:
 
 func apply_save_data(data: Dictionary) -> void:
 	cooldown_remaining = clamp(float(data.get("cooldown_remaining", 0.0)), 0.0, COOLDOWN)
-	active_remaining = clamp(float(data.get("active_remaining", 0.0)), 0.0, TIER_TWO_DURATION + 3.0 * DIELANG_DURATION_BONUS)
+	active_remaining = clamp(float(data.get("active_remaining", 0.0)), 0.0, max(BASE_DURATION, max(TIER_TWO_DURATION, TIER_THREE_DURATION)) + 3.0 * DIELANG_DURATION_BONUS)
 	tick_remaining = clamp(float(data.get("tick_remaining", 0.0)), 0.0, BASE_TICK_INTERVAL)
 
 func restore_effect_if_active(owner) -> void:
@@ -210,12 +211,12 @@ func _update_effect(owner, delta: float) -> void:
 
 func _get_damage(owner) -> float:
 	var tier: int = _get_tier(owner)
-	var tier_multiplier := 1.0
+	var ratio: float = BASE_DAMAGE_RATIO + PLAYER_BUILD_SYSTEM.get_blade_storm_damage_ratio_bonus(owner)
 	if tier >= 3:
-		tier_multiplier = TIER_THREE_DAMAGE_RATIO / BASE_DAMAGE_RATIO
+		ratio = TIER_THREE_DAMAGE_RATIO + PLAYER_BUILD_SYSTEM.get_blade_storm_damage_ratio_bonus(owner)
 	elif tier >= 2:
-		tier_multiplier = 1.18
-	return float(owner._get_role_damage("swordsman")) * BASE_DAMAGE_RATIO * tier_multiplier
+		ratio = BASE_DAMAGE_RATIO * 1.18 + PLAYER_BUILD_SYSTEM.get_blade_storm_damage_ratio_bonus(owner)
+	return float(owner._get_role_damage("swordsman")) * ratio
 
 func _get_duration(owner) -> float:
 	var tier: int = _get_tier(owner)
@@ -247,6 +248,7 @@ func _get_range_multiplier(owner) -> float:
 		range_multiplier *= float(owner._get_equipment_skill_range_multiplier())
 	if owner != null and owner.has_method("_get_invoker_magic_range_multiplier"):
 		range_multiplier *= float(owner._get_invoker_magic_range_multiplier(BLADE_STORM_SKILL_ID))
+	range_multiplier *= PLAYER_BUILD_SYSTEM.get_blade_storm_radius_multiplier(owner)
 	return range_multiplier
 
 func _get_radius(owner) -> float:
@@ -294,9 +296,10 @@ func _get_storm_centers(owner) -> Array[Vector2]:
 	return storm_global_centers
 
 func _get_cooldown(owner) -> float:
+	var cooldown_multiplier: float = PLAYER_BUILD_SYSTEM.get_blade_storm_cooldown_multiplier(owner)
 	if owner != null and is_instance_valid(owner) and owner.has_method("_get_equipment_cooldown_multiplier"):
-		return COOLDOWN * owner._get_equipment_cooldown_multiplier()
-	return COOLDOWN
+		cooldown_multiplier *= float(owner._get_equipment_cooldown_multiplier())
+	return COOLDOWN * cooldown_multiplier
 
 func _get_tier(owner) -> int:
 	if owner != null and owner.has_method("_get_blessing_skill_tier"):

@@ -10,6 +10,8 @@ const ROLE_DATA := [
 		"speed_scale": 1.0,
 		"move_speed": 140.0,
 		"base_health": 100.0,
+		"base_dodge": 0.03,
+		"base_damage_reduction_value": 20.0,
 		"attack_interval": 1.0,
 		"damage": 20.0,
 		"range": 82.0,
@@ -27,6 +29,8 @@ const ROLE_DATA := [
 		"speed_scale": 1.0,
 		"move_speed": 150.0,
 		"base_health": 50.0,
+		"base_dodge": 0.15,
+		"base_damage_reduction_value": -80.0,
 		"attack_interval": 0.39,
 		"damage": 15.0,
 		"range": 350.0,
@@ -44,9 +48,11 @@ const ROLE_DATA := [
 		"speed_scale": 1.0,
 		"move_speed": 130.0,
 		"base_health": 50.0,
+		"base_dodge": 0.03,
+		"base_damage_reduction_value": 0.0,
 		"attack_interval": 2.5,
 		"damage": 25.0,
-		"range": 286.0,
+		"range": 300.0,
 		"background_interval": 3.0,
 		"trait_key": "mage_trait",
 		"trait_option_id": "level_trait_mage",
@@ -58,7 +64,6 @@ const ROLE_DATA := [
 
 const ROLE_UPGRADE_TEMPLATE := {
 	"level": 0,
-	"damage_bonus": 0.0,
 	"interval_bonus": 0.0,
 	"range_bonus": 0.0,
 	"skill_bonus": 0.0

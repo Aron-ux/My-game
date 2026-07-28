@@ -24,16 +24,12 @@ static func ready(main: Node) -> void:
 	var should_continue: bool = bool(main.SAVE_MANAGER.consume_continue_request()) and bool(main.SAVE_MANAGER.has_save())
 	if should_continue and main._load_saved_run():
 		main.loaded_from_save = true
-		if bool(main.get("opening_trait_choice_completed")):
-			main._show_pause_menu_after_continue()
-		else:
-			main._start_game_bgm()
-			main.REWARD_FLOW.show_opening_trait_choice(main)
+		main.set("opening_trait_choice_completed", true)
+		main._show_pause_menu_after_continue()
 	else:
 		main.loaded_from_save = false
-		main.set("opening_trait_choice_completed", false)
+		main.set("opening_trait_choice_completed", true)
 		main._start_game_bgm()
-		main.REWARD_FLOW.show_opening_trait_choice(main)
 
 	if main._is_developer_mode():
 		main._activate_developer_mode()

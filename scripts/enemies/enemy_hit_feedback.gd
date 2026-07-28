@@ -53,7 +53,7 @@ static func play_hit_feedback(enemy, damage_amount: float, killed: bool, is_crit
 		enemy.hit_flash_remaining = HIT_FLASH_DURATION
 		_play_custom_hit_visual(enemy)
 		_spawn_boss_hit_flash_overlay(enemy)
-		if _should_apply_immediate_model_flash(enemy) and enemy.has_method("_update_status_visuals"):
+		if enemy.has_method("_update_status_visuals"):
 			enemy._update_status_visuals()
 
 	var can_show_damage_number := _consume_kill_damage_number_budget() if killed else _consume_damage_number_budget()
@@ -61,6 +61,18 @@ static func play_hit_feedback(enemy, damage_amount: float, killed: bool, is_crit
 		show_damage_number(enemy, damage_amount, killed, is_critical)
 	if killed and _consume_death_burst_budget():
 		spawn_death_burst(enemy)
+
+static func play_light_hit_feedback(enemy) -> void:
+	if enemy == null or not is_instance_valid(enemy):
+		return
+	_update_static_feedback_animations(1.0 / float(Engine.physics_ticks_per_second))
+	if not _consume_hit_flash_budget():
+		return
+	enemy.hit_flash_remaining = HIT_FLASH_DURATION
+	_play_custom_hit_visual(enemy)
+	_spawn_boss_hit_flash_overlay(enemy)
+	if enemy.has_method("_update_status_visuals"):
+		enemy._update_status_visuals()
 
 static func _play_custom_hit_visual(enemy) -> void:
 	var cached_visual: Node = enemy.get("cached_motion_visual") as Node

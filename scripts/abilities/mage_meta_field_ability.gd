@@ -1,30 +1,31 @@
 extends RefCounted
 
 const FIELD_EFFECT_SCENE := preload("res://effects/wizard/field/field.tscn")
+const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 
 const SKILL_ID := "meta_field"
-const COOLDOWN := 24.0
-const TIER_ONE_DURATION := 10.0
-const TIER_TWO_DURATION := 15.0
-const TIER_THREE_DURATION := 17.0
+const COOLDOWN := 0.0
+const PERMANENT_ACTIVE_REMAINING := 1.0
 const TIER_ONE_SLOW := 0.50
 const TIER_TWO_SLOW := 0.40
 const TIER_THREE_SLOW := 0.20
 const TIER_ONE_DAMAGE_REDUCTION := 0.50
 const TIER_TWO_DAMAGE_REDUCTION := 0.50
 const TIER_THREE_DAMAGE_REDUCTION := 0.50
-const TIER_ONE_DAMAGE_RATIO := 0.18
+const TIER_ONE_DAMAGE_REDUCTION_VALUE := 320.0
+const TIER_TWO_DAMAGE_REDUCTION_VALUE := 320.0
+const TIER_THREE_DAMAGE_REDUCTION_VALUE := 320.0
+const TIER_ONE_DAMAGE_RATIO := 0.10
 const TIER_TWO_DAMAGE_RATIO := 0.28
 const TIER_THREE_DAMAGE_RATIO := 0.38
-const TIER_ONE_RADIUS := 160.0
+const TIER_ONE_RADIUS := 100.0
 const TIER_TWO_RADIUS := 190.0
 const TIER_THREE_RADIUS := 218.6
 const RADIUS_BONUS_PER_TIER := 0.10
 const SLOW_EFFECT_BONUS_PER_TIER := 0.10
 const DAMAGE_RATIO_BONUS_PER_TIER := 0.02
 const FIELD_SIZE_MULTIPLIER := 0.70
-const TICK_INTERVAL := 0.4
-const FIXED_SELF_HEAL_PER_TICK := 0.8
+const TICK_INTERVAL := 0.5
 const MAX_CATCH_UP_TICKS := 4
 
 var cooldown_remaining: float = 0.0
@@ -46,7 +47,7 @@ func update(owner, delta: float) -> void:
 		stop(owner)
 		return
 
-	active_remaining = max(0.0, active_remaining - delta)
+	active_remaining = PERMANENT_ACTIVE_REMAINING
 	tick_remaining -= delta
 	_update_effect(owner)
 	var catch_up_ticks: int = 0
@@ -112,7 +113,7 @@ func get_save_data() -> Dictionary:
 
 func apply_save_data(data: Dictionary) -> void:
 	cooldown_remaining = clamp(float(data.get("cooldown_remaining", 0.0)), 0.0, COOLDOWN)
-	active_remaining = clamp(float(data.get("active_remaining", 0.0)), 0.0, TIER_TWO_DURATION * 2.4)
+	active_remaining = PERMANENT_ACTIVE_REMAINING if float(data.get("active_remaining", 0.0)) > 0.0 else 0.0
 	tick_remaining = clamp(float(data.get("tick_remaining", 0.0)), 0.0, TICK_INTERVAL)
 
 
@@ -127,13 +128,18 @@ func get_damage_taken_multiplier(owner) -> float:
 	return 1.0 - _get_damage_reduction(owner)
 
 
+func get_damage_reduction_value(owner) -> float:
+	if active_remaining <= 0.0:
+		return 0.0
+	return _get_damage_reduction_value(owner)
+
+
 func _trigger_tick(owner) -> void:
-	_apply_fixed_self_heal(owner)
 	var hits: int = 0
 	if owner.has_method("_damage_enemies_in_radius_suppressing_status_visuals"):
-		hits = int(owner._damage_enemies_in_radius_suppressing_status_visuals(owner.global_position, _get_radius(owner), _get_damage(owner), 0.0, _get_slow_multiplier(owner), 1.35, "mage"))
+		hits = int(owner._damage_enemies_in_radius_suppressing_status_visuals(owner.global_position, _get_radius(owner), _get_damage(owner), 0.0, _get_slow_multiplier(owner), 1.2, "mage"))
 	elif owner.has_method("_damage_enemies_in_radius_batched"):
-		hits = int(owner._damage_enemies_in_radius_batched(owner.global_position, _get_radius(owner), _get_damage(owner), 0.0, _get_slow_multiplier(owner), 1.35, "mage"))
+		hits = int(owner._damage_enemies_in_radius_batched(owner.global_position, _get_radius(owner), _get_damage(owner), 0.0, _get_slow_multiplier(owner), 1.2, "mage"))
 	else:
 		hits = int(owner._damage_enemies_in_radius(
 			owner.global_position,
@@ -141,27 +147,12 @@ func _trigger_tick(owner) -> void:
 			_get_damage(owner),
 			0.0,
 			_get_slow_multiplier(owner),
-			1.35,
+			1.2,
 			"mage"
 		))
 	if hits > 0 and not _uses_batched_damage(owner):
 		owner._register_attack_result("mage", hits, false)
 
-
-func _apply_fixed_self_heal(owner) -> void:
-	if owner == null or not is_instance_valid(owner) or bool(owner.get("is_dead")):
-		return
-	var max_health: float = float(owner.get("max_health"))
-	if max_health <= 0.0:
-		return
-	var current_health: float = float(owner.get("current_health"))
-	if current_health >= max_health:
-		return
-	owner.set("current_health", min(max_health, current_health + FIXED_SELF_HEAL_PER_TICK))
-	if owner.has_method("_save_active_role_health"):
-		owner._save_active_role_health()
-	if owner.has_signal("health_changed"):
-		owner.health_changed.emit(owner.current_health, owner.max_health)
 
 
 func _ensure_effect(owner) -> void:
@@ -252,23 +243,11 @@ func _get_tier_bonus_level(owner) -> int:
 	return max(0, _get_tier(owner) - 1)
 
 
-func _get_duration(owner) -> float:
-	var tier: int = _get_tier(owner)
-	var duration: float = TIER_ONE_DURATION
-	if tier >= 3:
-		duration = TIER_THREE_DURATION
-	elif tier >= 2:
-		duration = TIER_TWO_DURATION
-	if owner != null and owner.has_method("_get_blessing_skill_duration_multiplier"):
-		duration *= float(owner._get_blessing_skill_duration_multiplier(SKILL_ID))
-	if owner != null and owner.has_method("_get_blessing_skill_duration_flat_bonus"):
-		duration += float(owner._get_blessing_skill_duration_flat_bonus(SKILL_ID))
-	return duration
+func _get_duration(_owner) -> float:
+	return PERMANENT_ACTIVE_REMAINING
 
 
-func _get_cooldown(owner) -> float:
-	if owner != null and is_instance_valid(owner) and owner.has_method("_get_equipment_cooldown_multiplier"):
-		return COOLDOWN * owner._get_equipment_cooldown_multiplier()
+func _get_cooldown(_owner) -> float:
 	return COOLDOWN
 
 
@@ -285,7 +264,10 @@ func _get_radius(owner) -> float:
 	if owner != null and owner.has_method("_get_invoker_magic_range_multiplier"):
 		range_multiplier *= float(owner._get_invoker_magic_range_multiplier(SKILL_ID))
 	base_radius *= 1.0 + float(_get_tier_bonus_level(owner)) * RADIUS_BONUS_PER_TIER
-	return base_radius * range_multiplier * FIELD_SIZE_MULTIPLIER
+	var build_radius_multiplier: float = PLAYER_BUILD_SYSTEM.get_meta_field_radius_multiplier(owner)
+	if tier <= 1:
+		return base_radius * range_multiplier * build_radius_multiplier
+	return base_radius * range_multiplier * FIELD_SIZE_MULTIPLIER * build_radius_multiplier
 
 
 func _get_visual_scale(owner) -> float:
@@ -300,7 +282,7 @@ func _get_slow_multiplier(owner) -> float:
 	elif tier >= 2:
 		base_multiplier = TIER_TWO_SLOW
 	var slow_effect: float = 1.0 - base_multiplier
-	slow_effect = clamp(slow_effect + float(_get_tier_bonus_level(owner)) * SLOW_EFFECT_BONUS_PER_TIER, 0.0, 0.95)
+	slow_effect = clamp(slow_effect + float(_get_tier_bonus_level(owner)) * SLOW_EFFECT_BONUS_PER_TIER + PLAYER_BUILD_SYSTEM.get_meta_field_slow_bonus(owner), 0.0, 0.95)
 	return 1.0 - slow_effect
 
 
@@ -313,6 +295,16 @@ func _get_damage_reduction(owner) -> float:
 	return TIER_ONE_DAMAGE_REDUCTION
 
 
+func _get_damage_reduction_value(owner) -> float:
+	var tier: int = _get_tier(owner)
+	var value: float = TIER_ONE_DAMAGE_REDUCTION_VALUE
+	if tier >= 3:
+		value = TIER_THREE_DAMAGE_REDUCTION_VALUE
+	elif tier >= 2:
+		value = TIER_TWO_DAMAGE_REDUCTION_VALUE
+	return value + PLAYER_BUILD_SYSTEM.get_meta_field_damage_reduction_value_bonus(owner)
+
+
 func _get_damage(owner) -> float:
 	var tier: int = _get_tier(owner)
 	var ratio: float = TIER_ONE_DAMAGE_RATIO
@@ -321,4 +313,5 @@ func _get_damage(owner) -> float:
 	elif tier >= 2:
 		ratio = TIER_TWO_DAMAGE_RATIO
 	ratio += float(_get_tier_bonus_level(owner)) * DAMAGE_RATIO_BONUS_PER_TIER
+	ratio += PLAYER_BUILD_SYSTEM.get_meta_field_damage_ratio_bonus(owner)
 	return float(owner._get_role_damage("mage")) * ratio

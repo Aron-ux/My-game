@@ -9,10 +9,19 @@ const LATEGAME_STEP := 850.0
 const MIDGAME_LEVEL := 10
 const LATEGAME_LEVEL := 18
 const REQUIRED_EXPERIENCE_MULTIPLIER := 0.8
+const POST_LEVEL_CURVE_START := 20
+const POST_LEVEL_BASE_REQUIRED_EXPERIENCE := 5600.0
+const POST_LEVEL_LINEAR_STEP := 240.0
+const POST_LEVEL_MID_STEP := 50.0
+const POST_LEVEL_LATE_STEP := 180.0
+const POST_LEVEL_MID_LEVEL := 30
+const POST_LEVEL_LATE_LEVEL := 47
 
 
 static func get_required_experience_for_level(level: int) -> int:
 	var safe_level: int = max(1, level)
+	if safe_level >= POST_LEVEL_CURVE_START:
+		return _get_post_level_required_experience(safe_level)
 	var index: float = float(safe_level - 1)
 	var required: float = BASE_REQUIRED_EXPERIENCE
 	required += index * LINEAR_STEP
@@ -20,6 +29,14 @@ static func get_required_experience_for_level(level: int) -> int:
 	required += float(max(0, safe_level - MIDGAME_LEVEL)) * MIDGAME_STEP
 	required += float(max(0, safe_level - LATEGAME_LEVEL)) * LATEGAME_STEP
 	required *= REQUIRED_EXPERIENCE_MULTIPLIER
+	return max(1, int(round(required)))
+
+
+static func _get_post_level_required_experience(level: int) -> int:
+	var required: float = POST_LEVEL_BASE_REQUIRED_EXPERIENCE
+	required += float(level - POST_LEVEL_CURVE_START) * POST_LEVEL_LINEAR_STEP
+	required += float(max(0, level - POST_LEVEL_MID_LEVEL)) * POST_LEVEL_MID_STEP
+	required += float(max(0, level - POST_LEVEL_LATE_LEVEL)) * POST_LEVEL_LATE_STEP
 	return max(1, int(round(required)))
 
 

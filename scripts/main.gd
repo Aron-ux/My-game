@@ -323,6 +323,9 @@ func _on_upgrade_selected(option_id: String, attribute_option_id: String = "") -
 func _on_upgrade_refresh_requested() -> void:
 	REWARD_FLOW.handle_upgrade_refresh_requested(self)
 
+func _on_upgrade_card_refresh_requested(option_index: int) -> void:
+	REWARD_FLOW.handle_upgrade_card_refresh_requested(self, option_index)
+
 func _on_player_died() -> void:
 	GAME_ACHIEVEMENT_BRIDGE.record_survival_time(self)
 	GAME_SESSION_FLOW.handle_player_died(self)

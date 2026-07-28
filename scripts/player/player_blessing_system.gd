@@ -2,9 +2,10 @@ extends RefCounted
 
 const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
 const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
+const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 
-const OFFER_COUNT := 3
-const OFFER_REFRESH_LIMIT := 1
+const OFFER_COUNT := 4
+const OFFER_REFRESH_LIMIT := 0
 const OPTION_PREFIX := "blessing:"
 const ROLE_BOUND := "role"
 const SKILL_BOUND := "skill"
@@ -25,6 +26,9 @@ const TIER_WEIGHT_LEVEL_7_TO_12 := {1: 80, 2: 20}
 const TIER_WEIGHT_LEVEL_13_TO_18 := {1: 65, 2: 30, 3: 5}
 const TIER_WEIGHT_LEVEL_19_PLUS := {1: 48, 2: 40, 3: 10, 4: 2}
 const BLESSING_TEXT_COLOR := Color(0.0, 0.0, 0.0, 1.0)
+const DIVINE_GRACE_REGEN_INTERVAL := 5.0
+const GREED_PROC_CHANCE := 0.05
+const GREED_MAX_ROLL_HITS := 4
 
 const MAGIC_STONE_OPTION_PREFIX := "magic_stone:"
 const MAGIC_STONE_DEFINITIONS := {
@@ -81,19 +85,35 @@ const DEFINITIONS := {
 		"title": "神赐",
 		"category": CATEGORY_GENERAL_BLESSING,
 		"binding": ROLE_BOUND,
-		"stat": "max_health",
-		"tier_values": {1: 10.0, 2: 20.0, 3: 30.0, 4: 100.0},
+		"stat": "max_health_percent",
+		"tier_values": {1: 0.08, 2: 0.12, 3: 0.16, 4: 0.20},
+		"extra_stats": {
+			"health_regen_tick_ratio": {3: 0.01, 4: 0.02}
+		},
+		"display_title": "神赐",
+		"display_descriptions": {
+			1: "I级：最大血量增加8％",
+			2: "II级：最大血量增加12％",
+			3: "III级：最大血量增加16％，每5s回复1％点最大血量",
+			4: "IV级：最大血量增加20％，每5s回复2％点最大血量"
+		},
+		"display_card_summaries": {
+			1: "最大血量+8%",
+			2: "最大血量+12%",
+			3: "最大血量+16%，每5s回血1%",
+			4: "最大血量+20%，每5s回血2%"
+		},
 		"descriptions": {
-			1: "所有角色血量加10",
-			2: "所有角色血量加20",
-			3: "所有角色血量加30",
-			4: "所有角色血量加100"
+			1: "I级：最大血量增加8％",
+			2: "II级：最大血量增加12％",
+			3: "III级：最大血量增加16％，每5s回复1％点最大血量",
+			4: "IV级：最大血量增加20％，每5s回复2％点最大血量"
 		},
 		"card_summaries": {
-			1: "全员血量+10",
-			2: "全员血量+20",
-			3: "全员血量+30",
-			4: "全员血量+100"
+			1: "最大血量+8%",
+			2: "最大血量+12%",
+			3: "最大血量+16%，每5s回血1%",
+			4: "最大血量+20%，每5s回血2%"
 		}
 	},
 	"prayer": {
@@ -114,61 +134,121 @@ const DEFINITIONS := {
 	},
 	"benediction": {
 		"title": "恩典",
-		"category": CATEGORY_GENERAL_BLESSING,
+		"category": CATEGORY_LEGACY_SKILL_BLESSING,
 		"binding": ROLE_BOUND,
 		"stat": "energy_gain",
 		"nonlinear": true,
 		"tier_values": {1: 0.10, 2: 0.15, 3: 0.20, 4: 0.40},
 		"descriptions": {
-			1: "终极技能回复效率增加10%",
-			2: "终极技能回复效率增加15%",
-			3: "终极技能回复效率增加20%",
-			4: "终极技能回复效率增加40%"
+			1: "击杀怪物和精英怪，以及对首领、小首领造成伤害时获得的大招能量增加10％",
+			2: "击杀怪物和精英怪，以及对首领、小首领造成伤害时获得的大招能量增加15％",
+			3: "击杀怪物和精英怪，以及对首领、小首领造成伤害时获得的大招能量增加20％",
+			4: "击杀怪物和精英怪，以及对首领、小首领造成伤害时获得的大招能量增加40％"
 		},
 		"card_summaries": {
-			1: "回能效率+10%",
-			2: "回能效率+15%",
-			3: "回能效率+20%",
-			4: "回能效率+40%"
+			1: "击杀与首领伤害回能+10％",
+			2: "击杀与首领伤害回能+15％",
+			3: "击杀与首领伤害回能+20％",
+			4: "击杀与首领伤害回能+40％"
+		}
+	},
+	"support": {
+		"title": "支援",
+		"category": CATEGORY_GENERAL_BLESSING,
+		"binding": ROLE_BOUND,
+		"stat": "switch_energy_gain",
+		"tier_values": {1: 0.02, 2: 0.05, 3: 0.08, 4: 0.11},
+		"extra_stats": {
+			"entry_damage": {3: 0.05, 4: 0.08}
+		},
+		"display_title": "支援",
+		"display_descriptions": {
+			1: "I级：切人能量获取效率增加2％",
+			2: "II级：切人能量获取效率增加5％",
+			3: "III级：切人能量获取效率增加8％，进场角色登场技伤害增强5％",
+			4: "IV级：切人能量获取效率增加11％，进场角色登场技能伤害增强8％"
+		},
+		"descriptions": {
+			1: "I级：切人能量获取效率增加2％",
+			2: "II级：切人能量获取效率增加5％",
+			3: "III级：切人能量获取效率增加8％，进场角色登场技伤害增强5％",
+			4: "IV级：切人能量获取效率增加11％，进场角色登场技能伤害增强8％"
+		},
+		"display_card_summaries": {
+			1: "切人回能+2%",
+			2: "切人回能+5%",
+			3: "切人回能+8%，登场技+5%",
+			4: "切人回能+11%，登场技+8%"
 		}
 	},
 	"greed": {
 		"title": "贪婪",
 		"category": CATEGORY_GENERAL_BLESSING,
 		"binding": ROLE_BOUND,
-		"stat": "greed_proc_chance",
-		"heal_ratio": 0.01,
-		"tier_values": {1: 0.01, 2: 0.05, 3: 0.10, 4: 0.20},
+		"stat": "greed_current_health_heal_ratio",
+		"tier_values": {1: 0.01, 2: 0.02, 3: 0.03, 4: 0.04},
+		"extra_stats": {
+			"greed_max_health_heal_ratio": {3: 0.01, 4: 0.02}
+		},
+		"display_title": "贪婪",
+		"display_descriptions": {
+			1: "I级：角色攻击造成伤害时有5％的概率回复1％当前生命值",
+			2: "II级：角色攻击造成伤害时有5％的概率回复2％当前生命值",
+			3: "III级：角色攻击造成伤害时有5％的概率回复回复3％当前生命值+1％最大生命值",
+			4: "IV级：角色攻击造成伤害时有5％概率回复4％当前生命值+2％最大生命值"
+		},
+		"display_card_summaries": {
+			1: "5%概率回复1%当前生命",
+			2: "5%概率回复2%当前生命",
+			3: "5%概率回复3%当前生命+1%最大生命",
+			4: "5%概率回复4%当前生命+2%最大生命"
+		},
 		"descriptions": {
-			1: "击杀怪物有5%几率回复5点血量",
-			2: "击杀怪物有5%几率回复7点血量",
-			3: "击杀怪物有5%几率回复10点血量",
-			4: "击杀怪物有5%几率回复20点血量"
+			1: "I级：角色攻击造成伤害时有5％的概率回复1％当前生命值",
+			2: "II级：角色攻击造成伤害时有5％的概率回复2％当前生命值",
+			3: "III级：角色攻击造成伤害时有5％的概率回复回复3％当前生命值+1％最大生命值",
+			4: "IV级：角色攻击造成伤害时有5％概率回复4％当前生命值+2％最大生命值"
 		},
 		"card_summaries": {
-			1: "击杀5%回血5",
-			2: "击杀5%回血7",
-			3: "击杀5%回血10",
-			4: "击杀5%回血20"
+			1: "5%概率回复1%当前生命",
+			2: "5%概率回复2%当前生命",
+			3: "5%概率回复3%当前生命+1%最大生命",
+			4: "5%概率回复4%当前生命+2%最大生命"
 		}
 	},
 	"tailwind": {
 		"title": "乘风",
 		"category": CATEGORY_GENERAL_BLESSING,
 		"binding": ROLE_BOUND,
-		"stat": "move_speed",
-		"tier_values": {1: 5.0, 2: 8.0, 3: 10.0, 4: 20.0},
+		"stat": "move_speed_percent",
+		"tier_values": {1: 0.02, 2: 0.04, 3: 0.06, 4: 0.08},
+		"extra_stats": {
+			"dodge": {3: 0.06, 4: 0.12}
+		},
+		"display_title": "乘风",
+		"display_descriptions": {
+			1: "I级：角色移动速度+2％",
+			2: "II级：角色移动速度+4％",
+			3: "III级：角色移动速度+6％，角色闪避+6",
+			4: "IV级：角色移动速度+8％，角色闪避+12"
+		},
+		"display_card_summaries": {
+			1: "移速+2%",
+			2: "移速+4%",
+			3: "移速+6%，闪避率+6%",
+			4: "移速+8%，闪避率+12%"
+		},
 		"descriptions": {
-			1: "所有角色移动速度+5",
-			2: "所有角色移动速度+8",
-			3: "所有角色移动速度+10",
-			4: "所有角色移动速度+20"
+			1: "I级：角色移动速度+2％",
+			2: "II级：角色移动速度+4％",
+			3: "III级：角色移动速度+6％，角色闪避+6",
+			4: "IV级：角色移动速度+8％，角色闪避+12"
 		},
 		"card_summaries": {
-			1: "全员移速+5",
-			2: "全员移速+8",
-			3: "全员移速+10",
-			4: "全员移速+20"
+			1: "移速+2%",
+			2: "移速+4%",
+			3: "移速+6%，闪避率+6%",
+			4: "移速+8%，闪避率+12%"
 		}
 	},
 	"blazing_sun": {
@@ -176,43 +256,59 @@ const DEFINITIONS := {
 		"category": CATEGORY_GENERAL_BLESSING,
 		"binding": ROLE_BOUND,
 		"stat": "damage",
-		"tier_values": {1: 5.0, 2: 10.0, 3: 15.0, 4: 30.0},
+		"tier_values": {1: 0.055, 2: 0.085, 3: 0.115, 4: 0.145},
+		"extra_stats": {
+			"base_damage": {3: 2.0, 4: 4.0}
+		},
+		"display_title": "焰阳",
+		"display_descriptions": {
+			1: "I级：造成伤害增加5.5％",
+			2: "II级：造成伤害增加8.5％",
+			3: "III级：造成伤害增加11.5％，角色基础伤害+2",
+			4: "IV级：造成伤害增加14.5％，角色基础伤害+4"
+		},
+		"display_card_summaries": {
+			1: "伤害+5.5%",
+			2: "伤害+8.5%",
+			3: "伤害+11.5%，基础伤害+2",
+			4: "伤害+14.5%，基础伤害+4"
+		},
 		"descriptions": {
-			1: "所有角色造成伤害+5",
-			2: "所有角色造成伤害+10",
-			3: "所有角色造成伤害+15",
-			4: "所有角色造成伤害+30"
+			1: "I级：造成伤害增加5.5％",
+			2: "II级：造成伤害增加8.5％",
+			3: "III级：造成伤害增加11.5％，角色基础伤害+2",
+			4: "IV级：造成伤害增加14.5％，角色基础伤害+4"
 		},
 		"card_summaries": {
-			1: "全员伤害+5",
-			2: "全员伤害+10",
-			3: "全员伤害+15",
-			4: "全员伤害+30"
+			1: "全员伤害+5.5%",
+			2: "全员伤害+8.5%",
+			3: "全员伤害+11.5%，基础伤害+2",
+			4: "全员伤害+14.5%，基础伤害+4"
 		}
 	},
 	"phantom": {
 		"title": "幻影",
-		"category": CATEGORY_GENERAL_BLESSING,
+		"category": CATEGORY_LEGACY_SKILL_BLESSING,
 		"binding": ROLE_BOUND,
 		"stat": "dodge",
 		"nonlinear": true,
 		"tier_values": {1: 0.03, 2: 0.05, 3: 0.10, 4: 0.20},
 		"descriptions": {
-			1: "所有角色闪避几率+3%",
-			2: "所有角色闪避几率+5%",
-			3: "所有角色闪避几率+10%",
-			4: "所有角色闪避几率+20%"
+			1: "所有角色闪避值+3",
+			2: "所有角色闪避值+5",
+			3: "所有角色闪避值+10",
+			4: "所有角色闪避值+20"
 		},
 		"card_summaries": {
-			1: "全员闪避+3%",
-			2: "全员闪避+5%",
-			3: "全员闪避+10%",
-			4: "全员闪避+20%"
+			1: "全员闪避值+3",
+			2: "全员闪避值+5",
+			3: "全员闪避值+10",
+			4: "全员闪避值+20"
 		}
 	},
 	"general_trick": {
 		"title": "戏法",
-		"category": CATEGORY_GENERAL_BLESSING,
+		"category": CATEGORY_LEGACY_SKILL_BLESSING,
 		"binding": ROLE_BOUND,
 		"stat": "global_quantity_skill_count",
 		"tier_values": {4: 1.0},
@@ -225,7 +321,7 @@ const DEFINITIONS := {
 	},
 	"general_reprise": {
 		"title": "再演",
-		"category": CATEGORY_GENERAL_BLESSING,
+		"category": CATEGORY_LEGACY_SKILL_BLESSING,
 		"binding": ROLE_BOUND,
 		"stat": "global_combo_skill_extra",
 		"tier_values": {4: 1.0},
@@ -238,7 +334,7 @@ const DEFINITIONS := {
 	},
 	"general_tide_rain": {
 		"title": "潮雨",
-		"category": CATEGORY_GENERAL_BLESSING,
+		"category": CATEGORY_LEGACY_SKILL_BLESSING,
 		"binding": ROLE_BOUND,
 		"stat": "global_duration_skill_seconds",
 		"tier_values": {4: 2.5},
@@ -445,13 +541,60 @@ const DEFINITIONS := {
 			4: "因沃克魔法范围+30%"
 		}
 	},
+	"burst": {
+		"title": "爆烈",
+		"category": CATEGORY_GENERAL_BLESSING,
+		"binding": ROLE_BOUND,
+		"stat": "critical_chance",
+		"tier_values": {1: 0.05, 2: 0.07, 3: 0.10, 4: 0.15},
+		"extra_stats": {
+			"critical_damage_bonus": {3: 0.05, 4: 0.10}
+		},
+		"display_title": "爆烈",
+		"display_descriptions": {
+			1: "I级：暴击率增加5％",
+			2: "II级：暴击率增加7％",
+			3: "III级：暴击率增加10％，暴击伤害增加5％",
+			4: "IV级：暴击率增加15％，暴击伤害增加10％"
+		},
+		"descriptions": {
+			1: "I级：暴击率增加5％",
+			2: "II级：暴击率增加7％",
+			3: "III级：暴击率增加10％，暴击伤害增加5％",
+			4: "IV级：暴击率增加15％，暴击伤害增加10％"
+		},
+		"display_card_summaries": {
+			1: "暴击率+5%",
+			2: "暴击率+7%",
+			3: "暴击率+10%，暴伤+5%",
+			4: "暴击率+15%，暴伤+10%"
+		}
+	},
 	"unyielding": {
 		"title": "不屈",
-		"category": CATEGORY_LEGACY_SKILL_BLESSING,
+		"category": CATEGORY_GENERAL_BLESSING,
 		"binding": ROLE_BOUND,
 		"stat": "damage_reduction",
-		"tier_values": {1: 0.035, 2: 0.065},
-		"descriptions": {1: "增加当前角色减伤", 2: "增加当前角色减伤"}
+		"tier_values": {1: 6.0, 2: 12.0, 3: 18.0, 4: 24.0},
+		"display_title": "不屈",
+		"display_descriptions": {
+			1: "I级：角色减伤+6",
+			2: "II级：角色减伤+12",
+			3: "III级：角色减伤+18",
+			4: "IV级：角色减伤+24"
+		},
+		"display_card_summaries": {
+			1: "减伤值+6",
+			2: "减伤值+12",
+			3: "减伤值+18",
+			4: "减伤值+24"
+		},
+		"descriptions": {
+			1: "I级：角色减伤+6",
+			2: "II级：角色减伤+12",
+			3: "III级：角色减伤+18",
+			4: "IV级：角色减伤+24"
+		}
 	},
 	"tide_rain": {
 		"title": "潮雨",
@@ -511,21 +654,7 @@ static func normalize_skill_state(value: Variant) -> Dictionary:
 
 
 static func build_offer_for_owner(owner) -> Dictionary:
-	var options := _pick_options(owner, OFFER_COUNT)
-	if options.is_empty():
-		options.append(_make_blank_option())
-	var refresh_unlimited := DEVELOPER_MODE.should_allow_unlimited_upgrade_refresh()
-	return {
-		"options": options,
-		"context": {
-			"offer_mode": "blessing",
-			"refresh_limit": OFFER_REFRESH_LIMIT,
-			"refresh_remaining": OFFER_REFRESH_LIMIT,
-			"refresh_unlimited": refresh_unlimited,
-			"refresh_button_label": "刷新",
-			"summary": "选择一个祝福或魔法石。"
-		}
-	}
+	return PLAYER_BUILD_SYSTEM.build_offer_for_owner(owner, _build_general_blessing_options(owner))
 
 
 static func build_all_offer_for_owner(owner) -> Dictionary:
@@ -559,20 +688,34 @@ static func build_tier_offer_for_owner(owner, tier: int) -> Dictionary:
 	}
 
 
-static func refresh_offer_for_owner(owner, current_offer: Dictionary) -> Dictionary:
+static func refresh_offer_for_owner(owner, _current_offer: Dictionary) -> Dictionary:
 	var offer := build_offer_for_owner(owner)
-	var current_context: Dictionary = current_offer.get("context", {}) if current_offer.get("context", {}) is Dictionary else {}
 	var next_context: Dictionary = offer.get("context", {}) if offer.get("context", {}) is Dictionary else {}
-	var refresh_unlimited: bool = bool(current_context.get("refresh_unlimited", false)) or DEVELOPER_MODE.should_allow_unlimited_upgrade_refresh()
-	var refresh_limit: int = max(0, int(current_context.get("refresh_limit", next_context.get("refresh_limit", OFFER_REFRESH_LIMIT))))
-	var refresh_remaining: int = max(0, int(current_context.get("refresh_remaining", refresh_limit)))
-	if refresh_unlimited:
-		refresh_remaining = max(1, refresh_remaining)
-	else:
-		refresh_remaining = max(0, refresh_remaining - 1)
-	next_context["refresh_limit"] = refresh_limit
-	next_context["refresh_remaining"] = refresh_remaining
-	next_context["refresh_unlimited"] = refresh_unlimited
+	next_context["refresh_limit"] = 0
+	next_context["refresh_remaining"] = 0
+	next_context["refresh_unlimited"] = false
+	offer["context"] = next_context
+	return offer
+
+
+static func refresh_offer_card_for_owner(owner, current_offer: Dictionary, option_index: int) -> Dictionary:
+	if current_offer.is_empty():
+		return build_offer_for_owner(owner)
+	var raw_options: Array = current_offer.get("options", []) if current_offer.get("options", []) is Array else []
+	if raw_options.is_empty():
+		return build_offer_for_owner(owner)
+	var options := _duplicate_option_array(raw_options)
+	var safe_index: int = clamp(option_index, 0, max(0, options.size() - 1))
+	var replacement := PLAYER_BUILD_SYSTEM.pick_replacement_option(owner, options, _build_general_blessing_options(owner), safe_index)
+	if replacement.is_empty():
+		return current_offer.duplicate(true)
+	options[safe_index] = replacement
+	var offer := current_offer.duplicate(true)
+	offer["options"] = options
+	var next_context: Dictionary = offer.get("context", {}) if offer.get("context", {}) is Dictionary else {}
+	next_context["refresh_limit"] = 0
+	next_context["refresh_remaining"] = 0
+	next_context["refresh_unlimited"] = false
 	offer["context"] = next_context
 	return offer
 
@@ -589,6 +732,8 @@ static func apply_option(owner, option_id: String) -> bool:
 
 
 static func apply_option_with_result(owner, option_id: String) -> Dictionary:
+	if PLAYER_BUILD_SYSTEM.is_role_build_option_id(option_id):
+		return PLAYER_BUILD_SYSTEM.apply_option_with_result(owner, option_id)
 	if option_id.begins_with(MAGIC_STONE_OPTION_PREFIX):
 		var stone_id := option_id.trim_prefix(MAGIC_STONE_OPTION_PREFIX)
 		if not apply_magic_stone(owner, stone_id):
@@ -614,7 +759,7 @@ static func apply_option_with_result(owner, option_id: String) -> Dictionary:
 		"blessing_id": blessing_id,
 		"tier": tier,
 		"binding": str(definition.get("binding", ROLE_BOUND)),
-		"title": "%s%s" % [str(definition.get("title", blessing_id)), _tier_label(tier)]
+		"title": "%s%s" % [_get_definition_title(definition, blessing_id), _tier_label(tier)]
 	}
 
 
@@ -655,6 +800,11 @@ static func grant_random_blessings(owner, tier: int, count: int, rng: RandomNumb
 static func get_role_stat_bonus(owner, _role_id: String, stat: String) -> float:
 	var levels: Dictionary = _get_shared_role_levels(owner)
 	return _sum_stat_bonus(levels, stat)
+
+
+static func get_blazing_sun_flat_base_damage(owner, _role_id: String = "") -> float:
+	var levels: Dictionary = _get_shared_role_levels(owner)
+	return _sum_stat_bonus(levels, "base_damage")
 
 
 static func get_skill_stat_bonus(owner, stat: String) -> float:
@@ -718,14 +868,58 @@ static func compose_skill_blessing(owner, blessing_id: String) -> bool:
 
 
 static func get_greed_heal_ratio(owner) -> float:
-	if get_greed_proc_chance(owner) <= 0.0:
-		return 0.0
-	var definition: Dictionary = DEFINITIONS.get("greed", {})
-	return max(0.0, float(definition.get("heal_ratio", 0.0)))
+	return get_greed_current_health_heal_ratio(owner)
 
 
 static func get_greed_proc_chance(owner) -> float:
-	return get_role_stat_bonus(owner, "", "greed_proc_chance")
+	if get_greed_current_health_heal_ratio(owner) <= 0.0 and get_greed_max_health_heal_ratio(owner) <= 0.0:
+		return 0.0
+	return GREED_PROC_CHANCE
+
+
+static func get_greed_current_health_heal_ratio(owner) -> float:
+	return get_role_stat_bonus(owner, "", "greed_current_health_heal_ratio")
+
+
+static func get_greed_max_health_heal_ratio(owner) -> float:
+	return get_role_stat_bonus(owner, "", "greed_max_health_heal_ratio")
+
+
+static func get_greed_max_roll_hits(_owner) -> int:
+	return GREED_MAX_ROLL_HITS
+
+
+static func get_greed_heal_amount(owner, role_id: String) -> float:
+	var current_ratio: float = get_greed_current_health_heal_ratio(owner)
+	var max_ratio: float = get_greed_max_health_heal_ratio(owner)
+	if current_ratio <= 0.0 and max_ratio <= 0.0:
+		return 0.0
+	var role_current_health: float = 0.0
+	if owner != null and owner.has_method("_get_role_current_health"):
+		role_current_health = max(0.0, float(owner._get_role_current_health(role_id)))
+	var role_max_health: float = 0.0
+	if owner != null and owner.has_method("_get_role_max_health"):
+		role_max_health = max(0.0, float(owner._get_role_max_health(role_id)))
+	return role_current_health * current_ratio + role_max_health * max_ratio
+
+
+static func get_divine_grace_regen_ratio_per_tick(owner) -> float:
+	return get_role_stat_bonus(owner, "", "health_regen_tick_ratio")
+
+
+static func tick_blessing_health_regen(owner, delta: float) -> void:
+	if owner == null or delta <= 0.0:
+		return
+	var regen_ratio: float = get_divine_grace_regen_ratio_per_tick(owner)
+	if regen_ratio <= 0.0:
+		owner.blessing_health_regen_elapsed = 0.0
+		return
+	owner.blessing_health_regen_elapsed += delta
+	while owner.blessing_health_regen_elapsed >= DIVINE_GRACE_REGEN_INTERVAL:
+		owner.blessing_health_regen_elapsed -= DIVINE_GRACE_REGEN_INTERVAL
+		var heal_amount: float = max(1.0, float(owner.max_health)) * regen_ratio
+		if heal_amount > 0.0 and owner.has_method("_heal"):
+			owner._heal(heal_amount)
 
 
 static func get_owned_magic_stones(owner) -> Array:
@@ -875,6 +1069,16 @@ static func _pick_options(owner, count: int) -> Array:
 	return picked
 
 
+static func _duplicate_option_array(raw_options: Array) -> Array:
+	var options: Array = []
+	for raw_option in raw_options:
+		if raw_option is Dictionary:
+			options.append((raw_option as Dictionary).duplicate(true))
+		else:
+			options.append(raw_option)
+	return options
+
+
 static func _ensure_forced_tier_four_blessing(owner, picked: Array, used_keys: Dictionary, count: int) -> void:
 	if not DEVELOPER_MODE.should_force_tier_four_blessing():
 		return
@@ -1009,7 +1213,7 @@ static func _owns_magic_stone(owned_stones: Array, stone_id: String) -> bool:
 
 static func _make_option(owner, blessing_id: String, tier: int) -> Dictionary:
 	var definition: Dictionary = DEFINITIONS.get(blessing_id, {})
-	var title_base: String = "%s%s" % [str(definition.get("title", blessing_id)), _tier_label(tier)]
+	var title_base: String = "%s%s" % [_get_definition_title(definition, blessing_id), _tier_label(tier)]
 	var effect_text := _get_option_tier_description(owner, definition, tier)
 	var card_summary := _get_option_card_summary(owner, definition, tier)
 	var title := title_base
@@ -1068,7 +1272,7 @@ static func _apply_role_blessing(owner, blessing_id: String, tier: int, definiti
 	_set_shared_role_levels(owner, role_levels)
 	_apply_role_stat_delta(owner, str(definition.get("stat", "")), float((definition.get("tier_values", {}) as Dictionary).get(tier, 0.0)))
 	if owner.has_method("_spawn_combat_tag"):
-		owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -62.0), "%s%s" % [str(definition.get("title", blessing_id)), _tier_label(tier)], Color(0.92, 0.86, 0.54, 1.0))
+		owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -62.0), "%s%s" % [_get_definition_title(definition, blessing_id), _tier_label(tier)], Color(0.92, 0.86, 0.54, 1.0))
 	if refresh_unlocks and owner.has_method("_refresh_blessing_skill_unlocks"):
 		owner._refresh_blessing_skill_unlocks()
 	return true
@@ -1083,7 +1287,7 @@ static func _apply_skill_blessing(owner, blessing_id: String, tier: int, definit
 	skill_levels[blessing_id] = blessing_levels
 	owner.skill_blessing_levels = skill_levels
 	if owner.has_method("_spawn_combat_tag"):
-		owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -62.0), "%s%s" % [str(definition.get("title", blessing_id)), _tier_label(tier)], Color(0.64, 0.90, 1.0, 1.0))
+		owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -62.0), "%s%s" % [_get_definition_title(definition, blessing_id), _tier_label(tier)], Color(0.64, 0.90, 1.0, 1.0))
 	if refresh_unlocks and owner.has_method("_refresh_blessing_skill_unlocks"):
 		owner._refresh_blessing_skill_unlocks()
 	return true
@@ -1102,11 +1306,42 @@ static func _apply_role_stat_delta(owner, stat: String, value: float) -> void:
 				owner.max_health += value
 				owner.current_health = min(owner.max_health, owner.current_health + value)
 				owner.health_changed.emit(owner.current_health, owner.max_health)
+		"max_health_percent":
+			_add_all_role_current_health_by_base_percent(owner, value)
+			if owner.has_method("_sync_active_role_max_health"):
+				owner._sync_active_role_max_health(false, false)
 		_:
 			pass
 	if owner.has_method("_update_fire_timer"):
 		owner._update_fire_timer()
 	_emit_lightweight_stats_changed(owner)
+
+
+static func _add_all_role_current_health_by_base_percent(owner, percent: float) -> void:
+	if owner == null or percent <= 0.0:
+		return
+	if owner.has_method("_save_active_role_health"):
+		owner._save_active_role_health()
+	var role_health_values: Variant = owner.get("role_health_values")
+	if role_health_values == null:
+		return
+	if role_health_values is not Dictionary or (role_health_values as Dictionary).is_empty():
+		if owner.has_method("_build_role_health_state"):
+			role_health_values = owner._build_role_health_state()
+		else:
+			role_health_values = {}
+	var updated_values: Dictionary = role_health_values if role_health_values is Dictionary else {}
+	for role_data in owner.roles:
+		if role_data is not Dictionary:
+			continue
+		var role_id: String = str((role_data as Dictionary).get("id", ""))
+		if role_id == "":
+			continue
+		var base_health: float = max(1.0, float((role_data as Dictionary).get("base_health", owner.max_health)))
+		var role_max_health: float = max(1.0, float(owner._get_role_max_health(role_id)) if owner.has_method("_get_role_max_health") else base_health * (1.0 + percent))
+		var current_value: float = float(updated_values.get(role_id, role_max_health))
+		updated_values[role_id] = clamp(current_value + base_health * percent, 0.0, role_max_health)
+	owner.set("role_health_values", updated_values)
 
 
 static func apply_active_role_runtime_bonuses(owner) -> void:
@@ -1117,14 +1352,10 @@ static func apply_active_role_runtime_bonuses(owner) -> void:
 		return
 	var cooldown_bonus := get_role_stat_bonus(owner, role_id, "cooldown_reduction")
 	var range_bonus := get_role_stat_bonus(owner, role_id, "skill_range")
-	var dodge_bonus := get_role_stat_bonus(owner, role_id, "dodge")
-	var reduction_bonus := get_role_stat_bonus(owner, role_id, "damage_reduction")
 	if cooldown_bonus > 0.0:
 		owner.equipment_cooldown_multiplier = max(0.45, owner.equipment_cooldown_multiplier * max(0.2, 1.0 - cooldown_bonus))
 	if range_bonus > 0.0:
 		owner.equipment_skill_range_multiplier += range_bonus
-	if reduction_bonus > 0.0:
-		owner.damage_taken_multiplier = max(0.45, owner.damage_taken_multiplier * max(0.2, 1.0 - reduction_bonus))
 
 
 static func _sum_stat_bonus(levels: Dictionary, stat: String) -> float:
@@ -1133,14 +1364,14 @@ static func _sum_stat_bonus(levels: Dictionary, stat: String) -> float:
 	var uses_nonlinear := false
 	for blessing_id in levels.keys():
 		var definition: Dictionary = DEFINITIONS.get(str(blessing_id), {})
-		if str(definition.get("stat", "")) != stat:
+		var stat_tier_values: Dictionary = _get_stat_tier_values(definition, stat)
+		if stat_tier_values.is_empty():
 			continue
-		var tier_values: Dictionary = definition.get("tier_values", {})
 		var blessing_levels: Dictionary = levels.get(blessing_id, {})
 		for tier_value in blessing_levels.keys():
 			var tier := int(tier_value)
 			var count: int = int(blessing_levels.get(tier_value, 0))
-			var value: float = float(tier_values.get(tier, 0.0))
+			var value: float = float(stat_tier_values.get(tier, 0.0))
 			if bool(definition.get("nonlinear", false)) and stat != "dodge":
 				uses_nonlinear = true
 				for _index in range(max(0, count)):
@@ -1150,6 +1381,19 @@ static func _sum_stat_bonus(levels: Dictionary, stat: String) -> float:
 	if uses_nonlinear:
 		return 1.0 - survival_multiplier
 	return additive_result
+
+
+static func _get_stat_tier_values(definition: Dictionary, stat: String) -> Dictionary:
+	if definition.is_empty() or stat == "":
+		return {}
+	if str(definition.get("stat", "")) == stat:
+		return definition.get("tier_values", {})
+	var extra_stats: Variant = definition.get("extra_stats", {})
+	if extra_stats is Dictionary and (extra_stats as Dictionary).has(stat):
+		var values: Variant = (extra_stats as Dictionary).get(stat, {})
+		if values is Dictionary:
+			return values
+	return {}
 
 
 static func _get_role_levels(owner, role_id: String) -> Dictionary:
@@ -1273,15 +1517,19 @@ static func _get_tier_limit(tier: int) -> int:
 	return int(TIER_LIMITS.get(clamp(tier, 1, MAX_BLESSING_TIER), MAX_BLESSING_COUNT_PER_TIER))
 
 
+static func _get_definition_title(definition: Dictionary, fallback: String) -> String:
+	return str(definition.get("display_title", definition.get("title", fallback)))
+
+
 static func _get_tier_description(definition: Dictionary, tier: int) -> String:
-	var descriptions: Dictionary = definition.get("descriptions", {})
+	var descriptions: Dictionary = definition.get("display_descriptions", definition.get("descriptions", {}))
 	if descriptions.has(tier):
 		return str(descriptions.get(tier, ""))
 	return _format_value(definition, tier)
 
 
 static func _get_card_summary(definition: Dictionary, tier: int) -> String:
-	var summaries: Dictionary = definition.get("card_summaries", {})
+	var summaries: Dictionary = definition.get("display_card_summaries", definition.get("card_summaries", {}))
 	if summaries.has(tier):
 		return str(summaries.get(tier, ""))
 	return _get_tier_description(definition, tier)
@@ -1302,7 +1550,7 @@ static func _get_option_card_summary(owner, definition: Dictionary, tier: int) -
 		return _format_magic_stone_skill_summary(definition, tier, skill_title)
 	if str(definition.get("stat", "")) == "greed_proc_chance":
 		var value: float = float((definition.get("tier_values", {}) as Dictionary).get(tier, 0.0))
-		return "攻击%.0f%%概率回1%%血" % (value * 100.0)
+		return "攻击%.0f%%概率回复生命" % (value * 100.0)
 	return _get_card_summary(definition, tier)
 
 
@@ -1364,20 +1612,20 @@ static func _format_value(definition: Dictionary, tier: int) -> String:
 	var stat: String = str(definition.get("stat", ""))
 	var value: float = float((definition.get("tier_values", {}) as Dictionary).get(tier, 0.0))
 	if stat == "greed_proc_chance":
-		return "攻击命中时有%.0f%%几率回复最大生命值的1%%，该效果每秒最多生效1次" % (value * 100.0)
+		return "攻击命中时有%.0f%%几率回复最大生命值的1%%，该效果每秒最多触发1次" % (value * 100.0)
 	match stat:
 		"max_health":
 			return "所有角色血量加%.0f" % value
 		"energy_gain":
 			return "终极技能回复效率增加%.0f%%" % (value * 100.0)
 		"greed_kill_heal":
-			return "击杀怪物有5%%几率回复%.0f点血量" % value
+			return "击杀怪物5%%几率回复%.0f点血量" % value
 		"move_speed":
 			return "所有角色移动速度+%.0f" % value
 		"damage":
-			return "所有角色造成伤害+%.0f" % value
+			return "所有角色造成伤害增加%.0f%%" % (value * 100.0)
 		"dodge":
-			return "所有角色闪避几率+%.0f%%" % (value * 100.0)
+			return "所有角色闪避值+%.0f" % (value * 100.0)
 		"global_quantity_skill_count":
 			return "所有数量类型技能100%%效果数量+%.0f" % value
 		"global_combo_skill_extra":

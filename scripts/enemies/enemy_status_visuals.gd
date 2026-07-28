@@ -87,6 +87,7 @@ static func ensure_status_visuals(enemy) -> void:
 static func update_status_visuals(enemy) -> void:
 	_update_invulnerability_tint(enemy)
 	var hit_flash_alpha: float = enemy._get_hit_flash_alpha()
+	_update_polygon_tint(enemy, hit_flash_alpha)
 	if enemy.status_root == null:
 		if not enemy.has_method("_has_status_visual_pressure") or not bool(enemy._has_status_visual_pressure()):
 			return
@@ -96,24 +97,6 @@ static func update_status_visuals(enemy) -> void:
 	elif enemy.has_method("_has_status_visual_pressure") and not bool(enemy._has_status_visual_pressure()):
 		_clear_status_visuals(enemy)
 		return
-	var polygon := enemy.get_node_or_null("Polygon2D") as Polygon2D
-	if polygon != null:
-		var target_modulate := Color.WHITE
-		if enemy.slow_timer > 0.0:
-			target_modulate = target_modulate.lerp(Color(0.68, 0.9, 1.0, 1.0), 0.45)
-		if enemy.vulnerability_timer > 0.0:
-			target_modulate = target_modulate.lerp(Color(1.0, 0.76, 0.76, 1.0), 0.4)
-		if enemy._is_accelerator and enemy.acceleration_remaining > 0.0:
-			target_modulate = target_modulate.lerp(Color(1.0, 0.88, 0.64, 1.0), 0.32)
-		if enemy._is_dasher and enemy.dash_windup_remaining > 0.0:
-			target_modulate = target_modulate.lerp(Color(1.0, 0.92, 0.56, 1.0), 0.46)
-		if enemy._is_dasher and enemy.dash_remaining > 0.0:
-			target_modulate = target_modulate.lerp(Color(1.0, 0.72, 0.72, 1.0), 0.32)
-		var flash_strength: float = clamp(1.0 - hit_flash_alpha, 0.0, 1.0)
-		target_modulate = target_modulate.lerp(Color.WHITE, flash_strength)
-		polygon.modulate = polygon.modulate.lerp(target_modulate, 0.18)
-		polygon.modulate.a = 1.0
-
 	if enemy.slow_ring != null:
 		enemy.slow_ring.visible = enemy.slow_timer > 0.0
 		enemy.slow_ring.rotation = enemy.status_visual_time * 2.1
@@ -164,6 +147,38 @@ static func _update_invulnerability_tint(enemy) -> void:
 	if enemy.boss_visual_instance != null and is_instance_valid(enemy.boss_visual_instance):
 		targets.append(enemy.boss_visual_instance)
 	INVULNERABILITY_VISUAL_TINT.apply_to_nodes(targets, _has_damage_immunity(enemy))
+
+static func _update_polygon_tint(enemy, hit_flash_alpha: float) -> void:
+	var polygon := enemy.get_node_or_null("Polygon2D") as Polygon2D
+	if polygon == null or not polygon.visible:
+		return
+	var target_color: Color = enemy.display_color
+	var has_status_tint := false
+	if enemy.slow_timer > 0.0:
+		target_color = target_color.lerp(Color(0.68, 0.9, 1.0, 1.0), 0.45)
+		has_status_tint = true
+	if enemy.vulnerability_timer > 0.0:
+		target_color = target_color.lerp(Color(1.0, 0.76, 0.76, 1.0), 0.4)
+		has_status_tint = true
+	if enemy._is_accelerator and enemy.acceleration_remaining > 0.0:
+		target_color = target_color.lerp(Color(1.0, 0.88, 0.64, 1.0), 0.32)
+		has_status_tint = true
+	if enemy._is_dasher and enemy.dash_windup_remaining > 0.0:
+		target_color = target_color.lerp(Color(1.0, 0.92, 0.56, 1.0), 0.46)
+		has_status_tint = true
+	if enemy._is_dasher and enemy.dash_remaining > 0.0:
+		target_color = target_color.lerp(Color(1.0, 0.72, 0.72, 1.0), 0.32)
+		has_status_tint = true
+	var flash_strength: float = clamp(1.0 - hit_flash_alpha, 0.0, 1.0)
+	if flash_strength > 0.0:
+		target_color = target_color.lerp(Color.WHITE, flash_strength)
+	target_color.a = enemy.display_color.a
+	if flash_strength <= 0.0 and not has_status_tint:
+		polygon.color = target_color
+	else:
+		var blend_weight: float = 0.72 if flash_strength > 0.0 else 0.18
+		polygon.color = polygon.color.lerp(target_color, blend_weight)
+		polygon.color.a = target_color.a
 
 static func _has_damage_immunity(enemy) -> bool:
 	if float(enemy.skull_damage_immune_timer) > 0.0:

@@ -1,6 +1,7 @@
 extends RefCounted
 
 const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
+const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 
 const MAGE_ATTACK_EFFECT_SCALE := 0.8
 const BASIC_COMBO_INTERVAL := 0.16
@@ -157,11 +158,12 @@ func _build_attack_contexts(owner) -> Array:
 
 func _build_attack_context(owner, role_data: Dictionary, upgrade_data: Dictionary, _special_data: Dictionary, bombard_center: Vector2, effect_scale: float, arcane_focus_level: float) -> Array:
 	var target_enemy: Node2D = owner._get_enemy_near_position(bombard_center, 56.0 + float(upgrade_data.get("range_bonus", 0.0)) * 0.25)
-	var radius: float = (44.0 + float(upgrade_data["range_bonus"]) * 0.55) * owner._get_story_style_range_multiplier(role_data["id"])
+	var role_range_multiplier: float = owner._get_role_attribute_range_multiplier(role_data["id"]) * owner._get_role_equipment_skill_range_multiplier(role_data["id"])
+	var radius: float = (43.75 + float(upgrade_data["range_bonus"]) * 0.55) * role_range_multiplier
 	radius *= owner._get_role_attribute_range_multiplier("mage")
 	radius *= owner._get_mage_arcane_focus_range_multiplier(arcane_focus_level)
 	radius *= _get_basic_attack_range_multiplier(owner)
-	var damage_amount: float = owner._get_role_damage(role_data["id"]) * 0.96 * max(0.0, effect_scale)
+	var damage_amount: float = owner._get_role_damage(role_data["id"]) * 1.0 * max(0.0, effect_scale) * PLAYER_BUILD_SYSTEM.get_basic_attack_damage_multiplier(owner, "mage")
 	if target_enemy != null:
 		damage_amount *= owner._get_priority_target_bonus(target_enemy)
 	radius *= MAGE_ATTACK_EFFECT_SCALE
@@ -185,9 +187,14 @@ func _get_skill_effect_scales(owner, stat: String) -> Array[float]:
 	return []
 
 func _get_basic_attack_range_multiplier(owner) -> float:
+	var multiplier: float = 1.0
 	if owner != null and owner.has_method("_get_basic_attack_range_multiplier"):
-		return float(owner._get_basic_attack_range_multiplier("mage_basic_attack"))
-	return 1.0
+		multiplier *= float(owner._get_basic_attack_range_multiplier("mage_basic_attack"))
+	multiplier *= PLAYER_BUILD_SYSTEM.get_basic_attack_range_multiplier(owner, "mage")
+	return multiplier
+
+func _get_arcane_surplus_duration(owner) -> float:
+	return ENTRY_ARCANE_SURPLUS_DURATION + PLAYER_BUILD_SYSTEM.get_mage_arcane_surplus_duration_bonus(owner)
 
 func _start_evolved_arcane_bombardment(owner, center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, gravity_level: int, echo_level: int, frost_level: int, role_id: String, third_tier: bool = false) -> void:
 	owner._start_basic_mage_bombardment(center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, gravity_level, echo_level, frost_level, role_id, true, false)
@@ -255,14 +262,15 @@ func perform_background(owner) -> void:
 			)
 			break
 
-func perform_enter(owner, role_id: String, _assault_level: int, _assault_multiplier: float) -> int:
+func perform_enter(owner, role_id: String, _assault_level: int, assault_multiplier: float) -> int:
 	owner._show_switch_banner("\u8FDB\u573A", "\u5BC6\u96C6\u96F7\u7FA4", Color(0.34, 0.72, 1.0, 1.0))
-	var hit_count: int = _cast_entry_lightning_ring(owner, role_id)
-	owner.mage_arcane_surplus_remaining = ENTRY_ARCANE_SURPLUS_DURATION
-	owner._start_duration_status(ENTRY_ARCANE_SURPLUS_STATUS_ID, "\u5965\u6CD5\u76C8\u4F59", ENTRY_ARCANE_SURPLUS_DURATION, 18, Color(0.34, 0.72, 1.0, 0.95))
+	var hit_count: int = _cast_entry_lightning_ring(owner, role_id, assault_multiplier)
+	var arcane_surplus_duration: float = _get_arcane_surplus_duration(owner)
+	owner.mage_arcane_surplus_remaining = arcane_surplus_duration
+	owner._start_duration_status(ENTRY_ARCANE_SURPLUS_STATUS_ID, "\u5965\u6CD5\u76C8\u4F59", arcane_surplus_duration, 18, Color(0.34, 0.72, 1.0, 0.95))
 	return hit_count
 
-func _cast_entry_lightning_ring(owner, role_id: String) -> int:
+func _cast_entry_lightning_ring(owner, role_id: String, damage_scale: float = 1.0) -> int:
 	var centers: Array[Vector2] = []
 	var base_direction: Vector2 = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
 	for index in range(ENTRY_LIGHTNING_COUNT):
@@ -271,7 +279,7 @@ func _cast_entry_lightning_ring(owner, role_id: String) -> int:
 		centers.append(owner.global_position + direction * ENTRY_LIGHTNING_DISTANCE)
 	for center in centers:
 		owner._spawn_mage_warning_scene_effect(center, ENTRY_LIGHTNING_RADIUS)
-	var damage_amount: float = owner._get_role_damage(role_id) * ENTRY_LIGHTNING_DAMAGE_SCALE
+	var damage_amount: float = owner._get_role_damage(role_id) * ENTRY_LIGHTNING_DAMAGE_SCALE * max(0.0, damage_scale)
 	if owner.get_tree() == null or not owner.has_method("_schedule_repeating_sequence"):
 		return _resolve_entry_lightning_ring(owner, role_id, centers, damage_amount)
 	var warning_duration: float = owner._get_scene_animation_duration(owner.MAGE_WARNING_EFFECT_SCENE, 0.2)
@@ -299,7 +307,7 @@ func perform_ultimate(owner, cast_payload: Dictionary) -> void:
 		center = owner.global_position
 	var ultimate_tier: int = _get_ultimate_skill_tier(owner)
 	var total_duration: float = _get_ultimate_duration(owner, cast_payload)
-	var bombard_count: int = max(1, int(floor(total_duration / ULTIMATE_BOMBARD_INTERVAL)))
+	var bombard_count: int = max(1, int(floor(total_duration / ULTIMATE_BOMBARD_INTERVAL)) + PLAYER_BUILD_SYSTEM.get_mage_ultimate_bombard_count_bonus(owner))
 	var combo_scales: Array[float] = _get_ultimate_combo_scales(owner)
 	var bombard_scales: Array[float] = _build_ultimate_segment_scales(bombard_count, combo_scales)
 	var total_sequence_duration: float = 0.28 + float(bombard_scales.size() - 1) * ULTIMATE_BOMBARD_INTERVAL
@@ -319,14 +327,16 @@ func _schedule_ultimate_bombardment_sequence(owner, bombard_scales: Array[float]
 	else:
 		owner._schedule_repeating_sequence(ULTIMATE_BOMBARD_INTERVAL, bombard_count, sequence_callback, start_delay)
 	if surplus_delay <= 0.0 or not owner.has_method("_schedule_repeating_sequence"):
-		owner.mage_arcane_surplus_remaining = max(owner.mage_arcane_surplus_remaining, ENTRY_ARCANE_SURPLUS_DURATION)
-		owner._start_duration_status(ENTRY_ARCANE_SURPLUS_STATUS_ID, "\u5965\u6CD5\u76C8\u4F59", ENTRY_ARCANE_SURPLUS_DURATION, 18, Color(0.34, 0.72, 1.0, 0.95))
+		var arcane_surplus_duration: float = _get_arcane_surplus_duration(owner)
+		owner.mage_arcane_surplus_remaining = max(owner.mage_arcane_surplus_remaining, arcane_surplus_duration)
+		owner._start_duration_status(ENTRY_ARCANE_SURPLUS_STATUS_ID, "\u5965\u6CD5\u76C8\u4F59", arcane_surplus_duration, 18, Color(0.34, 0.72, 1.0, 0.95))
 		return
 	owner._schedule_repeating_sequence(0.0, 1, func(_index: int) -> void:
 		if not is_instance_valid(owner):
 			return
-		owner.mage_arcane_surplus_remaining = max(owner.mage_arcane_surplus_remaining, ENTRY_ARCANE_SURPLUS_DURATION)
-		owner._start_duration_status(ENTRY_ARCANE_SURPLUS_STATUS_ID, "\u5965\u6CD5\u76C8\u4F59", ENTRY_ARCANE_SURPLUS_DURATION, 18, Color(0.34, 0.72, 1.0, 0.95))
+		var arcane_surplus_duration: float = _get_arcane_surplus_duration(owner)
+		owner.mage_arcane_surplus_remaining = max(owner.mage_arcane_surplus_remaining, arcane_surplus_duration)
+		owner._start_duration_status(ENTRY_ARCANE_SURPLUS_STATUS_ID, "\u5965\u6CD5\u76C8\u4F59", arcane_surplus_duration, 18, Color(0.34, 0.72, 1.0, 0.95))
 	, surplus_delay)
 
 func _trigger_ultimate_bombardment(owner, bombard_scales: Array[float], storm_level: int, cast_damage_multiplier: float, pulse_index: int, ultimate_tier: int = 1, cast_center: Vector2 = Vector2.ZERO) -> void:
@@ -344,7 +354,8 @@ func _trigger_ultimate_bombardment(owner, bombard_scales: Array[float], storm_le
 	var orbit_angle: float = phase * TAU * 1.6
 	var main_center: Vector2 = cluster_center + Vector2.RIGHT.rotated(orbit_angle) * (12.0 + 8.0 * sin(orbit_angle * 1.4))
 	var tier_damage_multiplier: float = 1.16 if ultimate_tier >= 2 else 1.0
-	var pulse_radius: float = (72.0 + storm_level * 9.0) * owner._get_story_style_range_multiplier("mage") * owner._get_role_attribute_range_multiplier("mage")
+	var role_range_multiplier: float = owner._get_role_attribute_range_multiplier("mage") * owner._get_role_equipment_skill_range_multiplier("mage")
+	var pulse_radius: float = 100.0 * role_range_multiplier * owner._get_role_attribute_range_multiplier("mage")
 	var pulse_damage: float = owner._get_role_damage("mage") * (ULTIMATE_BASE_DAMAGE_RATIO + storm_level * 0.08) * cast_damage_multiplier * max(0.0, effect_scale) * tier_damage_multiplier * ULTIMATE_GUNNER_ULTIMATE_OUTPUT_RATIO
 	owner._queue_camera_shake(6.4 + float(storm_level) * 0.28, 0.12)
 	if _should_spawn_ultimate_pulse_visual(pulse_index):

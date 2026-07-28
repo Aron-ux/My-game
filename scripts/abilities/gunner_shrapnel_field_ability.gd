@@ -1,6 +1,7 @@
 extends RefCounted
 
 const SHRAPNEL_SCENE := preload("res://effects/gun/shrapnel/shrapnel.tscn")
+const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const FIELD_TEXTURE := preload("res://effects/gun/shrapnel/散弹圈.png")
 const SHRAPNEL_TEXTURES := [
 	preload("res://effects/gun/shrapnel/1.png"),
@@ -18,22 +19,25 @@ const SHRAPNEL_TEXTURES := [
 ]
 
 const SKILL_ID := "shrapnel_field"
+const SHRAPNEL_DAMAGE_SOURCE_ROLE_ID := "gunner_no_hunt"
 const COOLDOWN := 14.0
 const DURATION := 4.0
 const REPRISE_FIELD_DURATION := 2.0
-const BASE_RADIUS := 145.0
-const RADIUS_MULTIPLIER := 1.30
-const TIER_ONE_TICK_INTERVAL := 0.65
+const BASE_RADIUS := 150.0
+const RADIUS_MULTIPLIER := 1.0
+const TIER_ONE_TICK_INTERVAL := 0.6
 const TIER_TWO_TICK_INTERVAL := 0.45
 const TIER_THREE_TICK_INTERVAL := 0.25
 const TIER_ONE_SLOW := 0.70
 const TIER_TWO_SLOW := 0.55
 const TIER_THREE_SLOW := 0.45
-const TIER_ONE_DAMAGE_RATIO := 0.44
+const TIER_ONE_DAMAGE_RATIO := 0.40
 const TIER_TWO_DAMAGE_RATIO := 0.60
 const TIER_THREE_DAMAGE_RATIO := 0.60
 const TIER_TWO_RADIUS := 200.0
 const TIER_THREE_RADIUS := 220.0
+const DEFAULT_FIELD_COUNT := 2
+const MIN_FIELD_CENTER_DISTANCE := 150.0
 const MAX_ACTIVE_VISUALS := 7
 const VISUAL_SPAWN_INTERVAL := 0.1
 const FIELD_CIRCLE_VISUAL_SCALE := 1.0
@@ -84,7 +88,7 @@ func try_trigger(owner) -> bool:
 	active_fields.clear()
 	var duration: float = _get_duration(owner)
 	var extra_field_count: int = _get_trick_extra_field_count(owner)
-	var centers: Array = owner._get_random_enemy_cluster_centers(1 + extra_field_count)
+	var centers: Array = _get_field_centers(owner, DEFAULT_FIELD_COUNT + extra_field_count)
 	for center_value in centers:
 		var center: Vector2 = center_value if center_value is Vector2 else owner.global_position
 		_create_field(owner, center, 1.0, true, duration)
@@ -92,6 +96,55 @@ func try_trigger(owner) -> bool:
 	return true
 
 
+
+func _get_field_centers(owner, field_count: int) -> Array:
+	var result: Array = []
+	var requested_count: int = max(field_count * 4, field_count)
+	var candidates: Array = owner._get_random_enemy_cluster_centers(requested_count)
+	for center_value in candidates:
+		if center_value is not Vector2:
+			continue
+		var candidate: Vector2 = center_value
+		if _is_field_center_far_enough(result, candidate):
+			result.append(candidate)
+			if result.size() >= field_count:
+				return result
+
+	var fallback_center: Vector2 = owner.global_position
+	if not result.is_empty():
+		fallback_center = result[0]
+	elif not candidates.is_empty() and candidates[0] is Vector2:
+		fallback_center = candidates[0]
+
+	var attempts: int = 0
+	while result.size() < field_count and attempts < field_count * 12:
+		var distance: float = MIN_FIELD_CENTER_DISTANCE + 24.0 + randf() * 80.0
+		var candidate := fallback_center + Vector2.RIGHT.rotated(randf() * TAU) * distance
+		if _is_field_center_far_enough(result, candidate):
+			result.append(candidate)
+		attempts += 1
+
+	var fallback_attempts: int = 0
+	while result.size() < field_count:
+		var directions: int = max(1, field_count * 4)
+		var angle: float = TAU * float(fallback_attempts % directions) / float(directions)
+		var ring: float = floor(float(fallback_attempts) / float(directions)) + 1.0
+		var candidate := fallback_center + Vector2.RIGHT.rotated(angle) * (MIN_FIELD_CENTER_DISTANCE + 24.0) * ring
+		if _is_field_center_far_enough(result, candidate):
+			result.append(candidate)
+		fallback_attempts += 1
+	return result
+
+
+func _is_field_center_far_enough(existing_centers: Array, candidate: Vector2) -> bool:
+	var minimum_distance_squared := MIN_FIELD_CENTER_DISTANCE * MIN_FIELD_CENTER_DISTANCE
+	for center_value in existing_centers:
+		if center_value is not Vector2:
+			continue
+		var existing_center: Vector2 = center_value
+		if candidate.distance_squared_to(existing_center) <= minimum_distance_squared:
+			return false
+	return true
 func stop(owner = null) -> void:
 	for field_data in active_fields:
 		_free_field(field_data)
@@ -185,7 +238,7 @@ func _damage_field(owner, field_data: Dictionary) -> int:
 	var center: Vector2 = field_data.get("center", owner.global_position)
 	var radius: float = float(field_data.get("radius", _get_radius(owner)))
 	var effect_scale: float = max(0.0, float(field_data.get("effect_scale", 1.0)))
-	return owner._damage_enemies_in_radius(center, radius, _get_damage(owner) * effect_scale, 0.0, _get_slow_multiplier(owner), 1.1, "gunner")
+	return owner._damage_enemies_in_radius(center, radius, _get_damage(owner) * effect_scale, 0.0, _get_slow_multiplier(owner), 1.2, SHRAPNEL_DAMAGE_SOURCE_ROLE_ID)
 
 
 func _spawn_reprise_fields_on_end(owner, field_data: Dictionary) -> void:
@@ -367,7 +420,7 @@ func _get_reprise_field_scales(owner) -> Array[float]:
 
 
 func _get_cooldown(owner) -> float:
-	var cooldown_multiplier: float = 1.0
+	var cooldown_multiplier: float = PLAYER_BUILD_SYSTEM.get_shrapnel_cooldown_multiplier(owner)
 	if owner != null and is_instance_valid(owner) and owner.has_method("_get_equipment_cooldown_multiplier"):
 		cooldown_multiplier *= float(owner._get_equipment_cooldown_multiplier())
 	if owner != null and is_instance_valid(owner) and owner.has_method("_get_kebiru_magic_cooldown_multiplier"):
@@ -387,7 +440,7 @@ func _get_radius(owner) -> float:
 		base_radius = TIER_THREE_RADIUS
 	elif tier >= 2:
 		base_radius = TIER_TWO_RADIUS
-	return base_radius * range_multiplier
+	return (base_radius + PLAYER_BUILD_SYSTEM.get_shrapnel_radius_bonus(owner)) * range_multiplier
 
 
 func _get_tick_interval(owner) -> float:
@@ -415,7 +468,7 @@ func _get_damage(owner) -> float:
 		ratio = TIER_THREE_DAMAGE_RATIO
 	elif tier >= 2:
 		ratio = TIER_TWO_DAMAGE_RATIO
-	return float(owner._get_role_damage("gunner")) * ratio
+	return float(owner._get_role_damage("gunner")) * (ratio + PLAYER_BUILD_SYSTEM.get_shrapnel_damage_ratio_bonus(owner))
 
 
 func _get_duration(owner) -> float:

@@ -1,8 +1,14 @@
 extends RefCounted
 
+const ROLE_ATTRIBUTE_RULES := preload("res://scripts/player/roles/role_attribute_rules.gd")
+
 const EQUIPMENT_SLOT_LABEL := "\u88c5\u5907"
 const EQUIPMENT_OPTION_COUNT := 3
 const EQUIPMENT_MAX_LEVEL := 3
+const DODGE_PERMANENT_RATE_CAP := 0.55
+const DODGE_FINAL_RATE_CAP := 0.75
+const DODGE_VALUE_CURVE_SCALE := 120.0
+const DODGE_FRACTION_TO_VALUE := 100.0
 
 const EQUIPMENT_DEFINITIONS := {
 	"small_boss_equipment_flame_amulet": {
@@ -12,7 +18,7 @@ const EQUIPMENT_DEFINITIONS := {
 	},
 	"small_boss_equipment_wind_amulet": {
 		"title": "\u98ce\u606f\u62a4\u7b26",
-		"description": "\u6240\u6709\u89d2\u8272\u79fb\u901f +10\uff0c\u5e76\u83b7\u5f97 5% \u901a\u7528\u95ea\u907f\u3002",
+		"description": "\u6240\u6709\u89d2\u8272\u79fb\u901f +10\uff0c\u5e76\u83b7\u5f97 5 \u95ea\u907f\u503c\u3002",
 		"speed_bonus": 10.0,
 		"dodge_bonus": 0.05
 	},
@@ -24,9 +30,10 @@ const EQUIPMENT_DEFINITIONS := {
 	},
 	"small_boss_equipment_earth_child": {
 		"title": "\u5927\u5730\u4e4b\u5b50",
-		"description": "\u751f\u547d\u4f4e\u4e8e 38% \u65f6\u53d7\u5230\u7684\u4f24\u5bb3\u964d\u4f4e 28%\u3002",
+		"description": "\u751f\u547d\u4f4e\u4e8e 38% \u65f6\u83b7\u5f97 95 \u51cf\u4f24\u503c\u3002",
 		"low_health_threshold": 0.38,
-		"low_health_damage_multiplier": 0.72
+		"low_health_damage_multiplier": 0.72,
+		"low_health_damage_reduction_value": 95.0
 	},
 	"small_boss_equipment_spyglass": {
 		"title": "\u671b\u8fdc\u955c",
@@ -181,6 +188,8 @@ static func get_role_bonus_summary(owner, role_id: String) -> Dictionary:
 		"regen_per_second": 0.0,
 		"low_health_threshold": 0.0,
 		"low_health_damage_taken_multiplier": 1.0,
+		"low_health_damage_reduction_value": 0.0,
+		"damage_reduction_value": 0.0,
 		"skill_range_multiplier": 1.0,
 		"energy_gain_bonus": 0.0,
 		"cooldown_multiplier": 1.0
@@ -198,6 +207,7 @@ static func get_role_bonus_summary(owner, role_id: String) -> Dictionary:
 		var threshold: float = float(definition.get("low_health_threshold", 0.0))
 		if threshold > 0.0:
 			summary["low_health_threshold"] = max(float(summary["low_health_threshold"]), threshold)
+			summary["low_health_damage_reduction_value"] = float(summary["low_health_damage_reduction_value"]) + float(definition.get("low_health_damage_reduction_value", 0.0)) * level
 			for _index in range(level):
 				summary["low_health_damage_taken_multiplier"] = max(
 					0.42,
@@ -218,11 +228,18 @@ static func get_role_energy_gain_bonus(owner, role_id: String) -> float:
 	return float(get_role_bonus_summary(owner, role_id).get("energy_gain_bonus", 0.0))
 
 
+static func get_role_damage_reduction_value(owner, role_id: String) -> float:
+	if owner == null or role_id == "":
+		return 0.0
+	var summary: Dictionary = get_role_bonus_summary(owner, role_id)
+	return float(summary.get("damage_reduction_value", 0.0)) + get_role_low_health_damage_reduction_value(owner, role_id)
+
+
 static func recalculate_active_equipment_stats(owner, restore_new_health_bonus: bool = false) -> void:
 	ensure_role_equipment_levels(owner)
 	var active_role_id: String = str(owner._get_active_role().get("id", ""))
 	var summary: Dictionary = get_role_bonus_summary(owner, active_role_id)
-	var old_damage_bonus: float = owner.equipment_damage_multiplier_bonus
+	var old_equipment_damage_multiplier: float = owner.equipment_damage_multiplier_bonus
 	var old_speed_bonus: float = owner.equipment_speed_bonus
 	var old_health_bonus: float = owner.equipment_max_health_bonus
 	var old_energy_bonus: float = owner.equipment_energy_gain_bonus
@@ -236,11 +253,12 @@ static func recalculate_active_equipment_stats(owner, restore_new_health_bonus: 
 	owner.equipment_health_regen_per_second = float(summary.get("regen_per_second", 0.0))
 	owner.equipment_low_health_threshold = float(summary.get("low_health_threshold", 0.0))
 	owner.equipment_low_health_damage_taken_multiplier = float(summary.get("low_health_damage_taken_multiplier", 1.0))
+	owner.equipment_low_health_damage_reduction_value = float(summary.get("low_health_damage_reduction_value", 0.0))
 	owner.equipment_skill_range_multiplier = float(summary.get("skill_range_multiplier", 1.0))
 	owner.equipment_cooldown_multiplier = float(summary.get("cooldown_multiplier", 1.0))
 	owner.equipment_levels = get_active_role_equipment_levels(owner).duplicate(true)
 
-	owner.global_damage_multiplier = max(0.01, owner.global_damage_multiplier - old_damage_bonus + owner.equipment_damage_multiplier_bonus)
+	owner.global_damage_multiplier = max(0.01, owner.global_damage_multiplier - old_equipment_damage_multiplier + owner.equipment_damage_multiplier_bonus)
 	owner.speed = max(0.0, owner.speed - old_speed_bonus + owner.equipment_speed_bonus)
 	owner.energy_gain_multiplier = max(0.01, owner.energy_gain_multiplier - old_energy_bonus + owner.equipment_energy_gain_bonus)
 	var health_delta: float = owner.equipment_max_health_bonus - old_health_bonus
@@ -265,21 +283,81 @@ static func apply_passives(owner, delta: float) -> void:
 		owner._heal(regen_amount)
 
 
-static func try_dodge(owner) -> bool:
-	var blessing_dodge_chance: float = 0.0
+static func get_role_dodge_chance(owner, role_id: String) -> float:
+	var resolved_role_id: String = role_id if role_id != "" else _get_active_role_id(owner)
+	return calculate_dodge_chance(
+		get_role_base_dodge_chance(owner, resolved_role_id),
+		get_role_permanent_dodge_value(owner, resolved_role_id),
+		get_role_temporary_dodge_strength(owner, resolved_role_id)
+	)
+
+
+static func calculate_dodge_chance(base_dodge_chance: float, permanent_dodge_value: float, temporary_dodge_strength: float) -> float:
+	var base_rate: float = clamp(base_dodge_chance, 0.0, DODGE_PERMANENT_RATE_CAP)
+	var value: float = max(0.0, permanent_dodge_value)
+	var permanent_rate: float = base_rate
+	if value > 0.0:
+		permanent_rate = base_rate + (DODGE_PERMANENT_RATE_CAP - base_rate) * value / (value + DODGE_VALUE_CURVE_SCALE)
+	var temporary_strength: float = clamp(temporary_dodge_strength, 0.0, 1.0)
+	return clamp(
+		permanent_rate + (DODGE_FINAL_RATE_CAP - permanent_rate) * temporary_strength,
+		0.0,
+		DODGE_FINAL_RATE_CAP
+	)
+
+
+static func get_role_base_dodge_chance(owner, role_id: String) -> float:
+	if owner != null:
+		var roles_value: Variant = owner.get("roles")
+		if roles_value is Array:
+			for role_data in roles_value:
+				if role_data is Dictionary and str((role_data as Dictionary).get("id", "")) == role_id:
+					return clamp(float((role_data as Dictionary).get("base_dodge", ROLE_ATTRIBUTE_RULES.get_role_base_dodge_chance(role_id))), 0.0, DODGE_PERMANENT_RATE_CAP)
+	return clamp(ROLE_ATTRIBUTE_RULES.get_role_base_dodge_chance(role_id), 0.0, DODGE_PERMANENT_RATE_CAP)
+
+
+static func get_role_permanent_dodge_value(owner, role_id: String) -> float:
+	if owner == null or role_id == "":
+		return 0.0
+	var dodge_value: float = 0.0
+	dodge_value += _dodge_fraction_to_value(float(get_role_bonus_summary(owner, role_id).get("dodge_chance", 0.0)))
 	if owner.has_method("_get_role_blessing_stat_bonus"):
-		blessing_dodge_chance = float(owner._get_role_blessing_stat_bonus(owner._get_active_role_id(), "dodge"))
-	var dodge_chance: float = owner.equipment_dodge_chance + blessing_dodge_chance
-	if owner.has_method("_get_attribute_dodge_chance"):
-		dodge_chance += float(owner._get_attribute_dodge_chance())
-	if owner.has_method("_get_gunner_flash_dodge_chance"):
-		dodge_chance += float(owner._get_gunner_flash_dodge_chance())
-	if owner.get("ultimate_haste_remaining") != null and float(owner.get("ultimate_haste_remaining")) > 0.0:
-		dodge_chance += float(owner.get("ultimate_haste_dodge_chance"))
-	dodge_chance = clamp(dodge_chance, 0.0, 1.0)
+		dodge_value += _dodge_fraction_to_value(float(owner._get_role_blessing_stat_bonus(role_id, "dodge")))
+	if owner.has_method("_get_role_attribute_dodge_value"):
+		dodge_value += float(owner._get_role_attribute_dodge_value(role_id))
+	if owner.has_method("_get_gunner_flash_dodge_value"):
+		dodge_value += float(owner._get_gunner_flash_dodge_value(role_id))
+	return max(0.0, dodge_value)
+
+
+static func get_role_temporary_dodge_strength(owner, role_id: String) -> float:
+	if owner == null or role_id == "":
+		return 0.0
+	var miss_multiplier: float = 1.0
+	if role_id == _get_active_role_id(owner) and owner.get("ultimate_haste_remaining") != null and float(owner.get("ultimate_haste_remaining")) > 0.0:
+		miss_multiplier *= 1.0 - clamp(float(owner.get("ultimate_haste_dodge_chance")), 0.0, 1.0)
+	return clamp(1.0 - miss_multiplier, 0.0, 1.0)
+
+
+static func try_dodge(owner) -> bool:
+	var dodge_chance: float = get_role_dodge_chance(owner, _get_active_role_id(owner))
 	if dodge_chance <= 0.0:
 		return false
 	return randf() < dodge_chance
+
+
+static func _get_active_role_id(owner) -> String:
+	if owner == null:
+		return ""
+	if owner.has_method("_get_active_role_id"):
+		return str(owner._get_active_role_id())
+	if owner.has_method("_get_active_role"):
+		return str(owner._get_active_role().get("id", ""))
+	return ""
+
+
+static func _dodge_fraction_to_value(dodge_fraction: float) -> float:
+	return max(0.0, dodge_fraction) * DODGE_FRACTION_TO_VALUE
 
 
 static func get_low_health_damage_taken_multiplier(owner) -> float:
@@ -288,6 +366,26 @@ static func get_low_health_damage_taken_multiplier(owner) -> float:
 	if owner.current_health / owner.max_health > owner.equipment_low_health_threshold:
 		return 1.0
 	return owner.equipment_low_health_damage_taken_multiplier
+
+
+static func get_low_health_damage_reduction_value(owner) -> float:
+	return get_role_low_health_damage_reduction_value(owner, _get_active_role_id(owner))
+
+
+static func get_role_low_health_damage_reduction_value(owner, role_id: String) -> float:
+	if owner == null or role_id == "":
+		return 0.0
+	var summary: Dictionary = get_role_bonus_summary(owner, role_id)
+	var threshold: float = float(summary.get("low_health_threshold", 0.0))
+	if threshold <= 0.0:
+		return 0.0
+	var max_health: float = float(owner._get_role_max_health(role_id)) if owner.has_method("_get_role_max_health") else float(owner.get("max_health"))
+	if max_health <= 0.0:
+		return 0.0
+	var current_health: float = float(owner._get_role_current_health(role_id)) if owner.has_method("_get_role_current_health") else float(owner.get("current_health"))
+	if current_health / max_health > threshold:
+		return 0.0
+	return float(summary.get("low_health_damage_reduction_value", 0.0))
 
 
 static func get_skill_range_multiplier(owner) -> float:

@@ -1,7 +1,8 @@
-extends CanvasLayer
+﻿extends CanvasLayer
 
 signal upgrade_selected(option_id: String, attribute_option_id: String)
 signal upgrade_refresh_requested
+signal upgrade_card_refresh_requested(option_index: int)
 
 const SURVIVORS_MODAL := preload("res://scripts/ui/core/survivors_modal.gd")
 const SURVIVORS_CARD_LIST := preload("res://scripts/ui/components/survivors_card_list.gd")
@@ -19,6 +20,7 @@ const MAGIC_STONE_BUILD_CARD_BLUE_SCENE := preload("res://assets/UI/card/bluesto
 const MAGIC_STONE_BUILD_CARD_PURPLE_SCENE := preload("res://assets/UI/card/purplestonecard.tscn")
 const MAGIC_STONE_BUILD_CARD_GOLD_SCENE := preload("res://assets/UI/card/goldstonecard.tscn")
 const BUILD_REFRESH_TEXTURE := preload("res://assets/UI/循环.png")
+const BUILD_CARD_OPTION_COUNT := 4
 const TRAIT_HEAD_SCENES := {
 	"level_trait_swordsman": preload("res://assets/UI/facility/swordhead.tscn"),
 	"level_trait_gunner": preload("res://assets/UI/facility/gunhead.tscn"),
@@ -33,9 +35,10 @@ const OPENING_TRAIT_HOVER_MODULATE := Color(1.24, 1.24, 1.24, 1.0)
 const BUILD_DETAIL_HIDE_DELAY := 0.3
 const BUILD_CARD_SELECT_ANIM_TIME := 0.32
 const BUILD_CARD_SELECT_SHAKE_TIME := 0.10
-const BUILD_CARD_SELECT_RING_TIME := 0.26
-const BUILD_CARD_SELECT_RING_ALPHA := 0.36
-const BUILD_CARD_SELECT_RING_WIDTH := 5.0
+const BUILD_CARD_REFRESH_BUTTON_SIZE := 46.0
+const BUILD_CARD_REFRESH_BUTTON_GAP := 8.0
+const BUILD_CARD_REFRESH_BUTTON_ROTATION_DEGREES := 90.0
+const BUILD_CARD_REFRESH_BUTTON_ROTATION_TIME := 0.16
 const BUILD_REFRESH_BUTTON_VISUAL_OFFSET := Vector2(-5.0, -43.0)
 const TRAIT_BUTTON_VISUAL_OFFSETS := {
 	"level_trait_mage": Vector2(0.0, -10.0)
@@ -46,14 +49,14 @@ const OPENING_TRAIT_BUTTON_VISUAL_OFFSETS := {
 	"level_trait_mage": Vector2(-80.0, -30.0)
 }
 const TRAIT_OPENING_DESCRIPTIONS := {
-	"level_trait_swordsman": "剑士攻击命中时有概率回复最大生命值的5％+已损失生命值的7.5％，基础概率5％，每升一级额外提升5％；该效果每秒最多生效1次。受到致命伤时保留1点生命并进入1.5s战意，之后进入80s CD。",
-	"level_trait_gunner": "枪手受到攻击时有几率闪避当前攻击，每级提供2％。枪手额外自带15％闪避，并拥有半径115的猎杀安全区，圈内敌人承受枪手伤害降至40％；未受伤时每2秒叠加1层瞬杀，最多10层，每层提升3％伤害、3％移速和2％闪避，受伤后清空并进入15秒冷却。",
-	"level_trait_mage": "法师每击杀一个怪物都有15％概率获得1层奥数充能。每层提供2％法师自身大招回能效率，并将法师自身获得的大招能量的10％同步给另外两名角色。切人后，奥数充能不会立刻消失，而是由下一名登场角色继承法师当前层数，并持续同等秒数。释放登场技后会立刻进入5秒奥法盈余；释放大招则会在演出结束后进入5秒奥法盈余：全员大招回能效率+20％，切人回能效率+20％，伤害+10％；若状态自然结束时当前站场角色仍为法师，则额外获得3层奥数充能。"
+	"level_trait_swordsman": "剑士造成伤害时有5%概率回复自身最大生命值3%与已损失生命值3%的生命值，每秒触发1次，多目标最多同时触发2次。受到致命伤害时保留1点生命并进入1.5s骑士荣耀，之后进入80s CD。",
+	"level_trait_gunner": "枪手基础闪避率15%，每级提供2闪避值。枪手拥有半径115的猎杀安全区，圈内敌人承受枪手伤害降至40%；未受伤时每2秒叠加1层瞬杀，最多10层，每层提升3%伤害、3%移速和4闪避值，受伤后清空并进入15秒冷却。",
+	"level_trait_mage": "法师每击杀一个怪物都有15%概率获得1层奥数充能。每层提供2%法师自身大招回能效率，并将法师自身获得的大招能量的10%同步给另外两名角色。切人后，奥数充能不会立刻消失，而是由下一名登场角色继承法师当前层数，并持续同等秒数。释放登场技后会立刻进入5秒奥法盈余；释放大招则会在演出结束后进入5秒奥法盈余：全员大招回能效率+20%，切人回能效率+20%，伤害+10%；若状态自然结束时当前站场角色仍为法师，则额外获得3层奥数充能。"
 }
 const TRAIT_DETAIL_DESCRIPTIONS := {
-	"level_trait_swordsman": "提供5％剑士特性触发概率。",
-	"level_trait_gunner": "提供2％闪避。",
-	"level_trait_mage": "提供2％击杀获得奥数充能概率。"
+	"level_trait_swordsman": "剑士造成伤害时有5%概率触发生命回复。",
+	"level_trait_gunner": "提供2闪避值。",
+	"level_trait_mage": "提供2%击杀获得奥数充能概率。"
 }
 const TRAIT_BUTTON_DESCRIPTION_GAP := 4.0
 const OPENING_TRAIT_DESCRIPTION_OFFSETS := {
@@ -73,35 +76,9 @@ const BUILD_CARD_SUMMARY_CHARS_PER_LINE := 8
 const BUILD_CARD_SUMMARY_MAX_LINES := 4
 const TIER_FOUR_CARD_SHAKE_TIME := 0.16
 const TIER_FOUR_CARD_SHAKE_DISTANCE := 8.0
-
-class BuildCardSelectRing:
-	extends Control
-
-	var ring_center := Vector2.ZERO:
-		set(value):
-			ring_center = value
-			queue_redraw()
-	var ring_radius := 0.0:
-		set(value):
-			ring_radius = value
-			queue_redraw()
-	var ring_alpha := BUILD_CARD_SELECT_RING_ALPHA:
-		set(value):
-			ring_alpha = value
-			queue_redraw()
-	var ring_width := BUILD_CARD_SELECT_RING_WIDTH:
-		set(value):
-			ring_width = value
-			queue_redraw()
-
-	func _draw() -> void:
-		if ring_radius <= 0.0 or ring_alpha <= 0.0:
-			return
-		draw_arc(ring_center, ring_radius, 0.0, TAU, 96, Color(1.0, 0.82, 0.18, ring_alpha), ring_width, true)
-
 const BLESSING_SLOT_ORDER := ["body", "combat", "skill"]
 const SMALL_BOSS_SLOT_ORDER := ["equipment", "card"]
-const BLESSING_UNIFIED_SECTION_TITLE := "祝福三选一"
+const BLESSING_UNIFIED_SECTION_TITLE := "构筑四选二"
 const DEFAULT_SLOT_LABELS := {
 	"body": "战斗",
 	"combat": "连携",
@@ -133,6 +110,7 @@ var pending_build_detail_item: Dictionary = {}
 var build_selection_in_progress := false
 var build_refresh_animation_in_progress := false
 var build_refresh_expand_pending := false
+var build_card_refresh_used_indices: Dictionary = {}
 
 var current_mode: String = "direct"
 var current_options: Array = []
@@ -141,6 +119,8 @@ var current_offer_context: Dictionary = {}
 var option_groups: Dictionary = {}
 var pending_blessing_option_id: String = ""
 var pending_blessing_title: String = ""
+var pending_blessing_option_ids: Array[String] = []
+var pending_blessing_titles: Array[String] = []
 var pending_attribute_option_id: String = ""
 var pending_attribute_title: String = ""
 var preferred_attribute_option_id: String = ""
@@ -229,6 +209,28 @@ func show_options(options: Array, attribute_options: Array = [], offer_context: 
 	if build_refresh_expand_pending:
 		build_refresh_expand_pending = false
 		_play_build_refresh_expand_animation()
+
+func show_refreshed_build_options(options: Array, offer_context: Dictionary, refreshed_option_index: int) -> void:
+	if current_mode != "blessing":
+		show_options(options, [], offer_context)
+		return
+	var refreshed_old_option_id := _get_current_build_option_id_at(refreshed_option_index)
+	current_options = _duplicate_option_array(options)
+	current_offer_context = offer_context.duplicate(true)
+	option_groups = _group_options(current_options, BLESSING_SLOT_ORDER)
+	_remove_pending_build_selection(refreshed_old_option_id)
+	_prune_pending_build_selections()
+	_sync_primary_build_selection()
+	build_refresh_animation_in_progress = false
+	visible = true
+	if modal != null:
+		modal.visible = false
+	_ensure_build_overlay()
+	_rebuild_build_overlay()
+	_update_selection_hint()
+	_refresh_selected_cards()
+	_refresh_build_card_selected_outlines()
+	_play_refreshed_build_card_feedback(refreshed_option_index)
 
 func show_opening_trait_choice(attribute_options: Array) -> void:
 	current_mode = "opening_trait"
@@ -341,7 +343,7 @@ func _ensure_build_overlay() -> void:
 
 	build_refresh_button = Button.new()
 	build_refresh_button.text = ""
-	build_refresh_button.tooltip_text = "刷新"
+	build_refresh_button.tooltip_text = "鍒锋柊"
 	build_refresh_button.focus_mode = Control.FOCUS_NONE
 	build_refresh_button.pressed.connect(_on_refresh_pressed)
 	var refresh_icon := TextureRect.new()
@@ -398,16 +400,23 @@ func _rebuild_build_overlay() -> void:
 	if build_card_layer != null:
 		build_card_layer.visible = current_mode != "opening_trait"
 	if current_mode != "opening_trait":
-		var displayed_options := current_options.slice(0, min(3, current_options.size()))
-		for raw_option in displayed_options:
+		var displayed_options := current_options.slice(0, min(BUILD_CARD_OPTION_COUNT, current_options.size()))
+		for option_index in range(displayed_options.size()):
+			var raw_option = displayed_options[option_index]
 			if raw_option is not Dictionary:
 				continue
 			var option: Dictionary = raw_option
 			var button := _make_build_card_button(option)
 			build_card_layer.add_child(button)
+			var refresh_button: Button = null
+			if _should_show_build_card_refresh_buttons():
+				refresh_button = _make_build_card_refresh_button(option_index)
+				build_card_layer.add_child(refresh_button)
 			build_card_entries.append({
 				"button": button,
-				"option": option
+				"refresh_button": refresh_button,
+				"option": option,
+				"option_index": option_index
 			})
 
 	for raw_trait_option in _get_trait_options():
@@ -422,6 +431,7 @@ func _rebuild_build_overlay() -> void:
 	_update_trait_button_styles()
 	_update_build_refresh_button()
 	_layout_build_overlay()
+	_refresh_build_card_selected_outlines()
 	if not build_refresh_expand_pending:
 		_play_pending_tier_four_card_intro_effects()
 
@@ -441,9 +451,38 @@ func _make_build_card_button(option: Dictionary) -> TextureButton:
 	button.pressed.connect(_on_build_card_pressed.bind(button, option))
 	if button.get_node_or_null("HoverFrame") == null:
 		button.add_child(_make_build_card_hover_frame())
+	_apply_build_card_hover_frame_style(button.get_node_or_null("HoverFrame") as Panel)
+	_ensure_build_card_selected_outline(button)
 	button.set_meta("build_card_base_scale", button.scale)
 	button.set_meta("build_card_intro_pending", int(option.get("blessing_tier", 0)) >= 4)
 	_populate_build_card_scene(button, option)
+	return button
+
+func _make_build_card_refresh_button(option_index: int) -> Button:
+	var button := Button.new()
+	button.name = "CardRefreshButton%d" % option_index
+	button.text = ""
+	button.tooltip_text = "刷新这张构筑"
+	button.focus_mode = Control.FOCUS_NONE
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.z_index = 42
+	button.set_meta("build_card_option_index", option_index)
+	button.pressed.connect(_on_build_card_refresh_pressed.bind(option_index))
+	var icon := TextureRect.new()
+	icon.name = "RefreshIcon"
+	icon.texture = BUILD_REFRESH_TEXTURE
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon.set_anchors_preset(Control.PRESET_FULL_RECT)
+	icon.offset_left = -4.0
+	icon.offset_top = -4.0
+	icon.offset_right = 4.0
+	icon.offset_bottom = 4.0
+	icon.modulate = Color(0.78, 0.88, 0.92, 0.62)
+	button.add_child(icon)
+	_apply_card_refresh_button_style(button)
+	_apply_build_card_refresh_button_state(button, option_index)
 	return button
 
 func _get_build_card_scene(option: Dictionary) -> PackedScene:
@@ -451,6 +490,14 @@ func _get_build_card_scene(option: Dictionary) -> PackedScene:
 	var option_category: String = str(option.get("option_category", option.get("blessing_category", "")))
 	if option_category == "magic_stone":
 		return MAGIC_STONE_BUILD_CARD_SCENE
+	if option_category == "role_build":
+		match str(option.get("build_card_scene", "")):
+			"magicstone":
+				return MAGIC_STONE_BUILD_CARD_SCENE
+			"stone":
+				return MAGIC_STONE_BLESSING_CARD_SCENE
+		if str(option.get("unlock_skill", "")) != "":
+			return MAGIC_STONE_BUILD_CARD_SCENE
 	var is_magic_stone_blessing := str(option.get("blessing_category", "")) == "magic_stone_blessing"
 	if is_magic_stone_blessing:
 		match tier:
@@ -476,10 +523,13 @@ func _populate_build_card_scene(button: TextureButton, option: Dictionary) -> vo
 	var tier_color: Color = option.get("tier_text_font_color", Color(0.0, 0.0, 0.0, 1.0))
 	var title_label := button.get_node_or_null("Margin/Content/TitleLabel") as Label
 	if title_label != null:
-		title_label.text = str(option.get("title", option.get("name", "选项")))
-		title_label.add_theme_color_override("font_color", tier_color)
-		title_label.add_theme_constant_override("outline_size", int(option.get("tier_text_outline_size", 0)))
-		title_label.add_theme_color_override("font_outline_color", option.get("tier_text_outline_color", Color(0.0, 0.0, 0.0, 0.0)))
+		var hide_title := bool(option.get("hide_card_title", false))
+		title_label.visible = not hide_title
+		title_label.text = "" if hide_title else str(option.get("card_title", option.get("title", option.get("name", "选项"))))
+		if not hide_title:
+			title_label.add_theme_color_override("font_color", tier_color)
+			title_label.add_theme_constant_override("outline_size", int(option.get("tier_text_outline_size", 0)))
+			title_label.add_theme_color_override("font_outline_color", option.get("tier_text_outline_color", Color(0.0, 0.0, 0.0, 0.0)))
 	var summary_label := button.get_node_or_null("Margin/Content/SummaryLabel") as Label
 	if summary_label != null:
 		summary_label.add_theme_color_override("font_color", option.get("tier_description_color", tier_color))
@@ -494,29 +544,70 @@ func _make_build_card_hover_frame() -> Panel:
 	panel.visible = false
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_fill_rect(panel)
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(1.0, 0.92, 0.62, 0.08)
-	style.border_color = Color(1.0, 0.82, 0.28, 0.96)
-	style.set_border_width_all(3)
-	style.set_corner_radius_all(8)
-	panel.add_theme_stylebox_override("panel", style)
+	_apply_build_card_hover_frame_style(panel)
 	return panel
 
-func _make_build_card_select_ring(rect: Rect2) -> BuildCardSelectRing:
-	var ring := BuildCardSelectRing.new()
-	ring.name = "SelectRing"
-	ring.position = Vector2.ZERO
-	ring.size = SURVIVORS_THEME.viewport_size(self)
-	ring.z_index = 45
-	ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ring.ring_center = rect.get_center()
-	ring.ring_radius = 1.0
-	ring.ring_alpha = BUILD_CARD_SELECT_RING_ALPHA
-	ring.ring_width = BUILD_CARD_SELECT_RING_WIDTH
-	return ring
+func _apply_build_card_hover_frame_style(panel: Panel) -> void:
+	if panel == null:
+		return
+	panel.visible = false
+	panel.z_index = 30
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(1.0, 0.90, 0.36, 0.16)
+	style.border_color = Color(1.0, 0.82, 0.18, 1.0)
+	style.set_border_width_all(5)
+	style.set_corner_radius_all(8)
+	panel.add_theme_stylebox_override("panel", style)
 
-func _get_build_card_diagonal_radius(rect: Rect2) -> float:
-	return rect.size.length() * 0.5
+func _ensure_build_card_selected_outline(card: TextureButton) -> TextureRect:
+	if card == null:
+		return null
+	var existing := card.get_node_or_null("SelectedOutline") as TextureRect
+	if existing != null:
+		return existing
+	var outline := TextureRect.new()
+	outline.name = "SelectedOutline"
+	outline.visible = false
+	outline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	outline.texture = card.texture_normal
+	outline.modulate = Color(1.0, 1.0, 1.0, 1.0)
+	outline.stretch_mode = TextureRect.STRETCH_SCALE
+	outline.z_index = 35
+	var shader := Shader.new()
+	shader.code = """
+shader_type canvas_item;
+
+uniform vec2 texel_size = vec2(0.00390625, 0.00390625);
+uniform float outline_width = 4.0;
+uniform vec4 outline_color : source_color = vec4(1.0, 0.78, 0.08, 1.0);
+
+void fragment() {
+	float center = texture(TEXTURE, UV).a;
+	vec2 step_size = texel_size * outline_width;
+	float a_left = texture(TEXTURE, UV + vec2(-step_size.x, 0.0)).a;
+	float a_right = texture(TEXTURE, UV + vec2(step_size.x, 0.0)).a;
+	float a_up = texture(TEXTURE, UV + vec2(0.0, -step_size.y)).a;
+	float a_down = texture(TEXTURE, UV + vec2(0.0, step_size.y)).a;
+	float a_up_left = texture(TEXTURE, UV + vec2(-step_size.x, -step_size.y)).a;
+	float a_up_right = texture(TEXTURE, UV + vec2(step_size.x, -step_size.y)).a;
+	float a_down_left = texture(TEXTURE, UV + vec2(-step_size.x, step_size.y)).a;
+	float a_down_right = texture(TEXTURE, UV + vec2(step_size.x, step_size.y)).a;
+	float max_neighbor = max(max(max(a_left, a_right), max(a_up, a_down)), max(max(a_up_left, a_up_right), max(a_down_left, a_down_right)));
+	float min_neighbor = min(min(min(a_left, a_right), min(a_up, a_down)), min(min(a_up_left, a_up_right), min(a_down_left, a_down_right)));
+	float outer_edge = max(max_neighbor - center, 0.0);
+	float inner_edge = max(center - min_neighbor, 0.0);
+	float edge = clamp(max(outer_edge, inner_edge) * 2.8, 0.0, 1.0);
+	COLOR = vec4(outline_color.rgb, outline_color.a * edge);
+}
+"""
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	var texture_size := card.texture_normal.get_size() if card.texture_normal != null else Vector2(256.0, 256.0)
+	material.set_shader_parameter("texel_size", Vector2(1.0 / max(1.0, texture_size.x), 1.0 / max(1.0, texture_size.y)))
+	outline.material = material
+	_fill_rect(outline)
+	card.add_child(outline)
+	return outline
 
 func _make_trait_button(option: Dictionary) -> Button:
 	var option_id := str(option.get("id", ""))
@@ -595,6 +686,8 @@ func _layout_build_overlay() -> void:
 			button.pivot_offset = button.size * 0.5
 			button.set_meta("build_card_layout_position", button.position)
 			button.set_meta("build_card_layout_scale", button.scale)
+			var refresh_button := entry.get("refresh_button") as Button
+			_layout_build_card_refresh_button(refresh_button, button)
 			x += card_size.x + card_gap
 
 	var trait_count := trait_button_entries.size()
@@ -720,6 +813,37 @@ func _get_build_card_base_size(button: Control) -> Vector2:
 			return texture_button.texture_normal.get_size()
 	return BUILD_CARD_TEXTURE.get_size()
 
+func _layout_build_card_refresh_button(refresh_button: Button, card: Control) -> void:
+	if refresh_button == null or card == null:
+		return
+	refresh_button.visible = _should_show_build_card_refresh_buttons()
+	var card_rect := _get_build_card_scaled_rect(card, _get_build_card_layout_position(card), _get_build_card_layout_scale(card))
+	var refresh_size := BUILD_CARD_REFRESH_BUTTON_SIZE
+	refresh_button.size = Vector2(refresh_size, refresh_size)
+	refresh_button.custom_minimum_size = refresh_button.size
+	refresh_button.position = Vector2(
+		card_rect.get_center().x - refresh_size * 0.5,
+		card_rect.end.y + BUILD_CARD_REFRESH_BUTTON_GAP
+	)
+	refresh_button.pivot_offset = refresh_button.size * 0.5
+	refresh_button.set_meta("build_card_layout_position", refresh_button.position)
+	_apply_build_card_refresh_button_state(refresh_button, int(refresh_button.get_meta("build_card_option_index", -1)))
+
+func _get_refresh_button_for_card(card: Control) -> Button:
+	for entry in build_card_entries:
+		if entry is not Dictionary:
+			continue
+		if (entry as Dictionary).get("button") == card:
+			return (entry as Dictionary).get("refresh_button") as Button
+	return null
+
+func _get_refresh_button_layout_position(refresh_button: Control) -> Vector2:
+	if refresh_button != null and refresh_button.has_meta("build_card_layout_position"):
+		var value: Variant = refresh_button.get_meta("build_card_layout_position")
+		if value is Vector2:
+			return value
+	return refresh_button.position if refresh_button != null else Vector2.ZERO
+
 func _apply_refresh_button_style() -> void:
 	if build_refresh_button == null:
 		return
@@ -745,27 +869,56 @@ func _apply_refresh_button_style() -> void:
 	build_refresh_button.add_theme_color_override("font_pressed_color", Color(0.45, 0.86, 0.92, 1.0))
 	build_refresh_button.add_theme_color_override("font_disabled_color", Color(0.45, 0.52, 0.56, 0.76))
 
+func _apply_card_refresh_button_style(button: Button) -> void:
+	if button == null:
+		return
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color(0.14, 0.30, 0.46, 0.34)
+	normal.border_color = Color(0.56, 0.72, 0.82, 0.46)
+	normal.set_border_width_all(2)
+	normal.set_corner_radius_all(64)
+	button.add_theme_stylebox_override("normal", normal)
+	var hover := normal.duplicate() as StyleBoxFlat
+	hover.bg_color = Color(0.18, 0.38, 0.56, 0.46)
+	hover.border_color = Color(0.68, 0.82, 0.90, 0.58)
+	button.add_theme_stylebox_override("hover", hover)
+	var pressed := normal.duplicate() as StyleBoxFlat
+	pressed.bg_color = Color(0.10, 0.24, 0.40, 0.54)
+	button.add_theme_stylebox_override("pressed", pressed)
+	var disabled := normal.duplicate() as StyleBoxFlat
+	disabled.bg_color = Color(0.08, 0.12, 0.16, 0.22)
+	disabled.border_color = Color(0.32, 0.40, 0.44, 0.28)
+	button.add_theme_stylebox_override("disabled", disabled)
+	button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+
 func _update_build_refresh_button() -> void:
 	if build_refresh_button == null:
 		return
-	if current_mode == "opening_trait":
-		build_refresh_button.visible = false
-		build_refresh_button.disabled = true
-		return
-	var refresh_limit := int(current_offer_context.get("refresh_limit", 0))
-	var refresh_remaining := int(current_offer_context.get("refresh_remaining", 0))
-	var refresh_unlimited := _is_upgrade_refresh_unlimited()
-	build_refresh_button.visible = refresh_unlimited or refresh_limit > 0
-	build_refresh_button.disabled = not _can_refresh_current_offer()
-	build_refresh_button.tooltip_text = "开发者模式：无限刷新" if refresh_unlimited else ("刷新 %d/%d" % [refresh_remaining, refresh_limit] if refresh_limit > 0 else "刷新")
+	build_refresh_button.visible = false
+	build_refresh_button.disabled = true
+	build_refresh_button.tooltip_text = ""
 
 func _is_upgrade_refresh_unlimited() -> bool:
 	return bool(current_offer_context.get("refresh_unlimited", false))
 
 func _can_refresh_current_offer() -> bool:
-	if _is_upgrade_refresh_unlimited():
-		return true
-	return int(current_offer_context.get("refresh_remaining", 0)) > 0
+	return false
+
+func _should_show_build_card_refresh_buttons() -> bool:
+	return _is_build_multi_select_offer()
+
+func _is_build_card_refresh_used(option_index: int) -> bool:
+	return bool(build_card_refresh_used_indices.get(option_index, false))
+
+func _apply_build_card_refresh_button_state(button: Button, option_index: int) -> void:
+	if button == null:
+		return
+	var used := _is_build_card_refresh_used(option_index)
+	button.disabled = used or build_refresh_animation_in_progress or build_selection_in_progress
+	button.tooltip_text = "本次升级已刷新" if used else "刷新这张构筑"
+	var icon := button.get_node_or_null("RefreshIcon") as TextureRect
+	if icon != null:
+		icon.modulate = Color(0.78, 0.88, 0.92, 0.24) if used else Color(0.78, 0.88, 0.92, 0.62)
 
 func _with_trait_display_overrides(raw_option: Dictionary) -> Dictionary:
 	var option := raw_option.duplicate(true)
@@ -873,13 +1026,69 @@ func _get_trait_button_size(button: Button, fallback_size: float) -> Vector2:
 func _on_build_card_pressed(card: TextureButton, option: Dictionary) -> void:
 	if build_selection_in_progress:
 		return
+	var option_id := str(option.get("id", ""))
+	var option_title := str(option.get("title", "祝福"))
+	if _is_build_multi_select_offer():
+		if pending_blessing_option_ids.has(option_id):
+			var selected_index := pending_blessing_option_ids.find(option_id)
+			pending_blessing_option_ids.remove_at(selected_index)
+			if selected_index >= 0 and selected_index < pending_blessing_titles.size():
+				pending_blessing_titles.remove_at(selected_index)
+			_sync_primary_build_selection()
+			_mark_build_card_selected(card, false)
+			card.disabled = false
+			_hide_build_item_detail()
+			_update_selection_hint()
+			_refresh_selected_cards()
+			return
+		pending_blessing_option_ids.append(option_id)
+		pending_blessing_titles.append(option_title)
+		_sync_primary_build_selection()
+		_mark_build_card_selected(card, true)
+		_hide_build_item_detail()
+		_update_selection_hint()
+		_refresh_selected_cards()
+		if pending_blessing_option_ids.size() < _get_build_selection_count():
+			return
+		build_selection_in_progress = true
+		_set_build_overlay_input_enabled(false, card)
+		await _play_build_card_select_animation(card)
+		var first_option_id: String = pending_blessing_option_ids[0]
+		var second_option_id: String = pending_blessing_option_ids[1] if pending_blessing_option_ids.size() > 1 else ""
+		upgrade_selected.emit(first_option_id, second_option_id)
+		return
 	build_selection_in_progress = true
-	pending_blessing_option_id = str(option.get("id", ""))
-	pending_blessing_title = str(option.get("title", "祝福"))
+	pending_blessing_option_id = option_id
+	pending_blessing_title = option_title
 	_hide_build_item_detail()
 	_set_build_overlay_input_enabled(false, card)
 	await _play_build_card_select_animation(card)
 	upgrade_selected.emit(pending_blessing_option_id, pending_attribute_option_id)
+
+func _on_build_card_refresh_pressed(option_index: int) -> void:
+	if current_mode != "blessing":
+		return
+	if build_selection_in_progress or build_refresh_animation_in_progress:
+		return
+	if not _should_show_build_card_refresh_buttons():
+		return
+	if _is_build_card_refresh_used(option_index):
+		return
+	var old_option_id := _get_current_build_option_id_at(option_index)
+	if old_option_id != "":
+		_remove_pending_build_selection(old_option_id)
+		_sync_primary_build_selection()
+		_update_selection_hint()
+		_refresh_selected_cards()
+		_refresh_build_card_selected_outlines()
+	build_refresh_animation_in_progress = true
+	_hide_build_item_detail()
+	build_card_refresh_used_indices[option_index] = true
+	_apply_build_card_refresh_button_state(_get_refresh_button_for_option_index(option_index), option_index)
+	_set_build_overlay_input_enabled(false)
+	var refresh_button := _get_refresh_button_for_option_index(option_index)
+	await _play_card_refresh_button_click_animation(refresh_button)
+	upgrade_card_refresh_requested.emit(option_index)
 
 func _on_trait_button_pressed(button: Button, option: Dictionary) -> void:
 	if build_selection_in_progress:
@@ -910,6 +1119,89 @@ func _on_build_card_mouse_exited(card: TextureButton) -> void:
 	_animate_build_card_hover(card, false)
 	_on_build_item_mouse_exited(card, {})
 
+func _is_build_multi_select_offer() -> bool:
+	return current_mode == "blessing" and bool(current_offer_context.get("role_build_offer", false))
+
+func _get_build_selection_count() -> int:
+	if not _is_build_multi_select_offer():
+		return 1
+	return max(1, int(current_offer_context.get("selection_count", 2)))
+
+func _get_current_build_option_id_at(option_index: int) -> String:
+	if option_index < 0 or option_index >= current_options.size():
+		return ""
+	var option = current_options[option_index]
+	if option is Dictionary:
+		return str((option as Dictionary).get("id", ""))
+	return ""
+
+func _get_refresh_button_for_option_index(option_index: int) -> Button:
+	for entry in build_card_entries:
+		if entry is not Dictionary:
+			continue
+		if int((entry as Dictionary).get("option_index", -1)) == option_index:
+			return (entry as Dictionary).get("refresh_button") as Button
+	return null
+
+func _sync_primary_build_selection() -> void:
+	if pending_blessing_option_ids.is_empty():
+		pending_blessing_option_id = ""
+		pending_blessing_title = ""
+		return
+	pending_blessing_option_id = pending_blessing_option_ids[0]
+	pending_blessing_title = pending_blessing_titles[0] if pending_blessing_titles.size() > 0 else ""
+
+func _remove_pending_build_selection(option_id: String) -> void:
+	if option_id == "":
+		return
+	var selected_index := pending_blessing_option_ids.find(option_id)
+	while selected_index >= 0:
+		pending_blessing_option_ids.remove_at(selected_index)
+		if selected_index >= 0 and selected_index < pending_blessing_titles.size():
+			pending_blessing_titles.remove_at(selected_index)
+		selected_index = pending_blessing_option_ids.find(option_id)
+	if pending_blessing_option_id == option_id:
+		pending_blessing_option_id = ""
+		pending_blessing_title = ""
+
+func _prune_pending_build_selections() -> void:
+	var current_ids := {}
+	for option in current_options:
+		if option is Dictionary:
+			var option_id := str((option as Dictionary).get("id", ""))
+			if option_id != "":
+				current_ids[option_id] = true
+	var index := pending_blessing_option_ids.size() - 1
+	while index >= 0:
+		var option_id := pending_blessing_option_ids[index]
+		if not current_ids.has(option_id):
+			pending_blessing_option_ids.remove_at(index)
+			if index < pending_blessing_titles.size():
+				pending_blessing_titles.remove_at(index)
+		index -= 1
+	if pending_blessing_option_id != "" and not current_ids.has(pending_blessing_option_id):
+		pending_blessing_option_id = ""
+		pending_blessing_title = ""
+
+func _mark_build_card_selected(card: TextureButton, selected: bool) -> void:
+	if card == null:
+		return
+	var hover_frame := card.get_node_or_null("HoverFrame") as Control
+	if hover_frame != null:
+		hover_frame.visible = false
+	var selected_outline := _ensure_build_card_selected_outline(card)
+	if selected_outline != null:
+		selected_outline.visible = selected
+
+func _refresh_build_card_selected_outlines() -> void:
+	for entry in build_card_entries:
+		if entry is not Dictionary:
+			continue
+		var card := (entry as Dictionary).get("button") as TextureButton
+		var option: Dictionary = (entry as Dictionary).get("option", {})
+		var option_id := str(option.get("id", ""))
+		_mark_build_card_selected(card, pending_blessing_option_ids.has(option_id) or pending_blessing_option_id == option_id)
+
 func _animate_build_card_hover(card: TextureButton, hovered: bool) -> void:
 	if card == null:
 		return
@@ -933,6 +1225,9 @@ func _animate_build_card_hover(card: TextureButton, hovered: bool) -> void:
 	var target_position := layout_position + Vector2(0.0, -10.0) if hovered else layout_position
 	var target_scale := layout_scale
 	var target_modulate := Color(1.08, 1.08, 1.08, 1.0) if hovered else Color(1.0, 1.0, 1.0, 1.0)
+	var refresh_button := _get_refresh_button_for_card(card)
+	var refresh_layout_position := _get_refresh_button_layout_position(refresh_button)
+	var refresh_target_position := refresh_layout_position + Vector2(0.0, -10.0) if hovered else refresh_layout_position
 	var tween := create_tween()
 	tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	tween.set_parallel(true)
@@ -941,6 +1236,8 @@ func _animate_build_card_hover(card: TextureButton, hovered: bool) -> void:
 	tween.tween_property(card, "position", target_position, 0.12)
 	tween.tween_property(card, "scale", target_scale, 0.12)
 	tween.tween_property(card, "modulate", target_modulate, 0.12)
+	if refresh_button != null:
+		tween.tween_property(refresh_button, "position", refresh_target_position, 0.12)
 	build_card_hover_tweens[key] = tween
 
 func _play_build_refresh_collapse_animation() -> void:
@@ -1060,6 +1357,49 @@ func _play_build_refresh_button_click_animation() -> void:
 func _reset_build_refresh_button_rotation() -> void:
 	if build_refresh_button != null:
 		build_refresh_button.rotation = 0.0
+
+func _play_card_refresh_button_click_animation(refresh_button: Button) -> void:
+	if refresh_button == null or not is_instance_valid(refresh_button):
+		return
+	refresh_button.rotation = 0.0
+	refresh_button.pivot_offset = refresh_button.size * 0.5
+	var tween := create_tween()
+	tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	tween.set_trans(Tween.TRANS_QUAD)
+	tween.set_ease(Tween.EASE_OUT)
+	tween.tween_property(
+		refresh_button,
+		"rotation",
+		deg_to_rad(BUILD_CARD_REFRESH_BUTTON_ROTATION_DEGREES),
+		BUILD_CARD_REFRESH_BUTTON_ROTATION_TIME
+	)
+	await tween.finished
+	if refresh_button != null and is_instance_valid(refresh_button):
+		refresh_button.rotation = 0.0
+
+func _play_refreshed_build_card_feedback(option_index: int) -> void:
+	if option_index < 0:
+		return
+	for entry in build_card_entries:
+		if entry is not Dictionary:
+			continue
+		if int((entry as Dictionary).get("option_index", -1)) != option_index:
+			continue
+		var card := (entry as Dictionary).get("button") as TextureButton
+		if card == null or not is_instance_valid(card):
+			return
+		var key := card.get_instance_id()
+		var old_tween := build_card_hover_tweens.get(key) as Tween
+		if old_tween != null and old_tween.is_valid():
+			old_tween.kill()
+		card.modulate = Color(1.25, 1.25, 1.25, 1.0)
+		var tween := create_tween()
+		tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+		tween.set_trans(Tween.TRANS_QUAD)
+		tween.set_ease(Tween.EASE_OUT)
+		tween.tween_property(card, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.18)
+		build_card_hover_tweens[key] = tween
+		return
 
 func _get_visible_build_cards() -> Array[Control]:
 	var cards: Array[Control] = []
@@ -1207,19 +1547,6 @@ func _play_build_card_select_animation(card: TextureButton) -> void:
 	card.modulate = Color(1.0, 1.0, 1.0, 1.0)
 	card.z_index = 50
 	_hide_unselected_build_overlay_parts(card)
-	var card_rect := _get_build_card_scaled_rect(card, layout_position, layout_scale)
-	var ring := _make_build_card_select_ring(card_rect)
-	if build_card_layer != null:
-		build_card_layer.add_child(ring)
-		build_card_layer.move_child(ring, build_card_layer.get_child_count() - 1)
-	var target_radius := _get_build_card_diagonal_radius(card_rect)
-	var ring_tween := create_tween()
-	ring_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
-	ring_tween.set_parallel(true)
-	ring_tween.set_trans(Tween.TRANS_QUAD)
-	ring_tween.set_ease(Tween.EASE_OUT)
-	ring_tween.tween_property(ring, "ring_radius", target_radius, BUILD_CARD_SELECT_RING_TIME)
-	ring_tween.tween_property(ring, "ring_alpha", 0.0, BUILD_CARD_SELECT_RING_TIME)
 	var card_tween := create_tween()
 	card_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	card_tween.set_trans(Tween.TRANS_SINE)
@@ -1232,8 +1559,6 @@ func _play_build_card_select_animation(card: TextureButton) -> void:
 	card_tween.tween_property(card, "modulate", Color(1.0, 1.0, 1.0, 0.0), BUILD_CARD_SELECT_ANIM_TIME)
 	var hold_timer := get_tree().create_timer(BUILD_CARD_SELECT_SHAKE_TIME + BUILD_CARD_SELECT_ANIM_TIME, true)
 	await hold_timer.timeout
-	if ring != null and is_instance_valid(ring):
-		ring.queue_free()
 
 func _hide_unselected_build_overlay_parts(selected_card: Control) -> void:
 	if build_dimmer != null:
@@ -1248,6 +1573,9 @@ func _hide_unselected_build_overlay_parts(selected_card: Control) -> void:
 		var card := entry.get("button") as Control
 		if card != null and card != selected_card:
 			card.visible = false
+		var refresh_button := entry.get("refresh_button") as Control
+		if refresh_button != null:
+			refresh_button.visible = false
 
 func _hide_unselected_trait_overlay_parts(selected_button: Control) -> void:
 	if build_dimmer != null:
@@ -1262,6 +1590,9 @@ func _hide_unselected_trait_overlay_parts(selected_button: Control) -> void:
 		var card := entry.get("button") as Control
 		if card != null:
 			card.visible = false
+		var refresh_button := entry.get("refresh_button") as Control
+		if refresh_button != null:
+			refresh_button.visible = false
 	if trait_button_layer != null:
 		trait_button_layer.visible = true
 	for entry in trait_button_entries:
@@ -1285,6 +1616,10 @@ func _set_build_overlay_input_enabled(enabled: bool, selected_card: BaseButton =
 		var card := entry.get("button") as BaseButton
 		if card != null:
 			card.disabled = not enabled and card != selected_card
+		var refresh_button := entry.get("refresh_button") as BaseButton
+		if refresh_button != null:
+			var option_index := int((entry as Dictionary).get("option_index", -1))
+			refresh_button.disabled = not enabled or _is_build_card_refresh_used(option_index)
 	for entry in trait_button_entries:
 		if entry is not Dictionary:
 			continue
@@ -1425,18 +1760,6 @@ func _prepare_modal_layout() -> void:
 
 func _configure_level_up_footer() -> void:
 	_clear_modal_footer()
-	if modal == null or not modal.has_method("add_footer_button"):
-		return
-	var refresh_limit := int(current_offer_context.get("refresh_limit", 0))
-	var refresh_unlimited := _is_upgrade_refresh_unlimited()
-	if refresh_limit <= 0 and not refresh_unlimited:
-		return
-	var refresh_remaining := int(current_offer_context.get("refresh_remaining", 0))
-	var label := str(current_offer_context.get("refresh_button_label", ""))
-	if label == "":
-		label = "刷新" if refresh_unlimited else ("刷新祝福 %d/%d" % [refresh_remaining, refresh_limit] if refresh_remaining > 0 else "刷新已用完")
-	var button: Button = modal.add_footer_button(label, Callable(self, "_on_refresh_pressed"), "normal")
-	button.disabled = not _can_refresh_current_offer()
 
 func _clear_modal_footer() -> void:
 	if modal != null and modal.has_method("clear_footer"):
@@ -1574,6 +1897,9 @@ func _try_emit_combined_selection() -> void:
 func _update_selection_hint() -> void:
 	if current_mode != "blessing":
 		return
+	if _is_build_multi_select_offer():
+		selection_label.text = "已选：%d/%d" % [pending_blessing_option_ids.size(), _get_build_selection_count()]
+		return
 	var attribute_text := pending_attribute_title if pending_attribute_title != "" else "未选英雄特性"
 	var blessing_text := pending_blessing_title if pending_blessing_title != "" else "未选祝福"
 	selection_label.text = "当前：%s | %s" % [attribute_text, blessing_text]
@@ -1597,13 +1923,17 @@ func _refresh_selected_cards() -> void:
 	var ids: Array[String] = []
 	if pending_attribute_option_id != "":
 		ids.append(pending_attribute_option_id)
-	if pending_blessing_option_id != "":
+	for selected_option_id in pending_blessing_option_ids:
+		if selected_option_id != "" and not ids.has(selected_option_id):
+			ids.append(selected_option_id)
+	if pending_blessing_option_id != "" and not ids.has(pending_blessing_option_id):
 		ids.append(pending_blessing_option_id)
 	if pending_equipment_option_id != "":
 		ids.append(pending_equipment_option_id)
 	if pending_card_option_id != "":
 		ids.append(pending_card_option_id)
 	card_list.set_selected_ids(ids)
+	_refresh_build_card_selected_outlines()
 
 func _group_options(options: Array, slot_order: Array) -> Dictionary:
 	var groups := {}
@@ -1630,13 +1960,22 @@ func _group_small_boss_reward_options(options: Array) -> Dictionary:
 		var option: Dictionary = raw_option.duplicate(true)
 		if str(option.get("slot", "")) == "equipment":
 			option["slot"] = "equipment"
-			option["slot_label"] = "閬撳叿"
+			option["slot_label"] = "道具"
 			groups["equipment"].append(option)
 		else:
 			option["slot"] = "card"
 			option["slot_label"] = "技能奖励"
 			groups["card"].append(option)
 	return groups
+
+func _duplicate_option_array(options: Array) -> Array:
+	var result: Array = []
+	for option in options:
+		if option is Dictionary:
+			result.append((option as Dictionary).duplicate(true))
+		else:
+			result.append(option)
+	return result
 
 func _get_small_boss_reward_menu_hint() -> String:
 	var labels: Array[String] = []
@@ -1646,7 +1985,7 @@ func _get_small_boss_reward_menu_hint() -> String:
 		labels.append("技能奖励选 1 个")
 	if labels.is_empty():
 		return "当前没有可选奖励；鼠标移到卡片上查看完整说明。"
-	return "%s；鼠标移到卡片上查看完整说明。" % "，".join(labels)
+	return "%s；鼠标移到卡片上查看完整说明。" % "；".join(labels)
 
 func _small_boss_reward_slot_required(slot_id: String) -> bool:
 	return not (option_groups.get(slot_id, []) as Array).is_empty()
@@ -1661,6 +2000,9 @@ func _is_small_boss_reward_selection_complete() -> bool:
 func _reset_pending_selection() -> void:
 	pending_blessing_option_id = ""
 	pending_blessing_title = ""
+	pending_blessing_option_ids.clear()
+	pending_blessing_titles.clear()
+	build_card_refresh_used_indices.clear()
 	pending_attribute_option_id = ""
 	pending_attribute_title = ""
 	pending_equipment_option_id = ""

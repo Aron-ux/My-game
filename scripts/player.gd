@@ -1,11 +1,10 @@
-extends CharacterBody2D
+﻿extends CharacterBody2D
 
 const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
 const GAME_SETTINGS := preload("res://scripts/game_settings.gd")
 const PLAYER_SAVE_CODEC := preload("res://scripts/player/player_save_codec.gd")
 const PLAYER_STATE_FACTORY := preload("res://scripts/player/player_state_factory.gd")
 const PLAYER_LIFECYCLE_FLOW := preload("res://scripts/player/player_lifecycle_flow.gd")
-const PLAYER_STORY_STYLES := preload("res://scripts/player/player_story_styles.gd")
 const PLAYER_ROLE_PRESENTER := preload("res://scripts/player/player_role_presenter.gd")
 const PLAYER_TARGETING := preload("res://scripts/player/player_targeting.gd")
 const PLAYER_MATH := preload("res://scripts/player/player_math.gd")
@@ -13,6 +12,7 @@ const PLAYER_ROLE_STAT_FLOW := preload("res://scripts/player/player_role_stat_fl
 const PLAYER_LEVEL_OPTIONS := preload("res://scripts/player/player_level_options.gd")
 const PLAYER_LEVEL_FLOW := preload("res://scripts/player/player_level_flow.gd")
 const PLAYER_BLESSING_SYSTEM := preload("res://scripts/player/player_blessing_system.gd")
+const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_BLESSING_SKILL_BRIDGE := preload("res://scripts/player/player_blessing_skill_bridge.gd")
 const PLAYER_UPGRADE_APPLIER := preload("res://scripts/player/player_upgrade_applier.gd")
 const PLAYER_REWARD_APPLIER := preload("res://scripts/player/player_reward_applier.gd")
@@ -81,6 +81,7 @@ signal experience_changed(current_experience: int, required_experience: int, lev
 signal level_up_requested(options: Array)
 signal stats_changed(summary: Dictionary)
 signal health_changed(current_health: float, max_health: float)
+signal temporary_health_changed(role_id: String, current_temporary_health: float)
 signal mana_changed(current_mana: float, max_mana: float)
 signal died
 signal active_role_changed(role_id: String, role_name: String)
@@ -105,13 +106,12 @@ const MAGE_ULTIMATE_BOMBARD_INTERVAL := 0.24
 const GUNNER_ENTRY_WAVE_BULLET_COUNT := 16
 const GUNNER_ENTRY_WAVE_BATCH_SIZE := 16
 const GUNNER_ENTRY_WAVE_BATCH_INTERVAL := 0.008
-const GUNNER_FLASH_DODGE_CHANCE := 0.15
 const GUNNER_FLASH_STACK_INTERVAL := 2.0
 const GUNNER_FLASH_MAX_STACKS := 10
 const GUNNER_FLASH_DAMAGE_PER_STACK := 0.03
 const GUNNER_FLASH_SPEED_PER_STACK := 0.03
 const GUNNER_FLASH_COOLDOWN := 15.0
-const GUNNER_FLASH_DODGE_PER_STACK := 0.02
+const GUNNER_FLASH_DODGE_VALUE_PER_STACK := 4.0
 const GUNNER_SAFE_ZONE_RADIUS := 115.0
 const GUNNER_SAFE_ZONE_FILL_COLOR := Color(0.24, 0.58, 1.0, 0.10)
 const GUNNER_SAFE_ZONE_OUTLINE_COLOR := Color(0.38, 0.72, 1.0, 0.42)
@@ -125,13 +125,14 @@ const MAGE_ARCANE_SURPLUS_TEAM_ULTIMATE_ENERGY_BONUS := 0.20
 const MAGE_ARCANE_SURPLUS_SWITCH_ENERGY_BONUS := 0.20
 const MAGE_ARCANE_SURPLUS_DAMAGE_BONUS := 0.10
 const SWORDSMAN_BLOODTHIRST_DURATION := 3.0
+const SWORDSMAN_BLOODTHIRST_INTERNAL_COOLDOWN := 10.0
 const SWORDSMAN_DEATH_DEFIANCE_COOLDOWN := 80.0
 const SWORDSMAN_DEATH_DEFIANCE_INVULNERABILITY := 1.5
 const BASE_CRITICAL_DAMAGE_MULTIPLIER := 1.5
+const CRITICAL_OVERFLOW_DAMAGE_RATIO := 0.10
 const SHOW_GAMEPLAY_TEXT_HINTS := false
 
 const FIRE_RATE_STEP := 0.05
-const DAMAGE_STEP := 2.5
 const MOVE_SPEED_STEP := 12.0
 const PICKUP_RANGE_STEP := 8.0
 const ENERGY_GAIN_STEP := 0.08
@@ -140,13 +141,11 @@ const DAMAGE_REDUCTION_STEP := 0.05
 const SWITCH_COOLDOWN_STEP := 0.4
 const LEVEL_STAT_HEALTH_STEP := 14.0
 const LEVEL_STAT_SPEED_STEP := 8.0
-const LEVEL_STAT_DAMAGE_STEP := 2.5
 const EXIT_SWORD_LIFESTEAL_DURATION := 4.5
 const EXIT_SWORD_LIFESTEAL_RATIO := 0.14
 const EXIT_GUNNER_HASTE_DURATION := 4.0
 const EXIT_GUNNER_ATTACK_INTERVAL_BONUS := 0.08
 const EXIT_GUNNER_MOVE_SPEED_MULTIPLIER := 1.18
-const ROLE_SHARE_DAMAGE_RATIO := 0.42
 const ROLE_SHARE_INTERVAL_RATIO := 0.34
 const ROLE_SHARE_RANGE_RATIO := 0.45
 const ROLE_SHARE_SKILL_RATIO := 0.4
@@ -221,6 +220,8 @@ var experience: int = 0
 var pending_level_ups: int = 0
 var level_up_active: bool = false
 var current_health: float = 0.0
+var current_temporary_health: float = 0.0
+var temporary_health_stacks: Array = []
 var current_mana: float = 0.0
 var ultimate_energy_lock_remaining: float = 0.0
 var hurt_cooldown_remaining: float = 0.0
@@ -231,6 +232,8 @@ var switch_cooldown_remaining: float = 0.0
 var enemy_move_slow_multiplier: float = 1.0
 var enemy_move_slow_remaining: float = 0.0
 var is_dead: bool = false
+var death_sequence_pending: bool = false
+var death_sequence_remaining: float = 0.0
 
 var speed: float = 0.0
 var pickup_radius: float = 0.0
@@ -239,6 +242,7 @@ var global_damage_multiplier: float = 1.0
 var background_interval_multiplier: float = 1.0
 var ultimate_cost_multiplier: float = 1.0
 var damage_taken_multiplier: float = 1.0
+var passive_damage_reduction_value: float = 0.0
 var role_switch_cooldown_bonus: float = 0.0
 
 var active_role_index: int = 0
@@ -254,6 +258,7 @@ var blessing_skill_state: Dictionary = {}
 var pending_blessing_binding_choices: Array = []
 var current_blessing_offer: Dictionary = {}
 var owned_magic_stones: Array = []
+var blessing_health_regen_elapsed: float = 0.0
 var elite_relics_unlocked: Dictionary = {}
 var equipment_levels: Dictionary = {}
 var role_equipment_levels: Dictionary = {}
@@ -265,6 +270,7 @@ var equipment_dodge_chance: float = 0.0
 var equipment_health_regen_per_second: float = 0.0
 var equipment_low_health_threshold: float = 0.0
 var equipment_low_health_damage_taken_multiplier: float = 1.0
+var equipment_low_health_damage_reduction_value: float = 0.0
 var equipment_skill_range_multiplier: float = 1.0
 var equipment_cooldown_multiplier: float = 1.0
 var attribute_training_levels: Dictionary = {}
@@ -298,6 +304,7 @@ var swordsman_trait_heal_cooldown_remaining: float = 0.0
 var swordsman_death_defiance_cooldown_remaining: float = 0.0
 var swordsman_death_defiance_will_remaining: float = 0.0
 var swordsman_entry_trait_share_remaining: float = 0.0
+var swordsman_bloodthirst_cooldown_remaining: float = 0.0
 var swordsman_bloodthirst_heal_multiplier: float = 1.0
 var swordsman_ultimate_crit_bonus_chance: float = 0.0
 var mage_arcane_surplus_remaining: float = 0.0
@@ -342,6 +349,7 @@ var frenzy_stacks: int = 0
 var frenzy_overkill_counter: int = 0
 var role_standby_elapsed: Dictionary = {}
 var role_health_values: Dictionary = {}
+var role_temporary_health_values: Dictionary = {}
 var role_mana_values: Dictionary = {}
 var role_switch_energy_values: Dictionary = {}
 var role_ultimate_energy_lock_remaining: Dictionary = {}
@@ -372,11 +380,6 @@ var contact_check_elapsed: float = 0.0
 var execution_pact_burst_active: bool = false
 var final_set_unlock_announced: Dictionary = {}
 var active_duration_statuses: Dictionary = {}
-var story_equipped_styles: Dictionary = {
-	"swordsman": "default",
-	"gunner": "default",
-	"mage": "default"
-}
 
 func _ready() -> void:
 	PLAYER_LIFECYCLE_FLOW.ready(self)
@@ -496,29 +499,20 @@ func _build_role_upgrade_data() -> Dictionary:
 func _build_background_cooldowns() -> Dictionary:
 	return PLAYER_ROLE_STAT_FLOW.build_background_cooldowns(self)
 
-func configure_story_loadout(team_order: Array, equipped_styles: Dictionary) -> void:
-	PLAYER_STORY_STYLES.configure_story_loadout(self, team_order, equipped_styles)
-
-func _get_story_style_id(role_id: String) -> String:
-	return PLAYER_STORY_STYLES.get_story_style_id(story_equipped_styles, role_id)
-
-func _get_story_style_damage_multiplier(role_id: String) -> float:
-	return PLAYER_STORY_STYLES.get_damage_multiplier(_get_story_style_id(role_id))
-
-func _get_story_style_range_multiplier(role_id: String) -> float:
-	return PLAYER_STORY_STYLES.get_owner_range_multiplier(self, role_id) * _get_role_equipment_skill_range_multiplier(role_id)
-
-func _get_story_style_interval_bonus(role_id: String) -> float:
-	return PLAYER_STORY_STYLES.get_interval_bonus(_get_story_style_id(role_id))
-
-func _get_story_style_extra_pierce(role_id: String) -> int:
-	return PLAYER_STORY_STYLES.get_extra_pierce(_get_story_style_id(role_id))
-
-func _get_story_style_bullet_speed_multiplier(role_id: String) -> float:
-	return PLAYER_STORY_STYLES.get_bullet_speed_multiplier(_get_story_style_id(role_id))
-
-func _get_story_style_slow_bonus(role_id: String) -> float:
-	return PLAYER_STORY_STYLES.get_slow_bonus(_get_story_style_id(role_id))
+func configure_story_loadout(team_order: Array) -> void:
+	var ordered_roles: Array = []
+	for role_variant in team_order:
+		var role_id := str(role_variant)
+		for role_data in roles:
+			if str(role_data.get("id", "")) == role_id:
+				ordered_roles.append(role_data)
+				break
+	for role_data in roles:
+		if not ordered_roles.has(role_data):
+			ordered_roles.append(role_data)
+	roles = ordered_roles
+	active_role_index = clamp(active_role_index, 0, max(0, roles.size() - 1))
+	_update_active_role_state()
 
 func _get_upgrade_slot_label(slot_id: String) -> String:
 	match slot_id:
@@ -565,6 +559,42 @@ func _get_attribute_mana_regen_per_second() -> float:
 func _get_attribute_dodge_chance() -> float:
 	return PLAYER_ATTRIBUTE_FLOW.get_attribute_dodge_chance(self)
 
+func _get_attribute_dodge_value() -> float:
+	return PLAYER_ATTRIBUTE_FLOW.get_attribute_dodge_value(self)
+
+func _get_role_attribute_dodge_value(role_id: String) -> float:
+	return PLAYER_ATTRIBUTE_FLOW.get_role_attribute_dodge_value(self, role_id)
+
+func _get_role_base_dodge_chance(role_id: String) -> float:
+	return PLAYER_EQUIPMENT_FLOW.get_role_base_dodge_chance(self, role_id)
+
+func _get_role_permanent_dodge_value(role_id: String = "") -> float:
+	var resolved_role_id: String = role_id if role_id != "" else _get_active_role_id()
+	return PLAYER_EQUIPMENT_FLOW.get_role_permanent_dodge_value(self, resolved_role_id)
+
+func _get_role_temporary_dodge_strength(role_id: String = "") -> float:
+	var resolved_role_id: String = role_id if role_id != "" else _get_active_role_id()
+	return PLAYER_EQUIPMENT_FLOW.get_role_temporary_dodge_strength(self, resolved_role_id)
+
+func _get_role_dodge_chance(role_id: String = "") -> float:
+	var resolved_role_id: String = role_id if role_id != "" else _get_active_role_id()
+	return PLAYER_EQUIPMENT_FLOW.get_role_dodge_chance(self, resolved_role_id)
+
+func _get_role_base_damage_reduction_value(role_id: String = "") -> float:
+	var resolved_role_id: String = role_id if role_id != "" else _get_active_role_id()
+	return PLAYER_COMBAT_MODIFIERS.get_role_base_damage_reduction_value(self, resolved_role_id)
+
+func _get_role_damage_reduction_value(role_id: String = "") -> float:
+	var resolved_role_id: String = role_id if role_id != "" else _get_active_role_id()
+	return PLAYER_COMBAT_MODIFIERS.get_role_damage_reduction_value(self, resolved_role_id)
+
+func _get_role_damage_reduction_rate(role_id: String = "") -> float:
+	var resolved_role_id: String = role_id if role_id != "" else _get_active_role_id()
+	return PLAYER_COMBAT_MODIFIERS.get_role_damage_reduction_rate(self, resolved_role_id)
+
+func _calculate_damage_reduction_rate_from_value(damage_reduction_value: float) -> float:
+	return PLAYER_COMBAT_MODIFIERS.calculate_damage_reduction_rate(damage_reduction_value)
+
 func _get_attribute_pickup_range_bonus() -> float:
 	return PLAYER_ATTRIBUTE_FLOW.get_attribute_pickup_range_bonus(self)
 
@@ -579,14 +609,24 @@ func _get_role_base_critical_chance(role_id: String) -> float:
 		return 0.10
 	return 0.0
 
-func _get_role_critical_chance(role_id: String) -> float:
+func _get_role_raw_critical_chance(role_id: String) -> float:
 	var critical_chance: float = _get_role_base_critical_chance(role_id)
+	critical_chance += float(_get_role_blessing_stat_bonus(role_id, "critical_chance"))
 	if role_id == "swordsman":
 		critical_chance += swordsman_ultimate_crit_bonus_chance
+	return max(0.0, critical_chance)
+
+func _get_role_critical_chance(role_id: String) -> float:
+	var critical_chance: float = _get_role_raw_critical_chance(role_id)
 	return clamp(critical_chance, 0.0, 1.0)
 
-func _get_critical_damage_multiplier(_role_id: String) -> float:
-	return BASE_CRITICAL_DAMAGE_MULTIPLIER
+func _get_role_critical_overflow_chance(role_id: String) -> float:
+	return max(0.0, _get_role_raw_critical_chance(role_id) - 1.0)
+
+func _get_critical_damage_multiplier(role_id: String) -> float:
+	var overflow_bonus: float = _get_role_critical_overflow_chance(role_id) * CRITICAL_OVERFLOW_DAMAGE_RATIO
+	var blessing_bonus: float = float(_get_role_blessing_stat_bonus(role_id, "critical_damage_bonus"))
+	return BASE_CRITICAL_DAMAGE_MULTIPLIER + overflow_bonus + blessing_bonus
 
 func _roll_critical_hit(role_id: String) -> bool:
 	var critical_chance: float = _get_role_critical_chance(role_id)
@@ -623,9 +663,6 @@ func _get_mage_kill_energy_proc_chance() -> float:
 
 func _get_mage_kill_energy_proc_multiplier() -> float:
 	return PLAYER_ATTRIBUTE_FLOW.get_mage_kill_energy_proc_multiplier(self)
-
-func _get_primary_attribute_damage_bonus(role_id: String) -> float:
-	return PLAYER_ATTRIBUTE_FLOW.get_primary_attribute_damage_bonus(self, role_id)
 
 func _get_role_trait_level(role_id: String) -> float:
 	return PLAYER_ATTRIBUTE_FLOW.get_role_trait_level(self, role_id)
@@ -766,6 +803,15 @@ func _build_role_resource_state_data(default_value: Variant) -> Dictionary:
 func _build_role_health_state() -> Dictionary:
 	return PLAYER_ROLE_STAT_FLOW.build_role_health_state(self)
 
+func _build_role_temporary_health_state() -> Dictionary:
+	return PLAYER_ROLE_STAT_FLOW.build_role_temporary_health_state(self)
+
+func _build_temporary_health_stack_state() -> Array:
+	return PLAYER_RESOURCE_FLOW.build_temporary_health_stack_state()
+
+func _normalize_temporary_health_stack_state(value: Variant) -> Array:
+	return PLAYER_RESOURCE_FLOW.normalize_temporary_health_stack_state(value)
+
 func _get_active_role_id() -> String:
 	return PLAYER_RESOURCE_FLOW.get_active_role_id(self)
 
@@ -798,6 +844,12 @@ func _get_card_level(card_id: String) -> int:
 
 func _get_role_blessing_stat_bonus(role_id: String, stat: String) -> float:
 	return PLAYER_BLESSING_SKILL_BRIDGE.get_role_stat_bonus(self, role_id, stat)
+
+func _get_blazing_sun_flat_base_damage(role_id: String) -> float:
+	return PLAYER_BLESSING_SKILL_BRIDGE.get_blazing_sun_flat_base_damage(self, role_id)
+
+func _tick_blessing_health_regen(delta: float) -> void:
+	PLAYER_BLESSING_SKILL_BRIDGE.tick_blessing_health_regen(self, delta)
 
 func _get_skill_blessing_stat_bonus(stat: String) -> float:
 	return PLAYER_BLESSING_SKILL_BRIDGE.get_skill_stat_bonus(self, stat)
@@ -904,9 +956,6 @@ func _get_role_theme_color(role_id: String) -> Color:
 func _announce_completed_final_set(set_key: String) -> void:
 	return
 
-func _apply_team_role_bonus(damage_bonus: float, interval_bonus: float, range_bonus: float, skill_bonus: float) -> void:
-	PLAYER_ROLE_STAT_FLOW.apply_team_role_bonus(self, damage_bonus, interval_bonus, range_bonus, skill_bonus)
-
 func _increase_role_special(role_id: String, key: String, amount: int = 1) -> void:
 	PLAYER_RESOURCE_FLOW.increase_role_special(self, role_id, key, amount)
 
@@ -952,6 +1001,9 @@ func _get_effective_damage_taken_multiplier() -> float:
 func _get_equipment_low_health_damage_taken_multiplier() -> float:
 	return PLAYER_EQUIPMENT_FLOW.get_low_health_damage_taken_multiplier(self)
 
+func _get_equipment_low_health_damage_reduction_value() -> float:
+	return PLAYER_EQUIPMENT_FLOW.get_low_health_damage_reduction_value(self)
+
 func _get_equipment_skill_range_multiplier() -> float:
 	return PLAYER_EQUIPMENT_FLOW.get_skill_range_multiplier(self) * _get_role_attribute_range_multiplier(str(_get_active_role().get("id", "")))
 
@@ -964,10 +1016,12 @@ func _apply_equipment_passives(delta: float) -> void:
 func _try_equipment_dodge() -> bool:
 	return PLAYER_EQUIPMENT_FLOW.try_dodge(self)
 
-func _get_gunner_flash_dodge_chance() -> float:
-	if str(_get_active_role().get("id", "")) != "gunner":
+func _get_gunner_flash_dodge_value(role_id: String = "") -> float:
+	var resolved_role_id: String = role_id if role_id != "" else str(_get_active_role().get("id", ""))
+	if resolved_role_id != "gunner" or str(_get_active_role().get("id", "")) != "gunner":
 		return 0.0
-	return GUNNER_FLASH_DODGE_CHANCE + float(max(gunner_flash_stacks, 0)) * GUNNER_FLASH_DODGE_PER_STACK
+	var value_per_stack := GUNNER_FLASH_DODGE_VALUE_PER_STACK + PLAYER_BUILD_SYSTEM.get_gunner_flash_dodge_bonus_per_stack(self)
+	return float(max(gunner_flash_stacks, 0)) * value_per_stack
 
 func _lock_player_actions(duration: float) -> void:
 	player_action_lock_remaining = max(player_action_lock_remaining, max(0.0, duration))
@@ -1068,13 +1122,15 @@ func _clear_gunner_flash_trait_on_switch() -> void:
 	gunner_flash_stack_elapsed = 0.0
 
 func _get_gunner_flash_damage_multiplier() -> float:
-	return 1.0 + float(max(gunner_flash_stacks, 0)) * GUNNER_FLASH_DAMAGE_PER_STACK
+	var bonus_per_stack := GUNNER_FLASH_DAMAGE_PER_STACK + PLAYER_BUILD_SYSTEM.get_gunner_flash_damage_bonus_per_stack(self)
+	return 1.0 + float(max(gunner_flash_stacks, 0)) * bonus_per_stack
 
 func _get_gunner_flash_move_speed_multiplier() -> float:
-	return 1.0 + float(max(gunner_flash_stacks, 0)) * GUNNER_FLASH_SPEED_PER_STACK
+	var bonus_per_stack := GUNNER_FLASH_SPEED_PER_STACK + PLAYER_BUILD_SYSTEM.get_gunner_flash_speed_bonus_per_stack(self)
+	return 1.0 + float(max(gunner_flash_stacks, 0)) * bonus_per_stack
 
 func _get_gunner_safe_zone_radius() -> float:
-	return GUNNER_SAFE_ZONE_RADIUS
+	return max(0.0, GUNNER_SAFE_ZONE_RADIUS + PLAYER_BUILD_SYSTEM.get_gunner_hunt_safe_radius_bonus(self))
 
 func _get_gunner_flash_buff_slot() -> Dictionary:
 	if str(_get_active_role().get("id", "")) != "gunner":
@@ -1094,7 +1150,7 @@ func _get_gunner_flash_buff_slot() -> Dictionary:
 		return {}
 	return {
 		"name": "\u77AC\u6740",
-		"description": "\u6BCF2\u79D2\u83B7\u5F971\u5C42\uff0c\u6BCF\u5C42\u63D0\u4F9B3%\u4F24\u5BB3\u30013%\u79FB\u901F\u548C2%\u95EA\u907F\uff0C\u6700\u591A10\u5C42",
+		"description": "\u6BCF2\u79D2\u83B7\u5F971\u5C42\uff0c\u6BCF\u5C42\u63D0\u4F9B3%\u4F24\u5BB3\u30013%\u79FB\u901F\u548C4\u95EA\u907F\u503C\uff0C\u6700\u591A10\u5C42",
 		"text": "\u77AC",
 		"stacks": gunner_flash_stacks,
 		"remaining": GUNNER_FLASH_STACK_INTERVAL,
@@ -1158,13 +1214,15 @@ func _get_mage_arcane_charge_holder_role_id() -> String:
 	return ""
 
 func _get_mage_arcane_charge_share_ratio_for_role(role_id: String) -> float:
-	return float(_get_mage_arcane_charge_effective_stacks_for_role(role_id)) * MAGE_ARCANE_CHARGE_SHARE_PER_STACK
+	var share_per_stack := MAGE_ARCANE_CHARGE_SHARE_PER_STACK + PLAYER_BUILD_SYSTEM.get_mage_arcane_charge_share_bonus_per_stack(self)
+	return float(_get_mage_arcane_charge_effective_stacks_for_role(role_id)) * share_per_stack
 
 func _get_mage_arcane_charge_share_ratio() -> float:
 	return _get_mage_arcane_charge_share_ratio_for_role(str(_get_active_role().get("id", "")))
 
 func _get_mage_arcane_charge_self_energy_multiplier_for_role(role_id: String) -> float:
-	return 1.0 + float(_get_mage_arcane_charge_effective_stacks_for_role(role_id)) * MAGE_ARCANE_CHARGE_SELF_ENERGY_PER_STACK
+	var energy_per_stack := MAGE_ARCANE_CHARGE_SELF_ENERGY_PER_STACK + PLAYER_BUILD_SYSTEM.get_mage_arcane_charge_energy_bonus_per_stack(self)
+	return 1.0 + float(_get_mage_arcane_charge_effective_stacks_for_role(role_id)) * energy_per_stack
 
 func _get_mage_arcane_charge_self_energy_multiplier() -> float:
 	return _get_mage_arcane_charge_self_energy_multiplier_for_role(str(_get_active_role().get("id", "")))
@@ -1479,7 +1537,13 @@ func _apply_role_damage_lifesteal(source_role_id: String, damage_amount: float) 
 	PLAYER_DAMAGE_HELPERS.apply_role_damage_lifesteal(self, source_role_id, damage_amount)
 
 func _get_gunner_distance_damage_multiplier(distance: float) -> float:
-	return PLAYER_DAMAGE_HELPERS.get_gunner_distance_damage_multiplier(distance)
+	return PLAYER_DAMAGE_HELPERS.get_gunner_distance_damage_multiplier(
+		distance,
+		0.0,
+		_get_gunner_safe_zone_radius(),
+		PLAYER_BUILD_SYSTEM.get_gunner_hunt_inside_damage_bonus(self),
+		PLAYER_BUILD_SYSTEM.get_gunner_hunt_outside_damage_bonus(self)
+	)
 
 func _get_enemy_hit_radius(enemy: Node) -> float:
 	return PLAYER_DAMAGE_HELPERS.get_enemy_hit_radius(enemy)
@@ -1681,8 +1745,8 @@ func _clear_entry_blessing() -> void:
 func _apply_switch_payoff(hit_count: int, energy_gain: float, cooldown_refund: float) -> void:
 	PLAYER_SWITCH_FLOW.apply_switch_payoff(self, hit_count, energy_gain, cooldown_refund)
 
-func _apply_role_share(source_role_id: String, damage_bonus: float, interval_bonus: float, range_bonus: float, skill_bonus: float) -> void:
-	PLAYER_ROLE_STAT_FLOW.apply_role_share(self, source_role_id, damage_bonus, interval_bonus, range_bonus, skill_bonus)
+func _apply_role_share(source_role_id: String, interval_bonus: float, range_bonus: float, skill_bonus: float) -> void:
+	PLAYER_ROLE_STAT_FLOW.apply_role_share(self, source_role_id, interval_bonus, range_bonus, skill_bonus)
 
 func _initialize_existing_role_shares() -> void:
 	PLAYER_ROLE_STAT_FLOW.initialize_existing_role_shares(self)
@@ -1695,6 +1759,9 @@ func _get_active_role() -> Dictionary:
 
 func _get_current_move_speed() -> float:
 	return PLAYER_ROLE_STAT_FLOW.get_current_move_speed(self)
+
+func _get_role_move_speed(role_id: String) -> float:
+	return PLAYER_ROLE_STAT_FLOW.get_role_move_speed(self, role_id)
 
 func _get_role_damage(role_id: String) -> float:
 	return PLAYER_ROLE_STAT_FLOW.get_role_damage(self, role_id)
@@ -1711,8 +1778,38 @@ func _get_role_max_health(role_id: String) -> float:
 func _get_role_current_health(role_id: String) -> float:
 	return PLAYER_ROLE_STAT_FLOW.get_role_current_health(self, role_id)
 
+func _get_role_temporary_health(role_id: String) -> float:
+	return PLAYER_ROLE_STAT_FLOW.get_role_temporary_health(self, role_id)
+
 func _save_active_role_health() -> void:
 	PLAYER_ROLE_STAT_FLOW.save_active_role_health(self)
+
+func _save_active_role_temporary_health() -> void:
+	PLAYER_ROLE_STAT_FLOW.save_active_role_temporary_health(self)
+
+func _set_role_temporary_health(role_id: String, value: float, emit_for_active: bool = true) -> void:
+	PLAYER_ROLE_STAT_FLOW.set_role_temporary_health(self, role_id, value, emit_for_active)
+
+func _sync_temporary_health_state(emit_signal: bool = true, signal_role_id: String = "") -> void:
+	PLAYER_RESOURCE_FLOW.sync_temporary_health_state(self, emit_signal, signal_role_id)
+
+func _set_temporary_health_total(value: float, emit_signal: bool = true, signal_role_id: String = "") -> void:
+	PLAYER_RESOURCE_FLOW.set_temporary_health_total(self, value, emit_signal, signal_role_id)
+
+func _tick_temporary_health_stacks(delta: float) -> void:
+	PLAYER_RESOURCE_FLOW.tick_temporary_health_stacks(self, delta)
+
+func _consume_temporary_health(amount: float) -> float:
+	return PLAYER_RESOURCE_FLOW.consume_temporary_health(self, amount)
+
+func _clear_temporary_health(emit_signal: bool = true) -> void:
+	PLAYER_RESOURCE_FLOW.clear_temporary_health(self, emit_signal)
+
+func _add_temporary_health(amount: float, role_id: String = "") -> float:
+	return PLAYER_RESOURCE_FLOW.add_temporary_health(self, amount, role_id)
+
+func grant_temporary_health(amount: float, role_id: String = "") -> float:
+	return _add_temporary_health(amount, role_id)
 
 func _add_all_role_current_health(amount: float) -> void:
 	PLAYER_ROLE_STAT_FLOW.add_all_role_current_health(self, amount)
@@ -1821,6 +1918,7 @@ func _add_switch_energy_from_damage(damage_amount: float, source_role_id: String
 		return
 	var resolved_role_id: String = source_role_id if source_role_id != "" else _get_active_role_id()
 	var gain_amount: float = damage_amount * SWITCH_ENTRY_ENERGY_PER_DAMAGE
+	gain_amount *= max(0.01, 1.0 + float(_get_role_blessing_stat_bonus(resolved_role_id, "switch_energy_gain")))
 	if _is_mage_arcane_surplus_active():
 		gain_amount *= 1.0 + _get_mage_arcane_surplus_switch_energy_bonus()
 	_set_role_switch_energy(resolved_role_id, _get_role_switch_energy(resolved_role_id) + gain_amount)
@@ -1910,11 +2008,17 @@ func _count_enemies_in_radius(center: Vector2, radius: float) -> int:
 func apply_upgrade(option_id: String) -> void:
 	PLAYER_UPGRADE_APPLIER.apply_upgrade(self, option_id)
 
+func apply_upgrades(option_ids: Array) -> void:
+	PLAYER_UPGRADE_APPLIER.apply_upgrades(self, option_ids)
+
 func get_attribute_upgrade_options() -> Array:
 	return PLAYER_LEVEL_FLOW.get_attribute_upgrade_options(self)
 
 func refresh_upgrade_options() -> Array:
 	return PLAYER_LEVEL_FLOW.refresh_upgrade_options(self)
+
+func refresh_upgrade_card(option_index: int) -> Array:
+	return PLAYER_LEVEL_FLOW.refresh_upgrade_card(self, option_index)
 
 func build_direct_blessing_options() -> Array:
 	return PLAYER_LEVEL_FLOW.build_all_blessing_options(self)

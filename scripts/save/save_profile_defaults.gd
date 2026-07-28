@@ -6,24 +6,24 @@ const DIFFICULTY_PROFILE := preload("res://scripts/game/difficulty_profile.gd")
 const MODE_STORY := "story"
 const MODE_ENDLESS := "endless"
 const DEFAULT_ROLE_IDS := ["swordsman", "gunner", "mage"]
+const STORY_PROFILE_COPY_KEYS := [
+	"chapter_index",
+	"current_stage_index",
+	"boss_core_fragments",
+	"unlocked_role_ids",
+	"team_order",
+	"created_unix"
+]
 
 static func ensure_story_profile_defaults(profile: Dictionary, slot_id: int) -> Dictionary:
 	var normalized := STORY_DATA.build_default_story_profile(slot_id)
-	for key in profile.keys():
-		normalized[key] = profile[key]
-	if not normalized.has("unlocked_styles") or not (normalized["unlocked_styles"] is Dictionary):
-		normalized["unlocked_styles"] = {}
-	if not normalized.has("equipped_styles") or not (normalized["equipped_styles"] is Dictionary):
-		normalized["equipped_styles"] = {}
+	for key in STORY_PROFILE_COPY_KEYS:
+		if profile.has(key):
+			normalized[key] = profile[key]
 	if not normalized.has("team_order") or not (normalized["team_order"] is Array):
 		normalized["team_order"] = DEFAULT_ROLE_IDS.duplicate()
 	if not normalized.has("unlocked_role_ids") or not (normalized["unlocked_role_ids"] is Array):
 		normalized["unlocked_role_ids"] = DEFAULT_ROLE_IDS.duplicate()
-	for role_id in DEFAULT_ROLE_IDS:
-		if not normalized["unlocked_styles"].has(role_id):
-			normalized["unlocked_styles"][role_id] = []
-		if not normalized["equipped_styles"].has(role_id):
-			normalized["equipped_styles"][role_id] = "default"
 	normalized["team_order"] = _normalize_team_order(normalized["team_order"])
 	normalized["slot_id"] = slot_id
 	normalized["mode"] = MODE_STORY

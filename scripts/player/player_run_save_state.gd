@@ -11,6 +11,8 @@ const GUNNER_SHRAPNEL_FIELD_ABILITY := preload("res://scripts/abilities/gunner_s
 const PLAYER_BLESSING_SYSTEM := preload("res://scripts/player/player_blessing_system.gd")
 const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
 const PLAYER_ROLE_STAT_FLOW := preload("res://scripts/player/player_role_stat_flow.gd")
+const PLAYER_RESOURCE_FLOW := preload("res://scripts/player/player_resource_flow.gd")
+const PLAYER_COMBAT_MODIFIERS := preload("res://scripts/player/player_combat_modifiers.gd")
 
 static func get_save_data(player) -> Dictionary:
 	var pending_upgrade_count: int = player.pending_level_ups
@@ -18,6 +20,8 @@ static func get_save_data(player) -> Dictionary:
 		pending_upgrade_count += 1
 	if player.has_method("_save_active_role_health"):
 		player._save_active_role_health()
+	if player.has_method("_sync_temporary_health_state"):
+		player._sync_temporary_health_state(false)
 
 	return {
 		"position": [player.global_position.x, player.global_position.y],
@@ -28,7 +32,10 @@ static func get_save_data(player) -> Dictionary:
 		"max_health": player.max_health,
 		"max_mana": player.max_mana,
 		"current_health": player.current_health,
+		"current_temporary_health": player.current_temporary_health,
+		"temporary_health_stacks": player.temporary_health_stacks.duplicate(true),
 		"role_health_values": player.role_health_values.duplicate(true),
+		"role_temporary_health_values": player.role_temporary_health_values.duplicate(true),
 		"current_mana": player._get_role_mana(player._get_active_role_id()),
 		"role_mana_values": player.role_mana_values.duplicate(true),
 		"role_switch_energy_values": player.role_switch_energy_values.duplicate(true),
@@ -38,6 +45,7 @@ static func get_save_data(player) -> Dictionary:
 		"switch_invulnerability_remaining": player.switch_invulnerability_remaining,
 		"hidden_invulnerability_status_remaining": player.hidden_invulnerability_status_remaining,
 		"swordsman_entry_trait_share_remaining": player.swordsman_entry_trait_share_remaining,
+		"swordsman_bloodthirst_cooldown_remaining": player.swordsman_bloodthirst_cooldown_remaining,
 		"mage_arcane_surplus_remaining": player.mage_arcane_surplus_remaining,
 		"mage_arcane_charge_stacks": player.mage_arcane_charge_stacks,
 		"mage_arcane_charge_transfer_stacks": player.mage_arcane_charge_transfer_stacks,
@@ -73,6 +81,7 @@ static func get_save_data(player) -> Dictionary:
 		"background_interval_multiplier": player.background_interval_multiplier,
 		"ultimate_cost_multiplier": player.ultimate_cost_multiplier,
 		"damage_taken_multiplier": player.damage_taken_multiplier,
+		"passive_damage_reduction_value": player.passive_damage_reduction_value,
 		"equipment_damage_multiplier_bonus": player.equipment_damage_multiplier_bonus,
 		"equipment_speed_bonus": player.equipment_speed_bonus,
 		"equipment_max_health_bonus": player.equipment_max_health_bonus,
@@ -81,6 +90,7 @@ static func get_save_data(player) -> Dictionary:
 		"equipment_health_regen_per_second": player.equipment_health_regen_per_second,
 		"equipment_low_health_threshold": player.equipment_low_health_threshold,
 		"equipment_low_health_damage_taken_multiplier": player.equipment_low_health_damage_taken_multiplier,
+		"equipment_low_health_damage_reduction_value": player.equipment_low_health_damage_reduction_value,
 		"equipment_skill_range_multiplier": player.equipment_skill_range_multiplier,
 		"equipment_cooldown_multiplier": player.equipment_cooldown_multiplier,
 		"role_switch_cooldown_bonus": player.role_switch_cooldown_bonus,
@@ -131,8 +141,7 @@ static func get_save_data(player) -> Dictionary:
 		"owned_magic_stones": player.owned_magic_stones.duplicate(true),
 		"blessing_skill_state": player.blessing_skill_state.duplicate(true),
 		"role_special_states": player.role_special_states.duplicate(true),
-		"roles": player._serialize_roles_for_save(),
-		"story_equipped_styles": player.story_equipped_styles.duplicate(true)
+		"roles": player._serialize_roles_for_save()
 	}
 
 static func apply_save_data(player, data: Dictionary) -> void:
@@ -156,9 +165,15 @@ static func apply_save_data(player, data: Dictionary) -> void:
 	player.max_health = float(data.get("max_health", player.max_health))
 	player.max_mana = float(data.get("max_mana", player.max_mana))
 	var saved_current_health: float = float(data.get("current_health", player.current_health))
+	var saved_current_temporary_health: float = max(0.0, float(data.get("current_temporary_health", player.current_temporary_health)))
 	player.current_health = saved_current_health
+	player.current_temporary_health = saved_current_temporary_health
+	player.temporary_health_stacks = player._build_temporary_health_stack_state()
 	player.role_health_values = player._build_role_health_state()
+	player.role_temporary_health_values = player._build_role_temporary_health_state()
 	var saved_role_health_values: Variant = data.get("role_health_values", {})
+	var saved_role_temporary_health_values: Variant = data.get("role_temporary_health_values", {})
+	var saved_temporary_health_stacks: Variant = data.get("temporary_health_stacks", [])
 	player.role_mana_values = player._build_role_resource_state_data(0.0)
 	player.role_switch_energy_values = player._build_role_resource_state_data(0.0)
 	player.role_ultimate_energy_lock_remaining = player._build_role_resource_state_data(0.0)
@@ -201,7 +216,20 @@ static func apply_save_data(player, data: Dictionary) -> void:
 	player.role_share_initialized = bool(data.get("role_share_initialized", false))
 	player.active_role_index = saved_active_role_index
 	player.auto_attack_enabled = bool(data.get("auto_attack_enabled", player.auto_attack_enabled))
-	player.role_upgrade_levels = data.get("role_upgrade_levels", player.role_upgrade_levels).duplicate(true)
+	var saved_role_upgrade_levels: Variant = data.get("role_upgrade_levels", player.role_upgrade_levels)
+	player.role_upgrade_levels = player._build_role_upgrade_data()
+	if saved_role_upgrade_levels is Dictionary:
+		for role_id_variant in player.role_upgrade_levels.keys():
+			var role_id: String = str(role_id_variant)
+			var saved_upgrade_data: Variant = (saved_role_upgrade_levels as Dictionary).get(role_id, {})
+			if saved_upgrade_data is not Dictionary:
+				continue
+			var normalized_upgrade_data: Dictionary = (player.role_upgrade_levels.get(role_id, {}) as Dictionary).duplicate(true)
+			normalized_upgrade_data["level"] = int((saved_upgrade_data as Dictionary).get("level", normalized_upgrade_data.get("level", 0)))
+			normalized_upgrade_data["interval_bonus"] = float((saved_upgrade_data as Dictionary).get("interval_bonus", normalized_upgrade_data.get("interval_bonus", 0.0)))
+			normalized_upgrade_data["range_bonus"] = float((saved_upgrade_data as Dictionary).get("range_bonus", normalized_upgrade_data.get("range_bonus", 0.0)))
+			normalized_upgrade_data["skill_bonus"] = float((saved_upgrade_data as Dictionary).get("skill_bonus", normalized_upgrade_data.get("skill_bonus", 0.0)))
+			player.role_upgrade_levels[role_id] = normalized_upgrade_data
 	player.background_cooldowns = data.get("background_cooldowns", player.background_cooldowns).duplicate(true)
 	player.equipment_levels = data.get("equipment_levels", player.equipment_levels).duplicate(true)
 	var saved_role_equipment_levels: Variant = data.get("role_equipment_levels", {})
@@ -226,8 +254,8 @@ static func apply_save_data(player, data: Dictionary) -> void:
 	player.skill_blessing_levels = PLAYER_BLESSING_SYSTEM.normalize_skill_state(data.get("skill_blessing_levels", player.skill_blessing_levels))
 	player.owned_magic_stones = _normalize_owned_magic_stones(data.get("owned_magic_stones", player.owned_magic_stones))
 	player.blessing_skill_state = PLAYER_BLESSING_SKILL_STATE.normalize_state(data.get("blessing_skill_state", player.blessing_skill_state))
-	player.story_equipped_styles = data.get("story_equipped_styles", player.story_equipped_styles).duplicate(true)
 	_apply_saved_role_health_data(player, saved_role_health_values, saved_current_health, saved_active_role_index)
+	_apply_saved_role_temporary_health_data(player, saved_role_temporary_health_values, saved_current_temporary_health, saved_active_role_index, saved_temporary_health_stacks)
 	if player.swordsman_blade_storm_ability != null:
 		player.swordsman_blade_storm_ability.restore_effect_if_active(player)
 	if player.mage_meta_field_ability != null:
@@ -237,6 +265,12 @@ static func apply_save_data(player, data: Dictionary) -> void:
 	player._initialize_existing_role_shares()
 	player.level_up_active = false
 	player.is_dead = false
+	if player.has_method("_sync_temporary_health_state"):
+		player._sync_temporary_health_state(false)
+	else:
+		player.role_temporary_health_values = PLAYER_ROLE_STAT_FLOW.normalize_role_temporary_health_state(player, player.role_temporary_health_values)
+	player.death_sequence_pending = false
+	player.death_sequence_remaining = 0.0
 	player.role_health_values = PLAYER_ROLE_STAT_FLOW.normalize_role_health_state(player, player.role_health_values)
 
 	player._update_active_role_state()
@@ -271,6 +305,26 @@ static func _apply_saved_role_health_data(player, saved_role_health_values: Vari
 	var active_role_id: String = str(player.roles[clamp(saved_active_role_index, 0, max(0, player.roles.size() - 1))].get("id", ""))
 	if active_role_id != "":
 		player.current_health = float(player.role_health_values.get(active_role_id, saved_current_health))
+
+static func _apply_saved_role_temporary_health_data(player, saved_role_temporary_health_values: Variant, saved_current_temporary_health: float, saved_active_role_index: int, saved_temporary_health_stacks: Variant) -> void:
+	player.role_temporary_health_values = player._build_role_temporary_health_state()
+	player.temporary_health_stacks = PLAYER_RESOURCE_FLOW.normalize_temporary_health_stack_state(saved_temporary_health_stacks)
+	if player.temporary_health_stacks.is_empty():
+		var fallback_total: float = saved_current_temporary_health
+		var active_role_id: String = str(player.roles[clamp(saved_active_role_index, 0, max(0, player.roles.size() - 1))].get("id", ""))
+		if fallback_total <= 0.0 and active_role_id != "" and saved_role_temporary_health_values is Dictionary:
+			fallback_total = max(0.0, float((saved_role_temporary_health_values as Dictionary).get(active_role_id, 0.0)))
+		if fallback_total > 0.0:
+			player.temporary_health_stacks = [{
+				"amount": fallback_total,
+				"remaining": PLAYER_RESOURCE_FLOW.TEMPORARY_HEALTH_DURATION
+			}]
+	if player.has_method("_sync_temporary_health_state"):
+		player._sync_temporary_health_state(false)
+	else:
+		player.current_temporary_health = saved_current_temporary_health
+		if saved_role_temporary_health_values is Dictionary and not (saved_role_temporary_health_values as Dictionary).is_empty():
+			player.role_temporary_health_values = PLAYER_ROLE_STAT_FLOW.normalize_role_temporary_health_state(player, saved_role_temporary_health_values)
 
 static func _apply_ability_save_data(player, data: Dictionary) -> void:
 	if player.gunner_infinite_reload_ability == null:
@@ -317,6 +371,10 @@ static func _apply_stat_save_data(player, data: Dictionary) -> void:
 	player.background_interval_multiplier = float(data.get("background_interval_multiplier", player.background_interval_multiplier))
 	player.ultimate_cost_multiplier = float(data.get("ultimate_cost_multiplier", player.ultimate_cost_multiplier))
 	player.damage_taken_multiplier = float(data.get("damage_taken_multiplier", player.damage_taken_multiplier))
+	if data.has("passive_damage_reduction_value"):
+		player.passive_damage_reduction_value = float(data.get("passive_damage_reduction_value", player.passive_damage_reduction_value))
+	elif data.has("damage_taken_multiplier") and not is_equal_approx(player.damage_taken_multiplier, 1.0):
+		player.passive_damage_reduction_value = PLAYER_COMBAT_MODIFIERS.damage_reduction_value_from_multiplier(player.damage_taken_multiplier)
 	player.equipment_damage_multiplier_bonus = float(data.get("equipment_damage_multiplier_bonus", player.equipment_damage_multiplier_bonus))
 	player.equipment_speed_bonus = float(data.get("equipment_speed_bonus", player.equipment_speed_bonus))
 	player.equipment_max_health_bonus = float(data.get("equipment_max_health_bonus", player.equipment_max_health_bonus))
@@ -325,6 +383,7 @@ static func _apply_stat_save_data(player, data: Dictionary) -> void:
 	player.equipment_health_regen_per_second = float(data.get("equipment_health_regen_per_second", player.equipment_health_regen_per_second))
 	player.equipment_low_health_threshold = float(data.get("equipment_low_health_threshold", player.equipment_low_health_threshold))
 	player.equipment_low_health_damage_taken_multiplier = float(data.get("equipment_low_health_damage_taken_multiplier", player.equipment_low_health_damage_taken_multiplier))
+	player.equipment_low_health_damage_reduction_value = float(data.get("equipment_low_health_damage_reduction_value", player.equipment_low_health_damage_reduction_value))
 	player.equipment_skill_range_multiplier = float(data.get("equipment_skill_range_multiplier", player.equipment_skill_range_multiplier))
 	player.equipment_cooldown_multiplier = float(data.get("equipment_cooldown_multiplier", player.equipment_cooldown_multiplier))
 	player.role_switch_cooldown_bonus = float(data.get("role_switch_cooldown_bonus", player.role_switch_cooldown_bonus))
@@ -336,6 +395,7 @@ static func _apply_switch_buff_save_data(player, data: Dictionary) -> void:
 	player.switch_power_interval_bonus = float(data.get("switch_power_interval_bonus", 0.0))
 	player.switch_power_label = str(data.get("switch_power_label", ""))
 	player.swordsman_entry_trait_share_remaining = max(0.0, float(data.get("swordsman_entry_trait_share_remaining", 0.0)))
+	player.swordsman_bloodthirst_cooldown_remaining = max(0.0, float(data.get("swordsman_bloodthirst_cooldown_remaining", 0.0)))
 	player.mage_arcane_surplus_remaining = max(0.0, float(data.get("mage_arcane_surplus_remaining", 0.0)))
 	player.mage_arcane_charge_stacks = clampi(int(data.get("mage_arcane_charge_stacks", 0)), 0, player.MAGE_ARCANE_CHARGE_MAX_STACKS)
 	player.mage_arcane_charge_transfer_stacks = clampi(int(data.get("mage_arcane_charge_transfer_stacks", 0)), 0, player.MAGE_ARCANE_CHARGE_MAX_STACKS)

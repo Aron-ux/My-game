@@ -4,6 +4,10 @@ const GUNNER_ENTRY_WAVE_BULLET_COUNT := 8
 const GUNNER_ENTRY_WAVE_BATCH_SIZE := 4
 const GUNNER_ENTRY_WAVE_BATCH_INTERVAL := 0.012
 const GUNNER_ENTRY_BULLET_DAMAGE_MULTIPLIER := 2.0
+const GUNNER_ENTRY_BULLET_SPEED := 1000.0
+const GUNNER_ENTRY_BULLET_LIFETIME := 0.9
+const GUNNER_ENTRY_BULLET_HIT_RADIUS := 18.0
+const GUNNER_ENTRY_BULLET_PIERCE_COUNT := 8
 const MAGE_ATTACK_EFFECT_SCALE := 0.8
 const MAGE_ENTRY_EFFECT_RADIUS := 52.0 * MAGE_ATTACK_EFFECT_SCALE
 const MAGE_ENTRY_HIT_RADIUS := 104.0 * MAGE_ATTACK_EFFECT_SCALE
@@ -21,13 +25,40 @@ static func spawn_gunner_entry_wave_batch(owner, role_id: String, wave_index: in
 	var end_index: int = min(start_index + GUNNER_ENTRY_WAVE_BATCH_SIZE, bullet_count)
 	for bullet_index in range(start_index, end_index):
 		var shot_angle: float = TAU * float(bullet_index) / float(bullet_count) + angle_offset
-		var bullet_damage: float = owner._get_role_damage(role_id) * GUNNER_ENTRY_BULLET_DAMAGE_MULTIPLIER * max(0.0, damage_scale)
-		var bullet = owner._spawn_directional_bullet(Vector2.RIGHT.rotated(shot_angle), bullet_damage, Color(1.0, 0.55, 0.32, 1.0), role_id, owner.global_position)
-		if bullet != null:
-			bullet.speed = 1000.0
-			bullet.lifetime = 0.9
-			bullet.hit_radius = 12.0
-			bullet.pierce_count = max(int(bullet.pierce_count), 8)
+		var direction := Vector2.RIGHT.rotated(shot_angle)
+		if owner.has_method("_spawn_batched_directional_bullet_values"):
+			owner._spawn_batched_directional_bullet_values(
+				direction,
+				_get_gunner_entry_bullet_damage(owner, role_id, damage_scale),
+				Color(1.0, 0.55, 0.32, 1.0),
+				role_id,
+				owner.global_position,
+				GUNNER_ENTRY_BULLET_SPEED,
+				GUNNER_ENTRY_BULLET_LIFETIME,
+				GUNNER_ENTRY_BULLET_HIT_RADIUS,
+				3.4,
+				3.2,
+				Color(1.0, 1.0, 1.0, 0.0),
+				0.0,
+				0.42,
+				10.0,
+				28.0,
+				0.0,
+				0.0,
+				1.0,
+				0.0,
+				GUNNER_ENTRY_BULLET_PIERCE_COUNT
+			)
+		else:
+			var bullet = owner._spawn_directional_bullet(direction, _get_gunner_entry_bullet_damage(owner, role_id, damage_scale), Color(1.0, 0.55, 0.32, 1.0), role_id, owner.global_position)
+			if bullet != null:
+				bullet.speed = GUNNER_ENTRY_BULLET_SPEED
+				bullet.lifetime = GUNNER_ENTRY_BULLET_LIFETIME
+				bullet.hit_radius = GUNNER_ENTRY_BULLET_HIT_RADIUS
+				bullet.enemy_hit_radius_scale = 0.42
+				bullet.enemy_hit_radius_min = 10.0
+				bullet.enemy_hit_radius_max = 28.0
+				bullet.pierce_count = GUNNER_ENTRY_BULLET_PIERCE_COUNT
 	if end_index >= bullet_count:
 		return
 	if not owner.has_method("_schedule_repeating_sequence"):
@@ -35,6 +66,12 @@ static func spawn_gunner_entry_wave_batch(owner, role_id: String, wave_index: in
 	owner._schedule_repeating_sequence(GUNNER_ENTRY_WAVE_BATCH_INTERVAL, 1, func(_index: int) -> void:
 		spawn_gunner_entry_wave_batch(owner, role_id, wave_index, end_index, damage_scale)
 	, GUNNER_ENTRY_WAVE_BATCH_INTERVAL)
+
+
+static func _get_gunner_entry_bullet_damage(owner, role_id: String, damage_scale: float = 1.0) -> float:
+	if owner == null or not is_instance_valid(owner):
+		return 0.0
+	return owner._get_role_damage(role_id) * GUNNER_ENTRY_BULLET_DAMAGE_MULTIPLIER * max(0.0, damage_scale)
 
 
 static func start_mage_entry_bombardment(owner, role_id: String, bombard_centers: Array, damage_scale: float = 1.0) -> void:

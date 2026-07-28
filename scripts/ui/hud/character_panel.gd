@@ -795,11 +795,19 @@ func _build_stats_text(role_data: Dictionary) -> String:
 	var damage: float = float(cached_player._get_role_damage(role_id)) if cached_player.has_method("_get_role_damage") else float(role_data.get("damage", 0.0))
 	var base_speed: float = float(cached_player.get("speed")) - float(active_bonus.get("speed_bonus", 0.0))
 	var move_speed: float = float(role_data.get("move_speed", (base_speed + float(bonus.get("speed_bonus", 0.0))) * float(role_data.get("speed_scale", 1.0))))
-	if role_data.has("move_speed"):
+	if cached_player.has_method("_get_role_move_speed"):
+		move_speed = float(cached_player._get_role_move_speed(role_id))
+	elif role_data.has("move_speed"):
 		move_speed += float(bonus.get("speed_bonus", 0.0))
-	if cached_player.has_method("_get_role_attribute_move_speed_multiplier"):
+		if cached_player.has_method("_get_role_blessing_stat_bonus"):
+			move_speed += float(cached_player._get_role_blessing_stat_bonus(role_id, "move_speed"))
+			move_speed *= max(0.01, 1.0 + float(cached_player._get_role_blessing_stat_bonus(role_id, "move_speed_percent")))
+	if not cached_player.has_method("_get_role_move_speed") and cached_player.has_method("_get_role_attribute_move_speed_multiplier"):
 		move_speed *= float(cached_player._get_role_attribute_move_speed_multiplier(role_id))
-	if not role_data.has("move_speed"):
+	if not cached_player.has_method("_get_role_move_speed") and not role_data.has("move_speed"):
+		if cached_player.has_method("_get_role_blessing_stat_bonus"):
+			move_speed += float(cached_player._get_role_blessing_stat_bonus(role_id, "move_speed"))
+			move_speed *= max(0.01, 1.0 + float(cached_player._get_role_blessing_stat_bonus(role_id, "move_speed_percent")))
 		move_speed *= GLOBAL_UNIT_MOVE_SPEED_SCALE
 	var max_health: float = float(cached_player._get_role_max_health(role_id)) if cached_player.has_method("_get_role_max_health") else float(cached_player.get("max_health")) - float(active_bonus.get("max_health_bonus", 0.0)) + float(bonus.get("max_health_bonus", 0.0))
 	var current_health: float = float(cached_player._get_role_current_health(role_id)) if cached_player.has_method("_get_role_current_health") else float(cached_player.get("current_health"))
@@ -810,19 +818,14 @@ func _build_stats_text(role_data: Dictionary) -> String:
 	var pickup_radius: float = float(cached_player.get("pickup_radius"))
 	if cached_player.has_method("_get_attribute_pickup_range_bonus"):
 		pickup_radius += float(cached_player._get_attribute_pickup_range_bonus())
-	var attribute_dodge: float = float(cached_player._get_attribute_dodge_chance()) if cached_player.has_method("_get_attribute_dodge_chance") else 0.0
-	var blessing_dodge: float = float(cached_player._get_role_blessing_stat_bonus(role_id, "dodge")) if cached_player.has_method("_get_role_blessing_stat_bonus") else 0.0
-	var ultimate_dodge: float = 0.0
-	if role_id == str(cached_player._get_active_role().get("id", "")) and float(cached_player.get("ultimate_haste_remaining")) > 0.0:
-		ultimate_dodge = float(cached_player.get("ultimate_haste_dodge_chance"))
-	var dodge_chance: float = clamp(float(bonus.get("dodge_chance", 0.0)) + blessing_dodge + attribute_dodge + ultimate_dodge, 0.0, 1.0)
+	var dodge_chance: float = float(cached_player._get_role_dodge_chance(role_id)) if cached_player.has_method("_get_role_dodge_chance") else 0.0
 	var health_regen: float = float(bonus.get("regen_per_second", 0.0))
 	if cached_player.has_method("_get_attribute_health_regen_per_second"):
 		health_regen += float(cached_player._get_attribute_health_regen_per_second())
 	var mana_regen: float = float(cached_player._get_attribute_mana_regen_per_second()) if cached_player.has_method("_get_attribute_mana_regen_per_second") else 0.0
-	var extra_damage_taken_ratio: float = 0.0
-	if role_id == "gunner":
-		extra_damage_taken_ratio = 0.25
+	var damage_reduction_rate: float = float(cached_player._get_role_damage_reduction_rate(role_id)) if cached_player.has_method("_get_role_damage_reduction_rate") else 0.0
+	var damage_reduction_label: String = "\u51cf\u4f24" if damage_reduction_rate >= 0.0 else "\u6613\u4f24"
+	var damage_reduction_color: String = "#74f0a7" if damage_reduction_rate >= 0.0 else "#ff9b74"
 	var swordsman_trait_level: float = float(cached_player._get_attribute_level("swordsman_trait")) if cached_player.has_method("_get_attribute_level") else 0.0
 	var gunner_trait_level: float = float(cached_player._get_attribute_level("gunner_trait")) if cached_player.has_method("_get_attribute_level") else 0.0
 	var mage_trait_level: float = float(cached_player._get_attribute_level("mage_trait")) if cached_player.has_method("_get_attribute_level") else 0.0
@@ -844,10 +847,12 @@ func _build_stats_text(role_data: Dictionary) -> String:
 		float(bonus.get("skill_range_multiplier", 1.0)),
 		float(bonus.get("cooldown_multiplier", 1.0))
 	])
-	lines.append("闪避        [color=#74f0a7]%.1f%%[/color]    回血 [color=#74f0a7]%.1f/s[/color]    承伤 [color=#ff9b74]+%.0f%%[/color]" % [
+	lines.append("\u95ea\u907f        [color=#74f0a7]%.1f%%[/color]    \u56de\u8840 [color=#74f0a7]%.1f/s[/color]    %s [color=%s]%.1f%%[/color]" % [
 		dodge_chance * 100.0,
 		health_regen,
-		extra_damage_taken_ratio * 100.0
+		damage_reduction_label,
+		damage_reduction_color,
+		abs(damage_reduction_rate) * 100.0
 	])
 	lines.append("")
 	lines.append("[color=#f3d35a][b]英雄特性[/b][/color]")

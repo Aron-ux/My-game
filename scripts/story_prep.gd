@@ -131,15 +131,8 @@ func _build_roster_panel() -> Control:
 	return panel
 
 func _build_team_slot(slot_index: int, role_id: String, team_size: int) -> Control:
-	var role_style_id := str(profile.get("equipped_styles", {}).get(role_id, "default"))
-	var style_payload := STORY_DATA.get_role_style(role_id, role_style_id)
-	var unlock_style_id := STORY_DATA.get_unlock_style_id(role_id)
-	var unlock_style_payload := STORY_DATA.get_role_style(role_id, unlock_style_id)
-	var unlocked_styles: Array = profile.get("unlocked_styles", {}).get(role_id, []).duplicate()
-	var has_unlock_style: bool = unlocked_styles.has(unlock_style_id)
-
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(0, 122)
+	panel.custom_minimum_size = Vector2(0, 92)
 	panel.add_theme_stylebox_override("panel", SURVIVORS_THEME.card_style())
 
 	var margin := MarginContainer.new()
@@ -164,7 +157,7 @@ func _build_team_slot(slot_index: int, role_id: String, team_size: int) -> Contr
 
 	var desc := Label.new()
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	desc.text = "当前风格：%s\n%s" % [str(style_payload.get("name", "默认")), str(style_payload.get("short_description", ""))]
+	desc.text = "参与当前主线关卡。"
 	info.add_child(desc)
 
 	var actions := VBoxContainer.new()
@@ -189,34 +182,6 @@ func _build_team_slot(slot_index: int, role_id: String, team_size: int) -> Contr
 	SURVIVORS_THEME.apply_button_style(down_button)
 	down_button.pressed.connect(_on_move_team_role.bind(slot_index, slot_index + 1))
 	order_row.add_child(down_button)
-
-	var style_row := HBoxContainer.new()
-	style_row.add_theme_constant_override("separation", 8)
-	actions.add_child(style_row)
-
-	var default_button := Button.new()
-	default_button.text = "装备默认"
-	default_button.disabled = role_style_id == "default"
-	SURVIVORS_THEME.apply_button_style(default_button)
-	default_button.pressed.connect(_on_equip_style.bind(role_id, "default"))
-	style_row.add_child(default_button)
-
-	var unlock_button := Button.new()
-	if has_unlock_style:
-		unlock_button.text = "装备%s" % str(unlock_style_payload.get("name", "风格"))
-		unlock_button.disabled = role_style_id == unlock_style_id
-		unlock_button.pressed.connect(_on_equip_style.bind(role_id, unlock_style_id))
-	else:
-		unlock_button.text = "解锁%s" % str(unlock_style_payload.get("name", "风格"))
-		unlock_button.disabled = int(profile.get("boss_core_fragments", 0)) <= 0
-		unlock_button.pressed.connect(_on_unlock_style.bind(role_id, unlock_style_id))
-	SURVIVORS_THEME.apply_button_style(unlock_button, "primary")
-	style_row.add_child(unlock_button)
-
-	var unlock_desc := Label.new()
-	unlock_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	unlock_desc.text = "可解锁：%s" % str(unlock_style_payload.get("short_description", ""))
-	actions.add_child(unlock_desc)
 
 	return panel
 
@@ -271,7 +236,7 @@ func _build_stage_panel(stage_data: Dictionary) -> Control:
 
 	var tip_label := Label.new()
 	tip_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	tip_label.text = "第一阶段说明：普通关先验证主线骨架，Boss关负责掉落Boss核心并解锁风格。"
+	tip_label.text = "第一阶段说明：普通关先验证主线骨架，Boss关负责掉落Boss核心。"
 	column.add_child(tip_label)
 
 	return panel
@@ -296,14 +261,6 @@ func _on_move_team_role(from_index: int, to_index: int) -> void:
 	team_order[from_index] = team_order[to_index]
 	team_order[to_index] = temp
 	SAVE_MANAGER.update_team_order(team_order)
-	_rebuild_ui()
-
-func _on_unlock_style(role_id: String, style_id: String) -> void:
-	SAVE_MANAGER.unlock_style(role_id, style_id)
-	_rebuild_ui()
-
-func _on_equip_style(role_id: String, style_id: String) -> void:
-	SAVE_MANAGER.equip_style(role_id, style_id)
 	_rebuild_ui()
 
 func _on_start_pressed() -> void:

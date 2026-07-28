@@ -8,11 +8,33 @@ const HEALTH_BAR_BORDER_WIDTH := 2.5
 const HEALTH_BAR_INNER_PADDING := 1.4
 const HEALTH_BAR_SEGMENT_LINE_WIDTH := 1.25
 const HEALTH_BAR_SEGMENT_COLOR := Color(0.0, 0.0, 0.0, 0.58)
+const HEALTH_BAR_TEMP_FILL_COLOR := Color(0.56, 0.04, 0.03, 0.90)
+const HEALTH_BAR_FAST_LERP_SPEED := 16.0
+const HEALTH_BAR_HEAL_LERP_SPEED := 7.0
+const HEALTH_BAR_DAMAGE_TRAIL_DELAY := 0.16
+const HEALTH_BAR_DAMAGE_TRAIL_LERP_SPEED := 5.8
+const HEALTH_BAR_HEAL_FLASH_DURATION := 0.32
 const DURATION_STATUS_BAR_WIDTH := 62.0
 const DURATION_STATUS_BAR_HEIGHT := 6.0
 const DURATION_STATUS_BAR_Y_OFFSET := -68.0
 const DURATION_STATUS_LABEL_Y_OFFSET := -24.0
 const DURATION_STATUS_INNER_PADDING := 1.0
+
+const META_HEALTH_BAR_ROLE_ID := "health_bar_role_id"
+const META_HEALTH_BAR_MAX_HEALTH := "health_bar_max_health"
+const META_HEALTH_BAR_TARGET_RATIO := "health_bar_target_ratio"
+const META_HEALTH_BAR_DISPLAY_RATIO := "health_bar_display_ratio"
+const META_HEALTH_BAR_TRAIL_RATIO := "health_bar_trail_ratio"
+const META_HEALTH_BAR_DAMAGE_STARTED := "health_bar_damage_started"
+const META_HEALTH_BAR_HEAL_STARTED := "health_bar_heal_started"
+const META_HEALTH_BAR_HEAL_FROM_RATIO := "health_bar_heal_from_ratio"
+const META_HEALTH_BAR_HEAL_TO_RATIO := "health_bar_heal_to_ratio"
+const META_HEALTH_BAR_LAST_UPDATE_TIME := "health_bar_last_update_time"
+const META_HEALTH_BAR_TEMP_ROLE_ID := "health_bar_temp_role_id"
+const META_HEALTH_BAR_TEMP_MAX_HEALTH := "health_bar_temp_max_health"
+const META_HEALTH_BAR_TEMP_TARGET_RATIO := "health_bar_temp_target_ratio"
+const META_HEALTH_BAR_TEMP_DISPLAY_RATIO := "health_bar_temp_display_ratio"
+const META_HEALTH_BAR_TEMP_LAST_UPDATE_TIME := "health_bar_temp_last_update_time"
 
 static func setup_hurt_core_visual(owner, hurt_core_radius: float, outline_width: float) -> void:
 	var hurt_core := owner.get_node_or_null("HurtCore") as Node2D
@@ -61,7 +83,9 @@ static func apply_hurt_core_visibility(owner) -> void:
 		hurt_core.visible = owner.hurt_core_visual_visible
 
 static func setup_player_health_bar(owner) -> void:
-	if owner.get_node_or_null("PlayerHealthBar") != null:
+	var existing_bar_root := owner.get_node_or_null("PlayerHealthBar") as Node2D
+	if existing_bar_root != null:
+		_ensure_temporary_health_fill(existing_bar_root)
 		return
 
 	var bar_root := Node2D.new()
@@ -74,10 +98,28 @@ static func setup_player_health_bar(owner) -> void:
 	background.color = Color(0.0, 0.0, 0.0, 0.92)
 	bar_root.add_child(background)
 
+	var damage_trail := Polygon2D.new()
+	damage_trail.name = "DamageTrail"
+	damage_trail.color = Color(1.0, 0.46, 0.18, 0.68)
+	damage_trail.visible = false
+	bar_root.add_child(damage_trail)
+
 	var fill := Polygon2D.new()
 	fill.name = "Fill"
 	fill.color = Color(0.92, 0.08, 0.06, 1.0)
 	bar_root.add_child(fill)
+
+	var temporary_fill := Polygon2D.new()
+	temporary_fill.name = "TemporaryHealthFill"
+	temporary_fill.color = HEALTH_BAR_TEMP_FILL_COLOR
+	temporary_fill.visible = false
+	bar_root.add_child(temporary_fill)
+
+	var heal_flash := Polygon2D.new()
+	heal_flash.name = "HealFlash"
+	heal_flash.color = Color(0.40, 1.0, 0.58, 0.0)
+	heal_flash.visible = false
+	bar_root.add_child(heal_flash)
 
 	var grid_lines := Node2D.new()
 	grid_lines.name = "GridLines"
@@ -121,6 +163,15 @@ static func update_player_health_bar(owner, role_data: Dictionary, bar_height: f
 	var inner_half_width: float = max(0.0, half_width - HEALTH_BAR_INNER_PADDING)
 	var inner_half_height: float = max(0.0, half_height - HEALTH_BAR_INNER_PADDING)
 	var health_ratio: float = clamp(owner.current_health / max(owner.max_health, 1.0), 0.0, 1.0)
+	var temporary_health_ratio: float = max(0.0, float(owner.current_temporary_health) / max(owner.max_health, 1.0))
+	var animation_state: Dictionary = _update_health_bar_animation_state(bar_root, role_id, float(owner.max_health), health_ratio)
+	var temporary_animation_state: Dictionary = _update_temporary_health_bar_animation_state(bar_root, role_id, float(owner.max_health), temporary_health_ratio)
+	var display_ratio: float = float(animation_state.get("display_ratio", health_ratio))
+	var trail_ratio: float = float(animation_state.get("trail_ratio", display_ratio))
+	var heal_from_ratio: float = float(animation_state.get("heal_from_ratio", display_ratio))
+	var heal_to_ratio: float = float(animation_state.get("heal_to_ratio", display_ratio))
+	var heal_alpha: float = float(animation_state.get("heal_alpha", 0.0))
+	var temporary_display_ratio: float = float(temporary_animation_state.get("display_ratio", temporary_health_ratio))
 	bar_root.position = body_center_offset + Vector2(0.0, bar_y_offset)
 
 	var background := bar_root.get_node_or_null("Background") as Polygon2D
@@ -132,15 +183,34 @@ static func update_player_health_bar(owner, role_data: Dictionary, bar_height: f
 			Vector2(-half_width, half_height)
 		])
 
+	var damage_trail := bar_root.get_node_or_null("DamageTrail") as Polygon2D
+	if damage_trail != null:
+		damage_trail.visible = trail_ratio > display_ratio + 0.002
+		damage_trail.color = Color(1.0, 0.46, 0.18, 0.68)
+		_set_health_bar_fill_polygon(damage_trail, trail_ratio, inner_half_width, inner_half_height)
+
 	var fill := bar_root.get_node_or_null("Fill") as Polygon2D
 	if fill != null:
-		var fill_width: float = max(0.0, inner_half_width * 2.0 * health_ratio)
-		fill.polygon = PackedVector2Array([
-			Vector2(-inner_half_width, -inner_half_height),
-			Vector2(-inner_half_width + fill_width, -inner_half_height),
-			Vector2(-inner_half_width + fill_width, inner_half_height),
-			Vector2(-inner_half_width, inner_half_height)
-		])
+		_set_health_bar_fill_polygon(fill, display_ratio, inner_half_width, inner_half_height)
+
+	var temporary_fill := _ensure_temporary_health_fill(bar_root)
+	if temporary_fill != null:
+		temporary_fill.visible = temporary_display_ratio > 0.002
+		temporary_fill.color = HEALTH_BAR_TEMP_FILL_COLOR
+		_set_health_bar_segment_polygon(
+			temporary_fill,
+			display_ratio,
+			display_ratio + temporary_display_ratio,
+			inner_half_width,
+			inner_half_height
+		)
+
+	var heal_flash := bar_root.get_node_or_null("HealFlash") as Polygon2D
+	if heal_flash != null:
+		var band_to_ratio: float = max(heal_from_ratio, min(heal_to_ratio, display_ratio))
+		heal_flash.visible = heal_alpha > 0.01 and band_to_ratio > heal_from_ratio + 0.002
+		heal_flash.color = Color(0.40, 1.0, 0.58, 0.58 * heal_alpha)
+		_set_health_bar_band_polygon(heal_flash, heal_from_ratio, band_to_ratio, inner_half_width, inner_half_height)
 
 	var grid_lines := bar_root.get_node_or_null("GridLines") as Node2D
 	if grid_lines != null:
@@ -164,8 +234,190 @@ static func update_player_health_bar(owner, role_data: Dictionary, bar_height: f
 	var level_label := bar_root.get_node_or_null("LevelLabel") as Label
 	if level_label != null:
 		level_label.text = "Lv.%d" % _get_owner_level(owner)
-		level_label.position = Vector2(half_width + 7.0, -9.5)
+		var temporary_overflow_ratio: float = max(0.0, display_ratio + temporary_display_ratio - 1.0)
+		level_label.position = Vector2(half_width + 7.0 + bar_width * temporary_overflow_ratio, -9.5)
 		level_label.size = Vector2(48.0, 18.0)
+
+
+static func _update_health_bar_animation_state(bar_root: Node2D, role_id: String, max_health: float, target_ratio: float) -> Dictionary:
+	var now: float = Time.get_ticks_msec() * 0.001
+	var previous_role_id: String = str(bar_root.get_meta(META_HEALTH_BAR_ROLE_ID, ""))
+	var previous_max_health: float = float(bar_root.get_meta(META_HEALTH_BAR_MAX_HEALTH, max_health))
+	if previous_role_id != role_id or not is_equal_approx(previous_max_health, max_health) or not bar_root.has_meta(META_HEALTH_BAR_TARGET_RATIO):
+		_reset_health_bar_animation_state(bar_root, role_id, max_health, target_ratio, now)
+		return {
+			"display_ratio": target_ratio,
+			"trail_ratio": target_ratio,
+			"heal_from_ratio": target_ratio,
+			"heal_to_ratio": target_ratio,
+			"heal_alpha": 0.0
+		}
+
+	var last_update_time: float = float(bar_root.get_meta(META_HEALTH_BAR_LAST_UPDATE_TIME, now))
+	var delta: float = clamp(now - last_update_time, 0.0, 0.08)
+	var old_target_ratio: float = float(bar_root.get_meta(META_HEALTH_BAR_TARGET_RATIO, target_ratio))
+	var display_ratio: float = float(bar_root.get_meta(META_HEALTH_BAR_DISPLAY_RATIO, old_target_ratio))
+	var trail_ratio: float = float(bar_root.get_meta(META_HEALTH_BAR_TRAIL_RATIO, old_target_ratio))
+	var damage_started: float = float(bar_root.get_meta(META_HEALTH_BAR_DAMAGE_STARTED, -999.0))
+	var heal_started: float = float(bar_root.get_meta(META_HEALTH_BAR_HEAL_STARTED, -999.0))
+	var heal_from_ratio: float = float(bar_root.get_meta(META_HEALTH_BAR_HEAL_FROM_RATIO, display_ratio))
+	var heal_to_ratio: float = float(bar_root.get_meta(META_HEALTH_BAR_HEAL_TO_RATIO, target_ratio))
+
+	if target_ratio < old_target_ratio - 0.001:
+		trail_ratio = max(trail_ratio, old_target_ratio, display_ratio)
+		damage_started = now
+	elif target_ratio > old_target_ratio + 0.001:
+		heal_from_ratio = min(display_ratio, old_target_ratio)
+		heal_to_ratio = target_ratio
+		heal_started = now
+		damage_started = -999.0
+		trail_ratio = display_ratio
+
+	var display_speed := HEALTH_BAR_HEAL_LERP_SPEED if target_ratio > display_ratio else HEALTH_BAR_FAST_LERP_SPEED
+	display_ratio = _approach_ratio(display_ratio, target_ratio, display_speed, delta)
+	if now - damage_started >= HEALTH_BAR_DAMAGE_TRAIL_DELAY:
+		trail_ratio = _approach_ratio(trail_ratio, target_ratio, HEALTH_BAR_DAMAGE_TRAIL_LERP_SPEED, delta)
+	else:
+		trail_ratio = max(trail_ratio, display_ratio)
+	if trail_ratio < display_ratio:
+		trail_ratio = display_ratio
+
+	var heal_alpha := 0.0
+	if heal_started > 0.0:
+		var heal_progress: float = clamp((now - heal_started) / HEALTH_BAR_HEAL_FLASH_DURATION, 0.0, 1.0)
+		heal_alpha = 1.0 - heal_progress
+
+	bar_root.set_meta(META_HEALTH_BAR_ROLE_ID, role_id)
+	bar_root.set_meta(META_HEALTH_BAR_MAX_HEALTH, max_health)
+	bar_root.set_meta(META_HEALTH_BAR_TARGET_RATIO, target_ratio)
+	bar_root.set_meta(META_HEALTH_BAR_DISPLAY_RATIO, display_ratio)
+	bar_root.set_meta(META_HEALTH_BAR_TRAIL_RATIO, trail_ratio)
+	bar_root.set_meta(META_HEALTH_BAR_DAMAGE_STARTED, damage_started)
+	bar_root.set_meta(META_HEALTH_BAR_HEAL_STARTED, heal_started)
+	bar_root.set_meta(META_HEALTH_BAR_HEAL_FROM_RATIO, heal_from_ratio)
+	bar_root.set_meta(META_HEALTH_BAR_HEAL_TO_RATIO, heal_to_ratio)
+	bar_root.set_meta(META_HEALTH_BAR_LAST_UPDATE_TIME, now)
+
+	return {
+		"display_ratio": display_ratio,
+		"trail_ratio": trail_ratio,
+		"heal_from_ratio": heal_from_ratio,
+		"heal_to_ratio": heal_to_ratio,
+		"heal_alpha": heal_alpha
+	}
+
+
+static func _reset_health_bar_animation_state(bar_root: Node2D, role_id: String, max_health: float, target_ratio: float, now: float) -> void:
+	bar_root.set_meta(META_HEALTH_BAR_ROLE_ID, role_id)
+	bar_root.set_meta(META_HEALTH_BAR_MAX_HEALTH, max_health)
+	bar_root.set_meta(META_HEALTH_BAR_TARGET_RATIO, target_ratio)
+	bar_root.set_meta(META_HEALTH_BAR_DISPLAY_RATIO, target_ratio)
+	bar_root.set_meta(META_HEALTH_BAR_TRAIL_RATIO, target_ratio)
+	bar_root.set_meta(META_HEALTH_BAR_DAMAGE_STARTED, -999.0)
+	bar_root.set_meta(META_HEALTH_BAR_HEAL_STARTED, -999.0)
+	bar_root.set_meta(META_HEALTH_BAR_HEAL_FROM_RATIO, target_ratio)
+	bar_root.set_meta(META_HEALTH_BAR_HEAL_TO_RATIO, target_ratio)
+	bar_root.set_meta(META_HEALTH_BAR_LAST_UPDATE_TIME, now)
+
+
+static func _update_temporary_health_bar_animation_state(bar_root: Node2D, role_id: String, max_health: float, target_ratio: float) -> Dictionary:
+	var now: float = Time.get_ticks_msec() * 0.001
+	var previous_role_id: String = str(bar_root.get_meta(META_HEALTH_BAR_TEMP_ROLE_ID, ""))
+	var previous_max_health: float = float(bar_root.get_meta(META_HEALTH_BAR_TEMP_MAX_HEALTH, max_health))
+	if previous_role_id != role_id or not is_equal_approx(previous_max_health, max_health) or not bar_root.has_meta(META_HEALTH_BAR_TEMP_TARGET_RATIO):
+		_reset_temporary_health_bar_animation_state(bar_root, role_id, max_health, target_ratio, now)
+		return {
+			"display_ratio": target_ratio
+		}
+
+	var last_update_time: float = float(bar_root.get_meta(META_HEALTH_BAR_TEMP_LAST_UPDATE_TIME, now))
+	var delta: float = clamp(now - last_update_time, 0.0, 0.08)
+	var old_target_ratio: float = float(bar_root.get_meta(META_HEALTH_BAR_TEMP_TARGET_RATIO, target_ratio))
+	var display_ratio: float = float(bar_root.get_meta(META_HEALTH_BAR_TEMP_DISPLAY_RATIO, old_target_ratio))
+	var display_speed := HEALTH_BAR_HEAL_LERP_SPEED if target_ratio > display_ratio else HEALTH_BAR_FAST_LERP_SPEED
+	display_ratio = _approach_ratio(display_ratio, target_ratio, display_speed, delta)
+
+	bar_root.set_meta(META_HEALTH_BAR_TEMP_ROLE_ID, role_id)
+	bar_root.set_meta(META_HEALTH_BAR_TEMP_MAX_HEALTH, max_health)
+	bar_root.set_meta(META_HEALTH_BAR_TEMP_TARGET_RATIO, target_ratio)
+	bar_root.set_meta(META_HEALTH_BAR_TEMP_DISPLAY_RATIO, display_ratio)
+	bar_root.set_meta(META_HEALTH_BAR_TEMP_LAST_UPDATE_TIME, now)
+
+	return {
+		"display_ratio": display_ratio
+	}
+
+
+static func _reset_temporary_health_bar_animation_state(bar_root: Node2D, role_id: String, max_health: float, target_ratio: float, now: float) -> void:
+	bar_root.set_meta(META_HEALTH_BAR_TEMP_ROLE_ID, role_id)
+	bar_root.set_meta(META_HEALTH_BAR_TEMP_MAX_HEALTH, max_health)
+	bar_root.set_meta(META_HEALTH_BAR_TEMP_TARGET_RATIO, target_ratio)
+	bar_root.set_meta(META_HEALTH_BAR_TEMP_DISPLAY_RATIO, target_ratio)
+	bar_root.set_meta(META_HEALTH_BAR_TEMP_LAST_UPDATE_TIME, now)
+
+
+static func _approach_ratio(current_ratio: float, target_ratio: float, speed: float, delta: float) -> float:
+	if is_equal_approx(current_ratio, target_ratio):
+		return target_ratio
+	return lerpf(current_ratio, target_ratio, clamp(delta * speed, 0.0, 1.0))
+
+
+static func _set_health_bar_fill_polygon(fill: Polygon2D, ratio: float, inner_half_width: float, inner_half_height: float) -> void:
+	var fill_width: float = max(0.0, inner_half_width * 2.0 * clamp(ratio, 0.0, 1.0))
+	fill.polygon = PackedVector2Array([
+		Vector2(-inner_half_width, -inner_half_height),
+		Vector2(-inner_half_width + fill_width, -inner_half_height),
+		Vector2(-inner_half_width + fill_width, inner_half_height),
+		Vector2(-inner_half_width, inner_half_height)
+	])
+
+
+static func _set_health_bar_band_polygon(fill: Polygon2D, start_ratio: float, end_ratio: float, inner_half_width: float, inner_half_height: float) -> void:
+	var start_x: float = -inner_half_width + inner_half_width * 2.0 * clamp(start_ratio, 0.0, 1.0)
+	var end_x: float = -inner_half_width + inner_half_width * 2.0 * clamp(end_ratio, 0.0, 1.0)
+	if end_x <= start_x:
+		fill.polygon = PackedVector2Array()
+		return
+	fill.polygon = PackedVector2Array([
+		Vector2(start_x, -inner_half_height),
+		Vector2(end_x, -inner_half_height),
+		Vector2(end_x, inner_half_height),
+		Vector2(start_x, inner_half_height)
+	])
+
+
+static func _set_health_bar_segment_polygon(fill: Polygon2D, start_ratio: float, end_ratio: float, inner_half_width: float, inner_half_height: float) -> void:
+	var safe_start_ratio: float = max(0.0, start_ratio)
+	var safe_end_ratio: float = max(safe_start_ratio, end_ratio)
+	var start_x: float = -inner_half_width + inner_half_width * 2.0 * safe_start_ratio
+	var end_x: float = -inner_half_width + inner_half_width * 2.0 * safe_end_ratio
+	if end_x <= start_x:
+		fill.polygon = PackedVector2Array()
+		return
+	fill.polygon = PackedVector2Array([
+		Vector2(start_x, -inner_half_height),
+		Vector2(end_x, -inner_half_height),
+		Vector2(end_x, inner_half_height),
+		Vector2(start_x, inner_half_height)
+	])
+
+
+static func _ensure_temporary_health_fill(bar_root: Node2D) -> Polygon2D:
+	var temporary_fill := bar_root.get_node_or_null("TemporaryHealthFill") as Polygon2D
+	if temporary_fill != null:
+		var heal_flash := bar_root.get_node_or_null("HealFlash") as Node
+		if heal_flash != null and temporary_fill.get_index() > heal_flash.get_index():
+			bar_root.move_child(temporary_fill, heal_flash.get_index())
+		return temporary_fill
+	temporary_fill = Polygon2D.new()
+	temporary_fill.name = "TemporaryHealthFill"
+	temporary_fill.color = HEALTH_BAR_TEMP_FILL_COLOR
+	temporary_fill.visible = false
+	bar_root.add_child(temporary_fill)
+	var heal_flash_node := bar_root.get_node_or_null("HealFlash") as Node
+	if heal_flash_node != null:
+		bar_root.move_child(temporary_fill, heal_flash_node.get_index())
+	return temporary_fill
 
 
 static func setup_player_duration_status_bar(owner) -> void:

@@ -16,6 +16,7 @@ const DAMAGE_QUEUE_TIME_BUDGET_USEC := 1100
 const LOW_FPS_DAMAGE_QUEUE_TIME_BUDGET_USEC := 800
 const CRITICAL_FPS_DAMAGE_QUEUE_TIME_BUDGET_USEC := 550
 const MIN_DAMAGE_APPLICATIONS_PER_RENDER_FRAME := 8
+const GUNNER_NO_HUNT_SOURCE_ROLE_ID := "gunner_no_hunt"
 
 var source_player: Node
 var enemy_refs: Array[WeakRef] = []
@@ -72,7 +73,7 @@ func enqueue_values(enemy_ref: WeakRef, enemy_id: int, damage_amount: float, hit
 		return
 	if enemy_id != 0:
 		var pending_index: int = int(pending_by_enemy_id.get(enemy_id, -1))
-		if pending_index >= job_cursor and pending_index < enemy_refs.size():
+		if pending_index >= job_cursor and pending_index < enemy_refs.size() and str(source_role_ids[pending_index]) == source_role_id:
 			_merge_job_at_index(pending_index, damage_amount, hit_count, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, kill_energy_bonus, prefer_silent_feedback, suppress_status_visual)
 			PERFORMANCE_COUNTERS.add("merged_damage_jobs", 1)
 			return
@@ -137,10 +138,11 @@ func _apply_job_at_index(index: int) -> void:
 	if enemy_ref == null:
 		return
 	var enemy: Node = enemy_ref.get_ref() as Node
-	if enemy == null or not is_instance_valid(enemy):
+	if not _is_enemy_damageable(enemy):
 		return
 	var damage_amount: float = damage_amounts[index]
 	var source_role_id: String = source_role_ids[index]
+	var resolved_source_role_id: String = _resolve_damage_source_role_id(source_role_id)
 	var vulnerability_bonus: float = vulnerability_bonuses[index]
 	var vulnerability_duration: float = vulnerability_durations[index]
 	var slow_multiplier: float = slow_multipliers[index]
@@ -157,7 +159,7 @@ func _apply_job_at_index(index: int) -> void:
 			killed = bool(source_player._deal_damage_to_enemy(enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, suppress_status_visual, kill_energy_bonus))
 	elif enemy.has_method("take_damage"):
 		killed = bool(_deal_batched_damage_to_enemy(enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, kill_energy_bonus, suppress_status_visual))
-	_queue_attack_result(source_role_id, hit_counts[index], killed)
+	_queue_attack_result(resolved_source_role_id, hit_counts[index], killed)
 
 
 func _merge_job_at_index(index: int, damage_amount: float, hit_count: int, vulnerability_bonus: float, vulnerability_duration: float, slow_multiplier: float, slow_duration: float, kill_energy_bonus: float, prefer_silent_feedback: bool, suppress_status_visual: bool) -> void:
@@ -221,46 +223,51 @@ func _flush_pending_kill_energy() -> void:
 
 
 func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float, vulnerability_duration: float, slow_multiplier: float, slow_duration: float, source_position: Variant, kill_energy_bonus: float, suppress_status_visual: bool) -> bool:
+	if not _is_enemy_damageable(enemy):
+		return false
 	var final_damage := damage_amount
+	var resolved_source_role_id: String = _resolve_damage_source_role_id(source_role_id)
 	var was_critical := false
-	if source_role_id != "" and source_player.has_method("_roll_critical_hit") and source_player.has_method("_get_critical_damage_multiplier"):
-		was_critical = bool(source_player._roll_critical_hit(source_role_id))
+	if resolved_source_role_id != "" and source_player.has_method("_roll_critical_hit") and source_player.has_method("_get_critical_damage_multiplier"):
+		was_critical = bool(source_player._roll_critical_hit(resolved_source_role_id))
 		if was_critical:
-			final_damage *= float(source_player._get_critical_damage_multiplier(source_role_id))
-	if source_role_id == "gunner" and source_player.has_method("_get_gunner_distance_damage_multiplier"):
-		var attack_origin: Vector2 = source_player.global_position
-		if source_position is Vector2:
-			attack_origin = source_position
-		if enemy is Node2D:
-			final_damage *= float(source_player._get_gunner_distance_damage_multiplier(attack_origin.distance_to((enemy as Node2D).global_position)))
+			final_damage *= float(source_player._get_critical_damage_multiplier(resolved_source_role_id))
+	if _should_apply_gunner_hunt_multiplier(source_role_id, resolved_source_role_id) and source_player.has_method("_get_gunner_distance_damage_multiplier") and enemy is Node2D:
+		var attack_origin: Vector2 = _get_gunner_damage_origin(enemy as Node2D)
+		final_damage *= float(source_player._get_gunner_distance_damage_multiplier(attack_origin.distance_to((enemy as Node2D).global_position)))
 	var show_feedback := feedback_jobs_used_this_frame < _get_feedback_jobs_per_render_frame()
 	feedback_jobs_used_this_frame += 1
 	var killed := false
+	var used_batched_damage := false
+	var health_before := _get_enemy_current_health(enemy)
 	if show_feedback and enemy.has_method("take_damage"):
 		killed = bool(enemy.take_damage(final_damage, was_critical))
 	elif enemy.has_method("take_batched_damage"):
-		killed = bool(enemy.take_batched_damage(final_damage))
+		used_batched_damage = true
+		killed = bool(_call_enemy_take_batched_damage(enemy, final_damage, was_critical))
 	elif enemy.has_method("take_damage"):
 		killed = bool(enemy.take_damage(final_damage, was_critical))
+	if used_batched_damage and not killed and _did_enemy_health_decrease(enemy, health_before) and enemy.has_method("_play_light_hit_feedback"):
+		enemy._play_light_hit_feedback()
 	if source_player.has_method("_record_attack_result_instance"):
-		source_player._record_attack_result_instance(source_role_id, was_critical, killed)
+		source_player._record_attack_result_instance(resolved_source_role_id, was_critical, killed)
 	if source_player.has_method("_add_switch_energy_from_damage"):
-		source_player._add_switch_energy_from_damage(final_damage, source_role_id)
+		source_player._add_switch_energy_from_damage(final_damage, resolved_source_role_id)
 	if source_player.has_method("_apply_role_damage_lifesteal"):
-		source_player._apply_role_damage_lifesteal(source_role_id, final_damage)
-	if str(enemy.get("enemy_kind")) == "boss" and source_player.has_method("_get_boss_damage_energy") and source_player.has_method("_add_boss_damage_energy"):
+		source_player._apply_role_damage_lifesteal(resolved_source_role_id, final_damage)
+	if str(enemy.get("enemy_kind")) in ["boss", "small_boss"] and source_player.has_method("_get_boss_damage_energy") and source_player.has_method("_add_boss_damage_energy"):
 		source_player._add_boss_damage_energy(source_player._get_boss_damage_energy(final_damage))
 	if killed and source_player.has_method("_get_kill_energy_from_enemy"):
 		var kill_energy: float = source_player._get_kill_energy_from_enemy(enemy)
-		var bypass_lock_role_id: String = source_role_id if source_role_id == "mage" and kill_energy_bonus > 0.0 else ""
-		_queue_kill_energy(kill_energy, bypass_lock_role_id, source_role_id)
+		var bypass_lock_role_id: String = resolved_source_role_id if resolved_source_role_id == "mage" and kill_energy_bonus > 0.0 else ""
+		_queue_kill_energy(kill_energy, bypass_lock_role_id, resolved_source_role_id)
 		if source_player.has_method("_try_apply_mage_kill_energy_proc"):
-			source_player._try_apply_mage_kill_energy_proc(source_role_id, kill_energy, bypass_lock_role_id)
+			source_player._try_apply_mage_kill_energy_proc(resolved_source_role_id, kill_energy, bypass_lock_role_id)
 		if kill_energy_bonus > 0.0:
 			var bonus_energy: float = kill_energy * kill_energy_bonus
-			_queue_kill_energy(bonus_energy, bypass_lock_role_id, source_role_id)
+			_queue_kill_energy(bonus_energy, bypass_lock_role_id, resolved_source_role_id)
 			if source_player.has_method("_try_apply_mage_kill_energy_proc"):
-				source_player._try_apply_mage_kill_energy_proc(source_role_id, bonus_energy, bypass_lock_role_id)
+				source_player._try_apply_mage_kill_energy_proc(resolved_source_role_id, bonus_energy, bypass_lock_role_id)
 	if vulnerability_bonus > 0.0 and enemy.has_method("apply_vulnerability"):
 		enemy.apply_vulnerability(vulnerability_bonus, vulnerability_duration)
 	if slow_duration > 0.0:
@@ -269,6 +276,72 @@ func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_rol
 		elif enemy.has_method("apply_slow"):
 			enemy.apply_slow(slow_multiplier, slow_duration)
 	return killed
+
+func _resolve_damage_source_role_id(source_role_id: String) -> String:
+	if source_role_id == GUNNER_NO_HUNT_SOURCE_ROLE_ID:
+		return "gunner"
+	return source_role_id
+
+func _is_enemy_damageable(enemy: Node) -> bool:
+	if enemy == null or not is_instance_valid(enemy):
+		return false
+	if enemy.is_queued_for_deletion():
+		return false
+	var pooled_inactive_value: Variant = enemy.get("pooled_inactive")
+	if pooled_inactive_value != null and bool(pooled_inactive_value):
+		return false
+	var rebirth_timer_value: Variant = enemy.get("rebirth_timer")
+	if rebirth_timer_value != null and float(rebirth_timer_value) > 0.0:
+		return false
+	var current_health_value: Variant = enemy.get("current_health")
+	if current_health_value != null and float(current_health_value) <= 0.0:
+		return false
+	return true
+
+func _should_apply_gunner_hunt_multiplier(source_role_id: String, resolved_source_role_id: String) -> bool:
+	return resolved_source_role_id == "gunner" and source_role_id != GUNNER_NO_HUNT_SOURCE_ROLE_ID
+
+func _get_gunner_damage_origin(enemy: Node2D) -> Vector2:
+	if source_player != null and source_player is Node2D:
+		return (source_player as Node2D).global_position
+	return enemy.global_position if enemy != null else Vector2.ZERO
+
+func _call_enemy_take_batched_damage(enemy: Node, amount: float, is_critical: bool) -> bool:
+	if enemy == null or not is_instance_valid(enemy) or not enemy.has_method("take_batched_damage"):
+		return false
+	if _method_accepts_argument_count(enemy, "take_batched_damage", 2):
+		return bool(enemy.take_batched_damage(amount, is_critical))
+	return bool(enemy.take_batched_damage(amount))
+
+func _method_accepts_argument_count(target: Object, method_name: String, argument_count: int) -> bool:
+	for method in target.get_method_list():
+		if method is not Dictionary:
+			continue
+		var method_data: Dictionary = method
+		if str(method_data.get("name", "")) != method_name:
+			continue
+		var args: Array = method_data.get("args", [])
+		var default_args: Array = method_data.get("default_args", [])
+		var max_args: int = args.size()
+		var min_args: int = max(0, max_args - default_args.size())
+		return argument_count >= min_args and argument_count <= max_args
+	return false
+
+func _get_enemy_current_health(enemy: Node) -> float:
+	if enemy == null or not is_instance_valid(enemy):
+		return INF
+	var health_value: Variant = enemy.get("current_health")
+	if health_value == null:
+		return INF
+	return float(health_value)
+
+func _did_enemy_health_decrease(enemy: Node, health_before: float) -> bool:
+	if enemy == null or not is_instance_valid(enemy) or not is_finite(health_before):
+		return false
+	var health_value: Variant = enemy.get("current_health")
+	if health_value == null:
+		return false
+	return float(health_value) < health_before - 0.001
 
 
 func _queue_size() -> int:

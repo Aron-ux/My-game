@@ -3,6 +3,7 @@ extends RefCounted
 const ROLE_RESOURCE_STATE := preload("res://scripts/player/roles/role_resource_state.gd")
 
 const ULTIMATE_ENERGY_GAIN_OUTPUT_MULTIPLIER := 0.625
+const TEMPORARY_HEALTH_DURATION := 30.0
 
 
 static func get_active_role(owner) -> Dictionary:
@@ -15,6 +16,29 @@ static func get_active_role_id(owner) -> String:
 
 static func build_role_resource_state_data(owner, default_value: Variant) -> Dictionary:
 	return ROLE_RESOURCE_STATE.build_for_roles(owner.roles, default_value)
+
+
+static func build_temporary_health_stack_state() -> Array:
+	return []
+
+
+static func normalize_temporary_health_stack_state(value: Variant) -> Array:
+	var result: Array = []
+	if value is not Array:
+		return result
+	for stack_value in value:
+		if stack_value is not Dictionary:
+			continue
+		var stack := stack_value as Dictionary
+		var amount: float = max(0.0, float(stack.get("amount", 0.0)))
+		var remaining: float = max(0.0, float(stack.get("remaining", TEMPORARY_HEALTH_DURATION)))
+		if amount <= 0.0 or remaining <= 0.0:
+			continue
+		result.append({
+			"amount": amount,
+			"remaining": remaining
+		})
+	return result
 
 
 static func get_role_mana(owner, role_id: String) -> float:
@@ -129,6 +153,145 @@ static func heal(owner, amount: float) -> void:
 		)
 
 
+static func add_temporary_health(owner, amount: float, role_id: String = "") -> float:
+	if amount <= 0.0 or owner.is_dead:
+		return 0.0
+	var active_role_id: String = get_active_role_id(owner)
+	var signal_role_id: String = role_id if role_id != "" else active_role_id
+	if signal_role_id == "":
+		return 0.0
+	owner.temporary_health_stacks = normalize_temporary_health_stack_state(owner.temporary_health_stacks)
+	owner.temporary_health_stacks.append({
+		"amount": amount,
+		"remaining": TEMPORARY_HEALTH_DURATION
+	})
+	sync_temporary_health_state(owner, true, signal_role_id)
+	if owner.has_method("_update_player_health_bar"):
+		owner._update_player_health_bar(owner._get_active_role())
+	return amount
+
+
+static func consume_temporary_health(owner, amount: float) -> float:
+	if amount <= 0.0 or owner.current_temporary_health <= 0.0:
+		return 0.0
+	var remaining_damage: float = amount
+	var absorbed_damage: float = 0.0
+	var updated_stacks: Array = normalize_temporary_health_stack_state(owner.temporary_health_stacks)
+	for index in range(updated_stacks.size()):
+		if remaining_damage <= 0.0:
+			break
+		var stack: Dictionary = updated_stacks[index]
+		var stack_amount: float = max(0.0, float(stack.get("amount", 0.0)))
+		if stack_amount <= 0.0:
+			continue
+		var consumed_amount: float = min(stack_amount, remaining_damage)
+		stack_amount -= consumed_amount
+		remaining_damage -= consumed_amount
+		absorbed_damage += consumed_amount
+		stack["amount"] = stack_amount
+		updated_stacks[index] = stack
+	owner.temporary_health_stacks = _filter_live_temporary_health_stacks(updated_stacks)
+	if absorbed_damage > 0.0:
+		sync_temporary_health_state(owner, true)
+	return absorbed_damage
+
+
+static func tick_temporary_health_stacks(owner, delta: float) -> void:
+	if delta <= 0.0:
+		return
+	var stacks: Array = normalize_temporary_health_stack_state(owner.temporary_health_stacks)
+	if stacks.is_empty():
+		return
+	var updated_stacks: Array = []
+	var expired_amount: float = 0.0
+	for stack_value in stacks:
+		var stack := stack_value as Dictionary
+		var amount: float = max(0.0, float(stack.get("amount", 0.0)))
+		var remaining: float = max(0.0, float(stack.get("remaining", 0.0)) - delta)
+		if amount > 0.0 and remaining > 0.0:
+			updated_stacks.append({
+				"amount": amount,
+				"remaining": remaining
+			})
+		else:
+			expired_amount += amount
+	owner.temporary_health_stacks = updated_stacks
+	if expired_amount > 0.0:
+		sync_temporary_health_state(owner, true)
+
+
+static func clear_temporary_health(owner, emit_signal: bool = true) -> void:
+	owner.temporary_health_stacks = []
+	sync_temporary_health_state(owner, emit_signal)
+
+
+static func set_temporary_health_total(owner, value: float, emit_signal: bool = true, signal_role_id: String = "") -> void:
+	var safe_value: float = max(0.0, value)
+	if safe_value <= 0.0:
+		owner.temporary_health_stacks = []
+	else:
+		owner.temporary_health_stacks = [{
+			"amount": safe_value,
+			"remaining": TEMPORARY_HEALTH_DURATION
+		}]
+	sync_temporary_health_state(owner, emit_signal, signal_role_id)
+
+
+static func sync_temporary_health_state(owner, emit_signal: bool = true, signal_role_id: String = "") -> void:
+	if owner == null:
+		return
+	owner.temporary_health_stacks = normalize_temporary_health_stack_state(owner.temporary_health_stacks)
+	var previous_value: float = max(0.0, float(owner.current_temporary_health))
+	var total_value: float = _get_temporary_health_total(owner.temporary_health_stacks)
+	owner.current_temporary_health = total_value
+	_sync_shared_role_temporary_health_values(owner, total_value)
+	if not emit_signal:
+		return
+	var role_id: String = signal_role_id if signal_role_id != "" else get_active_role_id(owner)
+	if owner.has_signal("temporary_health_changed"):
+		owner.temporary_health_changed.emit(role_id, owner.current_temporary_health)
+	if not is_equal_approx(previous_value, total_value) and owner.has_signal("health_changed"):
+		owner.health_changed.emit(owner.current_health, owner.max_health)
+
+
+static func _get_temporary_health_total(stacks: Array) -> float:
+	var total_value: float = 0.0
+	for stack_value in stacks:
+		if stack_value is not Dictionary:
+			continue
+		total_value += max(0.0, float((stack_value as Dictionary).get("amount", 0.0)))
+	return total_value
+
+
+static func _filter_live_temporary_health_stacks(stacks: Array) -> Array:
+	var result: Array = []
+	for stack_value in stacks:
+		if stack_value is not Dictionary:
+			continue
+		var stack := stack_value as Dictionary
+		var amount: float = max(0.0, float(stack.get("amount", 0.0)))
+		var remaining: float = max(0.0, float(stack.get("remaining", 0.0)))
+		if amount <= 0.0 or remaining <= 0.0:
+			continue
+		result.append({
+			"amount": amount,
+			"remaining": remaining
+		})
+	return result
+
+
+static func _sync_shared_role_temporary_health_values(owner, total_value: float) -> void:
+	var values: Dictionary = {}
+	for role_data in owner.roles:
+		if role_data is not Dictionary:
+			continue
+		var role_id: String = str((role_data as Dictionary).get("id", ""))
+		if role_id == "":
+			continue
+		values[role_id] = total_value
+	owner.role_temporary_health_values = values
+
+
 static func _format_heal_combat_text(amount: float) -> String:
 	if is_equal_approx(amount, roundf(amount)):
 		return "+%d" % int(roundf(amount))
@@ -136,9 +299,15 @@ static func _format_heal_combat_text(amount: float) -> String:
 
 
 static func die(owner) -> void:
-	if owner.is_dead:
+	if owner.is_dead and not owner.death_sequence_pending:
 		return
 
+	owner.death_sequence_pending = false
+	owner.death_sequence_remaining = 0.0
+	if owner.has_method("_clear_temporary_health"):
+		owner._clear_temporary_health(false)
+	else:
+		owner.current_temporary_health = 0.0
 	owner.current_health = 0.0
 	if owner.has_method("_save_active_role_health"):
 		owner._save_active_role_health()
@@ -148,5 +317,6 @@ static func die(owner) -> void:
 
 	owner.is_dead = true
 	owner.level_up_active = false
-	owner.fire_timer.stop()
+	if owner.fire_timer != null:
+		owner.fire_timer.stop()
 	owner.died.emit()

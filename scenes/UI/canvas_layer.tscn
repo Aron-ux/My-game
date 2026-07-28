@@ -1,0 +1,59 @@
+[gd_scene format=3 uid="uid://dbfrc5pqegtwy"]
+
+[node name="CanvasLayer" type="CanvasLayer" unique_id=575531282]
+
+[node name="RootControl" type="Control" parent="." unique_id=43654487]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="BackDrop" type="ColorRect" parent="RootControl" unique_id=1509735340]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.56, 0.30016002, 0.23520002, 0.09803922)
+
+[node name="PanelCenter" type="CenterContainer" parent="RootControl" unique_id=746147323]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="RootControl/PanelCenter" unique_id=1528075535]
+custom_minimum_size = Vector2(1120, 640)
+layout_mode = 2
+
+[node name="PanelMargin" type="MarginContainer" parent="RootControl/PanelCenter/Panel" unique_id=1322982859]
+z_as_relative = false
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 18
+
+[node name="Main" type="VBoxContainer" parent="RootControl/PanelCenter/Panel/PanelMargin" unique_id=2119083447]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Header" type="HBoxContainer" parent="RootControl/PanelCenter/Panel/PanelMargin/Main" unique_id=2132113469]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="RootControl/PanelCenter/Panel/PanelMargin/Main/Header" unique_id=1950711849]
+layout_mode = 2
+text = "角色面板"
+vertical_alignment = 1
+
+[node name="Body" type="HBoxContainer" parent="RootControl/PanelCenter/Panel/PanelMargin/Main" unique_id=1064926163]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 14

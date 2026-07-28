@@ -38,6 +38,43 @@ static func apply_switch_lock_to_role_skills(owner, role_id: String, duration: f
 		ability.cooldown_remaining = max(float(ability.cooldown_remaining), duration)
 
 
+static func advance_active_role_skill_cooldowns(owner, progress_ratio: float) -> int:
+	if owner == null or not is_instance_valid(owner) or progress_ratio <= 0.0:
+		return 0
+	var role_id := ""
+	if owner.has_method("_get_active_role_id"):
+		role_id = str(owner._get_active_role_id())
+	return advance_role_skill_cooldowns(owner, role_id, progress_ratio)
+
+
+static func advance_role_skill_cooldowns(owner, role_id: String, progress_ratio: float) -> int:
+	if owner == null or not is_instance_valid(owner) or role_id == "" or progress_ratio <= 0.0:
+		return 0
+	var advanced_count := 0
+	for property_name in _get_role_skill_property_names(role_id):
+		var ability: Variant = _get_owner_property(owner, property_name)
+		if ability == null or ability.get("cooldown_remaining") == null:
+			continue
+		var previous_remaining: float = max(0.0, float(ability.cooldown_remaining))
+		if previous_remaining <= 0.0:
+			continue
+		var duration: float = _get_ability_cooldown_duration(owner, ability)
+		var advance_amount: float = max(previous_remaining, duration) * progress_ratio
+		ability.cooldown_remaining = max(0.0, previous_remaining - advance_amount)
+		if float(ability.cooldown_remaining) < previous_remaining:
+			advanced_count += 1
+	return advanced_count
+
+
+static func _get_ability_cooldown_duration(owner, ability) -> float:
+	if ability != null and ability.has_method("get_cooldown_slot"):
+		var slot: Dictionary = ability.get_cooldown_slot(owner)
+		return max(0.0, float(slot.get("duration", 0.0)))
+	if ability != null and ability.get("cooldown_remaining") != null:
+		return max(0.0, float(ability.cooldown_remaining))
+	return 0.0
+
+
 static func _append_blessing_active_skill_slot(owner, role_id: String, extra_slots: Array) -> void:
 	match role_id:
 		"swordsman":

@@ -1,6 +1,7 @@
 extends RefCounted
 
 const CRESCENT_SCENE := preload("res://effects/sword/fan/fan.tscn")
+const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 
 const SKILL_ID := "crescent_wave"
 const COOLDOWN := 6.0
@@ -14,14 +15,14 @@ const TIER_TWO_SPEED_MULTIPLIER := 1.3
 const TIER_THREE_WIDTH_MULTIPLIER := 1.4
 const TIER_THREE_DAMAGE_MULTIPLIER := 1.65
 const TIER_THREE_SPEED_MULTIPLIER := 1.6
-const BASE_WAVE_SPEED := 520.0
+const BASE_WAVE_SPEED := 650.0
 const COMBO_INTERVAL := 0.16
 const VISUAL_AND_HIT_SCALE := 0.6
 const FAN_SCENE_SIZE := Vector2(1024.0, 1024.0)
 const FAN_SCENE_VISIBLE_BOUNDS := Rect2(485.0, 405.0, 117.0, 50.0)
 const FAN_WAVE_BASE_VISIBLE_SIZE := Vector2(138.0, 74.0)
-const SLASH_DAMAGE_RATIO := 1.18
-const WAVE_DAMAGE_RATIO := 1.42
+const SLASH_DAMAGE_RATIO := 1.3
+const WAVE_DAMAGE_RATIO := 1.3
 const WAVE_DAMAGE_SAMPLE_INTERVAL := 0.08
 const CRESCENT_PROJECTILE_POOL_LIMIT := 16
 
@@ -107,9 +108,11 @@ func _cast_once(owner, direction: Vector2, damage_scale: float) -> void:
 	var wave_length: float = WAVE_LENGTH * _get_range_multiplier(owner)
 	var slash_center: Vector2 = owner.global_position + direction * (slash_length * 0.42)
 	owner._spawn_sword_fan_scene_effect(slash_center, direction, visual_hit_multiplier)
-	var slash_hits: int = owner._damage_enemies_in_oriented_rect(slash_center, direction, slash_length, slash_width, _get_damage(owner) * SLASH_DAMAGE_RATIO * damage_scale, 0.0, 1.0, 0.0, "swordsman")
+	var damage_ratio_bonus: float = PLAYER_BUILD_SYSTEM.get_crescent_wave_damage_ratio_bonus(owner)
+	var base_damage: float = _get_damage(owner)
+	var slash_hits: int = owner._damage_enemies_in_oriented_rect(slash_center, direction, slash_length, slash_width, base_damage * (SLASH_DAMAGE_RATIO + damage_ratio_bonus) * damage_scale, 0.0, 1.0, 0.0, "swordsman")
 	var wave_origin: Vector2 = owner.global_position + direction * max(24.0, slash_length * 0.72)
-	_spawn_crescent_projectile(owner, wave_origin, direction, wave_length, wave_width, visual_hit_multiplier, _get_damage(owner) * WAVE_DAMAGE_RATIO * damage_scale)
+	_spawn_crescent_projectile(owner, wave_origin, direction, wave_length, wave_width, visual_hit_multiplier, base_damage * (WAVE_DAMAGE_RATIO + damage_ratio_bonus) * damage_scale)
 	if slash_hits > 0 and not _uses_batched_damage(owner):
 		owner._register_attack_result("swordsman", slash_hits, false)
 
@@ -319,7 +322,7 @@ func _get_tier(owner) -> int:
 
 
 func _get_cooldown(owner) -> float:
-	var cooldown_multiplier: float = 1.0
+	var cooldown_multiplier: float = PLAYER_BUILD_SYSTEM.get_crescent_wave_cooldown_multiplier(owner)
 	if owner != null and is_instance_valid(owner) and owner.has_method("_get_equipment_cooldown_multiplier"):
 		cooldown_multiplier *= float(owner._get_equipment_cooldown_multiplier())
 	if owner != null and is_instance_valid(owner) and owner.has_method("_get_kebiru_magic_cooldown_multiplier"):
@@ -352,11 +355,12 @@ func _get_external_range_multiplier(owner) -> float:
 
 func _get_wave_speed(owner) -> float:
 	var tier: int = _get_tier(owner)
+	var speed: float = BASE_WAVE_SPEED
 	if tier >= 3:
-		return BASE_WAVE_SPEED * TIER_THREE_SPEED_MULTIPLIER
-	if tier >= 2:
-		return BASE_WAVE_SPEED * TIER_TWO_SPEED_MULTIPLIER
-	return BASE_WAVE_SPEED
+		speed = BASE_WAVE_SPEED * TIER_THREE_SPEED_MULTIPLIER
+	elif tier >= 2:
+		speed = BASE_WAVE_SPEED * TIER_TWO_SPEED_MULTIPLIER
+	return speed + PLAYER_BUILD_SYSTEM.get_crescent_wave_speed_bonus(owner)
 
 
 func _get_damage(owner) -> float:

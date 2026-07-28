@@ -19,11 +19,17 @@ const ROLE_PRIMARY_ATTRIBUTES := {
 
 const SWORDSMAN_TRAIT_HEAL_BASE_PROC_CHANCE := 0.05
 const SWORDSMAN_TRAIT_HEAL_PROC_CHANCE_PER_LEVEL := 0.0
-const SWORDSMAN_TRAIT_HEAL_RATIO := 0.05
-const SWORDSMAN_TRAIT_MISSING_HEAL_RATIO := 0.075
+const SWORDSMAN_TRAIT_HEAL_RATIO := 0.03
+const SWORDSMAN_TRAIT_MISSING_HEAL_RATIO := 0.03
 const SWORDSMAN_TRAIT_HEAL_COOLDOWN := 1.0
-const GUNNER_TRAIT_BASE_DODGE := 0.15
-const GUNNER_TRAIT_DODGE_PER_LEVEL := 0.02
+const SWORDSMAN_TRAIT_MAX_ROLL_HITS := 2
+const SWORDSMAN_BASE_DODGE_CHANCE := 0.03
+const GUNNER_BASE_DODGE_CHANCE := 0.15
+const MAGE_BASE_DODGE_CHANCE := 0.03
+const SWORDSMAN_BASE_DAMAGE_REDUCTION_VALUE := 20.0
+const GUNNER_BASE_DAMAGE_REDUCTION_VALUE := -80.0
+const MAGE_BASE_DAMAGE_REDUCTION_VALUE := 0.0
+const GUNNER_TRAIT_DODGE_VALUE_PER_LEVEL := 2.0
 const MAGE_TRAIT_KILL_ENERGY_BASE_CHANCE := 0.10
 const MAGE_TRAIT_KILL_ENERGY_CHANCE_PER_LEVEL := 0.02
 const MAGE_TRAIT_KILL_ENERGY_MULTIPLIER := 3.0
@@ -85,8 +91,30 @@ static func get_swordsman_trait_heal_proc_chance(level: float) -> float:
 	return clamp(SWORDSMAN_TRAIT_HEAL_BASE_PROC_CHANCE + get_effective_level(level) * SWORDSMAN_TRAIT_HEAL_PROC_CHANCE_PER_LEVEL, 0.0, 1.0)
 
 
-static func get_gunner_trait_dodge_chance(level: float) -> float:
-	return 1.0 - (1.0 - GUNNER_TRAIT_BASE_DODGE) * pow(1.0 - GUNNER_TRAIT_DODGE_PER_LEVEL, get_effective_level(level))
+static func get_role_base_dodge_chance(role_id: String) -> float:
+	match role_id:
+		"swordsman":
+			return SWORDSMAN_BASE_DODGE_CHANCE
+		"gunner":
+			return GUNNER_BASE_DODGE_CHANCE
+		"mage":
+			return MAGE_BASE_DODGE_CHANCE
+	return 0.0
+
+
+static func get_role_base_damage_reduction_value(role_id: String) -> float:
+	match role_id:
+		"swordsman":
+			return SWORDSMAN_BASE_DAMAGE_REDUCTION_VALUE
+		"gunner":
+			return GUNNER_BASE_DAMAGE_REDUCTION_VALUE
+		"mage":
+			return MAGE_BASE_DAMAGE_REDUCTION_VALUE
+	return 0.0
+
+
+static func get_gunner_trait_dodge_value(level: float) -> float:
+	return max(0.0, get_effective_level(level) * GUNNER_TRAIT_DODGE_VALUE_PER_LEVEL)
 
 
 static func get_mage_trait_mana_regen_per_second(_level: float) -> float:
@@ -99,10 +127,6 @@ static func get_mage_trait_pickup_range_bonus(_level: float) -> float:
 
 static func get_mage_trait_kill_energy_proc_chance(level: float) -> float:
 	return clamp(MAGE_TRAIT_KILL_ENERGY_BASE_CHANCE + get_effective_level(level) * MAGE_TRAIT_KILL_ENERGY_CHANCE_PER_LEVEL, 0.0, 1.0)
-
-
-static func get_primary_attribute_damage_bonus(_role_id: String, _attribute_levels: Dictionary) -> float:
-	return 0.0
 
 
 static func get_role_attribute_titles(_role_id: String = "", _levels: Dictionary = {}, role_order: Array = []) -> Dictionary:
@@ -120,18 +144,19 @@ static func get_role_attribute_description(_role_id: String, attribute_key: Stri
 	var level := get_effective_level(next_level)
 	match attribute_key:
 		ATTR_SWORDSMAN:
-			return "剑士特性提升到 Lv.%s：攻击命中时有 %.0f%% 概率回复最大生命值的 %.0f%% + 已损失生命值的 %.0f%%，该效果每秒最多生效 1 次；受到致命伤时保留 1 点生命并进入 1.5s 战意，之后进入 80s CD。本次提升：触发概率 +%.0f%%。" % [
+			return "剑士特性提升到 Lv.%s：剑士造成伤害时有 %.0f%% 概率回复自身最大生命值 %.0f%% 与已损失生命值 %.0f%% 的生命值，每秒最多触发 1 次，多目标最多同时触发 %d 次；受到致命伤时保留 1 点生命并进入 1.5s 战意，之后进入 80s CD。" % [
 				_format_level(level),
 				get_swordsman_trait_heal_proc_chance(level) * 100.0,
 				get_swordsman_trait_heal_amount(level) * 100.0,
 				SWORDSMAN_TRAIT_MISSING_HEAL_RATIO * 100.0,
-				SWORDSMAN_TRAIT_HEAL_PROC_CHANCE_PER_LEVEL * 100.0
+				SWORDSMAN_TRAIT_MAX_ROLL_HITS
 			]
 		ATTR_GUNNER:
-			return "枪手特性提升到 Lv.%s：升级闪避概率 %.1f%%，基础 15%%，每级提供 2%% 闪避；枪手额外自带 15%% 闪避，并拥有半径115的猎杀安全区，圈内敌人承受枪手伤害降至40%%。未受伤时每2秒叠加1层瞬杀，最多10层，每层提升3%%伤害、3%%移速和2%%闪避，受伤后清空并进入15s CD。本次提升：升级闪避 +%.1f%%。" % [
+			return "枪手特性提升到 Lv.%s：枪手基础闪避率 %.0f%%，每级提供 %.0f 闪避值；枪手拥有半径115的猎杀安全区，圈内敌人承受枪手伤害降至40%%。未受伤时每2秒叠加1层瞬杀，最多10层，每层提升3%%伤害、3%%移速和4闪避值，受伤后清空并进入15s CD。当前特性提供：%.0f 闪避值。" % [
 				_format_level(level),
-				get_gunner_trait_dodge_chance(level) * 100.0,
-				GUNNER_TRAIT_DODGE_PER_LEVEL * 100.0
+				get_role_base_dodge_chance("gunner") * 100.0,
+				GUNNER_TRAIT_DODGE_VALUE_PER_LEVEL,
+				get_gunner_trait_dodge_value(level)
 			]
 		ATTR_MAGE:
 			return "法师特性提升到 Lv.%s：每次击杀有 %.1f%% 概率获得 1 层奥数充能。奥数充能每层提供 2%% 法师自身大招回能效率，并将法师自身获得的大招能量的 10%% 同步给另外两名角色，最多 10 层；切人后，奥数充能不会立刻消失，而是由下一名登场角色继承法师当前层数，并持续同等秒数。法师释放登场技后会立刻进入 5s 奥法盈余，释放大招则会在演出结束后进入 5s 奥法盈余：全员大招回能效率 +20%%、切人回能效率 +20%%、伤害 +10%%；若自然结束时当前站场角色仍为法师，则额外获得 3 层奥数充能。本次提升：击杀获得奥数充能概率 +%.1f%%。" % [
@@ -196,7 +221,7 @@ static func get_swordsman_bloodthirst_heal_cap(_level: float) -> float:
 
 
 static func get_swordsman_dodge_chance(_level: float) -> float:
-	return 0.0
+	return get_role_base_dodge_chance("swordsman")
 
 
 static func get_gunner_barrage_speed_multiplier(_level: float) -> float:

@@ -8,6 +8,10 @@ static func get_role_stat_bonus(owner, role_id: String, stat: String) -> float:
 	return PLAYER_BLESSING_SYSTEM.get_role_stat_bonus(owner, role_id, stat)
 
 
+static func get_blazing_sun_flat_base_damage(owner, role_id: String) -> float:
+	return PLAYER_BLESSING_SYSTEM.get_blazing_sun_flat_base_damage(owner, role_id)
+
+
 static func get_skill_stat_bonus(owner, stat: String) -> float:
 	return PLAYER_BLESSING_SYSTEM.get_skill_stat_bonus(owner, stat)
 
@@ -129,6 +133,10 @@ static func get_skill_tier(owner, skill_id: String) -> int:
 
 static func get_entry_rescue_regen_per_second(owner) -> float:
 	return PLAYER_BLESSING_SKILL_STATE.get_entry_rescue_regen_per_second(owner)
+
+
+static func tick_blessing_health_regen(owner, delta: float) -> void:
+	PLAYER_BLESSING_SYSTEM.tick_blessing_health_regen(owner, delta)
 
 
 static func get_hero_entry_effect(owner) -> Dictionary:
