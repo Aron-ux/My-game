@@ -81,8 +81,12 @@ func _check_late_game_spawn_timing() -> void:
 		failures.append("first elite should not spawn before 360s, got %.2f" % float(elite_times[0]))
 	if EnemyDirector.get_active_enemy_limit(359.9) != 40:
 		failures.append("early active enemy limit should be 40")
-	if EnemyDirector.get_active_enemy_limit(360.0) != 60:
-		failures.append("late active enemy limit should be 60")
+	if EnemyDirector.get_active_enemy_limit(360.0) != 40:
+		failures.append("late-game enemy limit should start its ramp at 40")
+	if EnemyDirector.get_active_enemy_limit(375.0) != 50:
+		failures.append("late-game enemy limit should be halfway through its ramp at 50")
+	if EnemyDirector.get_active_enemy_limit(390.0) != 60:
+		failures.append("late-game enemy limit should finish its ramp at 60")
 	if EnemyDirector.get_cycle_active_enemy_limit(120.0) != 40:
 		failures.append("cycle first half active enemy limit should reset to 40")
 	if EnemyDirector.get_cycle_active_enemy_limit(480.0) != 60:

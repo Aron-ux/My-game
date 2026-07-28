@@ -37,6 +37,8 @@
 
 ## 验证
 
+`enemy_profile_resource_smoke.gd` 检查资源字段与基本范围；`enemy_profile_snapshot_smoke.gd` 只锁定稳定的 archetype、行为和视觉对应关系，不复制会持续调参的血量、速度等数值。
+
 运行：
 
 ```bash

@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Changed
+- Local project checks now discover and run every ordinary `*_smoke.gd` test automatically; the timed dense-combat benchmark remains a separate evidence check.
+- Enemy profile verification now locks stable archetype/behavior/visual identities instead of duplicating tunable balance values, and the glutton/spawn smokes track the current war-stomp and late-enemy-limit ramp contracts.
+- Dense-combat evidence now exercises real projectile hits and gates projectile damage, hit count, pickup value, entity counts, and duplicate ticks across baseline/candidate runs; unused experimental performance flags were removed.
 - Combat HUD layout is now selectable in settings: the legacy centered bottom skill bar is the default, while the newer three-row team status stack remains available as an alternate HUD layout and can be switched from the pause menu.
 - The alternate combat HUD uses a three-row team status stack anchored bottom-left: `Q` previous role, highlighted current role, and `E` next role each keep six fixed skill slots, HP, MP / ultimate energy, and hover details while preserving empty slots for locked skills.
 - Character panel now uses a dark-gold build-archive layout inspired by the selected design reference, with a left role stack, existing player pixel run sprites as role portraits, ornamental frames, central role stats/equipment, right blessing list, and skill recipe details while preserving gift and blessing-composition interactions.

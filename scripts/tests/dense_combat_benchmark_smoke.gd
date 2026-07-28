@@ -16,6 +16,7 @@ const ENEMY_COUNT := 40
 const PROJECTILE_COUNT := 96
 const GEM_COUNT := 96
 const HEART_COUNT := 24
+const HIT_LANE_PROJECTILE_COUNT := 8
 
 var failures: Array[String] = []
 
@@ -31,6 +32,8 @@ func _run() -> void:
 	DirAccess.make_dir_recursive_absolute(results_dir)
 	var baseline := await _run_case("baseline", false)
 	var candidate := await _run_case("candidate", true)
+	_validate_case(baseline)
+	_validate_case(candidate)
 	_write_json(results_dir.path_join("baseline.json"), baseline)
 	_write_json(results_dir.path_join("candidate.json"), candidate)
 	_write_cpu_limitation(results_dir.path_join("cpu_core_utilization.txt"))
@@ -76,14 +79,12 @@ func _run_case(label: String, use_batch: bool) -> Dictionary:
 	var counters := {
 		"enemy_count": scene.get_runtime_enemies().size(),
 		"enemy_projectile_count": scene.get_runtime_enemy_projectiles().size(),
-		"pickup_count": scene.get_runtime_pickups("exp_gems").size() + scene.get_runtime_pickups("heart_pickups").size(),
-		"pooled_reactivations": scene.pooled_reactivations,
-		"duplicate_tick_failures": scene.duplicate_tick_failures,
-		"damage_dealt": 0,
-		"damage_taken": target.damage_taken,
-		"drops_generated": 0,
-		"pickup_value": _sum_pickup_value(scene),
-		"projectile_hits": target.hit_count
+			"pickup_count": scene.get_runtime_pickups("exp_gems").size() + scene.get_runtime_pickups("heart_pickups").size(),
+			"pooled_reactivations": scene.pooled_reactivations,
+			"duplicate_tick_failures": scene.duplicate_tick_failures,
+			"damage_taken": target.damage_taken,
+			"pickup_value": _sum_pickup_value(scene),
+			"projectile_hits": target.hit_count
 	}
 	var result := {
 		"label": label,
@@ -128,9 +129,10 @@ func _populate_scene(scene: BenchmarkRuntimeRoot, target: Node2D) -> void:
 	for i in range(PROJECTILE_COUNT):
 		var projectile := ENEMY_BULLET_SCENE.instantiate() as Node2D
 		scene.add_child(projectile)
-		projectile.global_position = Vector2(-420.0 + float(i % 16) * 48.0, 220.0 + float(i / 16) * 10.0)
+		var is_hit_lane := i < HIT_LANE_PROJECTILE_COUNT
+		projectile.global_position = Vector2(-360.0 + float(i) * 24.0, 0.0) if is_hit_lane else Vector2(-420.0 + float(i % 16) * 48.0, 220.0 + float(i / 16) * 10.0)
 		projectile.direction = Vector2.RIGHT
-		projectile.target = null
+		projectile.target = target if is_hit_lane else null
 		projectile.lifetime = 20.0
 		projectile.motion_mode = "straight"
 		projectile._initialize_runtime_state()
@@ -142,6 +144,15 @@ func _populate_scene(scene: BenchmarkRuntimeRoot, target: Node2D) -> void:
 		var heart := HEART_PICKUP_SCENE.instantiate() as Node2D
 		scene.add_child(heart)
 		heart.reset_pickup(Vector2(280.0 + float(i % 8) * 24.0, -180.0 + float(i / 8) * 18.0), 25.0)
+
+
+func _validate_case(result: Dictionary) -> void:
+	var label := str(result.get("label", "case"))
+	var counters: Dictionary = result.get("gameplay_counters", {})
+	if int(counters.get("projectile_hits", 0)) <= 0:
+		failures.append("%s should exercise projectile hit behavior" % label)
+	if float(counters.get("damage_taken", 0.0)) <= 0.0:
+		failures.append("%s should record positive projectile damage" % label)
 
 
 func _build_frame_snapshot(samples: Array[float]) -> Dictionary:

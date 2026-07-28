@@ -61,6 +61,8 @@ Run the local project health check with:
 ./scripts/check_project.sh
 ```
 
+This runs every ordinary `scripts/tests/*_smoke.gd` test automatically. The timed dense-combat benchmark remains a separate performance evidence command.
+
 ## Asset Notice
 
 The current BGM files under `assets/` are non-commercial placeholder materials for development testing only. They are included so the project can run with the current audio setup, and will be replaced before any commercial release or public distribution build.
