@@ -34,6 +34,8 @@ func _check_kill_energy_sources() -> void:
 	_assert_close(PlayerCombatResultFlow.get_kill_energy_from_enemy(high_tier_enemy), 2.0 * 0.75 * 1.2, "high tier kill energy should include 20 percent source bonus")
 	_assert_close(PlayerCombatResultFlow.get_kill_energy_from_enemy(boss_enemy), 0.0, "boss kill should not use kill energy")
 	_assert_close(PlayerCombatResultFlow.get_kill_energy_from_enemy(small_boss_enemy), 0.0, "small boss kill should not use normal kill energy")
+	for enemy in [normal_enemy, elite_enemy, high_tier_enemy, boss_enemy, small_boss_enemy]:
+		enemy.free()
 
 
 func _check_boss_damage_energy_source() -> void:
@@ -55,6 +57,9 @@ func _check_damage_resolver_special_enemy_energy() -> void:
 	owner.boss_energy = 0.0
 	DamageResolver.deal_damage_to_enemy(owner, normal_enemy, 25.0, "swordsman")
 	_assert_close(owner.boss_energy, 0.0, "normal damage should not add boss damage energy")
+	owner.free()
+	for enemy in [boss_enemy, small_boss_enemy, normal_enemy]:
+		enemy.free()
 
 
 func _make_enemy(kind: String, reward_tier_value: int) -> TestEnemy:

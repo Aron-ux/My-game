@@ -10,6 +10,8 @@ Use this before any public build, demo handoff, or store upload.
 ./scripts/check_project.sh
 ```
 
+- [ ] GitHub `Project Checks` passes with its pinned Godot `4.6.2` binary.
+
 ## Package sanity
 
 - [ ] Open the project in Godot `4.6.2`.

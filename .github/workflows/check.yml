@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+env:
+  GODOT_VERSION: '4.6.2'
+  GODOT_SHA256: '30e6b6d141f0cd5bebd629ad1d0ef1324e60091bb20662d026b402ba58c59937'
+
 jobs:
   checks:
     runs-on: ubuntu-latest
@@ -16,17 +20,19 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Run Python checks
+      - name: Install Godot
         run: |
-          python3 scripts/tests/check_docs_links.py
-          python3 scripts/tests/check_achievements.py
-          python3 scripts/tests/check_project_config.py
-          python3 scripts/tests/check_architecture_contract.py
+          archive="$RUNNER_TEMP/godot.zip"
+          install_dir="$RUNNER_TEMP/godot"
+          curl --fail --location --retry 3 \
+            --output "$archive" \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          echo "${GODOT_SHA256}  ${archive}" | sha256sum --check -
+          mkdir -p "$install_dir"
+          python3 -m zipfile -e "$archive" "$install_dir"
+          mv "$install_dir/Godot_v${GODOT_VERSION}-stable_linux.x86_64" "$install_dir/godot"
+          chmod +x "$install_dir/godot"
+          echo "$install_dir" >> "$GITHUB_PATH"
 
-      - name: Run Godot checks if available
-        run: |
-          if command -v godot >/dev/null 2>&1; then
-            ./scripts/check_project.sh
-          else
-            echo "Godot is not installed on this runner; Python checks completed."
-          fi
+      - name: Run project checks
+        run: ./scripts/check_project.sh

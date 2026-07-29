@@ -15,6 +15,8 @@ if [[ -z "$GODOT_BIN" ]]; then
   fi
 fi
 
+GODOT_ERROR_PATTERN="SCRIPT ERROR|Parser Error|Parse Error|Invalid call|Failed to load script|Failed to instantiate|Compilation failed|^ERROR:"
+
 echo "== Python project checks =="
 python3 scripts/tests/check_docs_links.py
 python3 scripts/tests/check_achievements.py
@@ -24,19 +26,27 @@ python3 scripts/tests/check_architecture_contract.py
 if [[ -n "$GODOT_BIN" ]]; then
   echo "== Godot headless parse =="
   "$GODOT_BIN" --headless --path . --quit --verbose 2>&1 | tee /tmp/my-game-godot-check.log >/dev/null
-  if grep -E "SCRIPT ERROR|Parse Error|Invalid call|Failed to load script|Failed to instantiate" /tmp/my-game-godot-check.log; then
+  if grep -E "$GODOT_ERROR_PATTERN" /tmp/my-game-godot-check.log; then
     echo "GODOT_PARSE_CHECK_FAILED"
     exit 1
   fi
   echo "GODOT_PARSE_CHECK_OK"
 
-  echo "== Godot main scene smoke =="
-  "$GODOT_BIN" --headless --path . res://scenes/main.tscn --quit --verbose 2>&1 | tee /tmp/my-game-main-scene-smoke.log >/dev/null
-  if grep -E "SCRIPT ERROR|Parser Error|Invalid call|Failed to load script|Compilation failed" /tmp/my-game-main-scene-smoke.log; then
-    echo "MAIN_SCENE_SMOKE_FAILED"
+  echo "== Godot main menu scene smoke =="
+  "$GODOT_BIN" --headless --path . res://scenes/main_menu.tscn --quit --verbose 2>&1 | tee /tmp/my-game-main-menu-scene-smoke.log >/dev/null
+  if grep -E "$GODOT_ERROR_PATTERN" /tmp/my-game-main-menu-scene-smoke.log; then
+    echo "MAIN_MENU_SCENE_SMOKE_FAILED"
     exit 1
   fi
-  echo "MAIN_SCENE_SMOKE_OK"
+  echo "MAIN_MENU_SCENE_SMOKE_OK"
+
+  echo "== Godot battle scene smoke =="
+  "$GODOT_BIN" --headless --path . res://scenes/main.tscn --quit --verbose 2>&1 | tee /tmp/my-game-main-scene-smoke.log >/dev/null
+  if grep -E "$GODOT_ERROR_PATTERN" /tmp/my-game-main-scene-smoke.log; then
+    echo "BATTLE_SCENE_SMOKE_FAILED"
+    exit 1
+  fi
+  echo "BATTLE_SCENE_SMOKE_OK"
 
   run_smoke() {
     local script="$1"
@@ -49,7 +59,7 @@ if [[ -n "$GODOT_BIN" ]]; then
       echo "${name^^}_FAILED"
       exit 1
     fi
-    if grep -E "SCRIPT ERROR|Parser Error|Invalid call|Failed to load script|Compilation failed|^ERROR:" "$log"; then
+    if grep -E "$GODOT_ERROR_PATTERN" "$log"; then
       echo "${name^^}_FAILED"
       exit 1
     fi
