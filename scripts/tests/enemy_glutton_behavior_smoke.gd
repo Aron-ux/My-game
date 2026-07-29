@@ -220,6 +220,9 @@ class EnemyStub:
 			return true
 		return false
 
+	func _spawn_status_burst(_color: Color, _radius: float) -> void:
+		pass
+
 
 class PlayerLikeStub:
 	extends Node2D

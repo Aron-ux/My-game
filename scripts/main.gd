@@ -113,7 +113,6 @@ var runtime_player_projectile_pool_cache_dirty: Dictionary = {}
 var runtime_player_projectile_pool_limit: int = 96
 var reward_maintenance_scheduled: bool = false
 var reward_maintenance_resume_level_ups: bool = false
-var opening_trait_choice_completed: bool = false
 
 func _ready() -> void:
 	GAME_MAIN_FLOW.ready(self)

@@ -1047,28 +1047,6 @@ static func build_magic_stone_blessing_options(owner) -> Array:
 	return options
 
 
-static func _pick_options(owner, count: int) -> Array:
-	var candidate_options: Array = []
-	candidate_options.append_array(_build_general_blessing_options(owner))
-	candidate_options.append_array(build_magic_stone_options(owner))
-	candidate_options.append_array(build_magic_stone_blessing_options(owner))
-	candidate_options.shuffle()
-	var picked: Array = []
-	var used_keys := {}
-	for option in candidate_options:
-		if option is not Dictionary:
-			continue
-		var option_key: String = str((option as Dictionary).get("offer_key", (option as Dictionary).get("id", "")))
-		if option_key == "" or used_keys.has(option_key):
-			continue
-		used_keys[option_key] = true
-		picked.append(option)
-		if picked.size() >= count:
-			break
-	_ensure_forced_tier_four_blessing(owner, picked, used_keys, count)
-	return picked
-
-
 static func _duplicate_option_array(raw_options: Array) -> Array:
 	var options: Array = []
 	for raw_option in raw_options:
@@ -1077,28 +1055,6 @@ static func _duplicate_option_array(raw_options: Array) -> Array:
 		else:
 			options.append(raw_option)
 	return options
-
-
-static func _ensure_forced_tier_four_blessing(owner, picked: Array, used_keys: Dictionary, count: int) -> void:
-	if not DEVELOPER_MODE.should_force_tier_four_blessing():
-		return
-	if count <= 0 or picked.is_empty():
-		return
-	for option in picked:
-		if option is Dictionary and int((option as Dictionary).get("blessing_tier", 0)) == MAX_BLESSING_TIER:
-			return
-	var tier_four_options: Array = _build_offerable_options_for_tier(owner, MAX_BLESSING_TIER)
-	tier_four_options.shuffle()
-	for option in tier_four_options:
-		if option is not Dictionary:
-			continue
-		var option_key: String = str((option as Dictionary).get("offer_key", (option as Dictionary).get("id", "")))
-		if option_key == "" or used_keys.has(option_key):
-			continue
-		var replace_index: int = min(picked.size() - 1, max(0, count - 1))
-		picked[replace_index] = option
-		used_keys[option_key] = true
-		return
 
 
 static func _build_general_blessing_options(owner) -> Array:
@@ -1113,14 +1069,6 @@ static func _build_general_blessing_options(owner) -> Array:
 				var weight := _get_offer_weight(player_level, tier)
 				for _index in range(weight):
 					options.append(_make_option(owner, str(blessing_id), tier))
-	return options
-
-
-static func _build_offerable_options_for_tier(owner, tier: int) -> Array:
-	var options: Array = []
-	for blessing_id in DEFINITIONS.keys():
-		if _is_offerable(owner, str(blessing_id), tier):
-			options.append(_make_option(owner, str(blessing_id), tier))
 	return options
 
 

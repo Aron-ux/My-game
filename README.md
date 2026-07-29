@@ -37,13 +37,14 @@ The project currently includes:
 
 ## Current Progression Model
 
-Level-up progression centers on blessings:
+Level-up progression currently uses a four-card build offer:
 
-- Each level-up offers three blessing options.
-- Role-bound blessings are shared by all three roles.
-- Skill-bound blessings are stored separately for skill unlocks and future skill scaling.
+- Each level-up shows one role-build card for each of the three team slots plus one general-blessing card.
+- The player selects two of the four cards, and each displayed card can be refreshed once for that offer.
+- Role-build cards cover role traits, basic attacks, entry skills, ultimates, direct skill unlocks, and upgrades for unlocked skills.
+- General blessings remain shared progression and keep their tier, composition, binding, and recipe data.
 - Character panel displays owned blessings and supports blessing composition.
-- Skill unlocks are handled by blessing requirements.
+- Direct role-build unlock cards and the existing blessing-recipe unlock/evolution path currently coexist; future unlock/build changes follow upstream rather than a separate local progression model.
 
 ## Run
 

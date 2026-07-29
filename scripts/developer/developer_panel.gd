@@ -19,7 +19,6 @@ signal glutton_skill_test_requested(skill_id: String)
 var level_button: Button
 var invincibility_button: Button
 var no_cooldown_button: Button
-var force_tier_four_blessing_button: Button
 var enemy_detail_button: Button
 var enemy_menu_popup: PanelContainer
 var enemy_list: VBoxContainer
@@ -62,8 +61,6 @@ func refresh_mode_buttons() -> void:
 		invincibility_button.text = "停用无敌模式" if DEVELOPER_MODE.is_ignore_damage_enabled() else "启用无敌模式"
 	if no_cooldown_button != null:
 		no_cooldown_button.text = "关闭无 CD" if DEVELOPER_MODE.is_no_cooldown_enabled() else "开启无 CD"
-	if force_tier_four_blessing_button != null:
-		force_tier_four_blessing_button.text = "关闭必出四级祝福" if DEVELOPER_MODE.is_force_tier_four_blessing_enabled() else "开启必出四级祝福"
 
 
 	_refresh_enemy_detail_button_text()
@@ -121,10 +118,6 @@ func _build_top_buttons(parent: Control) -> void:
 	no_cooldown_button = _build_button("", Vector2(220, 40), 16)
 	no_cooldown_button.pressed.connect(_on_no_cooldown_button_pressed)
 	parent.add_child(no_cooldown_button)
-
-	force_tier_four_blessing_button = _build_button("", Vector2(220, 40), 16)
-	force_tier_four_blessing_button.pressed.connect(_on_force_tier_four_blessing_button_pressed)
-	parent.add_child(force_tier_four_blessing_button)
 
 	enemy_detail_button = _build_button("", Vector2(220, 40), 16)
 	enemy_detail_button.pressed.connect(_on_enemy_detail_button_pressed)
@@ -314,11 +307,6 @@ func _on_invincibility_button_pressed() -> void:
 
 func _on_no_cooldown_button_pressed() -> void:
 	DEVELOPER_MODE.set_no_cooldown_enabled(not DEVELOPER_MODE.is_no_cooldown_enabled())
-	refresh_mode_buttons()
-
-
-func _on_force_tier_four_blessing_button_pressed() -> void:
-	DEVELOPER_MODE.set_force_tier_four_blessing_enabled(not DEVELOPER_MODE.is_force_tier_four_blessing_enabled())
 	refresh_mode_buttons()
 
 

@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Changed
+- Documentation now matches the upstream four-card, select-two level-up flow: one card per role slot plus one general blessing, with per-card refresh.
+- Removed unreachable progression entry points for the retired opening-trait choice, unused build-choice level schedule, and unused mixed blessing picker; existing skill-unlock/build rules remain upstream-owned.
 - Local project checks now discover and run every ordinary `*_smoke.gd` test automatically; the timed dense-combat benchmark remains a separate evidence check.
 - Enemy profile verification now locks stable archetype/behavior/visual identities instead of duplicating tunable balance values, and the glutton/spawn smokes track the current war-stomp and late-enemy-limit ramp contracts.
 - Dense-combat evidence now exercises real projectile hits and gates projectile damage, hit count, pickup value, entity counts, and duplicate ticks across baseline/candidate runs; unused experimental performance flags were removed.

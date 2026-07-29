@@ -10,22 +10,6 @@ const BLESSING_BINDING_RETURN_CONTEXT_META := "blessing_binding_return_context"
 const DIRECT_BLESSING_CHOICE_COUNT := 2
 const DIRECT_BLESSING_TIER_TWO := 2
 
-static func show_opening_trait_choice(main: Node) -> void:
-	if main.game_over or main.player == null or main.level_up_ui == null:
-		return
-	if bool(main.get("opening_trait_choice_completed")):
-		return
-	if not main.player.has_method("get_attribute_upgrade_options"):
-		return
-	if not main.level_up_ui.has_method("show_opening_trait_choice"):
-		return
-	var attribute_options: Array = main.player.get_attribute_upgrade_options()
-	if attribute_options.is_empty():
-		return
-	main.reward_context = "opening_trait_choice"
-	main.get_tree().paused = true
-	main.level_up_ui.show_opening_trait_choice(attribute_options)
-
 static func show_level_up(main: Node, options: Array) -> void:
 	if main.game_over:
 		return
@@ -116,12 +100,6 @@ static func handle_upgrade_selected(main: Node, option_id: String, attribute_opt
 		main.level_up_ui.hide_ui()
 
 	main.get_tree().paused = false
-
-	if main.reward_context == "opening_trait_choice":
-		main.set("opening_trait_choice_completed", true)
-		main.reward_context = ""
-		_schedule_post_reward_maintenance(main)
-		return
 
 	if main.reward_context == "blessing_binding_choice":
 		var choice: Dictionary = main.get_meta(BLESSING_BINDING_CHOICE_META, {})

@@ -232,21 +232,6 @@ func show_refreshed_build_options(options: Array, offer_context: Dictionary, ref
 	_refresh_build_card_selected_outlines()
 	_play_refreshed_build_card_feedback(refreshed_option_index)
 
-func show_opening_trait_choice(attribute_options: Array) -> void:
-	current_mode = "opening_trait"
-	current_options = []
-	current_attribute_options = attribute_options
-	current_offer_context = {}
-	option_groups = {}
-	_reset_pending_selection()
-	build_selection_in_progress = false
-	visible = true
-	if modal != null:
-		modal.visible = false
-	_clear_modal_footer()
-	_ensure_build_overlay()
-	_rebuild_build_overlay()
-
 func show_menu(title: String, options: Array) -> void:
 	current_mode = "direct"
 	current_options = options
