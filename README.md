@@ -62,7 +62,7 @@ Run the local project health check with:
 ./scripts/check_project.sh
 ```
 
-This runs the Python contracts, Godot parse check, real main-menu and battle-scene launch checks, and every ordinary `scripts/tests/*_smoke.gd` test. The timed dense-combat benchmark remains a separate performance evidence command.
+This runs the Python contracts, Godot asset import and parse checks, real main-menu and battle-scene launch checks, and every ordinary `scripts/tests/*_smoke.gd` test. The timed dense-combat benchmark remains a separate performance evidence command.
 
 ## Asset Notice
 

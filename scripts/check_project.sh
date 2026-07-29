@@ -24,6 +24,10 @@ python3 scripts/tests/check_project_config.py
 python3 scripts/tests/check_architecture_contract.py
 
 if [[ -n "$GODOT_BIN" ]]; then
+  echo "== Godot asset import =="
+  "$GODOT_BIN" --headless --path . --import 2>&1 | tee /tmp/my-game-godot-import.log >/dev/null
+  echo "GODOT_ASSET_IMPORT_OK"
+
   echo "== Godot headless parse =="
   "$GODOT_BIN" --headless --path . --quit --verbose 2>&1 | tee /tmp/my-game-godot-check.log >/dev/null
   if grep -E "$GODOT_ERROR_PATTERN" /tmp/my-game-godot-check.log; then
