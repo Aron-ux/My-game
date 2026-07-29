@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changed
+- Fixed leaving the movement-tutorial role introduction so input is marked handled before the scene switch, avoiding a null viewport script error.
 - Endless camp now includes the CC0 pixel-art NPC `阮狗`: standing in front of it shows the configured interact key, opens a three-line portrait dialogue, pauses camp movement, advances with interact, and closes with `Esc`.
 - GitHub project checks now install a checksum-pinned Godot 4.6.2 binary instead of silently skipping engine validation, and local checks launch both the real main-menu entry and battle scene.
 - Cleaned smoke-test fixture ownership so the Godot test process exits without the previously reported test-only CanvasItem/ObjectDB leaks.
