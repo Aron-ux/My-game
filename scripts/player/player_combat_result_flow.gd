@@ -130,6 +130,7 @@ static func apply_swordsman_trait_heal_on_hit(owner, role_id: String, hit_count:
 		return
 	var max_trigger_count: int = min(hit_count, SWORDSMAN_TRAIT_MAX_ROLL_HITS + PLAYER_BUILD_SYSTEM.get_swordsman_trait_extra_rolls(owner))
 	var successful_triggers: int = 0
+	var actual_heal_total: float = 0.0
 	for _index in range(max_trigger_count):
 		if randf() > clamp(proc_chance, 0.0, 1.0):
 			continue
@@ -141,11 +142,20 @@ static func apply_swordsman_trait_heal_on_hit(owner, role_id: String, hit_count:
 			continue
 		if owner.has_method("_get_swordsman_bloodthirst_ratio"):
 			heal_amount *= max(0.0, float(owner.swordsman_bloodthirst_heal_multiplier))
+		var health_before: float = _get_role_current_health_value(owner, "swordsman")
 		owner._heal(heal_amount)
+		actual_heal_total += max(0.0, _get_role_current_health_value(owner, "swordsman") - health_before)
 		_share_swordsman_entry_lifesteal(owner, heal_amount)
 		successful_triggers += 1
 	if successful_triggers > 0:
 		owner.swordsman_trait_heal_cooldown_remaining = SWORDSMAN_TRAIT_HEAL_COOLDOWN
+	if (
+		actual_heal_total > 0.0
+		and owner.has_method("_has_skill_talent")
+		and owner._has_skill_talent("swordsman_trait_blood_battle")
+		and str(owner._get_active_role().get("id", "")) == "swordsman"
+	):
+		owner._activate_switch_power("swordsman", "血战昂扬", 3.0, 1.15, 0.0)
 
 
 static func _get_role_health_ratio(owner, role_id: String) -> float:

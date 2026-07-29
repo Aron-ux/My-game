@@ -27,6 +27,8 @@ func perform_attack(owner) -> void:
 	if (contexts[0] as Array).is_empty():
 		return
 	var base_contexts: Array = _get_attack_context_subset(contexts, 0, 1)
+	if _has_talent(owner, "mage_basic_triangle"):
+		base_contexts = _build_triangle_attack_contexts(base_contexts)
 	var trick_context_count: int = max(0, (contexts[0] as Array).size() - 1)
 	var trick_contexts: Array = _get_attack_context_subset(contexts, 1, trick_context_count)
 	var combo_scales: Array[float] = [1.0]
@@ -35,7 +37,38 @@ func perform_attack(owner) -> void:
 	_start_basic_attack_combo_sequence(owner, base_contexts, combo_scales, false)
 	if not (trick_contexts[0] as Array).is_empty():
 		_start_basic_attack_combo_sequence(owner, trick_contexts, [1.0], false)
+	if _has_talent(owner, "mage_basic_aftershock"):
+		_schedule_basic_aftershock(owner, base_contexts)
 	owner._spawn_attack_aftershock((base_contexts[0] as Array)[0], str((base_contexts[3] as Array)[0]))
+
+func _build_triangle_attack_contexts(contexts: Array) -> Array:
+	var origin: Vector2 = (contexts[0] as Array)[0]
+	var base_radius: float = float((contexts[1] as Array)[0])
+	var base_damage: float = float((contexts[2] as Array)[0])
+	var role_id: String = str((contexts[3] as Array)[0])
+	var centers: Array[Vector2] = []
+	var radii: Array[float] = []
+	var damages: Array[float] = []
+	var role_ids: Array[String] = []
+	for index in range(3):
+		centers.append(origin + Vector2.RIGHT.rotated(-PI * 0.5 + TAU * float(index) / 3.0) * 48.0)
+		radii.append(base_radius * 0.70)
+		damages.append(base_damage * 0.40)
+		role_ids.append(role_id)
+	return [centers, radii, damages, role_ids]
+
+func _schedule_basic_aftershock(owner, contexts: Array) -> void:
+	var delay: float = owner._get_scene_animation_duration(owner.MAGE_WARNING_EFFECT_SCENE, 0.2)
+	delay += owner._get_scene_animation_duration(owner.MAGE_BOOM_EFFECT_SCENE, 0.3) + 0.35
+	var callback := func(_index: int) -> void:
+		if owner == null or not is_instance_valid(owner) or bool(owner.get("is_dead")):
+			return
+		_spawn_basic_attack_boom_group(owner, contexts, 0.45)
+		_resolve_basic_attack_group(owner, contexts, 0.45)
+	if owner.get_tree() == null or not owner.has_method("_schedule_repeating_sequence"):
+		callback.call(0)
+	else:
+		owner._schedule_repeating_sequence(0.0, 1, callback, delay)
 
 func _perform_combo_segment(owner, contexts: Array, combo_scale: float) -> void:
 	var centers: Array = contexts[0]
@@ -273,7 +306,18 @@ func perform_enter(owner, role_id: String, _assault_level: int, assault_multipli
 func _cast_entry_lightning_ring(owner, role_id: String, damage_scale: float = 1.0) -> int:
 	var centers: Array[Vector2] = []
 	var base_direction: Vector2 = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
+	if _has_talent(owner, "mage_entry_mark"):
+		for target in owner._get_enemy_targets(32, false):
+			if target == null or not is_instance_valid(target):
+				continue
+			if owner.global_position.distance_to(target.global_position) > 248.0:
+				continue
+			centers.append(owner._get_enemy_aim_point(target, owner.global_position) if owner.has_method("_get_enemy_aim_point") else target.global_position)
+			if centers.size() >= ENTRY_LIGHTNING_COUNT:
+				break
 	for index in range(ENTRY_LIGHTNING_COUNT):
+		if centers.size() >= ENTRY_LIGHTNING_COUNT:
+			break
 		var angle_offset: float = TAU * float(index) / float(ENTRY_LIGHTNING_COUNT)
 		var direction: Vector2 = base_direction.rotated(angle_offset).normalized()
 		centers.append(owner.global_position + direction * ENTRY_LIGHTNING_DISTANCE)
@@ -294,6 +338,22 @@ func _resolve_entry_lightning_ring(owner, role_id: String, centers: Array[Vector
 	for center in centers:
 		owner._spawn_mage_boom_scene_effect(center, ENTRY_LIGHTNING_RADIUS)
 		total_hits += owner._damage_enemies_in_radius(center, ENTRY_LIGHTNING_RADIUS, damage_amount, 0.0, 1.0, 0.0, role_id)
+	if _has_talent(owner, "mage_entry_center"):
+		var center_point: Vector2 = owner.global_position
+		if not centers.is_empty():
+			center_point = Vector2.ZERO
+			for lightning_center in centers:
+				center_point += lightning_center
+			center_point /= float(centers.size())
+		var center_callback := func(_index: int) -> void:
+			if owner == null or not is_instance_valid(owner) or bool(owner.get("is_dead")):
+				return
+			owner._spawn_mage_boom_scene_effect(center_point, ENTRY_LIGHTNING_RADIUS * 1.50)
+			owner._damage_enemies_in_radius(center_point, ENTRY_LIGHTNING_RADIUS * 1.50, damage_amount * 0.60, 0.0, 1.0, 0.0, role_id)
+		if owner.get_tree() == null or not owner.has_method("_schedule_repeating_sequence"):
+			center_callback.call(0)
+		else:
+			owner._schedule_repeating_sequence(0.0, 1, center_callback, 0.25)
 	return total_hits
 
 func perform_exit(_owner, _role_id: String, _rearguard_level: int) -> int:
@@ -310,18 +370,19 @@ func perform_ultimate(owner, cast_payload: Dictionary) -> void:
 	var bombard_count: int = max(1, int(floor(total_duration / ULTIMATE_BOMBARD_INTERVAL)) + PLAYER_BUILD_SYSTEM.get_mage_ultimate_bombard_count_bonus(owner))
 	var combo_scales: Array[float] = _get_ultimate_combo_scales(owner)
 	var bombard_scales: Array[float] = _build_ultimate_segment_scales(bombard_count, combo_scales)
+	var target_state: Dictionary = _build_ultimate_talent_target_state(owner, center)
 	var total_sequence_duration: float = 0.28 + float(bombard_scales.size() - 1) * ULTIMATE_BOMBARD_INTERVAL
 	owner._queue_camera_shake(18.5, 0.58)
 	owner._delay_level_up_requests(total_sequence_duration)
 	owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -34.0), "奥数轰炸", Color(0.82, 0.96, 1.0, 1.0))
 	owner._spawn_ring_effect(center, 118.0 + storm_level * 10.0, Color(0.72, 0.96, 1.0, 0.82), 10.0, 0.22)
-	_schedule_ultimate_bombardment_sequence(owner, bombard_scales, storm_level, _get_ultimate_damage_multiplier(owner, cast_payload), ultimate_tier, center, 0.0, total_sequence_duration)
+	_schedule_ultimate_bombardment_sequence(owner, bombard_scales, storm_level, _get_ultimate_damage_multiplier(owner, cast_payload), ultimate_tier, center, 0.0, total_sequence_duration, target_state)
 	owner._apply_post_ultimate_bonuses("mage", total_sequence_duration)
 
-func _schedule_ultimate_bombardment_sequence(owner, bombard_scales: Array[float], storm_level: int, cast_damage_multiplier: float, ultimate_tier: int, cast_center: Vector2, start_delay: float, surplus_delay: float = 0.0) -> void:
+func _schedule_ultimate_bombardment_sequence(owner, bombard_scales: Array[float], storm_level: int, cast_damage_multiplier: float, ultimate_tier: int, cast_center: Vector2, start_delay: float, surplus_delay: float = 0.0, target_state: Dictionary = {}) -> void:
 	var bombard_count: int = bombard_scales.size()
 	var sequence_callback := func(pulse_index: int) -> void:
-		_trigger_ultimate_bombardment(owner, bombard_scales, storm_level, cast_damage_multiplier, pulse_index, ultimate_tier, cast_center)
+		_trigger_ultimate_bombardment(owner, bombard_scales, storm_level, cast_damage_multiplier, pulse_index, ultimate_tier, cast_center, target_state)
 	if start_delay <= 0.0:
 		owner._schedule_repeating_sequence(ULTIMATE_BOMBARD_INTERVAL, bombard_count, sequence_callback)
 	else:
@@ -339,7 +400,7 @@ func _schedule_ultimate_bombardment_sequence(owner, bombard_scales: Array[float]
 		owner._start_duration_status(ENTRY_ARCANE_SURPLUS_STATUS_ID, "\u5965\u6CD5\u76C8\u4F59", arcane_surplus_duration, 18, Color(0.34, 0.72, 1.0, 0.95))
 	, surplus_delay)
 
-func _trigger_ultimate_bombardment(owner, bombard_scales: Array[float], storm_level: int, cast_damage_multiplier: float, pulse_index: int, ultimate_tier: int = 1, cast_center: Vector2 = Vector2.ZERO) -> void:
+func _trigger_ultimate_bombardment(owner, bombard_scales: Array[float], storm_level: int, cast_damage_multiplier: float, pulse_index: int, ultimate_tier: int = 1, cast_center: Vector2 = Vector2.ZERO, target_state: Dictionary = {}) -> void:
 	if owner.is_dead:
 		return
 
@@ -347,16 +408,23 @@ func _trigger_ultimate_bombardment(owner, bombard_scales: Array[float], storm_le
 	var effect_scale: float = 1.0
 	if pulse_index >= 0 and pulse_index < pulse_count:
 		effect_scale = float(bombard_scales[pulse_index])
-	var cluster_center: Vector2 = _get_ultimate_bombard_lock_center(owner, cast_center)
+	var cluster_center: Vector2 = _get_ultimate_talent_center(owner, cast_center, pulse_index, target_state)
 	if cluster_center == Vector2.ZERO:
 		cluster_center = owner.global_position
 	var phase: float = float(pulse_index) / float(max(1, pulse_count - 1))
 	var orbit_angle: float = phase * TAU * 1.6
 	var main_center: Vector2 = cluster_center + Vector2.RIGHT.rotated(orbit_angle) * (12.0 + 8.0 * sin(orbit_angle * 1.4))
+	if _has_talent(owner, "mage_ultimate_lock") or _has_talent(owner, "mage_ultimate_triangle"):
+		main_center = cluster_center
 	var tier_damage_multiplier: float = 1.16 if ultimate_tier >= 2 else 1.0
 	var role_range_multiplier: float = owner._get_role_attribute_range_multiplier("mage") * owner._get_role_equipment_skill_range_multiplier("mage")
 	var pulse_radius: float = 100.0 * role_range_multiplier * owner._get_role_attribute_range_multiplier("mage")
 	var pulse_damage: float = owner._get_role_damage("mage") * (ULTIMATE_BASE_DAMAGE_RATIO + storm_level * 0.08) * cast_damage_multiplier * max(0.0, effect_scale) * tier_damage_multiplier * ULTIMATE_GUNNER_ULTIMATE_OUTPUT_RATIO
+	if _has_talent(owner, "mage_ultimate_lock"):
+		pulse_radius *= 0.70
+		pulse_damage *= 1.25
+	elif _has_talent(owner, "mage_ultimate_triangle"):
+		pulse_radius *= 0.80
 	owner._queue_camera_shake(6.4 + float(storm_level) * 0.28, 0.12)
 	if _should_spawn_ultimate_pulse_visual(pulse_index):
 		owner._spawn_ring_effect(main_center, pulse_radius, Color(0.72, 0.96, 1.0, 0.76), 6.0, 0.18)
@@ -372,6 +440,44 @@ func _trigger_ultimate_bombardment(owner, bombard_scales: Array[float], storm_le
 	)
 	if shape_hits > 0 and not _uses_batched_damage(owner):
 		owner._register_attack_result("mage", shape_hits, false)
+
+func _build_ultimate_talent_target_state(owner, cast_center: Vector2) -> Dictionary:
+	if _has_talent(owner, "mage_ultimate_lock"):
+		var target: Node2D = null
+		if owner.has_method("_get_priority_boss_target"):
+			target = owner._get_priority_boss_target(owner.global_position)
+		if target == null:
+			var best_distance := INF
+			for candidate in owner._get_enemy_targets(64, false):
+				if candidate == null or not is_instance_valid(candidate):
+					continue
+				var distance: float = candidate.global_position.distance_squared_to(cast_center)
+				if distance < best_distance:
+					best_distance = distance
+					target = candidate
+		var last_position: Vector2 = cast_center
+		if target != null and is_instance_valid(target):
+			last_position = owner._get_enemy_aim_point(target, cast_center) if owner.has_method("_get_enemy_aim_point") else target.global_position
+		return {"target": target, "last_position": last_position}
+	if _has_talent(owner, "mage_ultimate_triangle"):
+		var nodes: Array[Vector2] = []
+		for index in range(3):
+			nodes.append(cast_center + Vector2.RIGHT.rotated(-PI * 0.5 + TAU * float(index) / 3.0) * 96.0)
+		return {"triangle_nodes": nodes}
+	return {}
+
+func _get_ultimate_talent_center(owner, fallback_center: Vector2, pulse_index: int, target_state: Dictionary) -> Vector2:
+	if _has_talent(owner, "mage_ultimate_lock"):
+		var target: Variant = target_state.get("target")
+		if target != null and is_instance_valid(target) and not target.is_queued_for_deletion() and float(target.get("current_health")) > 0.0:
+			var position: Vector2 = owner._get_enemy_aim_point(target, fallback_center) if owner.has_method("_get_enemy_aim_point") else target.global_position
+			target_state["last_position"] = position
+		return target_state.get("last_position", fallback_center)
+	if _has_talent(owner, "mage_ultimate_triangle"):
+		var nodes: Array = target_state.get("triangle_nodes", [])
+		if not nodes.is_empty():
+			return nodes[posmod(pulse_index, nodes.size())]
+	return _get_ultimate_bombard_lock_center(owner, fallback_center)
 
 func _get_ultimate_bombard_lock_center(owner, fallback_center: Vector2) -> Vector2:
 	var priority_boss: Node2D = null
@@ -445,3 +551,6 @@ func _apply_damage_shapes(owner, shapes: Array[Dictionary]) -> int:
 
 func _uses_batched_damage(owner) -> bool:
 	return owner != null and owner.has_method("_damage_enemies_in_shapes_batched")
+
+func _has_talent(owner, talent_id: String) -> bool:
+	return owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id))

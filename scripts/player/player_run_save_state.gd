@@ -16,7 +16,11 @@ const PLAYER_COMBAT_MODIFIERS := preload("res://scripts/player/player_combat_mod
 
 static func get_save_data(player) -> Dictionary:
 	var pending_upgrade_count: int = player.pending_level_ups
-	if player.level_up_active:
+	var active_offer_context: Dictionary = {}
+	if player.current_blessing_offer is Dictionary:
+		active_offer_context = player.current_blessing_offer.get("context", {})
+	var active_skill_talent: bool = str(player.active_upgrade_kind) == "skill_talent" or bool(active_offer_context.get("skill_talent_offer", false))
+	if player.level_up_active and not active_skill_talent:
 		pending_upgrade_count += 1
 	if player.has_method("_save_active_role_health"):
 		player._save_active_role_health()
@@ -29,6 +33,7 @@ static func get_save_data(player) -> Dictionary:
 		"experience": player.experience,
 		"experience_to_next_level": player.experience_to_next_level,
 		"pending_level_ups": pending_upgrade_count,
+		"active_upgrade_kind": "skill_talent" if player.level_up_active and str(player.active_upgrade_kind) == "skill_talent" else "",
 		"max_health": player.max_health,
 		"max_mana": player.max_mana,
 		"current_health": player.current_health,
@@ -52,6 +57,7 @@ static func get_save_data(player) -> Dictionary:
 		"mage_arcane_charge_transfer_remaining": player.mage_arcane_charge_transfer_remaining,
 		"mage_arcane_charge_transfer_duration": player.mage_arcane_charge_transfer_duration,
 		"mage_arcane_charge_transfer_target_role_id": player.mage_arcane_charge_transfer_target_role_id,
+		"mage_arcane_charge_transfer_relay_used": player.mage_arcane_charge_transfer_relay_used,
 		"level_up_delay_remaining": player.level_up_delay_remaining,
 		"switch_cooldown_remaining": player.switch_cooldown_remaining,
 		"greed_heal_cooldown_remaining": player.greed_heal_cooldown_remaining,
@@ -70,9 +76,18 @@ static func get_save_data(player) -> Dictionary:
 		"mage_meta_field_cooldown_remaining": player.mage_meta_field_ability.cooldown_remaining if player.mage_meta_field_ability != null else 0.0,
 		"mage_meta_field_remaining": player.mage_meta_field_ability.active_remaining if player.mage_meta_field_ability != null else 0.0,
 		"mage_meta_field_tick_remaining": player.mage_meta_field_ability.tick_remaining if player.mage_meta_field_ability != null else 0.0,
+		"mage_meta_field_transferred_role_id": player.mage_meta_field_ability.transferred_role_id if player.mage_meta_field_ability != null else "",
 		"swordsman_blade_storm_cooldown_remaining": player.swordsman_blade_storm_ability.cooldown_remaining if player.swordsman_blade_storm_ability != null else 0.0,
 		"swordsman_blade_storm_remaining": player.swordsman_blade_storm_ability.active_remaining if player.swordsman_blade_storm_ability != null else 0.0,
 		"swordsman_blade_storm_tick_remaining": player.swordsman_blade_storm_ability.tick_remaining if player.swordsman_blade_storm_ability != null else 0.0,
+		"swordsman_blade_storm_cast_origin": [
+			player.swordsman_blade_storm_ability.cast_origin.x if player.swordsman_blade_storm_ability != null else 0.0,
+			player.swordsman_blade_storm_ability.cast_origin.y if player.swordsman_blade_storm_ability != null else 0.0
+		],
+		"swordsman_blade_storm_cast_direction": [
+			player.swordsman_blade_storm_ability.cast_direction.x if player.swordsman_blade_storm_ability != null else 1.0,
+			player.swordsman_blade_storm_ability.cast_direction.y if player.swordsman_blade_storm_ability != null else 0.0
+		],
 		"swordsman_crescent_wave_cooldown_remaining": player.swordsman_crescent_wave_ability.cooldown_remaining if player.swordsman_crescent_wave_ability != null else 0.0,
 		"speed": player.speed,
 		"pickup_radius": player.pickup_radius,
@@ -162,6 +177,7 @@ static func apply_save_data(player, data: Dictionary) -> void:
 		int(data.get("experience_to_next_level", player.experience_to_next_level))
 	)
 	player.pending_level_ups = max(0, int(data.get("pending_level_ups", player.pending_level_ups)))
+	player.active_upgrade_kind = "skill_talent" if str(data.get("active_upgrade_kind", "")) == "skill_talent" else ""
 	player.max_health = float(data.get("max_health", player.max_health))
 	player.max_mana = float(data.get("max_mana", player.max_mana))
 	var saved_current_health: float = float(data.get("current_health", player.current_health))
@@ -343,14 +359,17 @@ static func _apply_ability_save_data(player, data: Dictionary) -> void:
 	player.mage_meta_field_ability.apply_save_data({
 		"cooldown_remaining": float(data.get("mage_meta_field_cooldown_remaining", 0.0)),
 		"active_remaining": float(data.get("mage_meta_field_remaining", 0.0)),
-		"tick_remaining": float(data.get("mage_meta_field_tick_remaining", 0.0))
+		"tick_remaining": float(data.get("mage_meta_field_tick_remaining", 0.0)),
+		"transferred_role_id": str(data.get("mage_meta_field_transferred_role_id", ""))
 	})
 	if player.swordsman_blade_storm_ability == null:
 		player.swordsman_blade_storm_ability = SWORDSMAN_BLADE_STORM_ABILITY.new()
 	player.swordsman_blade_storm_ability.apply_save_data({
 		"cooldown_remaining": float(data.get("swordsman_blade_storm_cooldown_remaining", 0.0)),
 		"active_remaining": float(data.get("swordsman_blade_storm_remaining", 0.0)),
-		"tick_remaining": float(data.get("swordsman_blade_storm_tick_remaining", 0.0))
+		"tick_remaining": float(data.get("swordsman_blade_storm_tick_remaining", 0.0)),
+		"cast_origin": _decode_vector2(data.get("swordsman_blade_storm_cast_origin", []), Vector2.ZERO),
+		"cast_direction": _decode_vector2(data.get("swordsman_blade_storm_cast_direction", []), Vector2.RIGHT)
 	})
 	if player.swordsman_crescent_wave_ability == null:
 		player.swordsman_crescent_wave_ability = SWORDSMAN_CRESCENT_WAVE_ABILITY.new()
@@ -388,6 +407,12 @@ static func _apply_stat_save_data(player, data: Dictionary) -> void:
 	player.equipment_cooldown_multiplier = float(data.get("equipment_cooldown_multiplier", player.equipment_cooldown_multiplier))
 	player.role_switch_cooldown_bonus = float(data.get("role_switch_cooldown_bonus", player.role_switch_cooldown_bonus))
 
+
+static func _decode_vector2(value: Variant, fallback: Vector2) -> Vector2:
+	if value is Array and (value as Array).size() >= 2:
+		return Vector2(float((value as Array)[0]), float((value as Array)[1]))
+	return fallback
+
 static func _apply_switch_buff_save_data(player, data: Dictionary) -> void:
 	player.switch_power_remaining = float(data.get("switch_power_remaining", 0.0))
 	player.switch_power_role_id = str(data.get("switch_power_role_id", ""))
@@ -402,6 +427,7 @@ static func _apply_switch_buff_save_data(player, data: Dictionary) -> void:
 	player.mage_arcane_charge_transfer_remaining = max(0.0, float(data.get("mage_arcane_charge_transfer_remaining", 0.0)))
 	player.mage_arcane_charge_transfer_duration = max(0.0, float(data.get("mage_arcane_charge_transfer_duration", 0.0)))
 	player.mage_arcane_charge_transfer_target_role_id = str(data.get("mage_arcane_charge_transfer_target_role_id", ""))
+	player.mage_arcane_charge_transfer_relay_used = bool(data.get("mage_arcane_charge_transfer_relay_used", false))
 	if player.has_method("_sync_invulnerability_status"):
 		player._sync_invulnerability_status()
 	if player.mage_arcane_surplus_remaining > 0.0 and player.has_method("_sync_duration_status"):

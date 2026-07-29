@@ -3,6 +3,7 @@ extends RefCounted
 const MAIN_MENU_SCENE_PATH := "res://scenes/main_menu.tscn"
 const SAVE_MANAGER := preload("res://scripts/save_manager.gd")
 const GAME_HUD_FLOW := preload("res://scripts/game/game_hud_flow.gd")
+const REWARD_FLOW := preload("res://scripts/game/reward_flow.gd")
 const CONTINUE_BGM_RESUME_DELAY := 0.25
 
 static func handle_escape_toggle(main: Node) -> void:
@@ -32,8 +33,10 @@ static func resume_game(main: Node) -> void:
 	main.get_tree().paused = false
 
 	var resume_delay: float = CONTINUE_BGM_RESUME_DELAY
-	if main.loaded_from_save and main.player != null and main.player.has_method("resume_pending_level_ups"):
-		main.player.resume_pending_level_ups()
+	if main.loaded_from_save and main.player != null:
+		var resumed_reward: bool = REWARD_FLOW.resume_saved_reward(main)
+		if not resumed_reward and main.player.has_method("resume_pending_level_ups"):
+			main.player.resume_pending_level_ups()
 		resume_delay = CONTINUE_BGM_RESUME_DELAY
 		main.loaded_from_save = false
 

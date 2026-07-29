@@ -5,7 +5,7 @@ const PLAYER_EQUIPMENT_FLOW := preload("res://scripts/player/player_equipment_fl
 const PLAYER_FINAL_UPGRADE_APPLIER := preload("res://scripts/player/player_final_upgrade_applier.gd")
 const PLAYER_BLESSING_SYSTEM := preload("res://scripts/player/player_blessing_system.gd")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
-const POST_UPGRADE_NEXT_POPUP_DELAY := 0.08
+const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_talent_system.gd")
 
 
 static func apply_upgrade(owner, option_id: String) -> void:
@@ -20,6 +20,9 @@ static func apply_upgrades(owner, option_ids: Array) -> void:
 		if option_id == "":
 			continue
 		if PLAYER_REWARD_APPLIER.is_noop_upgrade(option_id):
+			continue
+		var current_offer: Dictionary = owner.current_blessing_offer if owner.current_blessing_offer is Dictionary else {}
+		if not PLAYER_SKILL_TALENT_SYSTEM.apply_option_with_result(owner, option_id, current_offer).is_empty():
 			continue
 		var blessing_result: Dictionary = PLAYER_BLESSING_SYSTEM.apply_option_with_result(owner, option_id)
 		if not blessing_result.is_empty():
@@ -66,17 +69,13 @@ static func _apply_final_core(owner, option_id: String) -> bool:
 
 static func _finish_upgrade(owner, refresh_stats: bool = false, refresh_health: bool = false) -> void:
 	owner.level_up_active = false
+	_set_active_upgrade_kind(owner, "")
 	if refresh_stats:
 		owner._update_fire_timer()
 		_emit_lightweight_stats_changed(owner)
 		owner._emit_active_mana_changed()
 	if refresh_health:
 		owner.health_changed.emit(owner.current_health, owner.max_health)
-	if owner.get("pending_blessing_binding_choices") is Array and not (owner.get("pending_blessing_binding_choices") as Array).is_empty():
-		return
-	if int(owner.get("pending_level_ups")) > 0 and owner.has_method("_delay_level_up_requests"):
-		owner._delay_level_up_requests(POST_UPGRADE_NEXT_POPUP_DELAY)
-	owner._try_request_level_up()
 
 
 static func _emit_lightweight_stats_changed(owner) -> void:
@@ -84,3 +83,10 @@ static func _emit_lightweight_stats_changed(owner) -> void:
 		owner.emit_frame_stats_changed()
 	else:
 		owner.stats_changed.emit(owner.get_stat_summary())
+
+
+static func _set_active_upgrade_kind(owner, kind: String) -> void:
+	for property in owner.get_property_list():
+		if property is Dictionary and str((property as Dictionary).get("name", "")) == "active_upgrade_kind":
+			owner.set("active_upgrade_kind", kind)
+			return

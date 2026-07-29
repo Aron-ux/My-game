@@ -11,6 +11,7 @@ signal small_boss_spawn_requested(archetype_id: String)
 signal normal_enemy_batch_spawn_requested(archetype_id: String, count: int)
 signal enemy_spawn_requested(kind: String, archetype_id: String, count: int)
 signal skill_unlock_requested(skill_id: String, tier: int)
+signal skill_talent_grant_requested(talent_id: String)
 signal blessing_grant_requested(blessing_id: String, tier: int)
 signal all_blessings_grant_requested
 signal enemy_detail_display_toggled(enabled: bool)
@@ -141,7 +142,7 @@ func _build_scroll_content(parent: Control) -> void:
 	glutton_skill_list = _add_menu_section(menu_content, "Glutton Skill Test")
 	_populate_glutton_skill_list()
 	blessing_list = _add_menu_section(menu_content, "添加祝福")
-	skill_list = _add_menu_section(menu_content, "添加技能")
+	skill_list = _add_menu_section(menu_content, "添加技能 / 技能质变")
 
 	performance_label = Label.new()
 	performance_label.text = "Performance: collecting..."
@@ -343,6 +344,9 @@ func _on_normal_enemy_button_pressed(archetype_id: String) -> void:
 
 
 func _on_skill_button_pressed(option_id: String) -> void:
+	if option_id.begins_with(DEVELOPER_OPTION_PROVIDER.SKILL_TALENT_OPTION_PREFIX):
+		skill_talent_grant_requested.emit(option_id.trim_prefix(DEVELOPER_OPTION_PROVIDER.SKILL_TALENT_OPTION_PREFIX))
+		return
 	var parts: PackedStringArray = option_id.split(":")
 	if parts.size() < 2:
 		return

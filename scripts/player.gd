@@ -13,6 +13,7 @@ const PLAYER_LEVEL_OPTIONS := preload("res://scripts/player/player_level_options
 const PLAYER_LEVEL_FLOW := preload("res://scripts/player/player_level_flow.gd")
 const PLAYER_BLESSING_SYSTEM := preload("res://scripts/player/player_blessing_system.gd")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
+const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_talent_system.gd")
 const PLAYER_BLESSING_SKILL_BRIDGE := preload("res://scripts/player/player_blessing_skill_bridge.gd")
 const PLAYER_UPGRADE_APPLIER := preload("res://scripts/player/player_upgrade_applier.gd")
 const PLAYER_REWARD_APPLIER := preload("res://scripts/player/player_reward_applier.gd")
@@ -107,6 +108,7 @@ const GUNNER_ENTRY_WAVE_BULLET_COUNT := 16
 const GUNNER_ENTRY_WAVE_BATCH_SIZE := 16
 const GUNNER_ENTRY_WAVE_BATCH_INTERVAL := 0.008
 const GUNNER_FLASH_STACK_INTERVAL := 2.0
+const GUNNER_HUNT_STACK_INTERVAL := 1.25
 const GUNNER_FLASH_MAX_STACKS := 10
 const GUNNER_FLASH_DAMAGE_PER_STACK := 0.03
 const GUNNER_FLASH_SPEED_PER_STACK := 0.03
@@ -219,6 +221,7 @@ var level: int = 1
 var experience: int = 0
 var pending_level_ups: int = 0
 var level_up_active: bool = false
+var active_upgrade_kind: String = ""
 var current_health: float = 0.0
 var current_temporary_health: float = 0.0
 var temporary_health_stacks: Array = []
@@ -313,6 +316,7 @@ var mage_arcane_charge_transfer_stacks: int = 0
 var mage_arcane_charge_transfer_remaining: float = 0.0
 var mage_arcane_charge_transfer_duration: float = 0.0
 var mage_arcane_charge_transfer_target_role_id: String = ""
+var mage_arcane_charge_transfer_relay_used: bool = false
 var greed_heal_cooldown_remaining: float = 0.0
 var entry_haste_interval_bonus: float = 0.0
 var entry_haste_move_speed_multiplier: float = 1.0
@@ -367,6 +371,8 @@ var gunner_attack_chain: int = 0
 var gunner_flash_stacks: int = 0
 var gunner_flash_stack_elapsed: float = 0.0
 var gunner_flash_cooldown_remaining: float = 0.0
+var gunner_hunt_presence_check_remaining: float = 0.0
+var gunner_hunt_has_enemy: bool = false
 var gunner_infinite_reload_ability = GUNNER_INFINITE_RELOAD_ABILITY.new()
 var gunner_shrapnel_field_ability = GUNNER_SHRAPNEL_FIELD_ABILITY.new()
 var mage_role = MAGE_ROLE.new()
@@ -842,6 +848,21 @@ func _emit_active_mana_changed() -> void:
 func _get_card_level(card_id: String) -> int:
 	return 0
 
+func _has_skill_talent(talent_id: String) -> bool:
+	return PLAYER_SKILL_TALENT_SYSTEM.has_talent(self, talent_id)
+
+func get_pending_skill_talent_choices() -> Array:
+	return PLAYER_SKILL_TALENT_SYSTEM.get_pending_choices(self)
+
+func build_next_skill_talent_offer() -> Dictionary:
+	return PLAYER_SKILL_TALENT_SYSTEM.build_next_offer(self)
+
+func apply_skill_talent_choice(option_id: String, expected_progress_id: String = "") -> bool:
+	return PLAYER_SKILL_TALENT_SYSTEM.apply_choice(self, option_id, expected_progress_id)
+
+func get_skill_progress_level(role_id: String, progress_id: String) -> int:
+	return PLAYER_SKILL_TALENT_SYSTEM.get_skill_progress_level(self, role_id, progress_id)
+
 func _get_role_blessing_stat_bonus(role_id: String, stat: String) -> float:
 	return PLAYER_BLESSING_SKILL_BRIDGE.get_role_stat_bonus(self, role_id, stat)
 
@@ -865,18 +886,6 @@ func get_role_blessing_levels(role_id: String) -> Dictionary:
 
 func get_skill_blessing_levels() -> Dictionary:
 	return PLAYER_BLESSING_SKILL_BRIDGE.get_skill_blessing_levels(self)
-
-func can_compose_role_blessing(role_id: String, blessing_id: String) -> bool:
-	return PLAYER_BLESSING_SKILL_BRIDGE.can_compose_role_blessing(self, role_id, blessing_id)
-
-func can_compose_skill_blessing(blessing_id: String) -> bool:
-	return PLAYER_BLESSING_SKILL_BRIDGE.can_compose_skill_blessing(self, blessing_id)
-
-func compose_role_blessing(role_id: String, blessing_id: String) -> bool:
-	return PLAYER_BLESSING_SKILL_BRIDGE.compose_role_blessing(self, role_id, blessing_id)
-
-func compose_skill_blessing(blessing_id: String) -> bool:
-	return PLAYER_BLESSING_SKILL_BRIDGE.compose_skill_blessing(self, blessing_id)
 
 func _refresh_blessing_skill_unlocks(selected_blessing_id: String = "", selected_tier: int = 0, selected_binding: String = "") -> void:
 	PLAYER_BLESSING_SKILL_BRIDGE.refresh_unlocks(self, selected_blessing_id, selected_tier, selected_binding)
@@ -936,7 +945,13 @@ func get_skill_next_requirement_text(skill_id: String) -> String:
 	return PLAYER_BLESSING_SKILL_BRIDGE.get_skill_next_requirement_text(self, skill_id)
 
 func get_skill_graph_text(role_id_filter: String = "") -> String:
-	return PLAYER_BLESSING_SKILL_BRIDGE.get_skill_graph_text(self, role_id_filter)
+	var graph_text := PLAYER_BLESSING_SKILL_BRIDGE.get_skill_graph_text(self, role_id_filter)
+	if role_id_filter == "":
+		return graph_text
+	var progress_text := PLAYER_SKILL_TALENT_SYSTEM.get_progress_text(self, role_id_filter)
+	if progress_text == "":
+		return graph_text
+	return "%s\n\n[color=#f3d35a][b]技能构筑与质变[/b][/color]\n%s" % [graph_text, progress_text]
 
 func _get_basic_attack_range_multiplier(skill_id: String) -> float:
 	return PLAYER_BLESSING_SKILL_BRIDGE.get_basic_attack_range_multiplier(self, skill_id)
@@ -1101,13 +1116,23 @@ func _tick_gunner_flash_trait(delta: float) -> void:
 	if str(_get_active_role().get("id", "")) != "gunner":
 		gunner_flash_stack_elapsed = 0.0
 		return
+	var clear_hunt: bool = _has_skill_talent("gunner_trait_clear_hunt")
+	var invade_hunt: bool = _has_skill_talent("gunner_trait_invade_hunt")
+	if clear_hunt or invade_hunt:
+		gunner_hunt_presence_check_remaining -= delta
+		if gunner_hunt_presence_check_remaining <= 0.0:
+			gunner_hunt_presence_check_remaining = 0.25
+			gunner_hunt_has_enemy = _count_enemies_in_radius(global_position, _get_gunner_safe_zone_radius()) > 0
+		if (clear_hunt and gunner_hunt_has_enemy) or (invade_hunt and not gunner_hunt_has_enemy):
+			return
 	if gunner_flash_stacks >= GUNNER_FLASH_MAX_STACKS:
 		gunner_flash_stacks = GUNNER_FLASH_MAX_STACKS
 		gunner_flash_stack_elapsed = 0.0
 		return
 	gunner_flash_stack_elapsed += delta
-	while gunner_flash_stack_elapsed >= GUNNER_FLASH_STACK_INTERVAL:
-		gunner_flash_stack_elapsed -= GUNNER_FLASH_STACK_INTERVAL
+	var stack_interval: float = GUNNER_HUNT_STACK_INTERVAL if clear_hunt or invade_hunt else GUNNER_FLASH_STACK_INTERVAL
+	while gunner_flash_stack_elapsed >= stack_interval:
+		gunner_flash_stack_elapsed -= stack_interval
 		gunner_flash_stacks = min(GUNNER_FLASH_MAX_STACKS, gunner_flash_stacks + 1)
 
 func _break_gunner_flash_trait() -> void:
@@ -1120,6 +1145,8 @@ func _break_gunner_flash_trait() -> void:
 func _clear_gunner_flash_trait_on_switch() -> void:
 	gunner_flash_stacks = 0
 	gunner_flash_stack_elapsed = 0.0
+	gunner_hunt_presence_check_remaining = 0.0
+	gunner_hunt_has_enemy = false
 
 func _get_gunner_flash_damage_multiplier() -> float:
 	var bonus_per_stack := GUNNER_FLASH_DAMAGE_PER_STACK + PLAYER_BUILD_SYSTEM.get_gunner_flash_damage_bonus_per_stack(self)
@@ -1148,13 +1175,15 @@ func _get_gunner_flash_buff_slot() -> Dictionary:
 		}
 	if gunner_flash_stacks <= 0:
 		return {}
+	var stack_interval: float = GUNNER_HUNT_STACK_INTERVAL if _has_skill_talent("gunner_trait_clear_hunt") or _has_skill_talent("gunner_trait_invade_hunt") else GUNNER_FLASH_STACK_INTERVAL
+	var interval_label := "1.25" if stack_interval == GUNNER_HUNT_STACK_INTERVAL else "2"
 	return {
 		"name": "\u77AC\u6740",
-		"description": "\u6BCF2\u79D2\u83B7\u5F971\u5C42\uff0c\u6BCF\u5C42\u63D0\u4F9B3%\u4F24\u5BB3\u30013%\u79FB\u901F\u548C4\u95EA\u907F\u503C\uff0C\u6700\u591A10\u5C42",
+		"description": "\u6BCF%s\u79D2\u83B7\u5F971\u5C42\uff0c\u6BCF\u5C42\u63D0\u4F9B3%%\u4F24\u5BB3\u30013%%\u79FB\u901F\u548C4\u95EA\u907F\u503C\uff0C\u6700\u591A10\u5C42" % interval_label,
 		"text": "\u77AC",
 		"stacks": gunner_flash_stacks,
-		"remaining": GUNNER_FLASH_STACK_INTERVAL,
-		"duration": GUNNER_FLASH_STACK_INTERVAL,
+		"remaining": max(0.0, stack_interval - gunner_flash_stack_elapsed),
+		"duration": stack_interval,
 		"color": Color(0.25, 0.74, 1.0, 0.95),
 		"cooldown": false
 	}
@@ -1186,13 +1215,30 @@ func _transfer_mage_arcane_charge_to_role_on_switch(target_role_id: String) -> v
 	mage_arcane_charge_transfer_target_role_id = target_role_id
 	mage_arcane_charge_transfer_duration = float(transfer_stacks) * MAGE_ARCANE_CHARGE_TRANSFER_DURATION_PER_STACK
 	mage_arcane_charge_transfer_remaining = mage_arcane_charge_transfer_duration
+	mage_arcane_charge_transfer_relay_used = false
 	stats_changed.emit(get_frame_hud_summary())
+
+func _relay_mage_arcane_charge_on_switch(previous_role_id: String, target_role_id: String) -> void:
+	if mage_arcane_charge_transfer_remaining <= 0.0:
+		return
+	if previous_role_id != mage_arcane_charge_transfer_target_role_id:
+		return
+	if target_role_id == "mage":
+		_clear_mage_arcane_charge_transfer()
+		return
+	if _has_skill_talent("mage_trait_relay") and not mage_arcane_charge_transfer_relay_used and target_role_id != "":
+		mage_arcane_charge_transfer_target_role_id = target_role_id
+		mage_arcane_charge_transfer_relay_used = true
+		stats_changed.emit(get_frame_hud_summary())
+		return
+	_clear_mage_arcane_charge_transfer()
 
 func _clear_mage_arcane_charge_transfer(emit_stats_changed: bool = true) -> void:
 	mage_arcane_charge_transfer_stacks = 0
 	mage_arcane_charge_transfer_remaining = 0.0
 	mage_arcane_charge_transfer_duration = 0.0
 	mage_arcane_charge_transfer_target_role_id = ""
+	mage_arcane_charge_transfer_relay_used = false
 	if emit_stats_changed:
 		stats_changed.emit(get_frame_hud_summary())
 
@@ -1423,8 +1469,8 @@ func _perform_mage_attack() -> void:
 	if mage_role != null:
 		mage_role.perform_attack(self)
 
-func _try_switch_role(new_role_index: int) -> void:
-	PLAYER_SWITCH_FLOW.try_switch_role(self, new_role_index)
+func _try_switch_role(new_role_index: int, ignore_restrictions: bool = false, force_entry: bool = false) -> void:
+	PLAYER_SWITCH_FLOW.try_switch_role(self, new_role_index, ignore_restrictions, force_entry)
 
 func _apply_enter_skill(role_index: int) -> int:
 	return PLAYER_SWITCH_FLOW.apply_enter_skill(self, role_index)
@@ -1537,11 +1583,12 @@ func _apply_role_damage_lifesteal(source_role_id: String, damage_amount: float) 
 	PLAYER_DAMAGE_HELPERS.apply_role_damage_lifesteal(self, source_role_id, damage_amount)
 
 func _get_gunner_distance_damage_multiplier(distance: float) -> float:
+	var talent_inside_bonus: float = 0.35 if _has_skill_talent("gunner_trait_invade_hunt") else 0.0
 	return PLAYER_DAMAGE_HELPERS.get_gunner_distance_damage_multiplier(
 		distance,
 		0.0,
 		_get_gunner_safe_zone_radius(),
-		PLAYER_BUILD_SYSTEM.get_gunner_hunt_inside_damage_bonus(self),
+		PLAYER_BUILD_SYSTEM.get_gunner_hunt_inside_damage_bonus(self) + talent_inside_bonus,
 		PLAYER_BUILD_SYSTEM.get_gunner_hunt_outside_damage_bonus(self)
 	)
 
@@ -2054,8 +2101,10 @@ func _emit_deferred_level_up_requested() -> void:
 	if is_dead or not level_up_active:
 		return
 	if level_up_delay_remaining > 0.0:
+		if active_upgrade_kind == "" or active_upgrade_kind == "level_up":
+			pending_level_ups += 1
 		level_up_active = false
-		pending_level_ups += 1
+		active_upgrade_kind = ""
 		return
 	level_up_requested.emit([])
 

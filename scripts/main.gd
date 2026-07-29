@@ -539,6 +539,9 @@ func _on_developer_enemy_spawn_requested(kind: String, archetype_id: String, cou
 func _on_developer_skill_unlock_requested(skill_id: String, tier: int) -> void:
 	DEVELOPER_ACTIONS.unlock_skill(self, skill_id, tier)
 
+func _on_developer_skill_talent_grant_requested(talent_id: String) -> void:
+	DEVELOPER_ACTIONS.grant_skill_talent(self, talent_id)
+
 func _on_developer_blessing_grant_requested(blessing_id: String, tier: int) -> void:
 	DEVELOPER_ACTIONS.grant_blessing(self, blessing_id, tier)
 

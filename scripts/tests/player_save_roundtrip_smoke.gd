@@ -29,6 +29,7 @@ const EXACT_KEYS := [
 	"mage_meta_field_cooldown_remaining",
 	"mage_meta_field_remaining",
 	"mage_meta_field_tick_remaining",
+	"mage_meta_field_transferred_role_id",
 	"swordsman_blade_storm_cooldown_remaining",
 	"swordsman_blade_storm_remaining",
 	"swordsman_blade_storm_tick_remaining",
@@ -67,6 +68,12 @@ const EXACT_KEYS := [
 	"frenzy_overkill_counter",
 	"role_standby_elapsed",
 	"role_share_initialized",
+	"mage_arcane_charge_stacks",
+	"mage_arcane_charge_transfer_stacks",
+	"mage_arcane_charge_transfer_remaining",
+	"mage_arcane_charge_transfer_duration",
+	"mage_arcane_charge_transfer_target_role_id",
+	"mage_arcane_charge_transfer_relay_used",
 	"active_role_index",
 	"auto_attack_enabled",
 	"role_upgrade_levels",
@@ -113,7 +120,9 @@ const APPROX_KEYS := [
 ]
 
 const APPROX_VECTOR_ARRAY_KEYS := [
-	"gunner_infinite_reload_locked_aim_direction"
+	"gunner_infinite_reload_locked_aim_direction",
+	"swordsman_blade_storm_cast_origin",
+	"swordsman_blade_storm_cast_direction"
 ]
 
 var failures: Array[String] = []
@@ -209,13 +218,16 @@ func _seed_run_state(player: Node) -> void:
 	player.mage_tidal_surge_ability.cooldown_remaining = 5.6
 	player.mage_meta_field_ability.apply_save_data({
 		"cooldown_remaining": 6.7,
-		"active_remaining": 0.0,
-		"tick_remaining": 0.0
+		"active_remaining": 2.6,
+		"tick_remaining": 0.3,
+		"transferred_role_id": "gunner"
 	})
 	player.swordsman_blade_storm_ability.apply_save_data({
 		"cooldown_remaining": 7.8,
-		"active_remaining": 0.0,
-		"tick_remaining": 0.0
+		"active_remaining": 1.4,
+		"tick_remaining": 0.2,
+		"cast_origin": Vector2(321.0, -123.0),
+		"cast_direction": Vector2(0.6, 0.8)
 	})
 	player.swordsman_crescent_wave_ability.apply_save_data({"cooldown_remaining": 8.9})
 
@@ -273,6 +285,12 @@ func _seed_run_state(player: Node) -> void:
 	player.role_standby_elapsed = {"swordsman": 1.1, "gunner": 0.0, "mage": 2.2}
 	player.role_share_initialized = true
 	player.background_cooldowns = {"swordsman": 0.4, "gunner": 0.5, "mage": 0.6}
+	player.mage_arcane_charge_stacks = 7
+	player.mage_arcane_charge_transfer_stacks = 7
+	player.mage_arcane_charge_transfer_remaining = 2.1
+	player.mage_arcane_charge_transfer_duration = 3.7
+	player.mage_arcane_charge_transfer_target_role_id = "gunner"
+	player.mage_arcane_charge_transfer_relay_used = true
 
 	player._update_active_role_state()
 	player.fire_timer.stop()

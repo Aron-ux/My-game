@@ -60,13 +60,26 @@ func try_trigger(owner, base_direction: Vector2) -> bool:
 	for repeat_index in range(wave_scales.size()):
 		var wave_scale: float = float(wave_scales[repeat_index])
 		var fire_delay: float = gather_duration + float(repeat_index) * WAVE_REPEAT_INTERVAL
+		var is_base_wave := repeat_index == 0
+		var group_damage_scale := 0.55 if is_base_wave and _has_talent(owner, "mage_surge_four") else 1.0
+		var lifetime_scale := 0.75 if is_base_wave and _has_talent(owner, "mage_surge_four") else 1.0
 		if owner.has_method("_schedule_repeating_sequence"):
 			owner._schedule_repeating_sequence(0.0, 1, func(_index: int) -> void:
 				if is_instance_valid(owner):
-					_fire_direction_group(owner, gather_origin, damage_amount * wave_scale, _get_wave_directions(owner, wave_scale), wave_scale)
+					_fire_direction_group(owner, gather_origin, damage_amount * wave_scale * group_damage_scale, _get_wave_directions(owner, wave_scale, is_base_wave), wave_scale, lifetime_scale)
 			, fire_delay)
 		else:
-			_fire_direction_group(owner, gather_origin, damage_amount * wave_scale, _get_wave_directions(owner, wave_scale), wave_scale)
+			_fire_direction_group(owner, gather_origin, damage_amount * wave_scale * group_damage_scale, _get_wave_directions(owner, wave_scale, is_base_wave), wave_scale, lifetime_scale)
+		if is_base_wave and _has_talent(owner, "mage_surge_back"):
+			var reverse_direction := -direction
+			var reverse_delay := fire_delay + 0.8
+			var reverse_callback := func(_index: int) -> void:
+				if is_instance_valid(owner):
+					_spawn_wave(owner, owner.global_position, reverse_direction, damage_amount * 0.70, 1.0, 0.75)
+			if owner.has_method("_schedule_repeating_sequence"):
+				owner._schedule_repeating_sequence(0.0, 1, reverse_callback, reverse_delay)
+			else:
+				reverse_callback.call(0)
 	return true
 
 func get_cooldown_slot(owner = null) -> Dictionary:
@@ -79,13 +92,13 @@ func get_cooldown_slot(owner = null) -> Dictionary:
 		"description": "波涛涌动：法师荡阵进化。向多方向释放冲击波组，覆盖大范围敌人。"
 	}
 
-func _fire_direction_group(owner, origin: Vector2, damage_amount: float, directions: Array, effect_scale: float) -> void:
+func _fire_direction_group(owner, origin: Vector2, damage_amount: float, directions: Array, effect_scale: float, lifetime_scale: float = 1.0) -> void:
 	if owner == null or not is_instance_valid(owner):
 		return
 	for direction in directions:
-		_spawn_wave(owner, origin, direction, damage_amount, effect_scale)
+		_spawn_wave(owner, origin, direction, damage_amount, effect_scale, lifetime_scale)
 
-func _spawn_wave(owner, origin: Vector2, fire_direction: Vector2, damage_amount: float, effect_scale: float = 1.0) -> Node2D:
+func _spawn_wave(owner, origin: Vector2, fire_direction: Vector2, damage_amount: float, effect_scale: float = 1.0, lifetime_scale: float = 1.0) -> Node2D:
 	var wave = owner._spawn_directional_bullet_from_scene(
 		MAGE_WAVE_EFFECT_SCENE,
 		fire_direction,
@@ -101,7 +114,7 @@ func _spawn_wave(owner, origin: Vector2, fire_direction: Vector2, damage_amount:
 	var distance_scale: float = max(0.05, effect_scale)
 	var range_multiplier: float = float(owner._get_role_attribute_range_multiplier("mage")) * float(owner._get_role_equipment_skill_range_multiplier("mage")) * float(owner._get_role_attribute_range_multiplier("mage")) * _get_visual_range_multiplier(owner)
 	wave.speed = _get_wave_speed(owner)
-	wave.lifetime = _get_lifetime(owner) * distance_scale
+	wave.lifetime = _get_lifetime(owner) * distance_scale * lifetime_scale
 	wave.hit_radius = WAVE_HIT_RADIUS * range_multiplier * WAVE_WIDTH_MULTIPLIER
 	wave.pierce_count = 999
 	wave.visual_scale_multiplier = WAVE_VISUAL_SCALE * range_multiplier * WAVE_WIDTH_MULTIPLIER
@@ -139,8 +152,15 @@ func _get_all_directions() -> Array[Vector2]:
 	directions.append_array(_get_diagonal_directions())
 	return directions
 
-func _get_wave_directions(owner, effect_scale: float = 1.0) -> Array[Vector2]:
+func _get_wave_directions(owner, effect_scale: float = 1.0, is_base_wave: bool = false) -> Array[Vector2]:
 	var quantity_count := _get_quantity_extra_count(owner)
+	if is_base_wave and _has_talent(owner, "mage_surge_four"):
+		var base_direction: Vector2 = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
+		var total_count: int = min(8, 4 + quantity_count)
+		var result: Array[Vector2] = []
+		for index in range(total_count):
+			result.append(base_direction.normalized().rotated(TAU * float(index) / float(total_count)))
+		return result
 	if quantity_count <= 0 or effect_scale < 0.99:
 		var direction: Vector2 = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
 		return [direction.normalized()]
@@ -213,3 +233,6 @@ func _get_damage_multiplier(owner) -> float:
 	elif tier >= 2:
 		multiplier = 1.5
 	return multiplier + PLAYER_BUILD_SYSTEM.get_surging_wave_damage_multiplier_bonus(owner)
+
+func _has_talent(owner, talent_id: String) -> bool:
+	return owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id))

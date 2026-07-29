@@ -9,6 +9,7 @@ const BLESSING_BINDING_CHOICE_META := "blessing_binding_choice"
 const BLESSING_BINDING_RETURN_CONTEXT_META := "blessing_binding_return_context"
 const DIRECT_BLESSING_CHOICE_COUNT := 2
 const DIRECT_BLESSING_TIER_TWO := 2
+const SKILL_TALENT_CONTEXT := "skill_talent_choice"
 
 static func show_level_up(main: Node, options: Array) -> void:
 	if main.game_over:
@@ -101,6 +102,27 @@ static func handle_upgrade_selected(main: Node, option_id: String, attribute_opt
 
 	main.get_tree().paused = false
 
+	if main.reward_context == SKILL_TALENT_CONTEXT:
+		var progress_id := ""
+		if main.player != null and main.player.has_method("get_current_blessing_offer_context"):
+			progress_id = str(main.player.get_current_blessing_offer_context().get("skill_progress_id", ""))
+		var applied: bool = (
+			main.player != null
+			and main.player.has_method("apply_skill_talent_choice")
+			and main.player.apply_skill_talent_choice(option_id, progress_id)
+		)
+		if not applied:
+			_show_pending_skill_talent_choice(main)
+			return
+		main.player.level_up_active = false
+		main.player.active_upgrade_kind = ""
+		main.player.current_blessing_offer = {}
+		if _show_pending_skill_talent_choice(main):
+			return
+		main.reward_context = ""
+		_schedule_post_reward_maintenance(main, true)
+		return
+
 	if main.reward_context == "blessing_binding_choice":
 		var choice: Dictionary = main.get_meta(BLESSING_BINDING_CHOICE_META, {})
 		var return_context := str(main.get_meta(BLESSING_BINDING_RETURN_CONTEXT_META, ""))
@@ -114,6 +136,8 @@ static func handle_upgrade_selected(main: Node, option_id: String, attribute_opt
 			return
 		if return_context == "small_boss_blessing_choice":
 			_finish_direct_blessing_choice(main)
+			return
+		if return_context == "level_up" and _show_pending_skill_talent_choice(main):
 			return
 		main.reward_context = ""
 		_schedule_post_reward_maintenance(main, true)
@@ -138,6 +162,8 @@ static func handle_upgrade_selected(main: Node, option_id: String, attribute_opt
 				upgrade_ids.append(attribute_option_id)
 		_apply_player_upgrades(main, upgrade_ids)
 		if _show_pending_blessing_binding_choice(main):
+			return
+		if _show_pending_skill_talent_choice(main):
 			return
 		main.reward_context = ""
 		_schedule_post_reward_maintenance(main, true)
@@ -277,6 +303,33 @@ static func _show_pending_blessing_binding_choice(main: Node, return_context_ove
 	main.get_tree().paused = true
 	main.level_up_ui.show_menu("祝福绑定技能", options)
 	return true
+
+static func _show_pending_skill_talent_choice(main: Node) -> bool:
+	if main.game_over or main.player == null or main.level_up_ui == null:
+		return false
+	if not main.player.has_method("build_next_skill_talent_offer") or not main.level_up_ui.has_method("show_options"):
+		return false
+	var offer: Dictionary = main.player.build_next_skill_talent_offer()
+	var options: Array = offer.get("options", []) if offer.get("options", []) is Array else []
+	var context: Dictionary = offer.get("context", {}) if offer.get("context", {}) is Dictionary else {}
+	if options.size() != 2 or not bool(context.get("skill_talent_offer", false)):
+		if str(main.player.get("active_upgrade_kind")) == "skill_talent":
+			main.player.active_upgrade_kind = ""
+			main.player.level_up_active = false
+			main.player.current_blessing_offer = {}
+		return false
+	main.player.current_blessing_offer = offer
+	main.player.level_up_active = true
+	main.player.active_upgrade_kind = "skill_talent"
+	main.reward_context = SKILL_TALENT_CONTEXT
+	main.get_tree().paused = true
+	main.level_up_ui.show_options(options, [], context)
+	if main.has_method("_save_run_state"):
+		main._save_run_state()
+	return true
+
+static func resume_saved_reward(main: Node) -> bool:
+	return _show_pending_skill_talent_choice(main)
 
 static func _finish_direct_blessing_choice(main: Node) -> void:
 	var remaining_choices: int = max(0, int(main.get_meta(DIRECT_BLESSING_CHOICES_META, 1)) - 1)

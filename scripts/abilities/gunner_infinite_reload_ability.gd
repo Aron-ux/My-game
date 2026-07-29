@@ -152,9 +152,12 @@ func apply_save_data(data: Dictionary) -> void:
 	_cleanup_effects()
 
 func _trigger_tick(owner) -> void:
-	var aim_direction: Vector2 = owner._get_live_mouse_aim_direction(locked_aim_direction)
+	var axis_talent: bool = _has_talent(owner, "gunner_infinite_axis")
+	var dual_talent: bool = _has_talent(owner, "gunner_infinite_dual")
+	var aim_direction: Vector2 = locked_aim_direction if axis_talent else owner._get_live_mouse_aim_direction(locked_aim_direction)
 	if aim_direction.length_squared() <= 0.001:
 		aim_direction = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
+	aim_direction = aim_direction.normalized()
 	owner.facing_direction = aim_direction
 	var range_multiplier: float = _get_range_multiplier(owner) * float(owner._get_role_attribute_range_multiplier("gunner")) * owner._get_equipment_skill_range_multiplier()
 	var beam_length: float = (BEAM_LENGTH + PLAYER_BUILD_SYSTEM.get_infinite_reload_range_bonus(owner)) * range_multiplier
@@ -162,14 +165,47 @@ func _trigger_tick(owner) -> void:
 	var base_origin: Vector2 = owner.global_position + aim_direction * 20.0
 	var damage_amount: float = float(owner._get_role_damage("gunner")) * BASE_DAMAGE_RATIO * _get_damage_multiplier(owner)
 	var combo_scales: Array[float] = _get_combo_scales(owner)
-	_spawn_visuals(owner, base_origin, aim_direction, beam_length, hit_width)
-	for combo_scale in combo_scales:
-		var offset_origin: Vector2 = _get_random_origin_in_hit_width(owner, base_origin, aim_direction, hit_width)
-		_spawn_visuals(owner, offset_origin, aim_direction, beam_length, hit_width)
 	var damage_scale: float = _get_combined_damage_scale(combo_scales)
-	var hit_count: int = _apply_piercing_beam_damage(owner, base_origin, aim_direction, beam_length, hit_width * 2.0, damage_amount * damage_scale)
+	if axis_talent:
+		beam_length *= 1.25
+		hit_width *= 0.55
+		damage_amount *= 1.55
+	var hit_count: int = 0
+	if dual_talent:
+		hit_count = _trigger_dual_beams(owner, base_origin, aim_direction, beam_length, hit_width, damage_amount * damage_scale)
+	else:
+		_spawn_visuals(owner, base_origin, aim_direction, beam_length, hit_width)
+		for combo_scale in combo_scales:
+			var offset_origin: Vector2 = _get_random_origin_in_hit_width(owner, base_origin, aim_direction, hit_width)
+			_spawn_visuals(owner, offset_origin, aim_direction, beam_length, hit_width)
+		hit_count = _apply_piercing_beam_damage(owner, base_origin, aim_direction, beam_length, hit_width * 2.0, damage_amount * damage_scale)
 	if hit_count > 0 and not _uses_batched_damage(owner):
 		owner._register_attack_result("gunner", hit_count, false)
+
+
+func _trigger_dual_beams(owner, base_origin: Vector2, aim_direction: Vector2, beam_length: float, hit_width: float, damage_amount: float) -> int:
+	var perpendicular := aim_direction.orthogonal().normalized()
+	var original_damage_width: float = hit_width * 2.0
+	var lane_offset: float = original_damage_width * 0.35
+	var shapes: Array[Dictionary] = []
+	for side in [-1.0, 1.0]:
+		var lane_origin: Vector2 = base_origin + perpendicular * lane_offset * side
+		_spawn_visuals(owner, lane_origin, aim_direction, beam_length, hit_width * 0.65)
+		shapes.append({
+			"type": "oriented_rect",
+			"center": lane_origin + aim_direction * (beam_length * 0.5),
+			"axis": aim_direction,
+			"length": beam_length,
+			"width": original_damage_width * 0.65,
+			"damage_amount": damage_amount * 0.60,
+			"vulnerability_bonus": 0.0,
+			"vulnerability_duration": 2.0,
+			"slow_multiplier": 1.0,
+			"slow_duration": 0.0,
+			"source_position": lane_origin,
+			"source_role_id": "gunner"
+		})
+	return _apply_piercing_beam_shapes(owner, shapes)
 
 func _apply_piercing_beam_damage(owner, base_origin: Vector2, aim_direction: Vector2, beam_length: float, hit_width: float, damage_amount: float) -> int:
 	var hit_center: Vector2 = base_origin + aim_direction * (beam_length * 0.5)
@@ -341,6 +377,10 @@ func _get_combined_damage_scale(combo_scales: Array[float]) -> float:
 	for combo_scale in combo_scales:
 		damage_scale += max(0.0, float(combo_scale))
 	return damage_scale
+
+
+func _has_talent(owner, talent_id: String) -> bool:
+	return owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id))
 
 func _uses_batched_damage(owner) -> bool:
 	return owner != null and owner.has_method("_damage_enemies_in_shapes_batched")

@@ -18,7 +18,6 @@ const MAGIC_STONE_KING := "king"
 const MAGIC_STONE_KEBIRU := "kebiru"
 const MAGIC_STONE_INVOKER := "invoker"
 const MAX_BLESSING_TIER := 4
-const MANUAL_COMPOSE_TIER_ONE_LEVEL := 3
 const MAX_BLESSING_COUNT_PER_TIER := 6
 const TIER_LIMITS := {1: 6, 2: 3, 3: 2, 4: 1}
 const TIER_WEIGHT_LEVEL_1_TO_6 := {1: 100}
@@ -841,32 +840,6 @@ static func get_blessing_level_summary(owner, role_id: String = "") -> Dictionar
 	return summary
 
 
-static func can_compose_role_blessing(owner, _role_id: String, blessing_id: String) -> bool:
-	var definition: Dictionary = DEFINITIONS.get(blessing_id, {})
-	if str(definition.get("binding", ROLE_BOUND)) != ROLE_BOUND:
-		return false
-	return _can_compose_from_available(owner, blessing_id)
-
-
-static func can_compose_skill_blessing(owner, blessing_id: String) -> bool:
-	var definition: Dictionary = DEFINITIONS.get(blessing_id, {})
-	if str(definition.get("binding", ROLE_BOUND)) != SKILL_BOUND:
-		return false
-	return _can_compose_from_available(owner, blessing_id)
-
-
-static func compose_role_blessing(owner, role_id: String, blessing_id: String) -> bool:
-	if not can_compose_role_blessing(owner, role_id, blessing_id):
-		return false
-	return _compose_blessing(owner, blessing_id, ROLE_BOUND)
-
-
-static func compose_skill_blessing(owner, blessing_id: String) -> bool:
-	if not can_compose_skill_blessing(owner, blessing_id):
-		return false
-	return _compose_blessing(owner, blessing_id, SKILL_BOUND)
-
-
 static func get_greed_heal_ratio(owner) -> float:
 	return get_greed_current_health_heal_ratio(owner)
 
@@ -1425,40 +1398,6 @@ static func _normalize_binding_levels(value: Variant) -> Dictionary:
 		if not levels.is_empty():
 			result[blessing_id] = levels
 	return result
-
-
-static func _can_compose_from_available(owner, blessing_id: String) -> bool:
-	if not DEFINITIONS.has(blessing_id):
-		return false
-	return _get_available_blessing_count(owner, blessing_id, 1) >= MANUAL_COMPOSE_TIER_ONE_LEVEL
-
-
-static func _compose_blessing(owner, blessing_id: String, binding: String) -> bool:
-	var levels: Dictionary = _get_skill_levels(owner) if binding == SKILL_BOUND else _get_shared_role_levels(owner)
-	var blessing_levels: Dictionary = (levels.get(blessing_id, {}) as Dictionary).duplicate(true)
-	blessing_levels[1] = max(0, int(blessing_levels.get(1, 0)) - MANUAL_COMPOSE_TIER_ONE_LEVEL)
-	blessing_levels[2] = int(blessing_levels.get(2, 0)) + 1
-	levels[blessing_id] = blessing_levels
-	if binding == SKILL_BOUND:
-		owner.skill_blessing_levels = levels
-	else:
-		_set_shared_role_levels(owner, levels)
-	if owner.has_method("_refresh_blessing_skill_unlocks"):
-		owner._refresh_blessing_skill_unlocks()
-	return true
-
-
-static func _get_blessing_count(owner, blessing_id: String, tier: int) -> int:
-	if owner == null or not DEFINITIONS.has(blessing_id):
-		return 0
-	var definition: Dictionary = DEFINITIONS.get(blessing_id, {})
-	var binding: String = str(definition.get("binding", ROLE_BOUND))
-	var levels := _get_skill_levels(owner) if binding == SKILL_BOUND else _get_shared_role_levels(owner)
-	return int((levels.get(blessing_id, {}) as Dictionary).get(tier, 0))
-
-
-static func _get_available_blessing_count(owner, blessing_id: String, tier: int) -> int:
-	return _get_blessing_count(owner, blessing_id, tier)
 
 
 static func _get_tier_limit(tier: int) -> int:

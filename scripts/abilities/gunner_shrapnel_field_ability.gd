@@ -63,6 +63,9 @@ func update(owner, delta: float) -> void:
 	if owner == null or not is_instance_valid(owner):
 		stop()
 		return
+	if bool(owner.get("is_dead")):
+		stop(owner)
+		return
 	if str(owner._get_active_role().get("id", "")) != "gunner":
 		stop(owner)
 		return
@@ -88,10 +91,25 @@ func try_trigger(owner) -> bool:
 	active_fields.clear()
 	var duration: float = _get_duration(owner)
 	var extra_field_count: int = _get_trick_extra_field_count(owner)
-	var centers: Array = _get_field_centers(owner, DEFAULT_FIELD_COUNT + extra_field_count)
-	for center_value in centers:
+	var mobile: bool = _has_talent(owner, "gunner_shrapnel_mobile")
+	var base_field_count: int = 1 if mobile else DEFAULT_FIELD_COUNT
+	var centers: Array = _get_field_centers(owner, base_field_count + extra_field_count)
+	if mobile and not centers.is_empty():
+		centers[0] = owner.global_position
+	for index in range(centers.size()):
+		var center_value: Variant = centers[index]
 		var center: Vector2 = center_value if center_value is Vector2 else owner.global_position
-		_create_field(owner, center, 1.0, true, duration)
+		var is_primary: bool = index < base_field_count
+		_create_field(
+			owner,
+			center,
+			1.5 if mobile and is_primary else 1.0,
+			true,
+			duration,
+			mobile and is_primary,
+			is_primary and _has_talent(owner, "gunner_shrapnel_delayed"),
+			1.2 if mobile and is_primary else 1.0
+		)
 	owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -66.0), "\u6563\u5f39", Color(1.0, 0.62, 0.32, 1.0))
 	return true
 
@@ -178,10 +196,17 @@ func _update_fields(owner, delta: float) -> void:
 		var remaining: float = max(0.0, float(field_data.get("remaining", 0.0)) - delta)
 		field_data["remaining"] = remaining
 		if remaining <= 0.0:
+			if bool(field_data.get("delayed_explosion", false)):
+				hits += _explode_field(owner, field_data)
 			_spawn_reprise_fields_on_end(owner, field_data)
 			_free_field(field_data)
 			active_fields.remove_at(index)
 			continue
+		if bool(field_data.get("follows_owner", false)):
+			field_data["center"] = owner.global_position
+			var root: Node2D = field_data.get("root", null) as Node2D
+			if root != null and is_instance_valid(root):
+				root.global_position = owner.global_position
 		field_data["tick_remaining"] = float(field_data.get("tick_remaining", 0.0)) - delta
 		var catch_up_ticks: int = 0
 		while float(field_data.get("tick_remaining", 0.0)) <= 0.0 and catch_up_ticks < MAX_CATCH_UP_TICKS:
@@ -196,11 +221,11 @@ func _update_fields(owner, delta: float) -> void:
 		owner._register_attack_result("gunner", hits, false)
 
 
-func _create_field(owner, center: Vector2, effect_scale: float = 1.0, spawn_reprise_on_end: bool = false, duration_override: float = -1.0) -> void:
+func _create_field(owner, center: Vector2, effect_scale: float = 1.0, spawn_reprise_on_end: bool = false, duration_override: float = -1.0, follows_owner: bool = false, delayed_explosion: bool = false, radius_scale: float = 1.0) -> void:
 	var current_scene: Node = owner.get_tree().current_scene
 	if current_scene == null:
 		return
-	var radius: float = _get_radius(owner)
+	var radius: float = _get_radius(owner) * max(0.05, radius_scale)
 	var safe_scale: float = max(0.05, effect_scale)
 	var root: Node2D = null
 	root = Node2D.new()
@@ -229,7 +254,9 @@ func _create_field(owner, center: Vector2, effect_scale: float = 1.0, spawn_repr
 		"radius": radius,
 		"effect_scale": safe_scale,
 		"spawn_reprise_on_end": spawn_reprise_on_end,
-		"is_primary_cast": spawn_reprise_on_end
+		"is_primary_cast": spawn_reprise_on_end,
+		"follows_owner": follows_owner,
+		"delayed_explosion": delayed_explosion
 	}
 	active_fields.append(field_data)
 
@@ -241,12 +268,24 @@ func _damage_field(owner, field_data: Dictionary) -> int:
 	return owner._damage_enemies_in_radius(center, radius, _get_damage(owner) * effect_scale, 0.0, _get_slow_multiplier(owner), 1.2, SHRAPNEL_DAMAGE_SOURCE_ROLE_ID)
 
 
+func _explode_field(owner, field_data: Dictionary) -> int:
+	var center: Vector2 = field_data.get("center", owner.global_position)
+	var radius: float = float(field_data.get("radius", _get_radius(owner)))
+	var effect_scale: float = max(0.0, float(field_data.get("effect_scale", 1.0)))
+	owner._spawn_burst_effect(center, radius, Color(1.0, 0.5, 0.24, 0.22), 0.18)
+	return owner._damage_enemies_in_radius(center, radius, _get_damage(owner) * effect_scale * 2.5, 0.0, _get_slow_multiplier(owner), 1.2, SHRAPNEL_DAMAGE_SOURCE_ROLE_ID)
+
+
 func _spawn_reprise_fields_on_end(owner, field_data: Dictionary) -> void:
 	if not bool(field_data.get("spawn_reprise_on_end", false)):
 		return
 	for combo_scale in _get_reprise_field_scales(owner):
 		var center: Vector2 = field_data.get("center", owner.global_position)
 		_create_field(owner, center, float(combo_scale), false, REPRISE_FIELD_DURATION)
+
+
+func _has_talent(owner, talent_id: String) -> bool:
+	return owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id))
 
 
 func _spawn_shrapnel_visual_if_room(field_data: Dictionary) -> void:

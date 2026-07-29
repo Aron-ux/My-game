@@ -3,8 +3,11 @@ extends RefCounted
 const ENEMY_ARCHETYPE_DATABASE := preload("res://scripts/enemy/enemy_archetype_database.gd")
 const PLAYER_BLESSING_SYSTEM := preload("res://scripts/player/player_blessing_system.gd")
 const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
+const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_talent_system.gd")
 
 const ALL_BLESSINGS_OPTION_ID := "__all_blessings__"
+const SKILL_TALENT_OPTION_PREFIX := "skill_talent:"
+const CLEAR_SKILL_TALENTS_OPTION_ID := "__clear_skill_talents__"
 
 
 static func get_boss_options() -> Array:
@@ -35,6 +38,32 @@ static func get_skill_options(player) -> Array:
 				"description": "开发者模式：解锁或升到%s。归属角色：%s；当前阶级：%s。" % [_get_tier_suffix(tier), role_id, _get_tier_suffix(current_tier)],
 				"enabled": true
 			})
+	options.append({
+		"id": SKILL_TALENT_OPTION_PREFIX + CLEAR_SKILL_TALENTS_OPTION_ID,
+		"title": "重置全部质变选择",
+		"description": "开发者模式：清空三名角色已选质变并保留构筑等级；已达到 Lv.3 的技能会重新进入待选队列。",
+		"enabled": true
+	})
+	for role_id in ["swordsman", "gunner", "mage"]:
+		for progress_id in PLAYER_SKILL_TALENT_SYSTEM.ROLE_PROGRESS_ORDER.get(role_id, []):
+			var level: int = PLAYER_SKILL_TALENT_SYSTEM.get_skill_progress_level(player, role_id, progress_id) if player != null else 0
+			var selected_id: String = PLAYER_SKILL_TALENT_SYSTEM.get_selected_talent(player, role_id, progress_id) if player != null else ""
+			for talent_value in PLAYER_SKILL_TALENT_SYSTEM.TALENT_DEFINITIONS.get(progress_id, []):
+				var talent: Dictionary = talent_value
+				var talent_id := str(talent.get("id", ""))
+				options.append({
+					"id": SKILL_TALENT_OPTION_PREFIX + talent_id,
+					"title": "%s · %s%s" % [
+						str(PLAYER_SKILL_TALENT_SYSTEM.PROGRESS_TITLES.get(progress_id, progress_id)),
+						str(talent.get("title", talent_id)),
+						"（已选）" if selected_id == talent_id else ""
+					],
+					"description": "开发者模式：自动解锁并补到构筑 Lv.3，随后选择或替换该质变。\n当前构筑：Lv.%d\n%s" % [
+						level,
+						str(talent.get("description", ""))
+					],
+					"enabled": true
+				})
 	return options
 
 

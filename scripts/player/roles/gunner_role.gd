@@ -54,6 +54,16 @@ func perform_attack(owner) -> void:
 		return
 	var base_direction: Vector2 = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
 	var combo_scales := _get_skill_effect_scales(owner, "combo_skill_extra")
+	if _has_talent(owner, "gunner_basic_burst"):
+		_perform_combo_segment(owner, base_direction, 0.42, true, true, combo_scales)
+		owner._schedule_repeating_sequence(0.07, 2, func(index: int) -> void:
+			if owner != null and is_instance_valid(owner) and not bool(owner.get("is_dead")):
+				_perform_attack_variant(owner, base_direction, 0.42, false, false)
+		, 0.07)
+		return
+	if owner.gunner_attack_chain == 3 and _has_talent(owner, "gunner_basic_armor"):
+		_perform_attack_variant(owner, base_direction, 1.0, true, true)
+		return
 	_perform_combo_segment(owner, base_direction, 1.0, true, true, combo_scales)
 
 func _perform_combo_segment(owner, base_direction: Vector2, combo_scale: float, allow_trick_variants: bool = true, spawn_aftershock: bool = true, reprise_scales: Array[float] = []) -> void:
@@ -79,7 +89,15 @@ func _perform_attack_variant(owner, shot_direction: Vector2, effect_scale: float
 	if owner._get_gunner_barrage_shotgun_wave_count(barrage_attribute_level) > 0:
 		_spawn_barrage_shotgun(owner, shot_direction, main_damage, bullet_color, role_data, upgrade_data, focus_level, barrage_attribute_level)
 	else:
-		if not _spawn_primary_batched_bullet_group(owner, shot_direction, main_damage, bullet_color, role_data, upgrade_data, focus_level, owner.global_position + shot_direction * 18.0, reprise_scales):
+		var main_overrides: Dictionary = {}
+		if advance_chain and owner.gunner_attack_chain == 3 and _has_talent(owner, "gunner_basic_armor"):
+			main_overrides = {
+				"damage_multiplier": 2.0,
+				"hit_radius_multiplier": 1.4,
+				"speed_multiplier": 0.85,
+				"pierce_bonus": 4
+			}
+		if not _spawn_primary_batched_bullet_group(owner, shot_direction, main_damage, bullet_color, role_data, upgrade_data, focus_level, owner.global_position + shot_direction * 18.0, reprise_scales, main_overrides):
 			return
 
 	if advance_chain:
@@ -142,12 +160,13 @@ func _spawn_barrage_shotgun(owner, shot_direction: Vector2, main_damage: float, 
 			})
 
 func _spawn_primary_batched_bullet(owner, shot_direction: Vector2, damage_amount: float, bullet_color: Color, role_data: Dictionary, upgrade_data: Dictionary, focus_level: int, origin: Vector2, overrides: Dictionary = {}) -> bool:
-	var hit_radius: float = 14.0 + float(overrides.get("hit_radius_bonus", 0.0))
+	damage_amount *= float(overrides.get("damage_multiplier", 1.0))
+	var hit_radius: float = (14.0 + float(overrides.get("hit_radius_bonus", 0.0))) * float(overrides.get("hit_radius_multiplier", 1.0))
 	if focus_level > 0:
 		hit_radius += 1.5 * focus_level
-	var bullet_speed: float = _get_basic_bullet_speed(owner, role_data, focus_level)
+	var bullet_speed: float = _get_basic_bullet_speed(owner, role_data, focus_level) * float(overrides.get("speed_multiplier", 1.0))
 	var lifetime: float = float(overrides.get("lifetime", _get_basic_bullet_lifetime(owner, bullet_speed)))
-	var pierce_count: int = int(round(float(upgrade_data["range_bonus"]) / 40.0)) + focus_level
+	var pierce_count: int = int(round(float(upgrade_data["range_bonus"]) / 40.0)) + focus_level + int(overrides.get("pierce_bonus", 0))
 	return owner._spawn_batched_directional_bullet_values(
 		shot_direction,
 		damage_amount,
@@ -171,7 +190,7 @@ func _spawn_primary_batched_bullet(owner, shot_direction: Vector2, damage_amount
 		pierce_count
 	)
 
-func _spawn_primary_batched_bullet_group(owner, shot_direction: Vector2, damage_amount: float, bullet_color: Color, role_data: Dictionary, upgrade_data: Dictionary, focus_level: int, origin: Vector2, reprise_scales: Array[float]) -> bool:
+func _spawn_primary_batched_bullet_group(owner, shot_direction: Vector2, damage_amount: float, bullet_color: Color, role_data: Dictionary, upgrade_data: Dictionary, focus_level: int, origin: Vector2, reprise_scales: Array[float], main_overrides: Dictionary = {}) -> bool:
 	var side_axis := Vector2(-shot_direction.y, shot_direction.x)
 	var total_count := 1 + reprise_scales.size()
 	var center_offset := (float(total_count) - 1.0) * 0.5
@@ -181,7 +200,8 @@ func _spawn_primary_batched_bullet_group(owner, shot_direction: Vector2, damage_
 		if index > 0:
 			scale = float(reprise_scales[index - 1])
 		var bullet_origin := origin + side_axis * ((float(index) - center_offset) * GUNNER_REPRISE_BULLET_SIDE_OFFSET)
-		spawned = _spawn_primary_batched_bullet(owner, shot_direction, damage_amount * max(0.0, scale), bullet_color, role_data, upgrade_data, focus_level, bullet_origin) or spawned
+		var overrides: Dictionary = main_overrides if index == 0 else {}
+		spawned = _spawn_primary_batched_bullet(owner, shot_direction, damage_amount * max(0.0, scale), bullet_color, role_data, upgrade_data, focus_level, bullet_origin, overrides) or spawned
 	return spawned
 
 func _configure_primary_bullet(owner, bullet, role_data: Dictionary, upgrade_data: Dictionary, focus_level: int) -> void:
@@ -245,11 +265,13 @@ func perform_background(owner) -> void:
 func perform_enter(owner, role_id: String, _assault_level: int, assault_multiplier: float) -> int:
 	owner._show_switch_banner("\u8FDB\u573A", "\u67AA\u706B\u5178\u793C", Color(1.0, 0.58, 0.36, 1.0))
 	owner._fire_gunner_entry_wave(role_id, 0, assault_multiplier)
-	var wave_count := 3
+	var denial_talent: bool = _has_talent(owner, "gunner_entry_denial")
+	var wave_count := 2 if denial_talent else 3
+	var wave_interval := 0.12 if denial_talent else 0.08
 	if owner.has_method("_schedule_repeating_sequence") and wave_count > 1:
-		owner._schedule_repeating_sequence(0.08, wave_count - 1, func(index: int) -> void:
+		owner._schedule_repeating_sequence(wave_interval, wave_count - 1, func(index: int) -> void:
 			owner._fire_gunner_entry_wave(role_id, index + 1, assault_multiplier)
-		, 0.08)
+		, wave_interval)
 	return 8
 
 func perform_exit(owner, role_id: String, rearguard_level: int) -> int:
@@ -267,6 +289,10 @@ func perform_ultimate(owner, cast_payload: Dictionary) -> void:
 	var scatter_level: int = 0
 	var ultimate_tier: int = _get_ultimate_skill_tier(owner)
 	var cone_degrees: float = _get_ultimate_cone_degrees(ultimate_tier)
+	if _has_talent(owner, "gunner_ultimate_line"):
+		cone_degrees *= 0.4
+	elif _has_talent(owner, "gunner_ultimate_fan"):
+		cone_degrees = min(140.0, cone_degrees * 2.4)
 	var total_duration: float = ULTIMATE_DURATION
 	if owner.has_method("_get_blessing_skill_duration_multiplier"):
 		total_duration *= float(owner._get_blessing_skill_duration_multiplier(ULTIMATE_SKILL_ID))
@@ -282,6 +308,10 @@ func perform_ultimate(owner, cast_payload: Dictionary) -> void:
 	var tick_interval: float = total_duration / float(max(1, tick_count))
 	var damage_wave_multiplier: float = float(old_tick_count) / float(max(1, base_tick_count))
 	var cast_damage_multiplier: float = float(cast_payload.get("damage_multiplier", 1.0)) * _get_ultimate_damage_multiplier(owner)
+	if _has_talent(owner, "gunner_ultimate_line"):
+		cast_damage_multiplier *= 1.55
+	elif _has_talent(owner, "gunner_ultimate_fan"):
+		cast_damage_multiplier *= 0.70
 	var visual_interval: float = _get_ultimate_visual_interval()
 	var visual_count: int = max(1, int(ceil(total_duration / visual_interval)))
 	owner._queue_camera_shake(17.5, 0.54)
@@ -406,7 +436,14 @@ func _get_ultimate_cone_range(owner) -> float:
 	var role_range_multiplier: float = owner._get_role_attribute_range_multiplier("gunner") * owner._get_role_equipment_skill_range_multiplier("gunner")
 	base_range *= role_range_multiplier
 	base_range *= role_range_multiplier
+	if _has_talent(owner, "gunner_ultimate_line"):
+		base_range *= 1.3
+	elif _has_talent(owner, "gunner_ultimate_fan"):
+		base_range *= 0.85
 	return max(220.0, base_range)
+
+func _has_talent(owner, talent_id: String) -> bool:
+	return owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id))
 
 func _get_ultimate_skill_tier(owner) -> int:
 	if owner != null and owner.has_method("_get_blessing_skill_tier"):

@@ -27,10 +27,13 @@ const DAMAGE_RATIO_BONUS_PER_TIER := 0.02
 const FIELD_SIZE_MULTIPLIER := 0.70
 const TICK_INTERVAL := 0.5
 const MAX_CATCH_UP_TICKS := 4
+const TRANSFER_DURATION := 4.0
+const COLLAPSE_COOLDOWN := 8.0
 
 var cooldown_remaining: float = 0.0
 var active_remaining: float = 0.0
 var tick_remaining: float = 0.0
+var transferred_role_id: String = ""
 var effect: Node2D
 var effect_pool: Array[Node2D] = []
 
@@ -43,11 +46,22 @@ func update(owner, delta: float) -> void:
 	if owner == null or not is_instance_valid(owner):
 		stop()
 		return
-	if str(owner._get_active_role().get("id", "")) != "mage":
-		stop(owner)
-		return
+	var active_role_id := str(owner._get_active_role().get("id", ""))
+	if active_role_id != "mage":
+		if transferred_role_id.is_empty() and _has_talent(owner, "mage_meta_transfer"):
+			transferred_role_id = active_role_id
+			active_remaining = TRANSFER_DURATION
+		elif transferred_role_id.is_empty() and _has_talent(owner, "mage_meta_collapse"):
+			_trigger_collapse(owner)
+			return
+		elif active_role_id != transferred_role_id:
+			stop(owner)
+			return
 
-	active_remaining = PERMANENT_ACTIVE_REMAINING
+	if transferred_role_id.is_empty():
+		active_remaining = PERMANENT_ACTIVE_REMAINING
+	else:
+		active_remaining = max(0.0, active_remaining - delta)
 	tick_remaining -= delta
 	_update_effect(owner)
 	var catch_up_ticks: int = 0
@@ -77,6 +91,7 @@ func try_trigger(owner) -> bool:
 	if not can_trigger(owner, str(owner._get_active_role().get("id", ""))):
 		return false
 	active_remaining = _get_duration(owner)
+	transferred_role_id = ""
 	cooldown_remaining = _get_cooldown(owner)
 	tick_remaining = 0.0
 	_ensure_effect(owner)
@@ -87,13 +102,14 @@ func try_trigger(owner) -> bool:
 func stop(owner = null) -> void:
 	active_remaining = 0.0
 	tick_remaining = 0.0
+	transferred_role_id = ""
 	if effect != null and is_instance_valid(effect):
 		_release_effect(effect)
 	effect = null
 
 
 func get_cooldown_slot(owner = null) -> Dictionary:
-	var duration: float = _get_cooldown(owner)
+	var duration: float = COLLAPSE_COOLDOWN if _has_talent(owner, "mage_meta_collapse") else _get_cooldown(owner)
 	return {
 		"name": "\u6885\u5854\u9886\u57df",
 		"remaining": clamp(cooldown_remaining, 0.0, duration),
@@ -107,13 +123,15 @@ func get_save_data() -> Dictionary:
 	return {
 		"cooldown_remaining": cooldown_remaining,
 		"active_remaining": active_remaining,
-		"tick_remaining": tick_remaining
+		"tick_remaining": tick_remaining,
+		"transferred_role_id": transferred_role_id
 	}
 
 
 func apply_save_data(data: Dictionary) -> void:
-	cooldown_remaining = clamp(float(data.get("cooldown_remaining", 0.0)), 0.0, COOLDOWN)
-	active_remaining = PERMANENT_ACTIVE_REMAINING if float(data.get("active_remaining", 0.0)) > 0.0 else 0.0
+	cooldown_remaining = clamp(float(data.get("cooldown_remaining", 0.0)), 0.0, COLLAPSE_COOLDOWN)
+	transferred_role_id = str(data.get("transferred_role_id", ""))
+	active_remaining = clamp(float(data.get("active_remaining", 0.0)), 0.0, TRANSFER_DURATION) if not transferred_role_id.is_empty() else (PERMANENT_ACTIVE_REMAINING if float(data.get("active_remaining", 0.0)) > 0.0 else 0.0)
 	tick_remaining = clamp(float(data.get("tick_remaining", 0.0)), 0.0, TICK_INTERVAL)
 
 
@@ -123,13 +141,13 @@ func restore_effect_if_active(owner) -> void:
 
 
 func get_damage_taken_multiplier(owner) -> float:
-	if active_remaining <= 0.0:
+	if active_remaining <= 0.0 or not transferred_role_id.is_empty():
 		return 1.0
 	return 1.0 - _get_damage_reduction(owner)
 
 
 func get_damage_reduction_value(owner) -> float:
-	if active_remaining <= 0.0:
+	if active_remaining <= 0.0 or not transferred_role_id.is_empty():
 		return 0.0
 	return _get_damage_reduction_value(owner)
 
@@ -152,6 +170,18 @@ func _trigger_tick(owner) -> void:
 		))
 	if hits > 0 and not _uses_batched_damage(owner):
 		owner._register_attack_result("mage", hits, false)
+
+func _trigger_collapse(owner) -> void:
+	var center: Vector2 = owner.global_position
+	var radius: float = _get_radius(owner)
+	var damage: float = _get_damage(owner) * 2.0
+	var slow: float = _get_slow_multiplier(owner)
+	if owner.has_method("_damage_enemies_in_radius_suppressing_status_visuals"):
+		owner._damage_enemies_in_radius_suppressing_status_visuals(center, radius, damage, 0.0, slow, 2.0, "mage")
+	else:
+		owner._damage_enemies_in_radius(center, radius, damage, 0.0, slow, 2.0, "mage")
+	cooldown_remaining = COLLAPSE_COOLDOWN
+	stop(owner)
 
 
 
@@ -265,9 +295,12 @@ func _get_radius(owner) -> float:
 		range_multiplier *= float(owner._get_invoker_magic_range_multiplier(SKILL_ID))
 	base_radius *= 1.0 + float(_get_tier_bonus_level(owner)) * RADIUS_BONUS_PER_TIER
 	var build_radius_multiplier: float = PLAYER_BUILD_SYSTEM.get_meta_field_radius_multiplier(owner)
-	if tier <= 1:
-		return base_radius * range_multiplier * build_radius_multiplier
-	return base_radius * range_multiplier * FIELD_SIZE_MULTIPLIER * build_radius_multiplier
+	var radius: float = base_radius * range_multiplier * build_radius_multiplier
+	if tier > 1:
+		radius *= FIELD_SIZE_MULTIPLIER
+	if not transferred_role_id.is_empty():
+		radius *= 0.75
+	return radius
 
 
 func _get_visual_scale(owner) -> float:
@@ -283,6 +316,8 @@ func _get_slow_multiplier(owner) -> float:
 		base_multiplier = TIER_TWO_SLOW
 	var slow_effect: float = 1.0 - base_multiplier
 	slow_effect = clamp(slow_effect + float(_get_tier_bonus_level(owner)) * SLOW_EFFECT_BONUS_PER_TIER + PLAYER_BUILD_SYSTEM.get_meta_field_slow_bonus(owner), 0.0, 0.95)
+	if not transferred_role_id.is_empty():
+		slow_effect *= 0.50
 	return 1.0 - slow_effect
 
 
@@ -314,4 +349,9 @@ func _get_damage(owner) -> float:
 		ratio = TIER_TWO_DAMAGE_RATIO
 	ratio += float(_get_tier_bonus_level(owner)) * DAMAGE_RATIO_BONUS_PER_TIER
 	ratio += PLAYER_BUILD_SYSTEM.get_meta_field_damage_ratio_bonus(owner)
+	if not transferred_role_id.is_empty():
+		ratio *= 0.50
 	return float(owner._get_role_damage("mage")) * ratio
+
+func _has_talent(owner, talent_id: String) -> bool:
+	return owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id))

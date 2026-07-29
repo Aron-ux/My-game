@@ -30,7 +30,7 @@ func _run() -> void:
 	_check_global_skill_blessings()
 	_check_kingdom_trick_scope()
 	_check_nonlinear_stats()
-	_check_manual_compose_keeps_legacy_entry_points()
+	_check_legacy_skill_blessing_storage()
 	_check_developer_blessing_options_count_shared_blessings()
 	if failures.is_empty():
 		print("PLAYER_BLESSING_SYSTEM_SMOKE_OK")
@@ -520,16 +520,8 @@ func _check_nonlinear_stats() -> void:
 		failures.append("phantom should stack linearly")
 
 
-func _check_manual_compose_keeps_legacy_entry_points() -> void:
+func _check_legacy_skill_blessing_storage() -> void:
 	var owner := _OwnerStub.new()
-	owner.role_blessing_levels["swordsman"]["divine_grace"] = {1: 3}
-	if not PlayerBlessingSystem.can_compose_role_blessing(owner, "swordsman", "divine_grace"):
-		failures.append("role blessing compose entry point should still work")
-	if not PlayerBlessingSystem.compose_role_blessing(owner, "swordsman", "divine_grace"):
-		failures.append("role blessing compose should succeed")
-	var levels: Dictionary = owner.role_blessing_levels["swordsman"]["divine_grace"]
-	if int(levels.get(1, 0)) != 0 or int(levels.get(2, 0)) != 1:
-		failures.append("compose should consume three tier I and add one tier II, got %s" % str(levels))
 	PlayerBlessingSystem.apply_option(owner, "blessing:reprise:1")
 	if int((owner.skill_blessing_levels.get("reprise", {}) as Dictionary).get(1, 0)) != 1:
 		failures.append("legacy skill blessing storage should still work")

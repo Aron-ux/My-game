@@ -9,6 +9,8 @@ const SLASH_LENGTH := 122.0
 const SLASH_WIDTH := 52.0
 const WAVE_LENGTH := 430.0
 const WAVE_WIDTH := 74.0
+const FULL_MOON_WAVE_LENGTH := 280.0
+const FULL_MOON_WAVE_WIDTH := 150.0
 const TIER_TWO_WIDTH_MULTIPLIER := 1.2
 const TIER_TWO_DAMAGE_MULTIPLIER := 1.45
 const TIER_TWO_SPEED_MULTIPLIER := 1.3
@@ -16,6 +18,7 @@ const TIER_THREE_WIDTH_MULTIPLIER := 1.4
 const TIER_THREE_DAMAGE_MULTIPLIER := 1.65
 const TIER_THREE_SPEED_MULTIPLIER := 1.6
 const BASE_WAVE_SPEED := 650.0
+const FULL_MOON_WAVE_SPEED := 500.0
 const COMBO_INTERVAL := 0.16
 const VISUAL_AND_HIT_SCALE := 0.6
 const FAN_SCENE_SIZE := Vector2(1024.0, 1024.0)
@@ -104,8 +107,9 @@ func _cast_once(owner, direction: Vector2, damage_scale: float) -> void:
 	var visual_hit_multiplier: float = width_multiplier * VISUAL_AND_HIT_SCALE
 	var slash_width: float = SLASH_WIDTH * visual_hit_multiplier
 	var slash_length: float = SLASH_LENGTH * visual_hit_multiplier
-	var wave_width: float = WAVE_WIDTH * visual_hit_multiplier
-	var wave_length: float = WAVE_LENGTH * _get_range_multiplier(owner)
+	var full_moon: bool = _has_talent(owner, "swordsman_crescent_full_moon")
+	var wave_width: float = (FULL_MOON_WAVE_WIDTH if full_moon else WAVE_WIDTH) * visual_hit_multiplier
+	var wave_length: float = (FULL_MOON_WAVE_LENGTH if full_moon else WAVE_LENGTH) * _get_range_multiplier(owner)
 	var slash_center: Vector2 = owner.global_position + direction * (slash_length * 0.42)
 	owner._spawn_sword_fan_scene_effect(slash_center, direction, visual_hit_multiplier)
 	var damage_ratio_bonus: float = PLAYER_BUILD_SYSTEM.get_crescent_wave_damage_ratio_bonus(owner)
@@ -134,7 +138,8 @@ func _spawn_crescent_projectile(owner, origin: Vector2, direction: Vector2, leng
 	projectile.scale = Vector2.ONE
 	projectile.set_meta("crescent_projectile_released", false)
 	projectile.set_meta("crescent_projectile_token", spawn_token)
-	_configure_crescent_visual(projectile, visual_scale)
+	var visual_width_multiplier: float = FULL_MOON_WAVE_WIDTH / WAVE_WIDTH if _has_talent(owner, "swordsman_crescent_full_moon") else 1.0
+	_configure_crescent_visual(projectile, visual_scale, visual_width_multiplier)
 	var duration: float = length / max(1.0, _get_wave_speed(owner))
 	active_crescent_projectiles.append({
 		"owner_ref": weakref(owner),
@@ -149,7 +154,8 @@ func _spawn_crescent_projectile(owner, origin: Vector2, direction: Vector2, leng
 		"elapsed": 0.0,
 		"damage_elapsed": 0.0,
 		"last_damage_progress": 0.0,
-		"hit_registry": {}
+		"hit_registry": {},
+		"returned": false
 	})
 
 
@@ -192,6 +198,18 @@ func _update_crescent_projectiles(delta: float) -> void:
 		else:
 			data["damage_elapsed"] = damage_elapsed
 		if elapsed >= duration:
+			if not bool(data.get("returned", false)) and _has_talent(owner, "swordsman_crescent_return"):
+				data["origin"] = current_position
+				data["direction"] = -direction
+				data["damage_amount"] = float(data.get("damage_amount", 0.0)) * 0.60
+				data["elapsed"] = 0.0
+				data["damage_elapsed"] = 0.0
+				data["last_damage_progress"] = 0.0
+				data["hit_registry"] = {}
+				data["returned"] = true
+				projectile.rotation = (-direction).angle() + PI
+				active_crescent_projectiles[index] = data
+				continue
 			_free_projectile(projectile)
 			active_crescent_projectiles.remove_at(index)
 			continue
@@ -199,7 +217,7 @@ func _update_crescent_projectiles(delta: float) -> void:
 		active_crescent_projectiles[index] = data
 
 
-func _configure_crescent_visual(projectile: Node2D, visual_scale: float) -> void:
+func _configure_crescent_visual(projectile: Node2D, visual_scale: float, width_multiplier: float = 1.0) -> void:
 	var sprite: AnimatedSprite2D = projectile.get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
 	if sprite == null:
 		return
@@ -208,6 +226,7 @@ func _configure_crescent_visual(projectile: Node2D, visual_scale: float) -> void
 	sprite.offset = FAN_SCENE_SIZE * 0.5 - (FAN_SCENE_VISIBLE_BOUNDS.position + FAN_SCENE_VISIBLE_BOUNDS.size * 0.5)
 	sprite.modulate = Color.WHITE
 	var target_visible_size: Vector2 = FAN_WAVE_BASE_VISIBLE_SIZE * visual_scale
+	target_visible_size.y *= width_multiplier
 	sprite.scale = Vector2(
 		target_visible_size.x / max(1.0, FAN_SCENE_VISIBLE_BOUNDS.size.x),
 		target_visible_size.y / max(1.0, FAN_SCENE_VISIBLE_BOUNDS.size.y)
@@ -355,12 +374,17 @@ func _get_external_range_multiplier(owner) -> float:
 
 func _get_wave_speed(owner) -> float:
 	var tier: int = _get_tier(owner)
-	var speed: float = BASE_WAVE_SPEED
+	var base_speed: float = FULL_MOON_WAVE_SPEED if _has_talent(owner, "swordsman_crescent_full_moon") else BASE_WAVE_SPEED
+	var speed: float = base_speed
 	if tier >= 3:
-		speed = BASE_WAVE_SPEED * TIER_THREE_SPEED_MULTIPLIER
+		speed = base_speed * TIER_THREE_SPEED_MULTIPLIER
 	elif tier >= 2:
-		speed = BASE_WAVE_SPEED * TIER_TWO_SPEED_MULTIPLIER
+		speed = base_speed * TIER_TWO_SPEED_MULTIPLIER
 	return speed + PLAYER_BUILD_SYSTEM.get_crescent_wave_speed_bonus(owner)
+
+
+func _has_talent(owner, talent_id: String) -> bool:
+	return owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id))
 
 
 func _get_damage(owner) -> float:

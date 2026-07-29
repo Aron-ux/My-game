@@ -32,7 +32,16 @@ func _try_start_bloodthirst(owner, duration: float, heal_multiplier: float) -> b
 func perform_attack(owner) -> void:
 	var base_direction: Vector2 = owner._get_attack_aim_direction(owner.facing_direction)
 	_perform_combo_segment(owner, base_direction, 1.0, true)
+	_apply_basic_talent_followup(owner, base_direction)
 	_schedule_reprise_segments(owner, base_direction)
+
+func _apply_basic_talent_followup(owner, base_direction: Vector2) -> void:
+	if _has_talent(owner, "swordsman_basic_back"):
+		_perform_attack_variant(owner, -base_direction, 0.45, false, false, false)
+	if not _has_talent(owner, "swordsman_basic_cross"):
+		return
+	if owner.swordsman_attack_chain == 0:
+		_perform_attack_variant(owner, base_direction.rotated(PI * 0.5), 0.70, false, false, false)
 
 func _perform_combo_segment(owner, base_direction: Vector2, combo_scale: float, allow_trick_variants: bool = true, allow_followthrough: bool = true) -> void:
 	var total_hits: int = 0
@@ -178,7 +187,35 @@ func perform_enter(owner, role_id: String, _assault_level: int, assault_multipli
 	var hits: int = owner._damage_enemies_in_line(previous_position, scar_end, scar_width, owner._get_role_damage(role_id) * 1.5 * max(0.0, assault_multiplier), 0.1, 1.0, 0.0, role_id)
 	owner._pop_attack_result_context_tag("suppress_greed_heal")
 	owner._pop_attack_result_context_tag("suppress_swordsman_trait_heal")
+	if hits > 0 and _has_talent(owner, "swordsman_entry_long_charge"):
+		owner._schedule_repeating_sequence(0.12, 1, func(_index: int) -> void:
+			_perform_entry_talent_dash(owner, role_id, travel_direction, 120.0, assault_multiplier * 0.70)
+		, 0.12)
+	elif _has_talent(owner, "swordsman_entry_return_guard"):
+		owner._schedule_repeating_sequence(0.18, 1, func(_index: int) -> void:
+			_perform_entry_talent_dash(owner, role_id, travel_direction, 0.0, assault_multiplier * 0.70, previous_position, true)
+		, 0.18)
 	return hits
+
+func _perform_entry_talent_dash(owner, role_id: String, direction: Vector2, distance: float, damage_scale: float, fixed_destination: Vector2 = Vector2.ZERO, use_fixed_destination: bool = false) -> void:
+	if owner == null or not is_instance_valid(owner) or bool(owner.get("is_dead")):
+		return
+	var start_position: Vector2 = owner.global_position
+	var end_position: Vector2 = fixed_destination if use_fixed_destination else start_position + direction * distance
+	owner.global_position = end_position
+	if owner.has_method("_clamp_to_active_map_bounds"):
+		owner._clamp_to_active_map_bounds()
+	end_position = owner.global_position
+	var dash_direction: Vector2 = start_position.direction_to(end_position)
+	if dash_direction.length_squared() <= 0.001:
+		return
+	owner.facing_direction = dash_direction
+	owner._spawn_sword_omnislash_scene_effect(start_position.lerp(end_position, 0.5), dash_direction, start_position.distance_to(end_position), 34.0)
+	owner._push_attack_result_context_tag("suppress_swordsman_trait_heal")
+	owner._push_attack_result_context_tag("suppress_greed_heal")
+	owner._damage_enemies_in_line(start_position, end_position, 32.0, owner._get_role_damage(role_id) * 1.5 * max(0.0, damage_scale), 0.1, 1.0, 0.0, role_id)
+	owner._pop_attack_result_context_tag("suppress_greed_heal")
+	owner._pop_attack_result_context_tag("suppress_swordsman_trait_heal")
 
 func perform_exit(_owner, _role_id: String, _rearguard_level: int) -> int:
 	return 0
@@ -251,6 +288,7 @@ func _execute_ultimate_slash(owner, slash_scales: Array[float], pursuit_level: i
 	var start_position: Vector2 = owner.global_position
 	var cluster_center: Vector2 = owner._get_enemy_cluster_center()
 	var target_enemy: Node2D = _get_ultimate_priority_boss_target(owner, start_position)
+	var king_boss_target: bool = _has_talent(owner, "swordsman_ultimate_king") and target_enemy != null
 	if target_enemy == null:
 		if slash_index == slash_count - 1:
 			target_enemy = owner._get_low_health_enemy()
@@ -299,15 +337,19 @@ func _execute_ultimate_slash(owner, slash_scales: Array[float], pursuit_level: i
 	owner._spawn_sword_omnislash_scene_effect(scar_center, travel_direction, scar_length, scar_width * 1.12)
 
 	var damage_scale: float = ULTIMATE_BASE_SLASH_DAMAGE_SCALE * damage_multiplier * ULTIMATE_GUNNER_ULTIMATE_OUTPUT_RATIO
+	if king_boss_target:
+		damage_scale *= 1.30
 	var line_damage: float = owner._get_role_damage("swordsman") * damage_scale
-	if is_combo_segment:
-		var combo_hits: int = owner._damage_enemies_in_line(start_position, scar_length_end, scar_width, line_damage, 0.08 + pursuit_level * 0.02, 1.0, 0.0, "swordsman")
-		if combo_hits > 0 and not _uses_batched_ultimate_damage(owner):
-			owner._register_attack_result("swordsman", combo_hits, false)
-		return
 	var slash_hits: int = owner._damage_enemies_in_line(start_position, scar_length_end, scar_width, line_damage, 0.08 + pursuit_level * 0.02, 1.0, 0.0, "swordsman")
 	if slash_hits > 0 and not _uses_batched_ultimate_damage(owner):
 		owner._register_attack_result("swordsman", slash_hits, false)
+	if _has_talent(owner, "swordsman_ultimate_blossom"):
+		var blossom_hits: int = owner._damage_enemies_in_radius(scar_length_end, 70.0, line_damage * 0.30, 0.0, 1.0, 0.0, "swordsman")
+		owner._spawn_ring_effect(scar_length_end, 70.0, Color(1.0, 0.72, 0.34, 0.66), 6.0, 0.14)
+		if blossom_hits > 0 and not _uses_batched_ultimate_damage(owner):
+			owner._register_attack_result("swordsman", blossom_hits, false)
+	if is_combo_segment:
+		return
 
 	owner._spawn_ring_effect(end_position, (34.0 + crescent_level * 8.0) * visual_hit_scale, Color(1.0, 0.84, 0.44, 0.76), 5.0, 0.12)
 
@@ -319,9 +361,12 @@ func _get_ultimate_skill_tier(owner) -> int:
 func _get_ultimate_priority_boss_target(owner, origin: Vector2) -> Node2D:
 	if owner == null or not is_instance_valid(owner) or not owner.has_method("_get_priority_boss_target"):
 		return null
-	if randf() > ULTIMATE_BOSS_TARGET_WEIGHT:
+	if not _has_talent(owner, "swordsman_ultimate_king") and randf() > ULTIMATE_BOSS_TARGET_WEIGHT:
 		return null
 	return owner._get_priority_boss_target(origin)
+
+func _has_talent(owner, talent_id: String) -> bool:
+	return owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id))
 
 func _get_ultimate_target_position(owner, target_enemy: Node2D, origin: Vector2) -> Vector2:
 	if target_enemy == null or not is_instance_valid(target_enemy):

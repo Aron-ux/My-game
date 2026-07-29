@@ -32,6 +32,8 @@ var effects: Array[Node2D] = []
 var tornado_effect_pool: Array[Node2D] = []
 var storm_local_positions: Array[Vector2] = []
 var storm_global_centers: Array[Vector2] = []
+var cast_origin: Vector2 = Vector2.ZERO
+var cast_direction: Vector2 = Vector2.RIGHT
 
 func update(owner, delta: float) -> void:
 	if cooldown_remaining > 0.0:
@@ -44,7 +46,7 @@ func update(owner, delta: float) -> void:
 		stop()
 		return
 
-	if str(owner._get_active_role().get("id", "")) != "swordsman":
+	if str(owner._get_active_role().get("id", "")) != "swordsman" and not _has_talent(owner, "swordsman_blade_storm_retain"):
 		stop(owner)
 		return
 
@@ -79,6 +81,8 @@ func try_trigger(owner) -> bool:
 	cooldown_remaining = _get_cooldown(owner)
 	tick_remaining = 0.0
 	ring_visual_tick_index = 0
+	cast_origin = owner.global_position
+	cast_direction = owner.facing_direction.normalized() if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
 	_ensure_effect(owner)
 	owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -66.0), "\u5251\u5203\u98ce\u66b4", Color(0.42, 0.9, 1.0, 1.0))
 	owner._spawn_ring_effect(owner.global_position, _get_radius(owner) * 0.95, Color(0.42, 0.9, 1.0, 0.28), 8.0, 0.2)
@@ -106,13 +110,17 @@ func get_save_data() -> Dictionary:
 	return {
 		"cooldown_remaining": cooldown_remaining,
 		"active_remaining": active_remaining,
-		"tick_remaining": tick_remaining
+		"tick_remaining": tick_remaining,
+		"cast_origin": cast_origin,
+		"cast_direction": cast_direction
 	}
 
 func apply_save_data(data: Dictionary) -> void:
 	cooldown_remaining = clamp(float(data.get("cooldown_remaining", 0.0)), 0.0, COOLDOWN)
 	active_remaining = clamp(float(data.get("active_remaining", 0.0)), 0.0, max(BASE_DURATION, max(TIER_TWO_DURATION, TIER_THREE_DURATION)) + 3.0 * DIELANG_DURATION_BONUS)
 	tick_remaining = clamp(float(data.get("tick_remaining", 0.0)), 0.0, BASE_TICK_INTERVAL)
+	cast_origin = data.get("cast_origin", Vector2.ZERO)
+	cast_direction = data.get("cast_direction", Vector2.RIGHT)
 
 func restore_effect_if_active(owner) -> void:
 	if active_remaining > 0.0:
@@ -121,14 +129,18 @@ func restore_effect_if_active(owner) -> void:
 func _trigger_tick(owner) -> void:
 	var radius: float = _get_radius(owner)
 	var damage_amount: float = _get_damage(owner)
+	if str(owner._get_active_role().get("id", "")) != "swordsman":
+		damage_amount *= 0.70
+	var slow_multiplier: float = 0.70 if _has_talent(owner, "swordsman_blade_storm_stationary") else 1.0
+	var slow_duration: float = 0.40 if slow_multiplier < 1.0 else 0.0
 	var should_spawn_ring_visual := ring_visual_tick_index % RING_VISUAL_EVERY_TICKS == 0
 	ring_visual_tick_index += 1
 	var centers: Array[Vector2] = _get_storm_centers(owner)
 	if owner.has_method("_damage_enemies_in_multiple_radii_batched"):
-		owner._damage_enemies_in_multiple_radii_batched(centers, radius, damage_amount, 0.08, 1.0, 0.0, "swordsman")
+		owner._damage_enemies_in_multiple_radii_batched(centers, radius, damage_amount, 0.08, slow_multiplier, slow_duration, "swordsman")
 	else:
 		for center in centers:
-			owner._damage_enemies_in_radius(center, radius, damage_amount, 0.08, 1.0, 0.0, "swordsman")
+			owner._damage_enemies_in_radius(center, radius, damage_amount, 0.08, slow_multiplier, slow_duration, "swordsman")
 	if should_spawn_ring_visual:
 		for center in centers:
 			owner._spawn_ring_effect(center, radius * 0.88, Color(0.38, 0.86, 1.0, 0.14), 5.0, 0.14)
@@ -199,13 +211,13 @@ func _release_tornado_effect(effect: Node2D) -> void:
 
 func _update_effect(owner, delta: float) -> void:
 	_ensure_effect(owner)
-	var centers: Array[Vector2] = _get_storm_local_positions(owner)
+	var centers: Array[Vector2] = _get_storm_centers(owner)
 	var remain_ratio: float = clamp(active_remaining / max(_get_duration(owner), 0.001), 0.0, 1.0)
 	for index in range(effects.size()):
 		var effect := effects[index] as Node2D
 		if effect == null or not is_instance_valid(effect):
 			continue
-		effect.position = centers[index] if index < centers.size() else Vector2.ZERO
+		effect.position = centers[index] - owner.global_position if index < centers.size() else Vector2.ZERO
 		effect.rotation = wrapf(effect.rotation + ROTATION_SPEED * delta, 0.0, TAU)
 		effect.modulate.a = 0.52 + 0.44 * remain_ratio
 
@@ -273,7 +285,9 @@ func _get_storm_local_positions(owner) -> Array[Vector2]:
 	var extra_count := _get_extra_storm_count(owner)
 	if extra_count <= 0:
 		return storm_local_positions
-	var direction: Vector2 = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
+	var direction: Vector2 = cast_direction if _has_talent(owner, "swordsman_blade_storm_stationary") else owner.facing_direction
+	if direction.length_squared() <= 0.001:
+		direction = Vector2.RIGHT
 	direction = direction.normalized()
 	var side: Vector2 = owner._get_downward_perpendicular(direction).normalized()
 	if side.length_squared() <= 0.001:
@@ -291,9 +305,13 @@ func _get_storm_local_positions(owner) -> Array[Vector2]:
 
 func _get_storm_centers(owner) -> Array[Vector2]:
 	storm_global_centers.clear()
+	var center_origin: Vector2 = cast_origin if _has_talent(owner, "swordsman_blade_storm_stationary") else owner.global_position
 	for local_position in _get_storm_local_positions(owner):
-		storm_global_centers.append(owner.global_position + local_position)
+		storm_global_centers.append(center_origin + local_position)
 	return storm_global_centers
+
+func _has_talent(owner, talent_id: String) -> bool:
+	return owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id))
 
 func _get_cooldown(owner) -> float:
 	var cooldown_multiplier: float = PLAYER_BUILD_SYSTEM.get_blade_storm_cooldown_multiplier(owner)

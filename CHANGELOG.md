@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changed
+- Removed the retired `I x3 -> II x1` blessing composition flow from the blessing system and character panel.
 - Fixed leaving the movement-tutorial role introduction so input is marked handled before the scene switch, avoiding a null viewport script error.
 - Endless camp now includes the CC0 pixel-art NPC `阮狗`: standing in front of it shows the configured interact key, opens a three-line portrait dialogue, pauses camp movement, advances with interact, and closes with `Esc`.
 - GitHub project checks now install a checksum-pinned Godot 4.6.2 binary instead of silently skipping engine validation; project checks import assets before parse and launch both the real main-menu entry and battle scene.
@@ -14,7 +15,7 @@
 - Dense-combat evidence now exercises real projectile hits and gates projectile damage, hit count, pickup value, entity counts, and duplicate ticks across baseline/candidate runs; unused experimental performance flags were removed.
 - Combat HUD layout is now selectable in settings: the legacy centered bottom skill bar is the default, while the newer three-row team status stack remains available as an alternate HUD layout and can be switched from the pause menu.
 - The alternate combat HUD uses a three-row team status stack anchored bottom-left: `Q` previous role, highlighted current role, and `E` next role each keep six fixed skill slots, HP, MP / ultimate energy, and hover details while preserving empty slots for locked skills.
-- Character panel now uses a dark-gold build-archive layout inspired by the selected design reference, with a left role stack, existing player pixel run sprites as role portraits, ornamental frames, central role stats/equipment, right blessing list, and skill recipe details while preserving gift and blessing-composition interactions.
+- Character panel now uses a dark-gold build-archive layout inspired by the selected design reference, with a left role stack, existing player pixel run sprites as role portraits, ornamental frames, central role stats/equipment, right blessing list, and skill recipe details while preserving equipment gifting.
 - Swordsman trait healing now triggers on attack hits instead of kills: base 5% proc chance plus 5% per trait level, each proc heals 5% of max health plus 7.5% of missing health, and the effect has its own 1-second trigger cooldown.
 - `贪婪` now triggers on attack hits instead of kills, heals 1% of the attacker's max health on proc, uses tier-based proc chances of 1% / 5% / 10% / 20%, and has its own 1-second trigger cooldown.
 - Mage `奥法盈余` now grants the caster 3 stacks of `奥术充能` when the 5-second surplus window expires naturally.
@@ -67,6 +68,9 @@
 
 ### Added
 
+- Added 36 mutually exclusive Lv.3 skill-build talents across the swordsman, gunner, and mage, with one derived build level for each role trait, entry, basic attack, two active skills, and ultimate.
+- Added a serial reward step for skill-talent choices after normal four-card/select-two upgrades and blessing binding, including continue-save restoration without duplicating pending level-ups.
+- Added developer-mode controls to select, replace, or clear skill talents; direct selection automatically unlocks and raises the corresponding skill build to Lv.3 for testing.
 - Blessing-driven skill unlock state.
 - Role-shared role blessings and separate skill-bound blessings.
 - Character panel blessing display and composition support.

@@ -23,6 +23,28 @@ func _run() -> void:
 			failures.append("gunner entry bullet hit radius should be 18, got %.2f" % float(projectile.get("hit_radius", 0.0)))
 		if int(projectile.get("pierce_count", 0)) != 8:
 			failures.append("gunner entry bullet should pierce along its path")
+	owner.spawned_projectiles.clear()
+	owner.talents["gunner_entry_focus"] = true
+	PlayerSwitchEntryFlow.fire_gunner_entry_wave(owner, "gunner", 0, 1.0)
+	if owner.spawned_projectiles.size() != 5:
+		failures.append("focus entry should spawn five fan bullets per wave")
+	for projectile in owner.spawned_projectiles:
+		if not is_equal_approx(float(projectile.get("damage", 0.0)), 7.0):
+			failures.append("focus entry bullet should deal 35%% damage")
+	owner.spawned_projectiles.clear()
+	owner.talents.clear()
+	owner.talents["gunner_entry_denial"] = true
+	PlayerSwitchEntryFlow.fire_gunner_entry_wave(owner, "gunner", 0, 1.0)
+	PlayerSwitchEntryFlow.fire_gunner_entry_wave(owner, "gunner", 1, 1.0)
+	if owner.spawned_projectiles.size() != 24:
+		failures.append("denial entry should spawn two radial waves of twelve bullets")
+	for projectile in owner.spawned_projectiles:
+		if not is_equal_approx(float(projectile.get("damage", 0.0)), 10.0):
+			failures.append("denial entry bullet should deal 50%% damage")
+		if not is_equal_approx(float(projectile.get("speed", 0.0)), 800.0) or not is_equal_approx(float(projectile.get("lifetime", 0.0)), 0.65):
+			failures.append("denial entry projectile timing mismatch")
+		if int(projectile.get("pierce_count", 0)) != 4 or not is_equal_approx(float(projectile.get("slow_multiplier", 1.0)), 0.6) or not is_equal_approx(float(projectile.get("slow_duration", 0.0)), 1.5):
+			failures.append("denial entry control parameters mismatch")
 	owner.free()
 	if failures.is_empty():
 		print("GUNNER_ENTRY_WAVE_SMOKE_OK")
@@ -38,6 +60,11 @@ class GunnerEntryOwner:
 
 	var spawned_projectiles: Array[Dictionary] = []
 	var radius_damage_calls: int = 0
+	var talents: Dictionary = {}
+	var facing_direction := Vector2.RIGHT
+
+	func _has_skill_talent(talent_id: String) -> bool:
+		return bool(talents.get(talent_id, false))
 
 	func _queue_camera_shake(_strength: float, _duration: float) -> void:
 		pass
@@ -70,8 +97,8 @@ class GunnerEntryOwner:
 		enemy_hit_radius_max: float = 12.0,
 		_vulnerability_bonus: float = 0.0,
 		_vulnerability_duration: float = 0.0,
-		_slow_multiplier: float = 1.0,
-		_slow_duration: float = 0.0,
+		slow_multiplier: float = 1.0,
+		slow_duration: float = 0.0,
 		pierce_count: int = 0,
 		_wave_amplitude: float = 0.0,
 		_wave_frequency: float = 0.0,
@@ -88,6 +115,8 @@ class GunnerEntryOwner:
 			"enemy_hit_radius_scale": enemy_hit_radius_scale,
 			"enemy_hit_radius_min": enemy_hit_radius_min,
 			"enemy_hit_radius_max": enemy_hit_radius_max,
+			"slow_multiplier": slow_multiplier,
+			"slow_duration": slow_duration,
 			"pierce_count": pierce_count
 		})
 		return true

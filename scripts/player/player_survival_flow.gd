@@ -361,6 +361,8 @@ static func take_damage(owner, amount: float) -> void:
 	owner.current_health = max(0.0, owner.current_health - remaining_damage)
 	if adjusted_damage > 0.0 and owner.has_method("_break_gunner_flash_trait"):
 		owner._break_gunner_flash_trait()
+	if owner.current_health <= 0.0 and _try_trigger_swordsman_last_guard(owner):
+		return
 	if owner.current_health <= 0.0 and _try_trigger_swordsman_death_defiance(owner):
 		return
 	if owner.has_method("_save_active_role_health"):
@@ -416,6 +418,36 @@ static func _try_trigger_swordsman_death_defiance(owner) -> bool:
 		owner._spawn_forced_combat_tag(owner.global_position + Vector2(0.0, -42.0), "骑士荣耀", Color(1.0, 0.72, 0.32, 1.0))
 	else:
 		owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -42.0), "骑士荣耀", Color(1.0, 0.72, 0.32, 1.0))
+	owner._play_player_hurt_feedback()
+	return true
+
+
+static func _try_trigger_swordsman_last_guard(owner) -> bool:
+	var active_role_id: String = str(owner._get_active_role().get("id", ""))
+	if active_role_id == "" or active_role_id == "swordsman":
+		return false
+	if not owner.has_method("_has_skill_talent") or not owner._has_skill_talent("swordsman_trait_last_guard"):
+		return false
+	if owner.swordsman_death_defiance_cooldown_remaining > 0.0 or owner.swordsman_death_defiance_will_remaining > 0.0:
+		return false
+	if not owner.has_method("_has_full_switch_energy") or not owner._has_full_switch_energy(active_role_id):
+		return false
+	var swordsman_index: int = -1
+	for index in range(owner.roles.size()):
+		if str(owner.roles[index].get("id", "")) == "swordsman":
+			swordsman_index = index
+			break
+	if swordsman_index < 0 or owner._get_role_current_health("swordsman") <= 0.0:
+		return false
+
+	owner.current_health = owner._get_role_max_health(active_role_id) * 0.30
+	owner._save_active_role_health()
+	owner._set_role_switch_energy(active_role_id, 0.0)
+	owner.swordsman_death_defiance_cooldown_remaining = owner.SWORDSMAN_DEATH_DEFIANCE_COOLDOWN
+	owner.swordsman_death_defiance_will_remaining = 0.0
+	owner._try_switch_role(swordsman_index, true, true)
+	if owner.has_method("_spawn_forced_combat_tag"):
+		owner._spawn_forced_combat_tag(owner.global_position + Vector2(0.0, -42.0), "最后的换防", Color(1.0, 0.72, 0.32, 1.0))
 	owner._play_player_hurt_feedback()
 	return true
 

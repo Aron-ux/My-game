@@ -5,6 +5,9 @@ const ENEMY_ARCHETYPE_DATABASE := preload("res://scripts/enemy/enemy_archetype_d
 const ENEMY_GLUTTON_SKILL_BEHAVIOR := preload("res://scripts/enemies/enemy_glutton_skill_behavior.gd")
 const PLAYER_BLESSING_SYSTEM := preload("res://scripts/player/player_blessing_system.gd")
 const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
+const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
+const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_talent_system.gd")
+const DEVELOPER_OPTION_PROVIDER := preload("res://scripts/developer/developer_option_provider.gd")
 
 static func activate(main: Node) -> void:
 	DEVELOPER_MODE.set_ignore_damage_enabled(true)
@@ -98,6 +101,76 @@ static func unlock_skill(main: Node, skill_id: String, tier: int) -> void:
 	if main.player.has_signal("stats_changed") and main.player.has_method("get_stat_summary"):
 		main.player.stats_changed.emit(main.player.get_stat_summary())
 	main._refresh_hud()
+
+static func grant_skill_talent(main: Node, talent_id: String) -> void:
+	if main == null or main.player == null:
+		return
+	if talent_id == DEVELOPER_OPTION_PROVIDER.CLEAR_SKILL_TALENTS_OPTION_ID:
+		_clear_all_skill_talents(main.player)
+		_finish_player_change(main)
+		return
+	var location := _find_skill_talent(talent_id)
+	if location.is_empty():
+		return
+	var role_id := str(location.get("role_id", ""))
+	var progress_id := str(location.get("progress_id", ""))
+	var required_skill := str(PLAYER_SKILL_TALENT_SYSTEM.UNLOCKABLE_PROGRESS.get(progress_id, ""))
+	if required_skill != "" and not PLAYER_BLESSING_SKILL_STATE.force_unlock_skill(main.player, required_skill, 1):
+		return
+	var build_id := _get_progress_build_id(role_id, progress_id)
+	while PLAYER_SKILL_TALENT_SYSTEM.get_skill_progress_level(main.player, role_id, progress_id) < PLAYER_SKILL_TALENT_SYSTEM.TRIGGER_LEVEL:
+		if build_id == "" or not PLAYER_BUILD_SYSTEM.apply_option(main.player, "%s%s:%s" % [PLAYER_BUILD_SYSTEM.OPTION_PREFIX, role_id, build_id]):
+			return
+	_clear_skill_talent(main.player, role_id, progress_id)
+	var offer := PLAYER_SKILL_TALENT_SYSTEM.build_choice_offer(main.player, {
+		"role_id": role_id,
+		"progress_id": progress_id
+	})
+	if PLAYER_SKILL_TALENT_SYSTEM.apply_option_with_result(main.player, PLAYER_SKILL_TALENT_SYSTEM.OPTION_PREFIX + talent_id, offer).is_empty():
+		return
+	_finish_player_change(main)
+
+
+static func _find_skill_talent(talent_id: String) -> Dictionary:
+	for role_id in ["swordsman", "gunner", "mage"]:
+		for progress_id in PLAYER_SKILL_TALENT_SYSTEM.ROLE_PROGRESS_ORDER.get(role_id, []):
+			for talent_value in PLAYER_SKILL_TALENT_SYSTEM.TALENT_DEFINITIONS.get(progress_id, []):
+				if str((talent_value as Dictionary).get("id", "")) == talent_id:
+					return {"role_id": role_id, "progress_id": progress_id}
+	return {}
+
+
+static func _get_progress_build_id(role_id: String, progress_id: String) -> String:
+	for definition_value in PLAYER_BUILD_SYSTEM.BUILD_DEFINITIONS.get(role_id, []):
+		var definition: Dictionary = definition_value
+		if str(definition.get("skill_progress_id", "")) == progress_id and str(definition.get("unlock_skill", "")) == "":
+			return str(definition.get("id", ""))
+	return ""
+
+
+static func _clear_skill_talent(player, role_id: String, progress_id: String) -> void:
+	var role_state: Dictionary = player.role_special_states.get(role_id, {})
+	var talents: Dictionary = role_state.get(PLAYER_SKILL_TALENT_SYSTEM.TALENTS_KEY, {})
+	talents.erase(progress_id)
+	role_state[PLAYER_SKILL_TALENT_SYSTEM.TALENTS_KEY] = talents
+	player.role_special_states[role_id] = role_state
+
+
+static func _clear_all_skill_talents(player) -> void:
+	for role_id in ["swordsman", "gunner", "mage"]:
+		var role_state: Dictionary = player.role_special_states.get(role_id, {})
+		role_state[PLAYER_SKILL_TALENT_SYSTEM.TALENTS_KEY] = {}
+		player.role_special_states[role_id] = role_state
+
+
+static func _finish_player_change(main: Node) -> void:
+	if main.player.has_method("_update_fire_timer"):
+		main.player._update_fire_timer()
+	if main.player.has_signal("stats_changed") and main.player.has_method("get_stat_summary"):
+		main.player.stats_changed.emit(main.player.get_stat_summary())
+	main._refresh_hud()
+	if main.has_method("_save_run_state"):
+		main._save_run_state()
 
 static func grant_blessing(main: Node, blessing_id: String, tier: int) -> void:
 	if main == null or main.player == null:

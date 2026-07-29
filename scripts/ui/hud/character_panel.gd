@@ -70,15 +70,11 @@ var backdrop: ColorRect
 var panel: Panel
 var panel_margin: MarginContainer
 var gift_popup: PopupMenu
-var blessing_popup: PopupMenu
 var cached_player: Node
 var viewed_role_index: int = 0
 var pending_gift_equipment_id: String = ""
 var pending_gift_from_role_id: String = ""
 var gift_target_role_ids: Array[String] = []
-var pending_compose_blessing_id: String = ""
-var pending_compose_role_id: String = ""
-var pending_compose_is_skill_bound: bool = false
 var ui_white_key_material: ShaderMaterial
 var role_pixel_texture_cache: Dictionary = {}
 
@@ -199,11 +195,6 @@ func _ready() -> void:
 	gift_popup.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
 	gift_popup.index_pressed.connect(_on_gift_popup_index_pressed)
 	add_child(gift_popup)
-
-	blessing_popup = PopupMenu.new()
-	blessing_popup.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
-	blessing_popup.index_pressed.connect(_on_blessing_popup_index_pressed)
-	add_child(blessing_popup)
 
 	hide_panel()
 
@@ -409,13 +400,6 @@ func _build_build_detail_column(content_layout: HBoxContainer) -> void:
 	owned_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_MUTED)
 	blessing_header.add_child(owned_label)
 
-	var compose_label := Label.new()
-	compose_label.text = "I x3 → II x1"
-	compose_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	compose_label.add_theme_font_size_override("font_size", 14)
-	compose_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_GOLD)
-	blessing_header.add_child(compose_label)
-
 	var blessing_scroll := ScrollContainer.new()
 	blessing_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	blessing_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -452,7 +436,7 @@ func _build_archive_footer(root_layout: VBoxContainer) -> void:
 	root_layout.add_child(footer)
 
 	var hint := Label.new()
-	hint.text = "长按查看提示：祝福行右键合成；装备行右键赠与；属性为当前战斗中的实时生效值。"
+	hint.text = "长按查看提示：装备行右键赠与；属性为当前战斗中的实时生效值。"
 	hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_font_size_override("font_size", 12)
@@ -471,8 +455,6 @@ func hide_panel() -> void:
 	visible = false
 	if gift_popup != null:
 		gift_popup.hide()
-	if blessing_popup != null:
-		blessing_popup.hide()
 
 func _request_close() -> void:
 	close_requested.emit()
@@ -699,7 +681,7 @@ func _refresh_blessing_list(role_id: String) -> void:
 		var definition: Dictionary = PLAYER_BLESSING_SYSTEM.DEFINITIONS.get(str(blessing_id), {})
 		if str(definition.get("binding", PLAYER_BLESSING_SYSTEM.ROLE_BOUND)) != PLAYER_BLESSING_SYSTEM.ROLE_BOUND:
 			continue
-		if _add_blessing_row(str(blessing_id), definition, role_levels, role_id, false):
+		if _add_blessing_row(str(blessing_id), definition, role_levels):
 			has_any = true
 	var skill_header_added := false
 	for blessing_id in PLAYER_BLESSING_SYSTEM.DEFINITIONS.keys():
@@ -714,7 +696,7 @@ func _refresh_blessing_list(role_id: String) -> void:
 			header.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_MUTED)
 			blessing_list.add_child(header)
 			skill_header_added = true
-		if _add_blessing_row(str(blessing_id), definition, skill_levels, "", true):
+		if _add_blessing_row(str(blessing_id), definition, skill_levels):
 			has_any = true
 	if not has_any:
 		var empty_label := Label.new()
@@ -723,70 +705,29 @@ func _refresh_blessing_list(role_id: String) -> void:
 		empty_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_MUTED)
 		blessing_list.add_child(empty_label)
 
-func _add_blessing_row(blessing_id: String, definition: Dictionary, levels: Dictionary, role_id: String, skill_bound: bool) -> bool:
+func _add_blessing_row(blessing_id: String, definition: Dictionary, levels: Dictionary) -> bool:
 	if not _has_blessing_levels(levels, blessing_id):
 		return false
 	var blessing_levels: Dictionary = levels.get(blessing_id, {})
 	var tier_one_level: int = int(blessing_levels.get(1, 0))
 	var tier_two_level: int = int(blessing_levels.get(2, 0))
-	var can_compose := false
-	if cached_player != null:
-		if skill_bound and cached_player.has_method("can_compose_skill_blessing"):
-			can_compose = bool(cached_player.can_compose_skill_blessing(blessing_id))
-		elif not skill_bound and cached_player.has_method("can_compose_role_blessing"):
-			can_compose = bool(cached_player.can_compose_role_blessing(role_id, blessing_id))
 	var button := Button.new()
-	button.text = "%s      I x%d      II x%d%s" % [
+	button.text = "%s      I x%d      II x%d" % [
 		str(definition.get("title", blessing_id)),
 		tier_one_level,
-		tier_two_level,
-		"      右键合成" if can_compose else ""
+		tier_two_level
 	]
-	button.tooltip_text = "%s\n祝福可无限重复选择；I x3 可手动合成 II x1；II 从角色 Lv.12 后独立出现，并随角色等级提高更常见。" % str(definition.get("description", ""))
+	button.tooltip_text = "%s\n祝福可重复选择；高阶祝福会随角色等级提高逐步进入候选池。" % str(definition.get("description", ""))
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	button.custom_minimum_size = Vector2(0.0, 38.0)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_apply_archive_button_style(button, false, can_compose, false)
-	button.gui_input.connect(_on_blessing_gui_input.bind(blessing_id, role_id, skill_bound))
+	_apply_archive_button_style(button, false, false, false)
 	blessing_list.add_child(button)
 	return true
 
 func _has_blessing_levels(levels: Dictionary, blessing_id: String) -> bool:
 	var blessing_levels: Dictionary = levels.get(blessing_id, {})
 	return int(blessing_levels.get(1, 0)) > 0 or int(blessing_levels.get(2, 0)) > 0
-
-func _on_blessing_gui_input(event: InputEvent, blessing_id: String, role_id: String, skill_bound: bool) -> void:
-	if event is InputEventMouseButton:
-		var mouse_event := event as InputEventMouseButton
-		if mouse_event.pressed and mouse_event.button_index == MOUSE_BUTTON_RIGHT:
-			_show_blessing_compose_popup(blessing_id, role_id, skill_bound)
-
-func _show_blessing_compose_popup(blessing_id: String, role_id: String, skill_bound: bool) -> void:
-	pending_compose_blessing_id = blessing_id
-	pending_compose_role_id = role_id
-	pending_compose_is_skill_bound = skill_bound
-	blessing_popup.clear()
-	var can_compose := false
-	if cached_player != null:
-		if skill_bound and cached_player.has_method("can_compose_skill_blessing"):
-			can_compose = bool(cached_player.can_compose_skill_blessing(blessing_id))
-		elif not skill_bound and cached_player.has_method("can_compose_role_blessing"):
-			can_compose = bool(cached_player.can_compose_role_blessing(role_id, blessing_id))
-	blessing_popup.add_item("合成 II x1")
-	blessing_popup.set_item_disabled(0, not can_compose)
-	blessing_popup.position = Vector2i(get_viewport().get_mouse_position())
-	blessing_popup.popup()
-
-func _on_blessing_popup_index_pressed(index: int) -> void:
-	if cached_player == null or not is_instance_valid(cached_player) or index != 0:
-		return
-	if pending_compose_is_skill_bound:
-		if cached_player.has_method("compose_skill_blessing"):
-			cached_player.compose_skill_blessing(pending_compose_blessing_id)
-	else:
-		if cached_player.has_method("compose_role_blessing"):
-			cached_player.compose_role_blessing(pending_compose_role_id, pending_compose_blessing_id)
-	refresh()
 
 func _build_stats_text(role_data: Dictionary) -> String:
 	var role_id: String = str(role_data.get("id", ""))

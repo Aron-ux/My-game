@@ -34,22 +34,6 @@ static func get_skill_blessing_levels(owner) -> Dictionary:
 	return owner.skill_blessing_levels.duplicate(true)
 
 
-static func can_compose_role_blessing(owner, role_id: String, blessing_id: String) -> bool:
-	return PLAYER_BLESSING_SYSTEM.can_compose_role_blessing(owner, role_id, blessing_id)
-
-
-static func can_compose_skill_blessing(owner, blessing_id: String) -> bool:
-	return PLAYER_BLESSING_SYSTEM.can_compose_skill_blessing(owner, blessing_id)
-
-
-static func compose_role_blessing(owner, role_id: String, blessing_id: String) -> bool:
-	return PLAYER_BLESSING_SYSTEM.compose_role_blessing(owner, role_id, blessing_id)
-
-
-static func compose_skill_blessing(owner, blessing_id: String) -> bool:
-	return PLAYER_BLESSING_SYSTEM.compose_skill_blessing(owner, blessing_id)
-
-
 static func refresh_unlocks(owner, selected_blessing_id: String = "", selected_tier: int = 0, selected_binding: String = "") -> void:
 	for event in PLAYER_BLESSING_SKILL_STATE.refresh_unlocks(owner, selected_blessing_id, selected_tier, selected_binding):
 		if str((event as Dictionary).get("type", "")) == "binding_choice":
