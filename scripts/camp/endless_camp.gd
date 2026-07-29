@@ -24,14 +24,29 @@ const INTERACTABLE_TEXT := {
 		"name": "\u94c1\u5320",
 		"prompt": "\u6253\u5f00\u94c1\u5320\u5546\u5e97"
 	},
+	"ruan_dog": {
+		"name": "阮狗",
+		"prompt": "和阮狗说话"
+	},
 	"endless_portal": {
 		"name": "\u65e0\u5c3d\u4f20\u9001\u95e8",
 		"prompt": "\u8fdb\u5165\u65e0\u5c3d\u6218\u6597"
 	}
 }
+const DIALOGUE_LINES := {
+	"ruan_dog": [
+		"汪。你就是今天负责出发的人？",
+		"营地里没什么秘密，只有还没被闻出来的线索。",
+		"出发前记得检查装备。活着回来，再给我带根骨头。"
+	]
+}
 
 @onready var prompt_label: Label = $CanvasLayer/PromptLabel
 @onready var message_label: Label = $CanvasLayer/MessageLabel
+@onready var dialogue_panel: PanelContainer = $CanvasLayer/DialoguePanel
+@onready var dialogue_title: Label = $CanvasLayer/DialoguePanel/MarginContainer/DialogueContent/TextContent/Title
+@onready var dialogue_body: Label = $CanvasLayer/DialoguePanel/MarginContainer/DialogueContent/TextContent/Body
+@onready var dialogue_hint: Label = $CanvasLayer/DialoguePanel/MarginContainer/DialogueContent/TextContent/Hint
 @onready var shop_panel: PanelContainer = $CanvasLayer/ShopPanel
 @onready var shop_title: Label = $CanvasLayer/ShopPanel/MarginContainer/ShopContent/Title
 @onready var shop_body: Label = $CanvasLayer/ShopPanel/MarginContainer/ShopContent/Body
@@ -45,6 +60,8 @@ const INTERACTABLE_TEXT := {
 
 var focused_interactables: Array[Node] = []
 var camp_role_id: String = "swordsman"
+var active_dialogue_lines: Array[String] = []
+var active_dialogue_index: int = 0
 
 func _ready() -> void:
 	get_tree().paused = false
@@ -58,6 +75,10 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
+		if dialogue_panel.visible and event.keycode == KEY_ESCAPE:
+			_close_dialogue()
+			_mark_input_handled()
+			return
 		if tutorial_prompt_panel.visible and event.keycode == KEY_ESCAPE:
 			_close_tutorial_prompt()
 			_mark_input_handled()
@@ -78,6 +99,11 @@ func _setup_ui() -> void:
 	prompt_label.visible = false
 	message_label.text = ""
 	message_label.visible = false
+	dialogue_panel.visible = false
+	dialogue_title.text = ""
+	dialogue_body.text = ""
+	dialogue_hint.text = ""
+	dialogue_panel.add_theme_stylebox_override("panel", SURVIVORS_THEME.panel_style(SURVIVORS_THEME.COLOR_BG, SURVIVORS_THEME.COLOR_BORDER_GOLD, 2, 16, 16.0))
 	shop_panel.visible = false
 	shop_title.text = "\u94c1\u5320"
 	shop_body.text = "\u5546\u5e97\u6682\u65e0\u5546\u54c1"
@@ -151,6 +177,9 @@ func _connect_interactables() -> void:
 			node.connect("interacted", Callable(self, "_on_interactable_interacted"))
 
 func _handle_interact() -> void:
+	if dialogue_panel.visible:
+		_advance_dialogue()
+		return
 	if tutorial_prompt_panel.visible:
 		return
 	if shop_panel.visible:
@@ -176,6 +205,8 @@ func _on_interactable_interacted(interactable: Node) -> void:
 			_open_tutorial_prompt()
 		"shop":
 			_open_shop()
+		"dialogue":
+			_open_dialogue(interactable)
 		_:
 			_show_message("\u73b0\u5728\u8fd8\u4e0d\u80fd\u4ea4\u4e92")
 
@@ -190,6 +221,10 @@ func _get_best_interactable() -> Node:
 	return null
 
 func _update_prompt() -> void:
+	if dialogue_panel.visible or shop_panel.visible or tutorial_prompt_panel.visible:
+		prompt_label.visible = false
+		prompt_label.text = ""
+		return
 	var interactable: Node = _get_best_interactable()
 	if interactable == null:
 		prompt_label.visible = false
@@ -200,21 +235,78 @@ func _update_prompt() -> void:
 	prompt_label.text = "[%s] %s" % [key_name, text]
 	prompt_label.visible = true
 
+func _open_dialogue(interactable: Node) -> void:
+	var interactable_id := str(interactable.get("interactable_id"))
+	var lines_value: Variant = DIALOGUE_LINES.get(interactable_id, [])
+	if not (lines_value is Array) or (lines_value as Array).is_empty():
+		_show_message("\u73b0\u5728\u8fd8\u4e0d\u80fd\u4ea4\u4e92")
+		return
+	active_dialogue_lines.clear()
+	for line in lines_value:
+		active_dialogue_lines.append(str(line))
+	active_dialogue_index = 0
+	_close_shop()
+	_close_tutorial_prompt()
+	_show_message("")
+	dialogue_title.text = str(interactable.get("display_name"))
+	dialogue_panel.visible = true
+	_set_camp_player_movement_enabled(false)
+	_show_dialogue_line()
+	_update_prompt()
+
+func _advance_dialogue() -> void:
+	if not dialogue_panel.visible:
+		return
+	active_dialogue_index += 1
+	if active_dialogue_index >= active_dialogue_lines.size():
+		_close_dialogue()
+		return
+	_show_dialogue_line()
+
+func _show_dialogue_line() -> void:
+	dialogue_body.text = active_dialogue_lines[active_dialogue_index]
+	var key_name := GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(GAME_SETTINGS.ACTION_INTERACT))
+	var action_text := "结束" if active_dialogue_index == active_dialogue_lines.size() - 1 else "下一句"
+	dialogue_hint.text = "[%s] %s  ·  [Esc] 结束" % [key_name, action_text]
+
+func _close_dialogue() -> void:
+	if not dialogue_panel.visible:
+		return
+	dialogue_panel.visible = false
+	active_dialogue_lines.clear()
+	active_dialogue_index = 0
+	dialogue_title.text = ""
+	dialogue_body.text = ""
+	dialogue_hint.text = ""
+	_set_camp_player_movement_enabled(true)
+	_update_prompt()
+
+func _set_camp_player_movement_enabled(enabled: bool) -> void:
+	if camp_player == null:
+		return
+	camp_player.set_physics_process(enabled)
+	if not enabled and camp_player.has_method("stop_movement"):
+		camp_player.stop_movement()
+
 func _open_shop() -> void:
 	shop_panel.visible = true
 	_show_message("")
+	_update_prompt()
 
 func _close_shop() -> void:
 	shop_panel.visible = false
+	_update_prompt()
 
 func _open_tutorial_prompt() -> void:
 	_close_shop()
 	_show_message("")
 	tutorial_prompt_panel.visible = true
 	tutorial_yes_button.grab_focus()
+	_update_prompt()
 
 func _close_tutorial_prompt() -> void:
 	tutorial_prompt_panel.visible = false
+	_update_prompt()
 
 func _enter_movement_tutorial() -> void:
 	_close_tutorial_prompt()

@@ -30,6 +30,7 @@ Use this before any public build, demo handoff, or store upload.
 - [ ] Test main-menu Settings opens centered after changing window size.
 - [ ] Test level-up build offer shows three role cards plus one general blessing, accepts exactly two selections, and allows each card to refresh once.
 - [ ] Test hover details for role builds, blessings, rewards, bottom skill slots, normal attack, and ultimate energy.
+- [ ] In endless camp, stand in front of `阮狗`, verify the interact prompt, advance every dialogue line, and close with `Esc`.
 
 
 ## Performance sanity
