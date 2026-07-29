@@ -28,6 +28,8 @@ func _check_direct_damage_skips_dead_enemy() -> void:
 	DamageResolver.deal_damage_to_enemy(owner, enemy, 10.0, "gunner")
 	if enemy.damage_calls != 0:
 		failures.append("direct damage should skip dead enemies")
+	owner.free()
+	enemy.free()
 
 
 func _check_queued_damage_skips_dead_enemy() -> void:
@@ -39,6 +41,9 @@ func _check_queued_damage_skips_dead_enemy() -> void:
 	queue._apply_job_at_index(0)
 	if enemy.damage_calls != 0:
 		failures.append("queued damage should skip dead enemies")
+	queue.free()
+	owner.free()
+	enemy.free()
 
 
 class DamageOwner:

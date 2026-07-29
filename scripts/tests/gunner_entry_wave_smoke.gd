@@ -23,6 +23,7 @@ func _run() -> void:
 			failures.append("gunner entry bullet hit radius should be 18, got %.2f" % float(projectile.get("hit_radius", 0.0)))
 		if int(projectile.get("pierce_count", 0)) != 8:
 			failures.append("gunner entry bullet should pierce along its path")
+	owner.free()
 	if failures.is_empty():
 		print("GUNNER_ENTRY_WAVE_SMOKE_OK")
 		quit(0)

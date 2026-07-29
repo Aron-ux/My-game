@@ -5,19 +5,17 @@ class MainStub:
 	var survival_time: float = 0.0
 
 func _init() -> void:
-	var service_script := load("res://scripts/achievements/achievement_service.gd")
-	if service_script == null:
-		push_error("Cannot load achievement_service.gd")
-		quit(1)
-		return
+	await process_frame
 	var bridge_script := load("res://scripts/game/game_achievement_bridge.gd")
 	if bridge_script == null:
 		push_error("Cannot load game_achievement_bridge.gd")
 		quit(1)
 		return
-	var service = service_script.new()
-	service.name = "AchievementService"
-	root.add_child(service)
+	var service = root.get_node_or_null("AchievementService")
+	if service == null:
+		push_error("AchievementService autoload is missing")
+		quit(1)
+		return
 	var main_stub := MainStub.new()
 	root.add_child(main_stub)
 	service.load_achievements()

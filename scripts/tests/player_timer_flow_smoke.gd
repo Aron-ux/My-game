@@ -168,7 +168,9 @@ class TimerOwnerStub:
 	var swordsman_trait_heal_cooldown_remaining: float = 0.0
 	var swordsman_death_defiance_will_remaining: float = 0.0
 	var swordsman_death_defiance_cooldown_remaining: float = 0.0
+	var swordsman_bloodthirst_cooldown_remaining: float = 0.0
 	var swordsman_entry_trait_share_remaining: float = 0.0
+	var swordsman_bloodthirst_heal_multiplier: float = 1.0
 	var mage_arcane_surplus_remaining: float = 0.0
 	var mage_arcane_charge_stacks: int = 0
 	var mage_arcane_charge_transfer_remaining: float = 0.0

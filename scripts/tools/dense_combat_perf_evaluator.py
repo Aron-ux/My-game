@@ -111,6 +111,9 @@ def evaluate(results: Path) -> tuple[bool, list[str]]:
         "enemy_count",
         "enemy_projectile_count",
         "pickup_count",
+        "pickup_value",
+        "projectile_hits",
+        "damage_taken",
         "pooled_reactivations",
         "duplicate_tick_failures",
     ]
@@ -120,6 +123,11 @@ def evaluate(results: Path) -> tuple[bool, list[str]]:
 
     if _counter(candidate, "duplicate_tick_failures") != 0:
         failures.append("candidate reported duplicate/skipped tick failures")
+    for label, data in [("baseline", baseline), ("candidate", candidate)]:
+        if _counter(data, "projectile_hits") <= 0:
+            failures.append(f"{label} did not exercise projectile hit behavior")
+        if _counter(data, "damage_taken") <= 0:
+            failures.append(f"{label} did not record positive projectile damage")
 
     cpu_artifact = results / "cpu_core_utilization.txt"
     limitation = candidate.get("cpu_sampling_limitation", "")
@@ -142,7 +150,10 @@ def evaluate(results: Path) -> tuple[bool, list[str]]:
 
 
 def _write_csv_summary(path: Path, baseline: dict[str, Any], candidate: dict[str, Any]) -> None:
-    rows = ["label,avg_ms,p95_ms,p99_ms,max_ms,enemy_count,enemy_projectile_count,pickup_count,projectile_hits"]
+    rows = [
+        "label,avg_ms,p95_ms,p99_ms,max_ms,enemy_count,enemy_projectile_count,"
+        "pickup_count,pickup_value,projectile_hits,damage_taken"
+    ]
     for label, data in [("baseline", baseline), ("candidate", candidate)]:
         rows.append(
             ",".join(
@@ -155,7 +166,9 @@ def _write_csv_summary(path: Path, baseline: dict[str, Any], candidate: dict[str
                     f"{_counter(data, 'enemy_count'):.0f}",
                     f"{_counter(data, 'enemy_projectile_count'):.0f}",
                     f"{_counter(data, 'pickup_count'):.0f}",
+                    f"{_counter(data, 'pickup_value'):.0f}",
                     f"{_counter(data, 'projectile_hits'):.0f}",
+                    f"{_counter(data, 'damage_taken'):.6f}",
                 ]
             )
         )

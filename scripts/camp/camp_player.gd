@@ -64,6 +64,10 @@ func _physics_process(_delta: float) -> void:
 	move_and_slide()
 	_clamp_to_movement_bounds()
 
+func stop_movement() -> void:
+	velocity = Vector2.ZERO
+	_set_running(false)
+
 func _set_running(running: bool) -> void:
 	if role_visual != null and role_visual.has_method("set_moving"):
 		role_visual.set_moving(running, Vector2(facing_sign, 0.0))

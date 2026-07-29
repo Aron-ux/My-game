@@ -24,7 +24,6 @@ static func save_run_state(main: Node) -> void:
 		"spawned_small_boss_count": main.spawned_small_boss_count,
 		"boss_spawned": main.boss_spawned,
 		"defeated_boss_count": main.defeated_boss_count,
-		"opening_trait_choice_completed": bool(main.get("opening_trait_choice_completed")),
 		"player": main.player.get_save_data(),
 		"enemies": [],
 		"enemy_projectiles": [],
@@ -66,7 +65,6 @@ static func load_saved_run(main: Node) -> bool:
 	main.spawned_small_boss_count = int(save_data.get("spawned_small_boss_count", 0))
 	main.boss_spawned = bool(save_data.get("boss_spawned", false))
 	main.defeated_boss_count = int(save_data.get("defeated_boss_count", 0))
-	main.set("opening_trait_choice_completed", bool(save_data.get("opening_trait_choice_completed", false)))
 	main.boss_enemy = null
 
 	main.player.apply_save_data(save_data.get("player", {}))

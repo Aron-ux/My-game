@@ -23,6 +23,14 @@ def main() -> int:
     map_flow = read("scripts/game/game_map_flow.gd")
     player_script = read("scripts/player.gd")
     player_map_bounds_flow = read("scripts/player/player_map_bounds_flow.gd")
+    player_level_flow = read("scripts/player/player_level_flow.gd")
+    player_blessing_system = read("scripts/player/player_blessing_system.gd")
+    developer_mode = read("scripts/developer_mode.gd")
+    developer_panel = read("scripts/developer/developer_panel.gd")
+    reward_flow = read("scripts/game/reward_flow.gd")
+    game_main_flow = read("scripts/game/game_main_flow.gd")
+    run_save_flow = read("scripts/game/run_save_flow.gd")
+    level_up_ui = read("scripts/level_up_ui.gd")
     hud_script = read("scripts/hud.gd")
     steam_adapter = read("scripts/achievements/steam_achievement_adapter.gd")
 
@@ -179,6 +187,45 @@ def main() -> int:
 
     if "get_node_or_null(\"/root/AchievementService\")" not in steam_adapter:
         failures.append("steam_achievement_adapter.gd must not rely on a compile-time AchievementService global")
+
+    retired_progression_entries = {
+        "scripts/main.gd": (main_script, ("opening_trait_choice_completed",)),
+        "scripts/game/game_main_flow.gd": (game_main_flow, ("opening_trait_choice_completed",)),
+        "scripts/game/run_save_flow.gd": (run_save_flow, ("opening_trait_choice_completed",)),
+        "scripts/game/reward_flow.gd": (
+            reward_flow,
+            ("show_opening_trait_choice", 'reward_context == "opening_trait_choice"'),
+        ),
+        "scripts/level_up_ui.gd": (level_up_ui, ("func show_opening_trait_choice",)),
+        "scripts/player/player_level_flow.gd": (
+            player_level_flow,
+            ("BUILD_CHOICE_LEVELS", "ENDLESS_BUILD_CHOICE_", "should_offer_build_choice_for_level"),
+        ),
+        "scripts/player/player_blessing_system.gd": (
+            player_blessing_system,
+            (
+                "static func _pick_options",
+                "_ensure_forced_tier_four_blessing",
+                "_build_offerable_options_for_tier",
+            ),
+        ),
+        "scripts/developer_mode.gd": (
+            developer_mode,
+            (
+                "force_tier_four_blessing",
+                "should_offer_all_blessings",
+                "should_allow_unlimited_upgrade_refresh",
+            ),
+        ),
+        "scripts/developer/developer_panel.gd": (
+            developer_panel,
+            ("force_tier_four_blessing", "必出四级祝福"),
+        ),
+    }
+    for path, (source, retired_tokens) in retired_progression_entries.items():
+        for token in retired_tokens:
+            if token in source:
+                failures.append(f"{path} still exposes retired progression entry: {token}")
 
     graphifyignore = ROOT / ".graphifyignore"
     if not graphifyignore.exists():

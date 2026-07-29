@@ -9,19 +9,16 @@ const FULL_XP_GEM_MAX_RADIUS := 128.0
 static var enabled: bool = false
 static var ignore_damage_enabled: bool = false
 static var no_cooldown_enabled: bool = false
-static var force_tier_four_blessing_enabled: bool = false
 
 static func activate() -> void:
 	enabled = true
 	ignore_damage_enabled = true
 	no_cooldown_enabled = false
-	force_tier_four_blessing_enabled = false
 
 static func deactivate() -> void:
 	enabled = false
 	ignore_damage_enabled = false
 	no_cooldown_enabled = false
-	force_tier_four_blessing_enabled = false
 
 static func is_enabled() -> bool:
 	return enabled
@@ -46,21 +43,6 @@ static func set_no_cooldown_enabled(value: bool) -> void:
 
 static func is_no_cooldown_enabled() -> bool:
 	return enabled and no_cooldown_enabled
-
-static func should_force_tier_four_blessing() -> bool:
-	return enabled and force_tier_four_blessing_enabled
-
-static func set_force_tier_four_blessing_enabled(value: bool) -> void:
-	force_tier_four_blessing_enabled = enabled and value
-
-static func is_force_tier_four_blessing_enabled() -> bool:
-	return enabled and force_tier_four_blessing_enabled
-
-static func should_offer_all_blessings() -> bool:
-	return enabled
-
-static func should_allow_unlimited_upgrade_refresh() -> bool:
-	return enabled
 
 static func should_disable_save() -> bool:
 	return enabled

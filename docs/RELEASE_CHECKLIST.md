@@ -10,6 +10,8 @@ Use this before any public build, demo handoff, or store upload.
 ./scripts/check_project.sh
 ```
 
+- [ ] GitHub `Project Checks` passes with its pinned Godot `4.6.2` binary.
+
 ## Package sanity
 
 - [ ] Open the project in Godot `4.6.2`.
@@ -26,8 +28,9 @@ Use this before any public build, demo handoff, or store upload.
 - [ ] Test pause/resume/main-menu return.
 - [ ] Test window/fullscreen switching and 16:9 window resize behavior.
 - [ ] Test main-menu Settings opens centered after changing window size.
-- [ ] Test level-up blessing list scroll bar is visible and draggable.
-- [ ] Test hover details for blessings, rewards, bottom skill slots, normal attack, and ultimate energy.
+- [ ] Test level-up build offer shows three role cards plus one general blessing, accepts exactly two selections, and allows each card to refresh once.
+- [ ] Test hover details for role builds, blessings, rewards, bottom skill slots, normal attack, and ultimate energy.
+- [ ] In endless camp, stand in front of `阮狗`, verify the interact prompt, advance every dialogue line, and close with `Esc`.
 
 
 ## Performance sanity
@@ -47,8 +50,8 @@ Use this before any public build, demo handoff, or store upload.
 - [ ] Music settings persist.
 - [ ] Display settings persist.
 - [ ] Keybind editing in main-menu Settings still works after closing/reopening the panel.
-- [ ] Hero-trait training and common-prosperity count persist across continue-game save/load.
-- [ ] Blessing levels, skill blessing levels, and equipment persist across continue-game save/load.
+- [ ] Role-build levels and role special state persist across continue-game save/load.
+- [ ] Blessing levels, retained attribute-training state, skill blessing levels, and equipment persist across continue-game save/load.
 - [ ] Achievement unlock state persists.
 
 ## Content/legal

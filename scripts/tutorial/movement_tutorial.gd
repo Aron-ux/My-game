@@ -143,8 +143,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 				return
 			if event.keycode == KEY_ESCAPE or GAME_SETTINGS.event_matches_action(event, GAME_SETTINGS.ACTION_CHARACTER_PANEL):
-				_complete_role_intro_and_enter_endless()
 				get_viewport().set_input_as_handled()
+				_complete_role_intro_and_enter_endless()
 				return
 		if current_step == TutorialStep.ENTER_PORTAL and player_in_portal_range and GAME_SETTINGS.event_matches_action(event, GAME_SETTINGS.ACTION_INTERACT):
 			_show_role_intro_panel()

@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://scripts/camp/endless_camp.gd" id="1_camp"]
 [ext_resource type="PackedScene" path="res://scenes/camp/camp_player.tscn" id="2_player"]
@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" path="res://assets/players/sword/sword.tscn" id="4_sword"]
 [ext_resource type="PackedScene" path="res://assets/players/gun/gun.tscn" id="5_gun"]
 [ext_resource type="PackedScene" path="res://assets/players/wizard/wizard.tscn" id="6_wizard"]
+[ext_resource type="Texture2D" path="res://assets/camp/ruan_dog_husky.png" id="7_dog"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_player_block"]
 size = Vector2(120, 72)
@@ -18,6 +19,14 @@ radius = 86.0
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_portal_interact"]
 radius = 92.0
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_ruan_dog_interact"]
+radius = 46.0
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ruan_dog"]
+atlas = ExtResource("7_dog")
+region = Rect2(0, 174, 90, 58)
+filter_clip = true
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_world_bounds"]
 size = Vector2(1200, 720)
@@ -141,6 +150,33 @@ interaction_kind = "shop"
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Blacksmith/Interactable"]
 shape = SubResource("CircleShape2D_shop_interact")
 
+[node name="RuanDog" type="Node2D" parent="."]
+position = Vector2(170, 80)
+
+[node name="Visual" type="Sprite2D" parent="RuanDog"]
+texture_filter = 1
+texture = SubResource("AtlasTexture_ruan_dog")
+scale = Vector2(1.75, 1.75)
+
+[node name="NameLabel" type="Label" parent="RuanDog"]
+offset_left = -64.0
+offset_top = 58.0
+offset_right = 64.0
+offset_bottom = 86.0
+text = "阮狗"
+horizontal_alignment = 1
+
+[node name="Interactable" type="Area2D" parent="RuanDog" groups=["camp_interactable"]]
+position = Vector2(-98, 0)
+script = ExtResource("3_interactable")
+interactable_id = "ruan_dog"
+display_name = "阮狗"
+prompt_text = "和阮狗说话"
+interaction_kind = "dialogue"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="RuanDog/Interactable"]
+shape = SubResource("CircleShape2D_ruan_dog_interact")
+
 [node name="Portal" type="Node2D" parent="."]
 position = Vector2(380, 100)
 
@@ -207,6 +243,56 @@ horizontal_alignment = 1
 vertical_alignment = 1
 theme_override_font_sizes/font_size = 22
 theme_override_colors/font_color = Color(1, 0.86, 0.48, 1)
+
+[node name="DialoguePanel" type="PanelContainer" parent="CanvasLayer"]
+visible = false
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -380.0
+offset_top = -272.0
+offset_right = 380.0
+offset_bottom = -32.0
+
+[node name="MarginContainer" type="MarginContainer" parent="CanvasLayer/DialoguePanel"]
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 20
+
+[node name="DialogueContent" type="HBoxContainer" parent="CanvasLayer/DialoguePanel/MarginContainer"]
+theme_override_constants/separation = 22
+
+[node name="Portrait" type="TextureRect" parent="CanvasLayer/DialoguePanel/MarginContainer/DialogueContent"]
+custom_minimum_size = Vector2(170, 160)
+texture_filter = 1
+texture = SubResource("AtlasTexture_ruan_dog")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="TextContent" type="VBoxContainer" parent="CanvasLayer/DialoguePanel/MarginContainer/DialogueContent"]
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="CanvasLayer/DialoguePanel/MarginContainer/DialogueContent/TextContent"]
+theme_override_colors/font_color = Color(1, 0.86, 0.48, 1)
+theme_override_font_sizes/font_size = 28
+text = "阮狗"
+
+[node name="Body" type="Label" parent="CanvasLayer/DialoguePanel/MarginContainer/DialogueContent/TextContent"]
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.9, 0.93, 1, 1)
+theme_override_font_sizes/font_size = 22
+text = "汪。"
+autowrap_mode = 2
+vertical_alignment = 1
+
+[node name="Hint" type="Label" parent="CanvasLayer/DialoguePanel/MarginContainer/DialogueContent/TextContent"]
+theme_override_colors/font_color = Color(0.62, 0.68, 0.8, 1)
+theme_override_font_sizes/font_size = 16
+horizontal_alignment = 2
 
 [node name="ShopPanel" type="PanelContainer" parent="CanvasLayer"]
 anchors_preset = 8

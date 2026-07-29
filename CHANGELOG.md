@@ -3,6 +3,15 @@
 ## Unreleased
 
 ### Changed
+- Fixed leaving the movement-tutorial role introduction so input is marked handled before the scene switch, avoiding a null viewport script error.
+- Endless camp now includes the CC0 pixel-art NPC `阮狗`: standing in front of it shows the configured interact key, opens a three-line portrait dialogue, pauses camp movement, advances with interact, and closes with `Esc`.
+- GitHub project checks now install a checksum-pinned Godot 4.6.2 binary instead of silently skipping engine validation; project checks import assets before parse and launch both the real main-menu entry and battle scene.
+- Cleaned smoke-test fixture ownership so the Godot test process exits without the previously reported test-only CanvasItem/ObjectDB leaks.
+- Documentation now matches the upstream four-card, select-two level-up flow: one card per role slot plus one general blessing, with per-card refresh.
+- Removed unreachable progression entry points for the retired opening-trait choice, unused build-choice level schedule, and unused mixed blessing picker; existing skill-unlock/build rules remain upstream-owned.
+- Local project checks now discover and run every ordinary `*_smoke.gd` test automatically; the timed dense-combat benchmark remains a separate evidence check.
+- Enemy profile verification now locks stable archetype/behavior/visual identities instead of duplicating tunable balance values, and the glutton/spawn smokes track the current war-stomp and late-enemy-limit ramp contracts.
+- Dense-combat evidence now exercises real projectile hits and gates projectile damage, hit count, pickup value, entity counts, and duplicate ticks across baseline/candidate runs; unused experimental performance flags were removed.
 - Combat HUD layout is now selectable in settings: the legacy centered bottom skill bar is the default, while the newer three-row team status stack remains available as an alternate HUD layout and can be switched from the pause menu.
 - The alternate combat HUD uses a three-row team status stack anchored bottom-left: `Q` previous role, highlighted current role, and `E` next role each keep six fixed skill slots, HP, MP / ultimate energy, and hover details while preserving empty slots for locked skills.
 - Character panel now uses a dark-gold build-archive layout inspired by the selected design reference, with a left role stack, existing player pixel run sprites as role portraits, ornamental frames, central role stats/equipment, right blessing list, and skill recipe details while preserving gift and blessing-composition interactions.

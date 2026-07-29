@@ -31,3 +31,10 @@ Current paths include:
 - `enemies/`
 
 Status: prototype material. Verify source and usage rights before public/commercial distribution.
+
+## Ruan Dog pixel sprite
+
+- Path: `assets/camp/ruan_dog_husky.png`
+- Source: [Husky Sprites](https://opengameart.org/content/husky-sprites) by Hellkipz, based on work by Shepardskin.
+- License: CC0 1.0 Universal.
+- Usage: the original PNG is bundled unchanged; `scenes/endless_camp.tscn` selects one sitting-idle frame with `AtlasTexture` for the camp sprite and dialogue portrait.

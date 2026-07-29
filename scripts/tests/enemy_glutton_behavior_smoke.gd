@@ -17,9 +17,17 @@ func _run() -> void:
 	var glutton := EnemyStub.new()
 	glutton.enemy_kind = "small_boss"
 	glutton.global_position = Vector2.ZERO
-	glutton.glutton_aura_radius = 120.0
 	glutton.glutton_aura_damage = 9.0
+	var glutton_visual := ShadowVisualStub.new()
+	glutton_visual.shadow_world_ellipse = {
+		"center": glutton.global_position,
+		"horizontal_radius": 100.0,
+		"vertical_radius": 100.0
+	}
+	glutton_visual.name = "ProfileVisual"
+	glutton.add_child(glutton_visual)
 	scene.add_enemy(glutton)
+	_activate_war_stomp(glutton)
 
 	var target := EnemyStub.new()
 	target.global_position = Vector2(40.0, 0.0)
@@ -83,13 +91,17 @@ func _run() -> void:
 	var shadow_glutton := EnemyStub.new()
 	shadow_glutton.enemy_kind = "small_boss"
 	shadow_glutton.global_position = Vector2(360.0, 0.0)
-	shadow_glutton.glutton_aura_radius = 40.0
 	shadow_glutton.glutton_aura_damage = 9.0
 	var shadow_visual := ShadowVisualStub.new()
-	shadow_visual.shadow_world_radius = 100.0
+	shadow_visual.shadow_world_ellipse = {
+		"center": shadow_glutton.global_position,
+		"horizontal_radius": 100.0,
+		"vertical_radius": 100.0
+	}
 	shadow_visual.name = "ProfileVisual"
 	shadow_glutton.add_child(shadow_visual)
 	scene.add_enemy(shadow_glutton)
+	_activate_war_stomp(shadow_glutton)
 
 	var shadow_target := EnemyStub.new()
 	shadow_target.global_position = Vector2(360.0 + 105.0, 0.0)
@@ -105,7 +117,6 @@ func _run() -> void:
 	var ellipse_glutton := EnemyStub.new()
 	ellipse_glutton.enemy_kind = "small_boss"
 	ellipse_glutton.global_position = Vector2(720.0, 0.0)
-	ellipse_glutton.glutton_aura_radius = 40.0
 	ellipse_glutton.glutton_aura_damage = 9.0
 	var ellipse_visual := ShadowVisualStub.new()
 	ellipse_visual.shadow_world_ellipse = {
@@ -116,6 +127,7 @@ func _run() -> void:
 	ellipse_visual.name = "ProfileVisual"
 	ellipse_glutton.add_child(ellipse_visual)
 	scene.add_enemy(ellipse_glutton)
+	_activate_war_stomp(ellipse_glutton)
 
 	var ellipse_horizontal_target := EnemyStub.new()
 	ellipse_horizontal_target.global_position = Vector2(720.0 + 128.0, 0.0)
@@ -143,13 +155,13 @@ func _run() -> void:
 		failures.append("glutton aura should stay near 120 percent of the visual shadow vertical radius")
 
 	var player_touch_radius := ENEMY_GLUTTON_BEHAVIOR.get_player_touch_radius(ellipse_glutton)
-	if abs(player_touch_radius - 96.0) > 0.01:
-		failures.append("glutton player touch radius should use 80 percent of max shadow radius")
+	if abs(player_touch_radius - 144.0) > 0.01:
+		failures.append("glutton war stomp touch radius should use 120 percent of max shadow radius")
 	var player_touch_shape := ENEMY_GLUTTON_BEHAVIOR.get_player_touch_shape(ellipse_glutton)
-	if abs(float(player_touch_shape.get("horizontal_radius", 0.0)) - 96.0) > 0.01:
-		failures.append("glutton player touch shape should use 80 percent of shadow horizontal radius")
-	if abs(float(player_touch_shape.get("vertical_radius", 0.0)) - 32.0) > 0.01:
-		failures.append("glutton player touch shape should use 80 percent of shadow vertical radius")
+	if abs(float(player_touch_shape.get("horizontal_radius", 0.0)) - 144.0) > 0.01:
+		failures.append("glutton war stomp touch shape should use 120 percent of shadow horizontal radius")
+	if abs(float(player_touch_shape.get("vertical_radius", 0.0)) - 48.0) > 0.01:
+		failures.append("glutton war stomp touch shape should use 120 percent of shadow vertical radius")
 
 	scene.queue_free()
 	await process_frame
@@ -193,9 +205,10 @@ class EnemyStub:
 	var contact_radius: float = 16.0
 	var profile_visual_scene: PackedScene = null
 	var drop_absorber: Node = null
-	var glutton_aura_radius: float = 0.0
 	var glutton_aura_damage: float = 0.0
 	var glutton_aura_hits_by_enemy_id: Dictionary = {}
+	var glutton_warning_nodes: Array = []
+	var glutton_war_stomp_remaining: float = 0.0
 	var was_defeated: bool = false
 
 	func take_damage(amount: float) -> bool:
@@ -206,6 +219,9 @@ class EnemyStub:
 			queue_free()
 			return true
 		return false
+
+	func _spawn_status_burst(_color: Color, _radius: float) -> void:
+		pass
 
 
 class PlayerLikeStub:
@@ -218,14 +234,18 @@ class PlayerLikeStub:
 		damage_calls += 1
 
 
+func _activate_war_stomp(enemy: EnemyStub) -> void:
+	enemy.glutton_war_stomp_remaining = 1.0
+	var indicator := Node2D.new()
+	indicator.name = "GluttonWarStompRange"
+	enemy.add_child(indicator)
+	enemy.glutton_warning_nodes.append(indicator)
+
+
 class ShadowVisualStub:
 	extends Node2D
 
-	var shadow_world_radius: float = 0.0
 	var shadow_world_ellipse: Dictionary = {}
 
 	func get_shadow_world_ellipse() -> Dictionary:
 		return shadow_world_ellipse
-
-	func get_shadow_world_radius() -> float:
-		return shadow_world_radius
