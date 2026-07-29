@@ -18,6 +18,10 @@ func _run() -> void:
 	var crescent = CrescentWave.new()
 	if not is_equal_approx(crescent._get_wave_speed(owner), 500.0):
 		failures.append("full moon should replace base wave speed with 500")
+	owner.role_special_states["swordsman"]["build_levels"]["crescent_wave_speed"] = 1
+	if not is_equal_approx(crescent._get_wave_speed(owner), 520.0):
+		failures.append("full moon should inherit the post-talent wave speed build")
+	owner.role_special_states["swordsman"]["build_levels"].erase("crescent_wave_speed")
 
 	owner.talents = {"swordsman_crescent_return": true}
 	var projectile := Node2D.new()
@@ -71,6 +75,10 @@ func _check_last_guard() -> void:
 	var owner := TalentOwner.new()
 	root.add_child(owner)
 	owner.talents = {"swordsman_trait_last_guard": true}
+	owner.role_special_states["swordsman"]["build_levels"] = {
+		"trait_heal_bonus": 2,
+		"knight_glory_duration": 1
+	}
 
 	SurvivalFlow.take_damage(owner, 10.0)
 	if owner.active_role_index != 1 or owner.swordsman_death_defiance_cooldown_remaining > 0.0:
@@ -81,12 +89,14 @@ func _check_last_guard() -> void:
 	SurvivalFlow.take_damage(owner, 100.0)
 	if owner.active_role_index != 0:
 		failures.append("last guard should force switch to swordsman")
-	if not is_equal_approx(float(owner.role_health_values.get("gunner", 0.0)), 30.0):
-		failures.append("last guard should restore the rescued role to 30 percent health")
+	if not is_equal_approx(float(owner.role_health_values.get("gunner", 0.0)), 32.0):
+		failures.append("last guard should inherit trait healing builds for rescued health")
 	if not is_zero_approx(float(owner.role_switch_energy_values.get("gunner", -1.0))):
 		failures.append("last guard should clear the rescued role switch energy")
 	if not is_equal_approx(owner.swordsman_death_defiance_cooldown_remaining, 80.0):
 		failures.append("last guard should start the shared 80 second cooldown")
+	if not is_equal_approx(owner.switch_invulnerability_remaining, 1.7):
+		failures.append("last guard should inherit knight glory duration for post-switch invulnerability")
 	owner.queue_free()
 
 

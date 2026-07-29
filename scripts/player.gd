@@ -863,6 +863,18 @@ func apply_skill_talent_choice(option_id: String, expected_progress_id: String =
 func get_skill_progress_level(role_id: String, progress_id: String) -> int:
 	return PLAYER_SKILL_TALENT_SYSTEM.get_skill_progress_level(self, role_id, progress_id)
 
+func get_skill_talent_display(role_id: String, progress_id: String) -> Dictionary:
+	return PLAYER_SKILL_TALENT_SYSTEM.get_display(self, role_id, progress_id)
+
+func get_skill_talent_display_for_skill_id(skill_id: String) -> Dictionary:
+	return PLAYER_SKILL_TALENT_SYSTEM.get_display_for_skill_id(self, skill_id)
+
+func _project_skill_talent_payload(skill_id: String, payload: Dictionary, include_description: bool = true) -> Dictionary:
+	return PLAYER_SKILL_TALENT_SYSTEM.project_skill_payload(self, skill_id, payload, include_description)
+
+func _project_skill_talent_build_option(option: Dictionary) -> Dictionary:
+	return PLAYER_SKILL_TALENT_SYSTEM.project_build_option(self, option)
+
 func _get_role_blessing_stat_bonus(role_id: String, stat: String) -> float:
 	return PLAYER_BLESSING_SKILL_BRIDGE.get_role_stat_bonus(self, role_id, stat)
 

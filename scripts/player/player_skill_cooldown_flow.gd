@@ -19,11 +19,24 @@ static func get_role_skill_cooldown_slots(owner, role_id: String, attack_interva
 	_append_blessing_active_skill_slot(owner, role_id, extra_slots)
 
 	var slots: Array = PLAYER_SKILL_COOLDOWN_SLOTS.build_slots(role_id, attack_remaining, attack_interval, extra_slots, owner)
+	_project_talent_displays(owner, slots, include_descriptions)
 	if include_descriptions:
 		_append_requirement_text(owner, slots)
 	else:
 		_strip_frame_only_slot_text(slots)
 	return slots
+
+
+static func _project_talent_displays(owner, slots: Array, include_descriptions: bool) -> void:
+	if owner == null or not owner.has_method("_project_skill_talent_payload"):
+		return
+	for index in range(slots.size()):
+		if slots[index] is not Dictionary:
+			continue
+		var slot: Dictionary = slots[index]
+		var skill_id := str(slot.get("skill_id", ""))
+		if skill_id != "":
+			slots[index] = owner._project_skill_talent_payload(skill_id, slot, include_descriptions)
 
 
 static func apply_switch_lock_to_role_skills(owner, role_id: String, duration: float) -> void:

@@ -440,12 +440,14 @@ static func _try_trigger_swordsman_last_guard(owner) -> bool:
 	if swordsman_index < 0 or owner._get_role_current_health("swordsman") <= 0.0:
 		return false
 
-	owner.current_health = owner._get_role_max_health(active_role_id) * 0.30
+	var rescue_health_ratio: float = min(1.0, 0.30 + PLAYER_BUILD_SYSTEM.get_swordsman_trait_heal_bonus(owner))
+	owner.current_health = owner._get_role_max_health(active_role_id) * rescue_health_ratio
 	owner._save_active_role_health()
 	owner._set_role_switch_energy(active_role_id, 0.0)
 	owner.swordsman_death_defiance_cooldown_remaining = owner.SWORDSMAN_DEATH_DEFIANCE_COOLDOWN
 	owner.swordsman_death_defiance_will_remaining = 0.0
 	owner._try_switch_role(swordsman_index, true, true)
+	owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, SWORDSMAN_DEATH_DEFIANCE_INVULNERABILITY + PLAYER_BUILD_SYSTEM.get_swordsman_knight_glory_duration_bonus(owner))
 	if owner.has_method("_spawn_forced_combat_tag"):
 		owner._spawn_forced_combat_tag(owner.global_position + Vector2(0.0, -42.0), "最后的换防", Color(1.0, 0.72, 0.32, 1.0))
 	owner._play_player_hurt_feedback()

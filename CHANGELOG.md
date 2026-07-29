@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changed
+- Skill talents now rename their live skill, ultimate, character-panel, and upgrade-card displays to `base skill·talent`; subsequent build cards keep stable IDs while explaining and applying their bonuses to the transformed form. Swordsman trait builds now also extend Blood Battle duration and improve Last Guard rescue health/invulnerability.
 - Removed the retired `I x3 -> II x1` blessing composition flow from the blessing system and character panel.
 - Fixed leaving the movement-tutorial role introduction so input is marked handled before the scene switch, avoiding a null viewport script error.
 - Endless camp now includes the CC0 pixel-art NPC `阮狗`: standing in front of it shows the configured interact key, opens a three-line portrait dialogue, pauses camp movement, advances with interact, and closes with `Esc`.

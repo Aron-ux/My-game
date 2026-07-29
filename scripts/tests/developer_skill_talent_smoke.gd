@@ -41,6 +41,13 @@ func _run() -> void:
 	_expect(PLAYER_BLESSING_SKILL_STATE.is_skill_unlocked(main.player, "meta_field"), "developer active-skill talent should unlock the required skill")
 	_expect(main.player.get_skill_progress_level("mage", "mage_meta_field") == 3, "developer active-skill talent should raise the unlocked skill to Lv.3")
 	_expect(main.player._has_skill_talent("mage_meta_transfer"), "developer active-skill talent should be selected")
+	var meta_slot_name := ""
+	for slot_value in main.player._get_role_skill_cooldown_slots("mage", 2.5):
+		var slot: Dictionary = slot_value
+		if str(slot.get("skill_id", "")) == "meta_field":
+			meta_slot_name = str(slot.get("name", ""))
+	_expect(meta_slot_name == "梅塔领域·领域转移", "developer talent grant should refresh the evolved skill name in HUD payloads")
+	_expect(main.player.get_skill_graph_text("mage").contains("梅塔领域·领域转移"), "character panel graph should use the evolved skill name")
 
 	DEVELOPER_ACTIONS.grant_skill_talent(main, DEVELOPER_OPTION_PROVIDER.CLEAR_SKILL_TALENTS_OPTION_ID)
 	_expect(not main.player._has_skill_talent("swordsman_trait_last_guard") and not main.player._has_skill_talent("mage_meta_transfer"), "developer clear action should remove all selected talents")

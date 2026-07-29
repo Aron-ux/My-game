@@ -48,7 +48,7 @@ static func get_ultimate_energy_cost(owner) -> float:
 	return ULTIMATE_ENERGY_REQUIRED
 
 
-static func get_ultimate_display(owner, role_id: String) -> Dictionary:
+static func get_ultimate_display(owner, role_id: String, include_description: bool = true) -> Dictionary:
 	var fallback := {
 		"name": "大招",
 		"description": "当前英雄的大招。"
@@ -57,8 +57,10 @@ static func get_ultimate_display(owner, role_id: String) -> Dictionary:
 	var display: Dictionary = ULTIMATE_DISPLAY_OVERRIDE.get(role_id, fallback)
 	var result := display.duplicate(true)
 	result["skill_id"] = _get_ultimate_skill_id(role_id)
-	var enhancement_text := _make_ultimate_enhancement_description(owner, role_id)
-	if enhancement_text != "":
+	if owner != null and owner.has_method("_project_skill_talent_payload"):
+		result = owner._project_skill_talent_payload(str(result.get("skill_id", "")), result, include_description)
+	var enhancement_text := _make_ultimate_enhancement_description(owner, role_id) if include_description else ""
+	if include_description and enhancement_text != "":
 		result["description"] = "%s\n\n已获得的大招强化：\n%s" % [str(result.get("description", "")), enhancement_text]
 	return result
 

@@ -124,13 +124,21 @@ static func apply_option_with_result(owner, option_id: String) -> Dictionary:
 			return {}
 	else:
 		_increment_build_count(owner, role_id, build_id)
+	var display_data := _project_role_option(owner, {
+		"role_id": role_id,
+		"build_id": build_id,
+		"skill_progress_id": str(definition.get("skill_progress_id", "")),
+		"title": str(definition.get("title", build_id)),
+		"summary": str(definition.get("summary", definition.get("title", build_id)))
+	})
+	var display_title := str(display_data.get("title", definition.get("title", build_id)))
 	if owner.has_method("_spawn_combat_tag"):
-		owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -62.0), str(definition.get("title", build_id)), Color(0.80, 0.92, 1.0, 1.0))
+		owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -62.0), display_title, Color(0.80, 0.92, 1.0, 1.0))
 	return {
 		"type": CATEGORY_ROLE_BUILD,
 		"role_id": role_id,
 		"build_id": build_id,
-		"title": str(definition.get("title", build_id)),
+		"title": display_title,
 		"unlock_skill": unlock_skill
 	}
 
@@ -372,7 +380,7 @@ static func _make_role_option(owner, role_id: String, role_slot_index: int, defi
 		card_title = PLAYER_BLESSING_SKILL_STATE.get_skill_title(skill_id)
 	var build_card_scene := _get_definition_card_scene(build_id, definition, card_title)
 	var shows_card_title := card_title != ""
-	return {
+	var option := {
 		"id": "%s%s:%s" % [OPTION_PREFIX, role_id, build_id],
 		"offer_key": "%s:%s" % [role_id, build_id],
 		"option_category": CATEGORY_ROLE_BUILD,
@@ -382,6 +390,7 @@ static func _make_role_option(owner, role_id: String, role_slot_index: int, defi
 		"role_id": role_id,
 		"role_name": role_name,
 		"build_id": build_id,
+		"skill_progress_id": str(definition.get("skill_progress_id", "")),
 		"title": str(definition.get("title", build_id)),
 		"summary": str(definition.get("summary", description)),
 		"short_description": str(definition.get("summary", description)),
@@ -396,6 +405,13 @@ static func _make_role_option(owner, role_id: String, role_slot_index: int, defi
 		"blessing_tier": 1,
 		"evolved": false
 	}
+	return _project_role_option(owner, option)
+
+
+static func _project_role_option(owner, option: Dictionary) -> Dictionary:
+	if owner != null and owner.has_method("_project_skill_talent_build_option"):
+		return owner._project_skill_talent_build_option(option)
+	return option
 
 
 static func _pick_general_option(general_options: Array) -> Dictionary:

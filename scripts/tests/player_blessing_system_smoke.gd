@@ -4,6 +4,7 @@ const PlayerBlessingSystem := preload("res://scripts/player/player_blessing_syst
 const PlayerBuildSystem := preload("res://scripts/player/player_build_system.gd")
 const PlayerBlessingSkillState := preload("res://scripts/player/player_blessing_skill_state.gd")
 const PlayerRoleStatFlow := preload("res://scripts/player/player_role_stat_flow.gd")
+const PlayerSkillTalentSystem := preload("res://scripts/player/player_skill_talent_system.gd")
 const DeveloperOptionProvider := preload("res://scripts/developer/developer_option_provider.gd")
 
 var failures: Array[String] = []
@@ -192,6 +193,14 @@ func _check_role_build_skill_gating() -> void:
 		failures.append("skill upgrade build should show skill name as card title, got %s" % str(skill_build_option))
 	if str(skill_build_option.get("build_card_scene", "")) != "stone":
 		failures.append("skill upgrade role build should use stone card scene, got %s" % str(skill_build_option))
+	var swordsman_state: Dictionary = owner.role_special_states.get("swordsman", {})
+	swordsman_state["skill_talents"] = {"swordsman_blade_storm": "swordsman_blade_storm_stationary"}
+	owner.role_special_states["swordsman"] = swordsman_state
+	var evolved_option := _find_role_build_option(PlayerBuildSystem._build_role_options(owner, "swordsman", 0), "blade_storm_damage")
+	if str(evolved_option.get("card_title", "")) != "剑刃风暴·驻地风暴":
+		failures.append("evolved skill build should use the evolved card title, got %s" % str(evolved_option))
+	if not str(evolved_option.get("title", "")).contains("驻地风暴") or not str(evolved_option.get("summary", "")).contains("伤害倍率增加1.5％"):
+		failures.append("evolved skill build should explain the transformed upgrade, got %s" % str(evolved_option))
 
 
 func _check_level_based_tier_weights() -> void:
@@ -640,6 +649,9 @@ class _OwnerStub:
 	func get_skill_blessing_levels() -> Dictionary:
 		skill_blessing_levels = PlayerBlessingSystem.normalize_skill_state(skill_blessing_levels)
 		return skill_blessing_levels.duplicate(true)
+
+	func _project_skill_talent_build_option(option: Dictionary) -> Dictionary:
+		return PlayerSkillTalentSystem.project_build_option(self, option)
 
 
 class _SignalStub:

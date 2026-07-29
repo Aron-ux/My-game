@@ -79,7 +79,7 @@ static func build_frame_hud_from_player(owner) -> Dictionary:
 		"max_mana": owner.max_mana,
 		"ultimate_energy_cost": owner._get_ultimate_energy_cost(),
 		"ultimate_ready": owner._can_use_ultimate(),
-		"ultimate_display": _build_frame_ultimate_display(role_id),
+		"ultimate_display": _build_frame_ultimate_display(owner, role_id),
 		"role_name": str(role_data.get("name", "剑士")),
 		"role_id": role_id,
 		"team_roles": owner.roles.map(func(role): return role["name"]),
@@ -110,8 +110,8 @@ static func _build_ultimate_display(owner, role_id: String) -> Dictionary:
 			ultimate_display["description"] = "%s\n\n进化需求：\n%s" % [str(ultimate_display.get("description", "")), ultimate_requirement]
 	return ultimate_display
 
-static func _build_frame_ultimate_display(role_id: String) -> Dictionary:
-	var ultimate_display: Dictionary = PLAYER_ULTIMATE_FLOW.get_ultimate_display(null, role_id)
+static func _build_frame_ultimate_display(owner, role_id: String) -> Dictionary:
+	var ultimate_display: Dictionary = PLAYER_ULTIMATE_FLOW.get_ultimate_display(owner, role_id, false)
 	ultimate_display["description"] = str(ultimate_display.get("description", "当前英雄的大招。"))
 	return ultimate_display
 

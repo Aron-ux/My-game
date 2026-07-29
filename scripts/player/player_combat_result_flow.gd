@@ -155,7 +155,7 @@ static func apply_swordsman_trait_heal_on_hit(owner, role_id: String, hit_count:
 		and owner._has_skill_talent("swordsman_trait_blood_battle")
 		and str(owner._get_active_role().get("id", "")) == "swordsman"
 	):
-		owner._activate_switch_power("swordsman", "血战昂扬", 3.0, 1.15, 0.0)
+		owner._activate_switch_power("swordsman", "血战昂扬", 3.0 + PLAYER_BUILD_SYSTEM.get_swordsman_knight_glory_duration_bonus(owner), 1.15, 0.0)
 
 
 static func _get_role_health_ratio(owner, role_id: String) -> float:
