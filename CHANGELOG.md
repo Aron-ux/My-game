@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Changed
+- Raised the three-role survivability baseline to 150 / 120 / 120 health, eased Gunner's base damage-reduction penalty from -80 to -40, strengthened Divine Grace to 15% / 20% / 25% / 30% maximum health with improved regeneration, raised Unyielding to 10 / 18 / 26 / 34 reduction value, and increased every one of the 45 repeatable role-build upgrades while preserving linear stacking, stable IDs, talent inheritance, and cooldown floors. Legacy run saves now adopt the current authored base health and damage-reduction values instead of restoring stale snapshots.
+- Strengthened `贪婪`: up to four hits per attack event now each roll a fixed 10% proc chance, each tier heals a stable 1% / 2% / 4% / 6% of maximum health instead of becoming weaker as health falls, and its proc cooldown is now 0.2 seconds.
 - Added an endless-battle-only `1×/2×` speed toggle beneath the bone/Ruan-stone HUD. It accelerates the complete combat simulation and always resets to `1×` on death, restart, or scene exit.
 - Fixed HUD-layout controls overflowing the main settings and pause panels at the 1280×720 baseline, with scrolling retained for smaller windows. The alternate three-row combat HUD now reuses the three authored role portraits and shows the existing circular switch-energy/cooldown progress instead of generic silhouette emblems.
 - Flame Stone now triggers when a direct basic attack kills an enemy, exploding for 8% of the dead enemy's maximum health in a 260-unit radius; each further level adds 0.5 percentage points, and explosion kills do not recursively trigger more explosions.

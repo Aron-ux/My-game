@@ -5,6 +5,8 @@ const PlayerBuildSystem := preload("res://scripts/player/player_build_system.gd"
 const PlayerBlessingSkillState := preload("res://scripts/player/player_blessing_skill_state.gd")
 const PlayerRoleStatFlow := preload("res://scripts/player/player_role_stat_flow.gd")
 const PlayerSkillTalentSystem := preload("res://scripts/player/player_skill_talent_system.gd")
+const RoleAttributeRules := preload("res://scripts/player/roles/role_attribute_rules.gd")
+const RoleDatabase := preload("res://scripts/player/roles/role_database.gd")
 const DeveloperOptionProvider := preload("res://scripts/developer/developer_option_provider.gd")
 
 var failures: Array[String] = []
@@ -27,6 +29,8 @@ func _run() -> void:
 	_check_four_tier_caps()
 	_check_general_blessing_descriptions_match_current_design()
 	_check_general_blessing_stats()
+	_check_strengthened_role_build_values()
+	_check_strengthened_survivability_baseline()
 	_check_tailwind_move_speed_bonus_visible_to_role_stat_flow()
 	_check_global_skill_blessings()
 	_check_kingdom_trick_scope()
@@ -120,17 +124,17 @@ func _check_role_build_skill_gating() -> void:
 		failures.append("trait role build should show trait as card title, got %s" % str(trait_option))
 	if str(trait_option.get("build_card_scene", "")) != "stone":
 		failures.append("trait role build should use stone card scene, got %s" % str(trait_option))
-	if str(trait_option.get("summary", "")) != "战意触发次数+1":
+	if str(trait_option.get("summary", "")) != "战意触发次数+2":
 		failures.append("trait role build summary should use design text, got %s" % str(trait_option))
 	var swordsman_basic_option := _find_role_build_option(before_unlock, "basic_attack_range")
 	if bool(swordsman_basic_option.get("hide_card_title", true)) or str(swordsman_basic_option.get("card_title", "")) != "普通攻击":
 		failures.append("basic attack build should show basic attack as card title, got %s" % str(swordsman_basic_option))
-	if str(swordsman_basic_option.get("summary", "")) != "剑士普通攻击范围增加10％":
+	if str(swordsman_basic_option.get("summary", "")) != "剑士普通攻击范围增加15％":
 		failures.append("basic attack summary should omit parenthetical notes, got %s" % str(swordsman_basic_option))
 	var swordsman_entry_option := _find_role_build_option(before_unlock, "entry_damage")
 	if bool(swordsman_entry_option.get("hide_card_title", true)) or str(swordsman_entry_option.get("card_title", "")) != "冲锋":
 		failures.append("entry build should show entry skill name as card title, got %s" % str(swordsman_entry_option))
-	if str(swordsman_entry_option.get("summary", "")) != "冲锋伤害倍率增加10％":
+	if str(swordsman_entry_option.get("summary", "")) != "冲锋伤害倍率增加15％":
 		failures.append("entry build summary should use entry skill name, got %s" % str(swordsman_entry_option))
 	if str(swordsman_entry_option.get("build_card_scene", "")) != "stone":
 		failures.append("entry role build should use stone card scene, got %s" % str(swordsman_entry_option))
@@ -146,7 +150,7 @@ func _check_role_build_skill_gating() -> void:
 	var gunner_basic_option := _find_role_build_option(gunner_options, "basic_attack_damage")
 	if bool(gunner_basic_option.get("hide_card_title", true)) or str(gunner_basic_option.get("card_title", "")) != "普通攻击":
 		failures.append("gunner basic attack build should show basic attack as card title, got %s" % str(gunner_basic_option))
-	if str(gunner_basic_option.get("summary", "")) != "枪手普通攻击伤害倍率+10％":
+	if str(gunner_basic_option.get("summary", "")) != "枪手普通攻击伤害倍率+15％":
 		failures.append("gunner basic attack summary should name role, got %s" % str(gunner_basic_option))
 	var gunner_entry_option := _find_role_build_option(gunner_options, "entry_damage")
 	if bool(gunner_entry_option.get("hide_card_title", true)) or str(gunner_entry_option.get("card_title", "")) != "枪火典礼":
@@ -161,15 +165,15 @@ func _check_role_build_skill_gating() -> void:
 	var mage_basic_option := _find_role_build_option(mage_options, "basic_attack_damage")
 	if bool(mage_basic_option.get("hide_card_title", true)) or str(mage_basic_option.get("card_title", "")) != "普通攻击":
 		failures.append("mage basic attack build should show basic attack as card title, got %s" % str(mage_basic_option))
-	if str(mage_basic_option.get("summary", "")) != "法师普通攻击伤害倍率+15％":
+	if str(mage_basic_option.get("summary", "")) != "法师普通攻击伤害倍率+20％":
 		failures.append("mage basic attack summary should name role, got %s" % str(mage_basic_option))
 	var mage_ultimate_option := _find_role_build_option(mage_options, "ultimate_bombard_count")
 	if bool(mage_ultimate_option.get("hide_card_title", true)) or str(mage_ultimate_option.get("card_title", "")) != "奥数轰炸":
 		failures.append("mage ultimate build should show ultimate name as card title, got %s" % str(mage_ultimate_option))
 	if not PlayerBuildSystem.apply_option(owner, "role_build:mage:ultimate_bombard_count"):
 		failures.append("mage ultimate bombard count build should apply")
-	if PlayerBuildSystem.get_mage_ultimate_bombard_count_bonus(owner) != 2:
-		failures.append("mage ultimate bombard count build should add 2")
+	if PlayerBuildSystem.get_mage_ultimate_bombard_count_bonus(owner) != 3:
+		failures.append("mage ultimate bombard count build should add 3")
 	var unlock_option := _find_role_build_option(before_unlock, "unlock_blade_storm")
 	if bool(unlock_option.get("hide_card_title", true)) or str(unlock_option.get("card_title", "")) != "剑刃风暴":
 		failures.append("skill unlock build should show skill name as card title, got %s" % str(unlock_option))
@@ -199,7 +203,7 @@ func _check_role_build_skill_gating() -> void:
 	var evolved_option := _find_role_build_option(PlayerBuildSystem._build_role_options(owner, "swordsman", 0), "blade_storm_damage")
 	if str(evolved_option.get("card_title", "")) != "剑刃风暴·驻地风暴":
 		failures.append("evolved skill build should use the evolved card title, got %s" % str(evolved_option))
-	if not str(evolved_option.get("title", "")).contains("驻地风暴") or not str(evolved_option.get("summary", "")).contains("伤害倍率增加1.5％"):
+	if not str(evolved_option.get("title", "")).contains("驻地风暴") or not str(evolved_option.get("summary", "")).contains("伤害倍率增加2.5％"):
 		failures.append("evolved skill build should explain the transformed upgrade, got %s" % str(evolved_option))
 
 
@@ -365,7 +369,7 @@ func _check_general_blessing_stats() -> void:
 	PlayerBlessingSystem.apply_option(owner, "blessing:burst:3")
 	PlayerBlessingSystem.apply_option(owner, "blessing:unyielding:2")
 	for role_id in ["swordsman", "gunner", "mage"]:
-		if not is_equal_approx(PlayerBlessingSystem.get_role_stat_bonus(owner, role_id, "max_health_percent"), 0.08):
+		if not is_equal_approx(PlayerBlessingSystem.get_role_stat_bonus(owner, role_id, "max_health_percent"), 0.15):
 			failures.append("divine grace should add shared max health percent")
 		if not is_equal_approx(PlayerBlessingSystem.get_role_stat_bonus(owner, role_id, "move_speed_percent"), 0.04):
 			failures.append("tailwind should add shared move speed percent")
@@ -381,23 +385,30 @@ func _check_general_blessing_stats() -> void:
 			failures.append("burst tier III should add critical chance")
 		if not is_equal_approx(PlayerBlessingSystem.get_role_stat_bonus(owner, role_id, "critical_damage_bonus"), 0.05):
 			failures.append("burst tier III should add critical damage")
-		if not is_equal_approx(PlayerBlessingSystem.get_role_stat_bonus(owner, role_id, "damage_reduction"), 12.0):
+		if not is_equal_approx(PlayerBlessingSystem.get_role_stat_bonus(owner, role_id, "damage_reduction"), 18.0):
 			failures.append("unyielding tier II should add damage reduction value")
-	if not is_equal_approx(PlayerBlessingSystem.get_greed_heal_ratio(owner), 0.04):
-		failures.append("greed tier IV should provide 4 percent current health heal ratio")
-	if not is_equal_approx(PlayerBlessingSystem.get_greed_max_health_heal_ratio(owner), 0.02):
-		failures.append("greed tier IV should provide 2 percent max health heal ratio")
-	if not is_equal_approx(PlayerBlessingSystem.get_greed_proc_chance(owner), 0.05):
-		failures.append("greed should keep a fixed 5 percent proc chance")
+	if not is_equal_approx(PlayerBlessingSystem.get_greed_heal_ratio(owner), 0.06):
+		failures.append("greed tier IV should provide 6 percent max health heal ratio")
+	if not is_equal_approx(PlayerBlessingSystem.get_greed_max_health_heal_ratio(owner), 0.06):
+		failures.append("greed tier IV should expose its max health heal ratio")
+	if not is_equal_approx(PlayerBlessingSystem.get_greed_heal_amount(owner, "swordsman"), 6.0):
+		failures.append("greed tier IV should heal 6 percent of max health")
+	if not is_equal_approx(PlayerBlessingSystem.get_greed_proc_chance(owner), 0.10):
+		failures.append("greed should keep a fixed 10 percent proc chance")
+	PlayerBlessingSystem.apply_option(owner, "blessing:greed:4")
+	if not is_equal_approx(PlayerBlessingSystem.get_greed_heal_ratio(owner), 0.12):
+		failures.append("repeated greed should stack heal amount linearly")
+	if not is_equal_approx(PlayerBlessingSystem.get_greed_proc_chance(owner), 0.10):
+		failures.append("repeated greed should not stack proc chance")
 
 
 func _check_general_blessing_descriptions_match_current_design() -> void:
 	var expected := {
 		"divine_grace": {
-			1: "I级：最大血量增加8％",
-			2: "II级：最大血量增加12％",
-			3: "III级：最大血量增加16％，每5s回复1％点最大血量",
-			4: "IV级：最大血量增加20％，每5s回复2％点最大血量"
+			1: "I级：最大血量增加15％",
+			2: "II级：最大血量增加20％",
+			3: "III级：最大血量增加25％，每5s回复2％点最大血量",
+			4: "IV级：最大血量增加30％，每5s回复4％点最大血量"
 		},
 		"support": {
 			1: "I级：切人能量获取效率增加2％",
@@ -424,16 +435,16 @@ func _check_general_blessing_descriptions_match_current_design() -> void:
 			4: "IV级：暴击率增加15％，暴击伤害增加10％"
 		},
 		"unyielding": {
-			1: "I级：角色减伤+6",
-			2: "II级：角色减伤+12",
-			3: "III级：角色减伤+18",
-			4: "IV级：角色减伤+24"
+			1: "I级：角色减伤+10",
+			2: "II级：角色减伤+18",
+			3: "III级：角色减伤+26",
+			4: "IV级：角色减伤+34"
 		},
 		"greed": {
-			1: "I级：角色攻击造成伤害时有5％的概率回复1％当前生命值",
-			2: "II级：角色攻击造成伤害时有5％的概率回复2％当前生命值",
-			3: "III级：角色攻击造成伤害时有5％的概率回复回复3％当前生命值+1％最大生命值",
-			4: "IV级：角色攻击造成伤害时有5％概率回复4％当前生命值+2％最大生命值"
+			1: "I级：角色攻击造成伤害时，最多4次命中各有10％概率回复1％最大生命值，触发后冷却0.2秒",
+			2: "II级：角色攻击造成伤害时，最多4次命中各有10％概率回复2％最大生命值，触发后冷却0.2秒",
+			3: "III级：角色攻击造成伤害时，最多4次命中各有10％概率回复4％最大生命值，触发后冷却0.2秒",
+			4: "IV级：角色攻击造成伤害时，最多4次命中各有10％概率回复6％最大生命值，触发后冷却0.2秒"
 		}
 	}
 	for blessing_id in expected.keys():
@@ -443,6 +454,86 @@ func _check_general_blessing_descriptions_match_current_design() -> void:
 			var expected_description: String = str((expected.get(blessing_id, {}) as Dictionary).get(tier, ""))
 			if actual != expected_description:
 				failures.append("%s tier %d description should match current design, got '%s'" % [str(blessing_id), int(tier), actual])
+
+
+func _check_strengthened_survivability_baseline() -> void:
+	var owner := _OwnerStub.new()
+	owner.roles = RoleDatabase.get_role_data()
+	var expected_health := {
+		"swordsman": 150.0,
+		"gunner": 120.0,
+		"mage": 120.0
+	}
+	for role_id in expected_health.keys():
+		var actual: float = PlayerRoleStatFlow.get_role_max_health(owner, str(role_id))
+		if not is_equal_approx(actual, float(expected_health[role_id])):
+			failures.append("%s base max health should be %.0f, got %.2f" % [str(role_id), float(expected_health[role_id]), actual])
+	var gunner_data := RoleDatabase.get_role_data_by_id("gunner")
+	if not is_equal_approx(float(gunner_data.get("base_damage_reduction_value", 0.0)), -40.0):
+		failures.append("gunner base damage reduction value should be -40")
+	if not is_equal_approx(RoleAttributeRules.get_role_base_damage_reduction_value("gunner"), -40.0):
+		failures.append("gunner fallback damage reduction value should stay synchronized")
+
+
+func _check_strengthened_role_build_values() -> void:
+	var owner := _OwnerStub.new()
+	for role_id in ["swordsman", "gunner", "mage"]:
+		for definition_value in PlayerBuildSystem.BUILD_DEFINITIONS.get(role_id, []):
+			var definition: Dictionary = definition_value
+			if str(definition.get("unlock_skill", "")) == "":
+				PlayerBuildSystem.apply_option(owner, "role_build:%s:%s" % [role_id, str(definition.get("id", ""))])
+	var checks := [
+		[PlayerBuildSystem.get_basic_attack_damage_multiplier(owner, "swordsman"), 1.15, "swordsman basic damage"],
+		[PlayerBuildSystem.get_basic_attack_cooldown_multiplier(owner, "swordsman"), 0.85, "swordsman basic cooldown"],
+		[PlayerBuildSystem.get_basic_attack_range_multiplier(owner, "swordsman"), 1.15, "swordsman basic range"],
+		[PlayerBuildSystem.get_entry_damage_multiplier(owner, "swordsman"), 1.15, "swordsman entry damage"],
+		[PlayerBuildSystem.get_swordsman_trait_extra_rolls(owner), 2.0, "swordsman trait rolls"],
+		[PlayerBuildSystem.get_swordsman_trait_heal_bonus(owner), 0.02, "swordsman trait healing"],
+		[PlayerBuildSystem.get_swordsman_knight_glory_duration_bonus(owner), 0.3, "swordsman glory duration"],
+		[PlayerBuildSystem.get_swordsman_ultimate_damage_multiplier(owner), 1.08, "swordsman ultimate damage"],
+		[PlayerBuildSystem.get_blade_storm_damage_ratio_bonus(owner), 0.025, "blade storm damage"],
+		[PlayerBuildSystem.get_blade_storm_radius_multiplier(owner), sqrt(1.15), "blade storm area"],
+		[PlayerBuildSystem.get_blade_storm_cooldown_multiplier(owner), 0.92, "blade storm cooldown"],
+		[PlayerBuildSystem.get_crescent_wave_cooldown_multiplier(owner), 0.85, "crescent cooldown"],
+		[PlayerBuildSystem.get_crescent_wave_damage_ratio_bonus(owner), 0.15, "crescent damage"],
+		[PlayerBuildSystem.get_crescent_wave_speed_bonus(owner), 30.0, "crescent speed"],
+		[PlayerBuildSystem.get_gunner_hunt_safe_radius_bonus(owner), -15.0, "gunner hunt radius"],
+		[PlayerBuildSystem.get_gunner_hunt_inside_damage_bonus(owner), 0.20, "gunner inside damage"],
+		[PlayerBuildSystem.get_gunner_hunt_outside_damage_bonus(owner), 0.08, "gunner outside damage"],
+		[PlayerBuildSystem.get_gunner_flash_damage_bonus_per_stack(owner), 0.0075, "gunner flash damage"],
+		[PlayerBuildSystem.get_gunner_flash_speed_bonus_per_stack(owner), 0.0075, "gunner flash speed"],
+		[PlayerBuildSystem.get_gunner_flash_dodge_bonus_per_stack(owner), 30.0, "gunner flash dodge"],
+		[PlayerBuildSystem.get_basic_attack_damage_multiplier(owner, "gunner"), 1.15, "gunner basic damage"],
+		[PlayerBuildSystem.get_basic_attack_cooldown_multiplier(owner, "gunner"), 0.92, "gunner basic cooldown"],
+		[PlayerBuildSystem.get_basic_attack_range_flat_bonus(owner, "gunner"), 15.0, "gunner basic range"],
+		[PlayerBuildSystem.get_entry_damage_multiplier(owner, "gunner"), 1.15, "gunner entry damage"],
+		[PlayerBuildSystem.get_shrapnel_cooldown_multiplier(owner), 0.85, "shrapnel cooldown"],
+		[PlayerBuildSystem.get_shrapnel_damage_ratio_bonus(owner), 0.03, "shrapnel damage"],
+		[PlayerBuildSystem.get_shrapnel_radius_bonus(owner), 15.0, "shrapnel radius"],
+		[PlayerBuildSystem.get_infinite_reload_move_speed_multiplier_bonus(owner), 0.015, "infinite reload speed"],
+		[PlayerBuildSystem.get_infinite_reload_damage_multiplier_bonus(owner), 0.015, "infinite reload damage"],
+		[PlayerBuildSystem.get_infinite_reload_range_bonus(owner), 15.0, "infinite reload range"],
+		[PlayerBuildSystem.get_infinite_reload_cooldown_multiplier(owner), 0.85, "infinite reload cooldown"],
+		[PlayerBuildSystem.get_gunner_ultimate_wave_bonus(owner), 3.0, "gunner ultimate waves"],
+		[PlayerBuildSystem.get_mage_arcane_surplus_duration_bonus(owner), 1.5, "mage surplus duration"],
+		[PlayerBuildSystem.get_mage_arcane_charge_proc_chance_bonus(owner), 0.03, "mage charge chance"],
+		[PlayerBuildSystem.get_mage_arcane_charge_energy_bonus_per_stack(owner), 0.015, "mage charge energy"],
+		[PlayerBuildSystem.get_mage_arcane_charge_share_bonus_per_stack(owner), 0.08, "mage charge share"],
+		[PlayerBuildSystem.get_basic_attack_damage_multiplier(owner, "mage"), 1.20, "mage basic damage"],
+		[PlayerBuildSystem.get_basic_attack_range_multiplier(owner, "mage"), 1.08, "mage basic range"],
+		[PlayerBuildSystem.get_mage_ultimate_bombard_count_bonus(owner), 3.0, "mage ultimate bombard count"],
+		[PlayerBuildSystem.get_meta_field_slow_bonus(owner), 0.08, "meta field slow"],
+		[PlayerBuildSystem.get_meta_field_damage_reduction_value_bonus(owner), 15.0, "meta field reduction"],
+		[PlayerBuildSystem.get_meta_field_radius_multiplier(owner), 1.08, "meta field radius"],
+		[PlayerBuildSystem.get_meta_field_damage_ratio_bonus(owner), 0.03, "meta field damage"],
+		[PlayerBuildSystem.get_surging_wave_cooldown_multiplier(owner), 0.85, "surging wave cooldown"],
+		[PlayerBuildSystem.get_surging_wave_damage_multiplier_bonus(owner), 0.15, "surging wave damage"],
+		[PlayerBuildSystem.get_surging_wave_duration_bonus(owner), 0.75, "surging wave duration"],
+		[PlayerBuildSystem.get_surging_wave_speed_bonus(owner), 8.0, "surging wave speed"]
+	]
+	for check in checks:
+		if not is_equal_approx(float(check[0]), float(check[1])):
+			failures.append("%s should be %.4f, got %.4f" % [str(check[2]), float(check[1]), float(check[0])])
 
 
 func _check_tailwind_move_speed_bonus_visible_to_role_stat_flow() -> void:
@@ -645,6 +736,9 @@ class _OwnerStub:
 
 	func _get_role_attribute_move_speed_multiplier(_role_id: String) -> float:
 		return 1.0
+
+	func _get_role_max_health(_role_id: String) -> float:
+		return max_health
 
 	func get_skill_blessing_levels() -> Dictionary:
 		skill_blessing_levels = PlayerBlessingSystem.normalize_skill_state(skill_blessing_levels)

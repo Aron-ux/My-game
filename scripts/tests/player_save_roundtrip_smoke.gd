@@ -144,6 +144,7 @@ func _run() -> void:
 	scene.add_child(target)
 	await process_frame
 
+	_check_legacy_role_balance_migration(target)
 	_seed_run_state(source)
 	var source_save: Dictionary = source.get_save_data()
 	target.apply_save_data(source_save)
@@ -160,6 +161,29 @@ func _run() -> void:
 		for failure in failures:
 			push_error(failure)
 		quit(1)
+
+
+func _check_legacy_role_balance_migration(player: Node) -> void:
+	var legacy_roles: Array = player._build_role_data()
+	for role_variant in legacy_roles:
+		var role: Dictionary = role_variant
+		match str(role.get("id", "")):
+			"swordsman":
+				role["base_health"] = 100.0
+			"gunner":
+				role["base_health"] = 50.0
+				role["base_damage_reduction_value"] = -80.0
+			"mage":
+				role["base_health"] = 50.0
+	var normalized_roles: Array = player._normalize_loaded_roles(legacy_roles)
+	var expected_health := {"swordsman": 150.0, "gunner": 120.0, "mage": 120.0}
+	for role_variant in normalized_roles:
+		var role: Dictionary = role_variant
+		var role_id := str(role.get("id", ""))
+		if expected_health.has(role_id) and not is_equal_approx(float(role.get("base_health", 0.0)), float(expected_health[role_id])):
+			failures.append("%s legacy save should use current base health" % role_id)
+		if role_id == "gunner" and not is_equal_approx(float(role.get("base_damage_reduction_value", 0.0)), -40.0):
+			failures.append("gunner legacy save should use current base damage reduction")
 
 
 func _seed_run_state(player: Node) -> void:

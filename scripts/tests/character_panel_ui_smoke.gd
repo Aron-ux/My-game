@@ -165,7 +165,7 @@ func _check_skill_tree_content(panel: Node) -> void:
 		"skill tree stages should use build Lv.3/Lv.6/Lv.9 thresholds"
 	)
 	_expect(
-		_compact(text).contains("剑士普通攻击伤害倍率增加10％×3"),
+		_compact(text).contains("剑士普通攻击伤害倍率增加15％×3"),
 		"basic attack tree should keep the concrete ordinary build ×3 count"
 	)
 	_expect(
@@ -337,10 +337,10 @@ func _check_blessing_content(panel: Node) -> void:
 	)
 	var expanded_text := divine_grace_row.text
 	for effect_text in [
-		"I级：最大血量增加8％",
-		"II级：最大血量增加12％",
-		"III级：最大血量增加16％，每5s回复1％点最大血量",
-		"IV级：最大血量增加20％，每5s回复2％点最大血量"
+		"I级：最大血量增加15％",
+		"II级：最大血量增加20％",
+		"III级：最大血量增加25％，每5s回复2％点最大血量",
+		"IV级：最大血量增加30％，每5s回复4％点最大血量"
 	]:
 		_expect(expanded_text.contains(effect_text), "expanded divine grace should show %s" % effect_text)
 	_expect(expanded_text.contains("技能关联："), "expanded divine grace should show localized skill relations")

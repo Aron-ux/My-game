@@ -26,7 +26,7 @@ const TIER_WEIGHT_LEVEL_13_TO_18 := {1: 65, 2: 30, 3: 5}
 const TIER_WEIGHT_LEVEL_19_PLUS := {1: 48, 2: 40, 3: 10, 4: 2}
 const BLESSING_TEXT_COLOR := Color(0.0, 0.0, 0.0, 1.0)
 const DIVINE_GRACE_REGEN_INTERVAL := 5.0
-const GREED_PROC_CHANCE := 0.05
+const GREED_PROC_CHANCE := 0.10
 const GREED_MAX_ROLL_HITS := 4
 
 const MAGIC_STONE_OPTION_PREFIX := "magic_stone:"
@@ -85,34 +85,34 @@ const DEFINITIONS := {
 		"category": CATEGORY_GENERAL_BLESSING,
 		"binding": ROLE_BOUND,
 		"stat": "max_health_percent",
-		"tier_values": {1: 0.08, 2: 0.12, 3: 0.16, 4: 0.20},
+		"tier_values": {1: 0.15, 2: 0.20, 3: 0.25, 4: 0.30},
 		"extra_stats": {
-			"health_regen_tick_ratio": {3: 0.01, 4: 0.02}
+			"health_regen_tick_ratio": {3: 0.02, 4: 0.04}
 		},
 		"display_title": "神赐",
 		"display_descriptions": {
-			1: "I级：最大血量增加8％",
-			2: "II级：最大血量增加12％",
-			3: "III级：最大血量增加16％，每5s回复1％点最大血量",
-			4: "IV级：最大血量增加20％，每5s回复2％点最大血量"
+			1: "I级：最大血量增加15％",
+			2: "II级：最大血量增加20％",
+			3: "III级：最大血量增加25％，每5s回复2％点最大血量",
+			4: "IV级：最大血量增加30％，每5s回复4％点最大血量"
 		},
 		"display_card_summaries": {
-			1: "最大血量+8%",
-			2: "最大血量+12%",
-			3: "最大血量+16%，每5s回血1%",
-			4: "最大血量+20%，每5s回血2%"
+			1: "最大血量+15%",
+			2: "最大血量+20%",
+			3: "最大血量+25%，每5s回血2%",
+			4: "最大血量+30%，每5s回血4%"
 		},
 		"descriptions": {
-			1: "I级：最大血量增加8％",
-			2: "II级：最大血量增加12％",
-			3: "III级：最大血量增加16％，每5s回复1％点最大血量",
-			4: "IV级：最大血量增加20％，每5s回复2％点最大血量"
+			1: "I级：最大血量增加15％",
+			2: "II级：最大血量增加20％",
+			3: "III级：最大血量增加25％，每5s回复2％点最大血量",
+			4: "IV级：最大血量增加30％，每5s回复4％点最大血量"
 		},
 		"card_summaries": {
-			1: "最大血量+8%",
-			2: "最大血量+12%",
-			3: "最大血量+16%，每5s回血1%",
-			4: "最大血量+20%，每5s回血2%"
+			1: "最大血量+15%",
+			2: "最大血量+20%",
+			3: "最大血量+25%，每5s回血2%",
+			4: "最大血量+30%，每5s回血4%"
 		}
 	},
 	"prayer": {
@@ -184,35 +184,32 @@ const DEFINITIONS := {
 		"title": "贪婪",
 		"category": CATEGORY_GENERAL_BLESSING,
 		"binding": ROLE_BOUND,
-		"stat": "greed_current_health_heal_ratio",
-		"tier_values": {1: 0.01, 2: 0.02, 3: 0.03, 4: 0.04},
-		"extra_stats": {
-			"greed_max_health_heal_ratio": {3: 0.01, 4: 0.02}
-		},
+		"stat": "greed_max_health_heal_ratio",
+		"tier_values": {1: 0.01, 2: 0.02, 3: 0.04, 4: 0.06},
 		"display_title": "贪婪",
 		"display_descriptions": {
-			1: "I级：角色攻击造成伤害时有5％的概率回复1％当前生命值",
-			2: "II级：角色攻击造成伤害时有5％的概率回复2％当前生命值",
-			3: "III级：角色攻击造成伤害时有5％的概率回复回复3％当前生命值+1％最大生命值",
-			4: "IV级：角色攻击造成伤害时有5％概率回复4％当前生命值+2％最大生命值"
+			1: "I级：角色攻击造成伤害时，最多4次命中各有10％概率回复1％最大生命值，触发后冷却0.2秒",
+			2: "II级：角色攻击造成伤害时，最多4次命中各有10％概率回复2％最大生命值，触发后冷却0.2秒",
+			3: "III级：角色攻击造成伤害时，最多4次命中各有10％概率回复4％最大生命值，触发后冷却0.2秒",
+			4: "IV级：角色攻击造成伤害时，最多4次命中各有10％概率回复6％最大生命值，触发后冷却0.2秒"
 		},
 		"display_card_summaries": {
-			1: "5%概率回复1%当前生命",
-			2: "5%概率回复2%当前生命",
-			3: "5%概率回复3%当前生命+1%最大生命",
-			4: "5%概率回复4%当前生命+2%最大生命"
+			1: "10%概率回复1%最大生命",
+			2: "10%概率回复2%最大生命",
+			3: "10%概率回复4%最大生命",
+			4: "10%概率回复6%最大生命"
 		},
 		"descriptions": {
-			1: "I级：角色攻击造成伤害时有5％的概率回复1％当前生命值",
-			2: "II级：角色攻击造成伤害时有5％的概率回复2％当前生命值",
-			3: "III级：角色攻击造成伤害时有5％的概率回复回复3％当前生命值+1％最大生命值",
-			4: "IV级：角色攻击造成伤害时有5％概率回复4％当前生命值+2％最大生命值"
+			1: "I级：角色攻击造成伤害时，最多4次命中各有10％概率回复1％最大生命值，触发后冷却0.2秒",
+			2: "II级：角色攻击造成伤害时，最多4次命中各有10％概率回复2％最大生命值，触发后冷却0.2秒",
+			3: "III级：角色攻击造成伤害时，最多4次命中各有10％概率回复4％最大生命值，触发后冷却0.2秒",
+			4: "IV级：角色攻击造成伤害时，最多4次命中各有10％概率回复6％最大生命值，触发后冷却0.2秒"
 		},
 		"card_summaries": {
-			1: "5%概率回复1%当前生命",
-			2: "5%概率回复2%当前生命",
-			3: "5%概率回复3%当前生命+1%最大生命",
-			4: "5%概率回复4%当前生命+2%最大生命"
+			1: "10%概率回复1%最大生命",
+			2: "10%概率回复2%最大生命",
+			3: "10%概率回复4%最大生命",
+			4: "10%概率回复6%最大生命"
 		}
 	},
 	"tailwind": {
@@ -574,25 +571,25 @@ const DEFINITIONS := {
 		"category": CATEGORY_GENERAL_BLESSING,
 		"binding": ROLE_BOUND,
 		"stat": "damage_reduction",
-		"tier_values": {1: 6.0, 2: 12.0, 3: 18.0, 4: 24.0},
+		"tier_values": {1: 10.0, 2: 18.0, 3: 26.0, 4: 34.0},
 		"display_title": "不屈",
 		"display_descriptions": {
-			1: "I级：角色减伤+6",
-			2: "II级：角色减伤+12",
-			3: "III级：角色减伤+18",
-			4: "IV级：角色减伤+24"
+			1: "I级：角色减伤+10",
+			2: "II级：角色减伤+18",
+			3: "III级：角色减伤+26",
+			4: "IV级：角色减伤+34"
 		},
 		"display_card_summaries": {
-			1: "减伤值+6",
-			2: "减伤值+12",
-			3: "减伤值+18",
-			4: "减伤值+24"
+			1: "减伤值+10",
+			2: "减伤值+18",
+			3: "减伤值+26",
+			4: "减伤值+34"
 		},
 		"descriptions": {
-			1: "I级：角色减伤+6",
-			2: "II级：角色减伤+12",
-			3: "III级：角色减伤+18",
-			4: "IV级：角色减伤+24"
+			1: "I级：角色减伤+10",
+			2: "II级：角色减伤+18",
+			3: "III级：角色减伤+26",
+			4: "IV级：角色减伤+34"
 		}
 	},
 	"tide_rain": {
@@ -841,17 +838,13 @@ static func get_blessing_level_summary(owner, role_id: String = "") -> Dictionar
 
 
 static func get_greed_heal_ratio(owner) -> float:
-	return get_greed_current_health_heal_ratio(owner)
+	return get_greed_max_health_heal_ratio(owner)
 
 
 static func get_greed_proc_chance(owner) -> float:
-	if get_greed_current_health_heal_ratio(owner) <= 0.0 and get_greed_max_health_heal_ratio(owner) <= 0.0:
+	if get_greed_max_health_heal_ratio(owner) <= 0.0:
 		return 0.0
 	return GREED_PROC_CHANCE
-
-
-static func get_greed_current_health_heal_ratio(owner) -> float:
-	return get_role_stat_bonus(owner, "", "greed_current_health_heal_ratio")
 
 
 static func get_greed_max_health_heal_ratio(owner) -> float:
@@ -863,17 +856,13 @@ static func get_greed_max_roll_hits(_owner) -> int:
 
 
 static func get_greed_heal_amount(owner, role_id: String) -> float:
-	var current_ratio: float = get_greed_current_health_heal_ratio(owner)
-	var max_ratio: float = get_greed_max_health_heal_ratio(owner)
-	if current_ratio <= 0.0 and max_ratio <= 0.0:
+	var heal_ratio: float = get_greed_max_health_heal_ratio(owner)
+	if heal_ratio <= 0.0:
 		return 0.0
-	var role_current_health: float = 0.0
-	if owner != null and owner.has_method("_get_role_current_health"):
-		role_current_health = max(0.0, float(owner._get_role_current_health(role_id)))
 	var role_max_health: float = 0.0
 	if owner != null and owner.has_method("_get_role_max_health"):
 		role_max_health = max(0.0, float(owner._get_role_max_health(role_id)))
-	return role_current_health * current_ratio + role_max_health * max_ratio
+	return role_max_health * heal_ratio
 
 
 static func get_divine_grace_regen_ratio_per_tick(owner) -> float:

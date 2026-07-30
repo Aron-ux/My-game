@@ -75,6 +75,10 @@ static func normalize_loaded_roles(saved_roles: Variant, base_roles: Array) -> A
 				merged_role = base_role_data.duplicate(true)
 				fallback_color = base_role_data.get("color", Color.WHITE)
 			merged_role.merge(saved_role, true)
+			if base_role_map.has(role_id):
+				var current_role: Dictionary = base_role_map[role_id]
+				merged_role["base_health"] = current_role.get("base_health", merged_role.get("base_health"))
+				merged_role["base_damage_reduction_value"] = current_role.get("base_damage_reduction_value", merged_role.get("base_damage_reduction_value"))
 			merged_role["color"] = normalize_role_color(
 				merged_role.get("color", Color.WHITE),
 				fallback_color

@@ -10,59 +10,59 @@ const ROLE_SLOT_COUNT := 3
 
 const BUILD_DEFINITIONS := {
 	"swordsman": [
-		{"id": "trait_extra_roll", "title": "战意触发次数+1", "summary": "战意触发次数+1", "card_title": "剑士特性", "skill_progress_id": "swordsman_trait"},
-		{"id": "trait_heal_bonus", "title": "战意触发时回复效果增加1％", "summary": "战意触发时回复效果增加1％", "card_title": "剑士特性", "skill_progress_id": "swordsman_trait"},
-		{"id": "knight_glory_duration", "title": "骑士荣耀持续时间增加0.2s", "summary": "骑士荣耀持续时间增加0.2s", "card_title": "剑士特性", "skill_progress_id": "swordsman_trait"},
-		{"id": "entry_damage", "title": "冲锋伤害倍率增加10％", "summary": "冲锋伤害倍率增加10％", "card_title": "冲锋", "skill_progress_id": "swordsman_entry"},
-		{"id": "basic_attack_cooldown", "title": "剑士普通攻击冷却减少10％", "summary": "剑士普通攻击冷却减少10％", "card_title": "普通攻击", "skill_progress_id": "swordsman_basic"},
-		{"id": "basic_attack_damage", "title": "剑士普通攻击伤害倍率增加10％", "summary": "剑士普通攻击伤害倍率增加10％", "card_title": "普通攻击", "skill_progress_id": "swordsman_basic"},
-		{"id": "basic_attack_range", "title": "剑士普通攻击范围增加10％", "summary": "剑士普通攻击范围增加10％", "card_title": "普通攻击", "skill_progress_id": "swordsman_basic"},
-		{"id": "blade_storm_damage", "title": "剑士剑刃风暴伤害倍率增加1.5％", "summary": "剑士剑刃风暴伤害倍率增加1.5％", "requires_skill": "blade_storm", "skill_progress_id": "swordsman_blade_storm"},
-		{"id": "blade_storm_area", "title": "剑刃风暴范围增加10％", "summary": "剑刃风暴范围增加10％", "requires_skill": "blade_storm", "skill_progress_id": "swordsman_blade_storm"},
-		{"id": "blade_storm_cooldown", "title": "剑刃风暴冷却时间减少5％", "summary": "剑刃风暴冷却时间减少5％", "requires_skill": "blade_storm", "skill_progress_id": "swordsman_blade_storm"},
-		{"id": "crescent_wave_cooldown", "title": "月牙剑气冷却时间减少10％", "summary": "月牙剑气冷却时间减少10％", "requires_skill": "crescent_wave", "skill_progress_id": "swordsman_crescent_wave"},
-		{"id": "crescent_wave_damage", "title": "月牙剑气伤害倍率增加10％", "summary": "月牙剑气伤害倍率增加10％", "requires_skill": "crescent_wave", "skill_progress_id": "swordsman_crescent_wave"},
-		{"id": "crescent_wave_speed", "title": "月牙剑气飞行速度增加20", "summary": "月牙剑气飞行速度增加20", "requires_skill": "crescent_wave", "skill_progress_id": "swordsman_crescent_wave"},
-		{"id": "ultimate_damage", "title": "无敌斩伤害倍率+5％", "summary": "无敌斩伤害倍率+5％", "card_title": "无敌斩", "skill_progress_id": "swordsman_ultimate"},
+		{"id": "trait_extra_roll", "title": "战意触发次数+2", "summary": "战意触发次数+2", "card_title": "剑士特性", "skill_progress_id": "swordsman_trait"},
+		{"id": "trait_heal_bonus", "title": "战意触发时回复效果增加2％", "summary": "战意触发时回复效果增加2％", "card_title": "剑士特性", "skill_progress_id": "swordsman_trait"},
+		{"id": "knight_glory_duration", "title": "骑士荣耀持续时间增加0.3s", "summary": "骑士荣耀持续时间增加0.3s", "card_title": "剑士特性", "skill_progress_id": "swordsman_trait"},
+		{"id": "entry_damage", "title": "冲锋伤害倍率增加15％", "summary": "冲锋伤害倍率增加15％", "card_title": "冲锋", "skill_progress_id": "swordsman_entry"},
+		{"id": "basic_attack_cooldown", "title": "剑士普通攻击冷却减少15％", "summary": "剑士普通攻击冷却减少15％", "card_title": "普通攻击", "skill_progress_id": "swordsman_basic"},
+		{"id": "basic_attack_damage", "title": "剑士普通攻击伤害倍率增加15％", "summary": "剑士普通攻击伤害倍率增加15％", "card_title": "普通攻击", "skill_progress_id": "swordsman_basic"},
+		{"id": "basic_attack_range", "title": "剑士普通攻击范围增加15％", "summary": "剑士普通攻击范围增加15％", "card_title": "普通攻击", "skill_progress_id": "swordsman_basic"},
+		{"id": "blade_storm_damage", "title": "剑士剑刃风暴伤害倍率增加2.5％", "summary": "剑士剑刃风暴伤害倍率增加2.5％", "requires_skill": "blade_storm", "skill_progress_id": "swordsman_blade_storm"},
+		{"id": "blade_storm_area", "title": "剑刃风暴范围增加15％", "summary": "剑刃风暴范围增加15％", "requires_skill": "blade_storm", "skill_progress_id": "swordsman_blade_storm"},
+		{"id": "blade_storm_cooldown", "title": "剑刃风暴冷却时间减少8％", "summary": "剑刃风暴冷却时间减少8％", "requires_skill": "blade_storm", "skill_progress_id": "swordsman_blade_storm"},
+		{"id": "crescent_wave_cooldown", "title": "月牙剑气冷却时间减少15％", "summary": "月牙剑气冷却时间减少15％", "requires_skill": "crescent_wave", "skill_progress_id": "swordsman_crescent_wave"},
+		{"id": "crescent_wave_damage", "title": "月牙剑气伤害倍率增加15％", "summary": "月牙剑气伤害倍率增加15％", "requires_skill": "crescent_wave", "skill_progress_id": "swordsman_crescent_wave"},
+		{"id": "crescent_wave_speed", "title": "月牙剑气飞行速度增加30", "summary": "月牙剑气飞行速度增加30", "requires_skill": "crescent_wave", "skill_progress_id": "swordsman_crescent_wave"},
+		{"id": "ultimate_damage", "title": "无敌斩伤害倍率+8％", "summary": "无敌斩伤害倍率+8％", "card_title": "无敌斩", "skill_progress_id": "swordsman_ultimate"},
 		{"id": "unlock_blade_storm", "title": "获得技能：剑刃风暴", "summary": "获得技能：剑刃风暴", "unlock_skill": "blade_storm", "skill_progress_id": "swordsman_blade_storm"},
 		{"id": "unlock_crescent_wave", "title": "获得技能：月牙剑气", "summary": "获得技能：月牙剑气", "unlock_skill": "crescent_wave", "skill_progress_id": "swordsman_crescent_wave"}
 	],
 	"gunner": [
-		{"id": "hunt_safe_radius", "title": "猎杀半径安全圈减少10", "summary": "猎杀半径安全圈减少10", "card_title": "枪手特性", "skill_progress_id": "gunner_trait"},
-		{"id": "hunt_inside_damage", "title": "枪手伤害对猎杀圈内敌人增加15％", "summary": "枪手伤害对猎杀圈内敌人增加15％", "card_title": "枪手特性", "skill_progress_id": "gunner_trait"},
-		{"id": "hunt_outside_damage", "title": "枪手伤害对猎杀圈外敌人增加5％", "summary": "枪手伤害对猎杀圈外敌人增加5％", "card_title": "枪手特性", "skill_progress_id": "gunner_trait"},
-		{"id": "flash_stack_bonus", "title": "瞬杀每层提供伤害+0.5％，移速+0.5％，闪避值+20", "summary": "瞬杀每层提供伤害+0.5％，移速+0.5％，闪避值+20", "card_title": "枪手特性", "skill_progress_id": "gunner_trait"},
-		{"id": "entry_damage", "title": "枪火典礼伤害倍率+10％", "summary": "枪火典礼伤害倍率+10％", "card_title": "枪火典礼", "skill_progress_id": "gunner_entry"},
-		{"id": "basic_attack_damage", "title": "枪手普通攻击伤害倍率+10％", "summary": "枪手普通攻击伤害倍率+10％", "card_title": "普通攻击", "skill_progress_id": "gunner_basic"},
-		{"id": "basic_attack_cooldown", "title": "枪手普通攻击冷却时间减少5％", "summary": "枪手普通攻击冷却时间减少5％", "card_title": "普通攻击", "skill_progress_id": "gunner_basic"},
-		{"id": "basic_attack_range", "title": "枪手普通攻击距离+10", "summary": "枪手普通攻击距离+10", "card_title": "普通攻击", "skill_progress_id": "gunner_basic"},
-		{"id": "shrapnel_cooldown", "title": "散弹冷却时间-10％", "summary": "散弹冷却时间-10％", "requires_skill": "shrapnel_field", "skill_progress_id": "gunner_shrapnel"},
-		{"id": "shrapnel_damage", "title": "散弹伤害倍率+2％", "summary": "散弹伤害倍率+2％", "requires_skill": "shrapnel_field", "skill_progress_id": "gunner_shrapnel"},
-		{"id": "shrapnel_radius", "title": "散弹范围半径+10", "summary": "散弹范围半径+10", "requires_skill": "shrapnel_field", "skill_progress_id": "gunner_shrapnel"},
-		{"id": "infinite_reload_speed", "title": "无限装填期间移速+1％", "summary": "无限装填期间移速+1％", "requires_skill": "infinite_reload", "skill_progress_id": "gunner_infinite_reload"},
-		{"id": "infinite_reload_damage", "title": "无限装填伤害倍率+1％", "summary": "无限装填伤害倍率+1％", "requires_skill": "infinite_reload", "skill_progress_id": "gunner_infinite_reload"},
-		{"id": "infinite_reload_range", "title": "无限装填攻击距离增加10", "summary": "无限装填攻击距离增加10", "requires_skill": "infinite_reload", "skill_progress_id": "gunner_infinite_reload"},
-		{"id": "infinite_reload_cooldown", "title": "无限装填CD-10％", "summary": "无限装填CD-10％", "requires_skill": "infinite_reload", "skill_progress_id": "gunner_infinite_reload"},
-		{"id": "ultimate_wave_count", "title": "火箭弹幕波次+2", "summary": "火箭弹幕波次+2", "card_title": "火箭弹幕", "skill_progress_id": "gunner_ultimate"},
+		{"id": "hunt_safe_radius", "title": "猎杀半径安全圈减少15", "summary": "猎杀半径安全圈减少15", "card_title": "枪手特性", "skill_progress_id": "gunner_trait"},
+		{"id": "hunt_inside_damage", "title": "枪手伤害对猎杀圈内敌人增加20％", "summary": "枪手伤害对猎杀圈内敌人增加20％", "card_title": "枪手特性", "skill_progress_id": "gunner_trait"},
+		{"id": "hunt_outside_damage", "title": "枪手伤害对猎杀圈外敌人增加8％", "summary": "枪手伤害对猎杀圈外敌人增加8％", "card_title": "枪手特性", "skill_progress_id": "gunner_trait"},
+		{"id": "flash_stack_bonus", "title": "瞬杀每层提供伤害+0.75％，移速+0.75％，闪避值+30", "summary": "瞬杀每层提供伤害+0.75％，移速+0.75％，闪避值+30", "card_title": "枪手特性", "skill_progress_id": "gunner_trait"},
+		{"id": "entry_damage", "title": "枪火典礼伤害倍率+15％", "summary": "枪火典礼伤害倍率+15％", "card_title": "枪火典礼", "skill_progress_id": "gunner_entry"},
+		{"id": "basic_attack_damage", "title": "枪手普通攻击伤害倍率+15％", "summary": "枪手普通攻击伤害倍率+15％", "card_title": "普通攻击", "skill_progress_id": "gunner_basic"},
+		{"id": "basic_attack_cooldown", "title": "枪手普通攻击冷却时间减少8％", "summary": "枪手普通攻击冷却时间减少8％", "card_title": "普通攻击", "skill_progress_id": "gunner_basic"},
+		{"id": "basic_attack_range", "title": "枪手普通攻击距离+15", "summary": "枪手普通攻击距离+15", "card_title": "普通攻击", "skill_progress_id": "gunner_basic"},
+		{"id": "shrapnel_cooldown", "title": "散弹冷却时间-15％", "summary": "散弹冷却时间-15％", "requires_skill": "shrapnel_field", "skill_progress_id": "gunner_shrapnel"},
+		{"id": "shrapnel_damage", "title": "散弹伤害倍率+3％", "summary": "散弹伤害倍率+3％", "requires_skill": "shrapnel_field", "skill_progress_id": "gunner_shrapnel"},
+		{"id": "shrapnel_radius", "title": "散弹范围半径+15", "summary": "散弹范围半径+15", "requires_skill": "shrapnel_field", "skill_progress_id": "gunner_shrapnel"},
+		{"id": "infinite_reload_speed", "title": "无限装填期间移速+1.5％", "summary": "无限装填期间移速+1.5％", "requires_skill": "infinite_reload", "skill_progress_id": "gunner_infinite_reload"},
+		{"id": "infinite_reload_damage", "title": "无限装填伤害倍率+1.5％", "summary": "无限装填伤害倍率+1.5％", "requires_skill": "infinite_reload", "skill_progress_id": "gunner_infinite_reload"},
+		{"id": "infinite_reload_range", "title": "无限装填攻击距离增加15", "summary": "无限装填攻击距离增加15", "requires_skill": "infinite_reload", "skill_progress_id": "gunner_infinite_reload"},
+		{"id": "infinite_reload_cooldown", "title": "无限装填CD-15％", "summary": "无限装填CD-15％", "requires_skill": "infinite_reload", "skill_progress_id": "gunner_infinite_reload"},
+		{"id": "ultimate_wave_count", "title": "火箭弹幕波次+3", "summary": "火箭弹幕波次+3", "card_title": "火箭弹幕", "skill_progress_id": "gunner_ultimate"},
 		{"id": "unlock_shrapnel_field", "title": "获得技能：散弹", "summary": "获得技能：散弹", "unlock_skill": "shrapnel_field", "skill_progress_id": "gunner_shrapnel"},
 		{"id": "unlock_infinite_reload", "title": "获得技能：无限装填", "summary": "获得技能：无限装填", "unlock_skill": "infinite_reload", "skill_progress_id": "gunner_infinite_reload"}
 	],
 	"mage": [
-		{"id": "arcane_surplus_duration", "title": "密集雷群·奥法盈余持续时间+1", "summary": "登场技触发的奥法盈余持续时间+1", "card_title": "密集雷群", "skill_progress_id": "mage_entry"},
-		{"id": "arcane_charge_chance", "title": "奥数充能获取概率+2％", "summary": "奥数充能获取概率+2％", "card_title": "法师特性", "skill_progress_id": "mage_trait"},
-		{"id": "arcane_charge_energy", "title": "奥数充能每层提供的大招回能效率+1％", "summary": "奥数充能每层提供的大招回能效率+1％", "card_title": "法师特性", "skill_progress_id": "mage_trait"},
-		{"id": "arcane_charge_share", "title": "奥数充能每层提供的大招能量同步增加5％", "summary": "奥数充能每层提供的大招能量同步增加5％", "card_title": "法师特性", "skill_progress_id": "mage_trait"},
-		{"id": "basic_attack_damage", "title": "法师普通攻击伤害倍率+15％", "summary": "法师普通攻击伤害倍率+15％", "card_title": "普通攻击", "skill_progress_id": "mage_basic"},
-		{"id": "basic_attack_range", "title": "法师普通攻击范围增加5％", "summary": "法师普通攻击范围增加5％", "card_title": "普通攻击", "skill_progress_id": "mage_basic"},
-		{"id": "meta_field_slow", "title": "梅塔领域造成的减速+5％", "summary": "梅塔领域造成的减速+5％", "requires_skill": "meta_field", "skill_progress_id": "mage_meta_field"},
-		{"id": "meta_field_reduction_value", "title": "梅塔领域提供的减伤值+10", "summary": "梅塔领域提供的减伤值+10", "requires_skill": "meta_field", "skill_progress_id": "mage_meta_field"},
-		{"id": "meta_field_radius", "title": "梅塔领域范围+5％", "summary": "梅塔领域范围+5％", "requires_skill": "meta_field", "skill_progress_id": "mage_meta_field"},
-		{"id": "meta_field_damage", "title": "梅塔领域伤害倍率+2％", "summary": "梅塔领域伤害倍率+2％", "requires_skill": "meta_field", "skill_progress_id": "mage_meta_field"},
-		{"id": "surging_wave_cooldown", "title": "波涛汹涌冷却时间-10％", "summary": "波涛汹涌冷却时间-10％", "requires_skill": "surging_wave", "skill_progress_id": "mage_surging_wave"},
-		{"id": "surging_wave_damage", "title": "波涛汹涌伤害倍率+10％", "summary": "波涛汹涌伤害倍率+10％", "requires_skill": "surging_wave", "skill_progress_id": "mage_surging_wave"},
-		{"id": "surging_wave_duration", "title": "波涛汹涌持续时+0.5s", "summary": "波涛汹涌持续时+0.5s", "requires_skill": "surging_wave", "skill_progress_id": "mage_surging_wave"},
-		{"id": "surging_wave_speed", "title": "波涛汹涌移动速度+5", "summary": "波涛汹涌移动速度+5", "requires_skill": "surging_wave", "skill_progress_id": "mage_surging_wave"},
-		{"id": "ultimate_bombard_count", "title": "奥数轰炸次数+2", "summary": "奥数轰炸次数+2", "card_title": "奥数轰炸", "skill_progress_id": "mage_ultimate"},
+		{"id": "arcane_surplus_duration", "title": "密集雷群·奥法盈余持续时间+1.5s", "summary": "登场技触发的奥法盈余持续时间+1.5s", "card_title": "密集雷群", "skill_progress_id": "mage_entry"},
+		{"id": "arcane_charge_chance", "title": "奥数充能获取概率+3％", "summary": "奥数充能获取概率+3％", "card_title": "法师特性", "skill_progress_id": "mage_trait"},
+		{"id": "arcane_charge_energy", "title": "奥数充能每层提供的大招回能效率+1.5％", "summary": "奥数充能每层提供的大招回能效率+1.5％", "card_title": "法师特性", "skill_progress_id": "mage_trait"},
+		{"id": "arcane_charge_share", "title": "奥数充能每层提供的大招能量同步增加8％", "summary": "奥数充能每层提供的大招能量同步增加8％", "card_title": "法师特性", "skill_progress_id": "mage_trait"},
+		{"id": "basic_attack_damage", "title": "法师普通攻击伤害倍率+20％", "summary": "法师普通攻击伤害倍率+20％", "card_title": "普通攻击", "skill_progress_id": "mage_basic"},
+		{"id": "basic_attack_range", "title": "法师普通攻击范围增加8％", "summary": "法师普通攻击范围增加8％", "card_title": "普通攻击", "skill_progress_id": "mage_basic"},
+		{"id": "meta_field_slow", "title": "梅塔领域造成的减速+8％", "summary": "梅塔领域造成的减速+8％", "requires_skill": "meta_field", "skill_progress_id": "mage_meta_field"},
+		{"id": "meta_field_reduction_value", "title": "梅塔领域提供的减伤值+15", "summary": "梅塔领域提供的减伤值+15", "requires_skill": "meta_field", "skill_progress_id": "mage_meta_field"},
+		{"id": "meta_field_radius", "title": "梅塔领域范围+8％", "summary": "梅塔领域范围+8％", "requires_skill": "meta_field", "skill_progress_id": "mage_meta_field"},
+		{"id": "meta_field_damage", "title": "梅塔领域伤害倍率+3％", "summary": "梅塔领域伤害倍率+3％", "requires_skill": "meta_field", "skill_progress_id": "mage_meta_field"},
+		{"id": "surging_wave_cooldown", "title": "波涛汹涌冷却时间-15％", "summary": "波涛汹涌冷却时间-15％", "requires_skill": "surging_wave", "skill_progress_id": "mage_surging_wave"},
+		{"id": "surging_wave_damage", "title": "波涛汹涌伤害倍率+15％", "summary": "波涛汹涌伤害倍率+15％", "requires_skill": "surging_wave", "skill_progress_id": "mage_surging_wave"},
+		{"id": "surging_wave_duration", "title": "波涛汹涌持续时+0.75s", "summary": "波涛汹涌持续时+0.75s", "requires_skill": "surging_wave", "skill_progress_id": "mage_surging_wave"},
+		{"id": "surging_wave_speed", "title": "波涛汹涌移动速度+8", "summary": "波涛汹涌移动速度+8", "requires_skill": "surging_wave", "skill_progress_id": "mage_surging_wave"},
+		{"id": "ultimate_bombard_count", "title": "奥数轰炸次数+3", "summary": "奥数轰炸次数+3", "card_title": "奥数轰炸", "skill_progress_id": "mage_ultimate"},
 		{"id": "unlock_meta_field", "title": "获得技能：梅塔领域", "summary": "获得技能：梅塔领域", "unlock_skill": "meta_field", "skill_progress_id": "mage_meta_field"},
 		{"id": "unlock_surging_wave", "title": "获得技能：波涛汹涌", "summary": "获得技能：波涛汹涌", "unlock_skill": "surging_wave", "skill_progress_id": "mage_surging_wave"}
 	]
@@ -178,192 +178,192 @@ static func get_progress_build_entries(owner, role_id: String, progress_id: Stri
 static func get_basic_attack_damage_multiplier(owner, role_id: String) -> float:
 	match role_id:
 		"swordsman":
-			return 1.0 + 0.10 * float(get_count(owner, role_id, "basic_attack_damage"))
-		"gunner":
-			return 1.0 + 0.10 * float(get_count(owner, role_id, "basic_attack_damage"))
-		"mage":
 			return 1.0 + 0.15 * float(get_count(owner, role_id, "basic_attack_damage"))
+		"gunner":
+			return 1.0 + 0.15 * float(get_count(owner, role_id, "basic_attack_damage"))
+		"mage":
+			return 1.0 + 0.20 * float(get_count(owner, role_id, "basic_attack_damage"))
 	return 1.0
 
 
 static func get_basic_attack_cooldown_multiplier(owner, role_id: String) -> float:
 	match role_id:
 		"swordsman":
-			return _percent_reduction_multiplier(get_count(owner, role_id, "basic_attack_cooldown"), 0.10, 0.18)
+			return _percent_reduction_multiplier(get_count(owner, role_id, "basic_attack_cooldown"), 0.15, 0.18)
 		"gunner":
-			return _percent_reduction_multiplier(get_count(owner, role_id, "basic_attack_cooldown"), 0.05, 0.18)
+			return _percent_reduction_multiplier(get_count(owner, role_id, "basic_attack_cooldown"), 0.08, 0.18)
 	return 1.0
 
 
 static func get_basic_attack_range_multiplier(owner, role_id: String) -> float:
 	match role_id:
 		"swordsman":
-			return 1.0 + 0.10 * float(get_count(owner, role_id, "basic_attack_range"))
+			return 1.0 + 0.15 * float(get_count(owner, role_id, "basic_attack_range"))
 		"mage":
-			return 1.0 + 0.05 * float(get_count(owner, role_id, "basic_attack_range"))
+			return 1.0 + 0.08 * float(get_count(owner, role_id, "basic_attack_range"))
 	return 1.0
 
 
 static func get_basic_attack_range_flat_bonus(owner, role_id: String) -> float:
 	if role_id == "gunner":
-		return 10.0 * float(get_count(owner, role_id, "basic_attack_range"))
+		return 15.0 * float(get_count(owner, role_id, "basic_attack_range"))
 	return 0.0
 
 
 static func get_entry_damage_multiplier(owner, role_id: String) -> float:
 	match role_id:
 		"swordsman", "gunner":
-			return 1.0 + 0.10 * float(get_count(owner, role_id, "entry_damage"))
+			return 1.0 + 0.15 * float(get_count(owner, role_id, "entry_damage"))
 	return 1.0
 
 
 static func get_swordsman_trait_extra_rolls(owner) -> int:
-	return get_count(owner, "swordsman", "trait_extra_roll")
+	return 2 * get_count(owner, "swordsman", "trait_extra_roll")
 
 
 static func get_swordsman_trait_heal_bonus(owner) -> float:
-	return 0.01 * float(get_count(owner, "swordsman", "trait_heal_bonus"))
+	return 0.02 * float(get_count(owner, "swordsman", "trait_heal_bonus"))
 
 
 static func get_swordsman_knight_glory_duration_bonus(owner) -> float:
-	return 0.2 * float(get_count(owner, "swordsman", "knight_glory_duration"))
+	return 0.3 * float(get_count(owner, "swordsman", "knight_glory_duration"))
 
 
 static func get_swordsman_ultimate_damage_multiplier(owner) -> float:
-	return 1.0 + 0.05 * float(get_count(owner, "swordsman", "ultimate_damage"))
+	return 1.0 + 0.08 * float(get_count(owner, "swordsman", "ultimate_damage"))
 
 
 static func get_blade_storm_damage_ratio_bonus(owner) -> float:
-	return 0.015 * float(get_count(owner, "swordsman", "blade_storm_damage"))
+	return 0.025 * float(get_count(owner, "swordsman", "blade_storm_damage"))
 
 
 static func get_blade_storm_radius_multiplier(owner) -> float:
-	var area_bonus := 0.10 * float(get_count(owner, "swordsman", "blade_storm_area"))
+	var area_bonus := 0.15 * float(get_count(owner, "swordsman", "blade_storm_area"))
 	return sqrt(max(0.01, 1.0 + area_bonus))
 
 
 static func get_blade_storm_cooldown_multiplier(owner) -> float:
-	return _percent_reduction_multiplier(get_count(owner, "swordsman", "blade_storm_cooldown"), 0.05, 0.18)
+	return _percent_reduction_multiplier(get_count(owner, "swordsman", "blade_storm_cooldown"), 0.08, 0.18)
 
 
 static func get_crescent_wave_cooldown_multiplier(owner) -> float:
-	return _percent_reduction_multiplier(get_count(owner, "swordsman", "crescent_wave_cooldown"), 0.10, 0.18)
+	return _percent_reduction_multiplier(get_count(owner, "swordsman", "crescent_wave_cooldown"), 0.15, 0.18)
 
 
 static func get_crescent_wave_damage_ratio_bonus(owner) -> float:
-	return 0.10 * float(get_count(owner, "swordsman", "crescent_wave_damage"))
+	return 0.15 * float(get_count(owner, "swordsman", "crescent_wave_damage"))
 
 
 static func get_crescent_wave_speed_bonus(owner) -> float:
-	return 20.0 * float(get_count(owner, "swordsman", "crescent_wave_speed"))
+	return 30.0 * float(get_count(owner, "swordsman", "crescent_wave_speed"))
 
 
 static func get_gunner_hunt_safe_radius_bonus(owner) -> float:
-	return -10.0 * float(get_count(owner, "gunner", "hunt_safe_radius"))
+	return -15.0 * float(get_count(owner, "gunner", "hunt_safe_radius"))
 
 
 static func get_gunner_hunt_inside_damage_bonus(owner) -> float:
-	return 0.15 * float(get_count(owner, "gunner", "hunt_inside_damage"))
+	return 0.20 * float(get_count(owner, "gunner", "hunt_inside_damage"))
 
 
 static func get_gunner_hunt_outside_damage_bonus(owner) -> float:
-	return 0.05 * float(get_count(owner, "gunner", "hunt_outside_damage"))
+	return 0.08 * float(get_count(owner, "gunner", "hunt_outside_damage"))
 
 
 static func get_gunner_flash_damage_bonus_per_stack(owner) -> float:
-	return 0.005 * float(get_count(owner, "gunner", "flash_stack_bonus"))
+	return 0.0075 * float(get_count(owner, "gunner", "flash_stack_bonus"))
 
 
 static func get_gunner_flash_speed_bonus_per_stack(owner) -> float:
-	return 0.005 * float(get_count(owner, "gunner", "flash_stack_bonus"))
+	return 0.0075 * float(get_count(owner, "gunner", "flash_stack_bonus"))
 
 
 static func get_gunner_flash_dodge_bonus_per_stack(owner) -> float:
-	return 20.0 * float(get_count(owner, "gunner", "flash_stack_bonus"))
+	return 30.0 * float(get_count(owner, "gunner", "flash_stack_bonus"))
 
 
 static func get_shrapnel_cooldown_multiplier(owner) -> float:
-	return _percent_reduction_multiplier(get_count(owner, "gunner", "shrapnel_cooldown"), 0.10, 0.18)
+	return _percent_reduction_multiplier(get_count(owner, "gunner", "shrapnel_cooldown"), 0.15, 0.18)
 
 
 static func get_shrapnel_damage_ratio_bonus(owner) -> float:
-	return 0.02 * float(get_count(owner, "gunner", "shrapnel_damage"))
+	return 0.03 * float(get_count(owner, "gunner", "shrapnel_damage"))
 
 
 static func get_shrapnel_radius_bonus(owner) -> float:
-	return 10.0 * float(get_count(owner, "gunner", "shrapnel_radius"))
+	return 15.0 * float(get_count(owner, "gunner", "shrapnel_radius"))
 
 
 static func get_infinite_reload_move_speed_multiplier_bonus(owner) -> float:
-	return 0.01 * float(get_count(owner, "gunner", "infinite_reload_speed"))
+	return 0.015 * float(get_count(owner, "gunner", "infinite_reload_speed"))
 
 
 static func get_infinite_reload_damage_multiplier_bonus(owner) -> float:
-	return 0.01 * float(get_count(owner, "gunner", "infinite_reload_damage"))
+	return 0.015 * float(get_count(owner, "gunner", "infinite_reload_damage"))
 
 
 static func get_infinite_reload_range_bonus(owner) -> float:
-	return 10.0 * float(get_count(owner, "gunner", "infinite_reload_range"))
+	return 15.0 * float(get_count(owner, "gunner", "infinite_reload_range"))
 
 
 static func get_infinite_reload_cooldown_multiplier(owner) -> float:
-	return _percent_reduction_multiplier(get_count(owner, "gunner", "infinite_reload_cooldown"), 0.10, 0.18)
+	return _percent_reduction_multiplier(get_count(owner, "gunner", "infinite_reload_cooldown"), 0.15, 0.18)
 
 
 static func get_gunner_ultimate_wave_bonus(owner) -> int:
-	return 2 * get_count(owner, "gunner", "ultimate_wave_count")
+	return 3 * get_count(owner, "gunner", "ultimate_wave_count")
 
 
 static func get_mage_arcane_surplus_duration_bonus(owner) -> float:
-	return 1.0 * float(get_count(owner, "mage", "arcane_surplus_duration"))
+	return 1.5 * float(get_count(owner, "mage", "arcane_surplus_duration"))
 
 
 static func get_mage_arcane_charge_proc_chance_bonus(owner) -> float:
-	return 0.02 * float(get_count(owner, "mage", "arcane_charge_chance"))
+	return 0.03 * float(get_count(owner, "mage", "arcane_charge_chance"))
 
 
 static func get_mage_arcane_charge_energy_bonus_per_stack(owner) -> float:
-	return 0.01 * float(get_count(owner, "mage", "arcane_charge_energy"))
+	return 0.015 * float(get_count(owner, "mage", "arcane_charge_energy"))
 
 
 static func get_mage_arcane_charge_share_bonus_per_stack(owner) -> float:
-	return 0.05 * float(get_count(owner, "mage", "arcane_charge_share"))
+	return 0.08 * float(get_count(owner, "mage", "arcane_charge_share"))
 
 
 static func get_mage_ultimate_bombard_count_bonus(owner) -> int:
-	return 2 * get_count(owner, "mage", "ultimate_bombard_count")
+	return 3 * get_count(owner, "mage", "ultimate_bombard_count")
 
 
 static func get_meta_field_slow_bonus(owner) -> float:
-	return 0.05 * float(get_count(owner, "mage", "meta_field_slow"))
+	return 0.08 * float(get_count(owner, "mage", "meta_field_slow"))
 
 
 static func get_meta_field_damage_reduction_value_bonus(owner) -> float:
-	return 10.0 * float(get_count(owner, "mage", "meta_field_reduction_value"))
+	return 15.0 * float(get_count(owner, "mage", "meta_field_reduction_value"))
 
 
 static func get_meta_field_radius_multiplier(owner) -> float:
-	return 1.0 + 0.05 * float(get_count(owner, "mage", "meta_field_radius"))
+	return 1.0 + 0.08 * float(get_count(owner, "mage", "meta_field_radius"))
 
 
 static func get_meta_field_damage_ratio_bonus(owner) -> float:
-	return 0.02 * float(get_count(owner, "mage", "meta_field_damage"))
+	return 0.03 * float(get_count(owner, "mage", "meta_field_damage"))
 
 
 static func get_surging_wave_cooldown_multiplier(owner) -> float:
-	return _percent_reduction_multiplier(get_count(owner, "mage", "surging_wave_cooldown"), 0.10, 0.18)
+	return _percent_reduction_multiplier(get_count(owner, "mage", "surging_wave_cooldown"), 0.15, 0.18)
 
 
 static func get_surging_wave_damage_multiplier_bonus(owner) -> float:
-	return 0.10 * float(get_count(owner, "mage", "surging_wave_damage"))
+	return 0.15 * float(get_count(owner, "mage", "surging_wave_damage"))
 
 
 static func get_surging_wave_duration_bonus(owner) -> float:
-	return 0.5 * float(get_count(owner, "mage", "surging_wave_duration"))
+	return 0.75 * float(get_count(owner, "mage", "surging_wave_duration"))
 
 
 static func get_surging_wave_speed_bonus(owner) -> float:
-	return 5.0 * float(get_count(owner, "mage", "surging_wave_speed"))
+	return 8.0 * float(get_count(owner, "mage", "surging_wave_speed"))
 
 
 static func _pick_role_option(owner, role_id: String, role_slot_index: int) -> Dictionary:
