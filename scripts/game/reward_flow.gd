@@ -7,9 +7,13 @@ const DIRECT_BLESSING_CHOICES_META := "direct_blessing_choices_remaining"
 const DIRECT_BLESSING_TIER_META := "direct_blessing_tier"
 const BLESSING_BINDING_CHOICE_META := "blessing_binding_choice"
 const BLESSING_BINDING_RETURN_CONTEXT_META := "blessing_binding_return_context"
+const ENDLESS_BOSS_EXIT_PENDING_META := "endless_boss_exit_pending"
 const DIRECT_BLESSING_CHOICE_COUNT := 2
 const DIRECT_BLESSING_TIER_TWO := 2
 const SKILL_TALENT_CONTEXT := "skill_talent_choice"
+const ENDLESS_BOSS_EXIT_CONTEXT := "endless_boss_exit"
+const ENDLESS_CONTINUE_OPTION_ID := "endless_continue"
+const ENDLESS_RETURN_CAMP_OPTION_ID := "endless_return_camp"
 
 static func show_level_up(main: Node, options: Array) -> void:
 	if main.game_over:
@@ -102,6 +106,17 @@ static func handle_upgrade_selected(main: Node, option_id: String, attribute_opt
 
 	main.get_tree().paused = false
 
+	if main.reward_context == ENDLESS_BOSS_EXIT_CONTEXT:
+		main.reward_context = ""
+		if main.has_meta(ENDLESS_BOSS_EXIT_PENDING_META):
+			main.remove_meta(ENDLESS_BOSS_EXIT_PENDING_META)
+		if option_id == ENDLESS_RETURN_CAMP_OPTION_ID:
+			if main.has_method("_return_to_endless_camp_preserving_run"):
+				main._return_to_endless_camp_preserving_run()
+			return
+		_schedule_post_reward_maintenance(main)
+		return
+
 	if main.reward_context == SKILL_TALENT_CONTEXT:
 		var progress_id := ""
 		if main.player != null and main.player.has_method("get_current_blessing_offer_context"):
@@ -136,6 +151,9 @@ static func handle_upgrade_selected(main: Node, option_id: String, attribute_opt
 			return
 		if return_context == "small_boss_blessing_choice":
 			_finish_direct_blessing_choice(main)
+			return
+		if return_context == "endless_boss_reward":
+			_finish_endless_boss_reward_chain(main)
 			return
 		if return_context == "level_up" and _show_pending_skill_talent_choice(main):
 			return
@@ -188,8 +206,7 @@ static func handle_upgrade_selected(main: Node, option_id: String, attribute_opt
 		_apply_player_upgrade(main, option_id)
 		if _show_pending_blessing_binding_choice(main):
 			return
-		main.reward_context = ""
-		_schedule_post_reward_maintenance(main)
+		_finish_endless_boss_reward_chain(main)
 		return
 
 	_apply_player_upgrade(main, option_id)
@@ -236,17 +253,38 @@ static func show_direct_blessing_choice(main: Node, choices_remaining: int = DIR
 	main.level_up_ui.show_options(options, [], offer_context)
 
 static func show_endless_boss_reward(main: Node) -> void:
-	if main.level_up_ui == null or not main.level_up_ui.has_method("show_menu"):
-		_schedule_post_reward_maintenance(main)
-		return
 	main.reward_context = "endless_boss_reward"
+	main.set_meta(ENDLESS_BOSS_EXIT_PENDING_META, true)
 	main.get_tree().paused = true
+	if main.level_up_ui == null or not main.level_up_ui.has_method("show_menu"):
+		push_error("Endless Boss reward requires level_up_ui.show_menu().")
+		return
 	var options: Array = []
 	if main.player != null and main.player.has_method("get_boss_skill_reward_options"):
 		options = main.player.get_boss_skill_reward_options()
 	if options.is_empty():
 		options = get_blank_small_boss_reward_options()
 	main.level_up_ui.show_menu("技能奖励（三选一）", options)
+
+static func show_endless_boss_exit_choice(main: Node) -> void:
+	main.reward_context = ENDLESS_BOSS_EXIT_CONTEXT
+	main.set_meta(ENDLESS_BOSS_EXIT_PENDING_META, true)
+	main.get_tree().paused = true
+	if main.level_up_ui == null or not main.level_up_ui.has_method("show_menu"):
+		push_error("Endless Boss exit choice requires level_up_ui.show_menu().")
+		return
+	main.level_up_ui.show_menu("继续征程？", [
+		{
+			"id": ENDLESS_CONTINUE_OPTION_ID,
+			"title": "继续深入",
+			"description": "保留当前构筑，进入下一轮无尽战斗。"
+		},
+		{
+			"id": ENDLESS_RETURN_CAMP_OPTION_ID,
+			"title": "返回营地",
+			"description": "保存当前战局并返回营地；可从传送门继续原局。"
+		}
+	])
 
 static func get_blank_small_boss_reward_options() -> Array:
 	return [
@@ -340,8 +378,16 @@ static func _finish_direct_blessing_choice(main: Node) -> void:
 	main.remove_meta(DIRECT_BLESSING_CHOICES_META)
 	if main.has_meta(DIRECT_BLESSING_TIER_META):
 		main.remove_meta(DIRECT_BLESSING_TIER_META)
+	if bool(main.get_meta(ENDLESS_BOSS_EXIT_PENDING_META, false)):
+		_finish_endless_boss_reward_chain(main)
+		return
 	main.reward_context = ""
 	_schedule_post_reward_maintenance(main)
+
+
+static func _finish_endless_boss_reward_chain(main: Node) -> void:
+	show_endless_boss_exit_choice(main)
+
 
 static func _schedule_post_reward_maintenance(main: Node, resume_level_ups: bool = false) -> void:
 	if main.has_method("_schedule_reward_maintenance"):

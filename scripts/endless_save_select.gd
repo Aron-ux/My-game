@@ -2,6 +2,7 @@ extends Control
 
 const MAIN_MENU_SCENE_PATH := "res://scenes/main_menu.tscn"
 const ENDLESS_CAMP_SCENE_PATH := "res://scenes/endless_camp.tscn"
+const GAME_SCENE_PATH := "res://scenes/main.tscn"
 const SAVE_MANAGER := preload("res://scripts/save_manager.gd")
 const ENDLESS_DIFFICULTY_OVERLAY := preload("res://scripts/ui/save/endless_difficulty_overlay.gd")
 const ENDLESS_SLOT_CARD_FACTORY := preload("res://scripts/ui/save/endless_slot_card_factory.gd")
@@ -117,9 +118,12 @@ func _on_slot_pressed(slot_id: int, has_profile: bool, has_run: bool) -> void:
 		return
 
 	SAVE_MANAGER.set_active_endless_slot(slot_id)
-	if not has_run:
+	if has_run:
+		SAVE_MANAGER.request_continue()
+		get_tree().change_scene_to_file(GAME_SCENE_PATH)
+	else:
 		SAVE_MANAGER.clear_save(slot_id, SAVE_MANAGER.MODE_ENDLESS)
-	get_tree().change_scene_to_file(ENDLESS_CAMP_SCENE_PATH)
+		get_tree().change_scene_to_file(ENDLESS_CAMP_SCENE_PATH)
 
 func _on_delete_pressed(slot_id: int) -> void:
 	pending_delete_slot_id = slot_id

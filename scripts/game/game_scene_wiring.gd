@@ -72,6 +72,9 @@ static func _setup_pause_menu(main: Node) -> void:
 	_connect_if_present(main.pause_menu, "resume_requested", Callable(main, "_on_resume_requested"))
 	_connect_if_present(main.pause_menu, "restart_requested", Callable(main, "_on_restart_requested"))
 	_connect_if_present(main.pause_menu, "main_menu_requested", Callable(main, "_on_main_menu_requested"))
+	_connect_if_present(main.pause_menu, "end_run_requested", Callable(main, "_on_endless_return_to_camp_requested"))
+	if main.pause_menu.has_method("set_endless_mode_enabled"):
+		main.pause_menu.set_endless_mode_enabled(main.endless_mode_active)
 	if main.hud != null and main.hud.has_method("set_hud_layout"):
 		_connect_if_present(main.pause_menu, "hud_layout_changed", Callable(main.hud, "set_hud_layout"))
 
@@ -81,6 +84,7 @@ static func _setup_game_over_ui(main: Node) -> void:
 	main.game_over_ui = main.game_over_ui_scene.instantiate()
 	main.add_child(main.game_over_ui)
 	_connect_if_present(main.game_over_ui, "restart_requested", Callable(main, "_on_restart_requested"))
+	_connect_if_present(main.game_over_ui, "return_to_camp_requested", Callable(main, "_on_endless_return_to_camp_requested"))
 
 static func _setup_enemy_debug_range_overlay(main: Node) -> void:
 	var overlay := ENEMY_DEBUG_RANGE_OVERLAY.new()

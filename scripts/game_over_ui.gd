@@ -1,6 +1,7 @@
 extends CanvasLayer
 
 signal restart_requested
+signal return_to_camp_requested
 
 const SURVIVORS_MODAL := preload("res://scripts/ui/core/survivors_modal.gd")
 const SURVIVORS_THEME := preload("res://scripts/ui/theme/survivors_ui_theme.gd")
@@ -9,6 +10,7 @@ var modal: Control
 var title_label: Label
 var message_label: Label
 var restart_button: Button
+var return_to_camp_on_action: bool = false
 
 func _ready() -> void:
 	layer = 3
@@ -22,12 +24,16 @@ func _ready() -> void:
 	_build_content()
 	hide_ui()
 
-func show_game_over(survival_time: float, level: int) -> void:
+func show_game_over(survival_time: float, level: int, return_to_camp: bool = false) -> void:
+	return_to_camp_on_action = return_to_camp
+	restart_button.text = "返回营地" if return_to_camp else "Restart"
 	_update_message("Game Over", survival_time, level)
 	visible = true
 	modal.apply_layout()
 
 func show_victory(survival_time: float, level: int) -> void:
+	return_to_camp_on_action = false
+	restart_button.text = "Restart"
 	_update_message("Victory", survival_time, level)
 	visible = true
 	modal.apply_layout()
@@ -73,4 +79,7 @@ func _update_message(title_text: String, survival_time: float, level: int) -> vo
 	message_label.text = "You survived %02d:%02d\nReached Level %d" % [minutes, seconds, level]
 
 func _on_restart_pressed() -> void:
-	restart_requested.emit()
+	if return_to_camp_on_action:
+		return_to_camp_requested.emit()
+	else:
+		restart_requested.emit()

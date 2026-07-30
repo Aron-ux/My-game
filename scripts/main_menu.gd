@@ -144,7 +144,6 @@ func _on_start_pressed() -> void:
 
 func _on_developer_mode_pressed() -> void:
 	DEVELOPER_MODE.activate()
-	SAVE_MANAGER.clear_save()
 	get_tree().paused = false
 	get_tree().change_scene_to_file(GAME_SCENE_PATH)
 

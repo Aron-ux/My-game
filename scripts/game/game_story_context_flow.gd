@@ -11,9 +11,9 @@ const DIFFICULTY_PROFILE := preload("res://scripts/game/difficulty_profile.gd")
 # ENEMY_DIRECTOR calls across the combat scene.
 
 static func load_story_stage_context(main: Node) -> void:
-	main.story_stage = SAVE_MANAGER.get_current_story_stage()
-	main.story_mode_active = not main.story_stage.is_empty()
-	main.endless_mode_active = not main.story_mode_active and SAVE_MANAGER.is_endless_mode_active()
+	main.endless_mode_active = SAVE_MANAGER.is_endless_mode_active()
+	main.story_stage = {} if main.endless_mode_active else SAVE_MANAGER.get_current_story_stage()
+	main.story_mode_active = not main.endless_mode_active and not main.story_stage.is_empty()
 	main.difficulty_profile = _load_difficulty_profile(main)
 	main.difficulty_id = str(main.difficulty_profile.get("id", DIFFICULTY_PROFILE.DEFAULT_DIFFICULTY_ID))
 

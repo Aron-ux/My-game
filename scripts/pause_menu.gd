@@ -8,6 +8,7 @@ const SURVIVORS_THEME := preload("res://scripts/ui/theme/survivors_ui_theme.gd")
 signal resume_requested
 signal restart_requested
 signal main_menu_requested
+signal end_run_requested
 signal hud_layout_changed(layout_key: String)
 
 var modal: Control
@@ -16,6 +17,9 @@ var volume_value_label: Label
 var mute_checkbox: CheckBox
 var performance_trace_checkbox: CheckBox
 var hud_layout_option: OptionButton
+var end_run_button: Button
+var end_run_confirm_dialog: ConfirmationDialog
+var endless_mode_enabled: bool = false
 
 func _ready() -> void:
 	layer = 3
@@ -37,6 +41,13 @@ func show_ui() -> void:
 
 func hide_ui() -> void:
 	visible = false
+	if end_run_confirm_dialog != null:
+		end_run_confirm_dialog.hide()
+
+func set_endless_mode_enabled(enabled: bool) -> void:
+	endless_mode_enabled = enabled
+	if end_run_button != null:
+		end_run_button.visible = enabled
 
 func _build_content() -> void:
 	var content := VBoxContainer.new()
@@ -49,6 +60,9 @@ func _build_content() -> void:
 
 	content.add_child(_make_action_button("继续游戏", Callable(self, "_on_resume_pressed"), "primary"))
 	content.add_child(_make_action_button("重新开始", Callable(self, "_on_restart_pressed")))
+	end_run_button = _make_action_button("结束本轮并返回营地", Callable(self, "_on_end_run_pressed"))
+	end_run_button.visible = endless_mode_enabled
+	content.add_child(end_run_button)
 	content.add_child(_make_action_button("返回主菜单", Callable(self, "_on_main_menu_pressed")))
 
 	var volume_label := Label.new()
@@ -135,6 +149,19 @@ func _on_restart_pressed() -> void:
 
 func _on_main_menu_pressed() -> void:
 	main_menu_requested.emit()
+
+func _on_end_run_pressed() -> void:
+	if not endless_mode_enabled:
+		return
+	if end_run_confirm_dialog == null:
+		end_run_confirm_dialog = ConfirmationDialog.new()
+		end_run_confirm_dialog.title = "结束本轮"
+		end_run_confirm_dialog.dialog_text = "当前战斗进度会被清除，并返回无尽营地。确定结束本轮吗？"
+		end_run_confirm_dialog.ok_button_text = "结束并返营"
+		end_run_confirm_dialog.cancel_button_text = "继续战斗"
+		end_run_confirm_dialog.confirmed.connect(func(): end_run_requested.emit())
+		add_child(end_run_confirm_dialog)
+	end_run_confirm_dialog.popup_centered(Vector2i(440, 190))
 
 func _on_volume_changed(value: float) -> void:
 	BGM_PLAYER_SCRIPT.save_music_volume(value)

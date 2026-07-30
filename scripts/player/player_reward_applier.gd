@@ -48,6 +48,6 @@ static func _grant_random_cycle_blessings(owner) -> void:
 
 static func _get_current_cycle_blessing_tier(owner) -> int:
 	var current_scene: Node = owner.get_tree().current_scene if owner != null and owner.get_tree() != null else null
-	if current_scene != null and bool(current_scene.get("endless_mode_active")):
+	if current_scene != null and current_scene.get("endless_mode_active") == true:
 		return 2 if int(current_scene.get("defeated_boss_count")) >= 1 else 1
 	return 1

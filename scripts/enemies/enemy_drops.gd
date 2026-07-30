@@ -82,7 +82,7 @@ static func get_heart_drop_chance(enemy_kind: String) -> float:
 
 static func maybe_drop_bones(enemy) -> void:
 	var current_scene: Node = _get_enemy_current_scene(enemy)
-	if current_scene == null or not bool(current_scene.get("endless_mode_active")):
+	if current_scene == null or current_scene.get("endless_mode_active") != true:
 		return
 	var bone_count := get_bone_drop_count(str(enemy.enemy_kind), randf())
 	if bone_count <= 0:

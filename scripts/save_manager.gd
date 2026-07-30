@@ -1,6 +1,7 @@
 extends RefCounted
 
 const STORY_DATA := preload("res://scripts/story_data.gd")
+const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
 const SAVE_FILE_STORE := preload("res://scripts/save/save_file_store.gd")
 const SAVE_PROFILE_DEFAULTS := preload("res://scripts/save/save_profile_defaults.gd")
 
@@ -12,7 +13,7 @@ const ENDLESS_CAMP_SCENE_PATH := "res://scenes/endless_camp.tscn"
 
 static var continue_requested: bool = false
 static var active_slot_id: int = -1
-static var active_mode: String = MODE_STORY
+static var active_mode: String = ""
 static var active_endless_slot_id: int = -1
 
 static func _profile_path(slot_id: int) -> String:
@@ -68,7 +69,8 @@ static func _get_last_endless_slot_id() -> int:
 	return int(_load_meta().get("last_endless_slot_id", -1))
 
 static func _get_last_mode() -> String:
-	return str(_load_meta().get("last_mode", MODE_STORY))
+	var saved_mode := str(_load_meta().get("last_mode", MODE_STORY))
+	return saved_mode if saved_mode in [MODE_STORY, MODE_ENDLESS] else MODE_STORY
 
 static func set_active_slot(slot_id: int) -> void:
 	if slot_id < 1 or slot_id > STORY_SLOT_COUNT:
@@ -277,6 +279,8 @@ static func load_run(slot_id: int = -1, mode: String = "") -> Dictionary:
 	return {}
 
 static func clear_save(slot_id: int = -1, mode: String = "") -> void:
+	if DEVELOPER_MODE.should_disable_save():
+		return
 	var resolved_mode := mode if mode != "" else get_active_mode()
 	var resolved := _resolve_slot(slot_id) if resolved_mode == MODE_STORY else _resolve_endless_slot(slot_id)
 	if resolved < 1:
@@ -348,7 +352,7 @@ static func get_current_endless_profile() -> Dictionary:
 	return load_endless_profile()
 
 static func get_current_story_stage() -> Dictionary:
-	if not STORY_DATA.is_story_mode_enabled():
+	if get_active_mode() != MODE_STORY or not STORY_DATA.is_story_mode_enabled():
 		return {}
 	var profile := load_story_profile()
 	if profile.is_empty():

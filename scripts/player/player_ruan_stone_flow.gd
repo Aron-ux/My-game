@@ -33,7 +33,7 @@ static func apply_basic_hit(owner, enemy: Node, triggering_damage: float, source
 		RUAN_STONE_SYSTEM.STONE_THUNDER:
 			if not bool(state.get("primary_proc", false)):
 				state["primary_proc"] = true
-				_apply_thunder(enemy, triggering_damage, values)
+				_apply_thunder(owner, enemy, triggering_damage, values)
 		RUAN_STONE_SYSTEM.STONE_FROST:
 			if first_target_hit and not killed:
 				_apply_frost(enemy, values)
@@ -43,16 +43,17 @@ static func apply_basic_hit(owner, enemy: Node, triggering_damage: float, source
 		RUAN_STONE_SYSTEM.STONE_FLAME:
 			if not bool(state.get("primary_proc", false)):
 				state["primary_proc"] = true
-				_apply_flame(enemy, triggering_damage, values)
+				_apply_flame(owner, enemy, triggering_damage, values)
 		RUAN_STONE_SYSTEM.STONE_FURY:
 			if first_target_hit and not killed:
 				_apply_fury(enemy, values)
 	_store_event_state(owner, event_key, state)
 
 
-static func _apply_thunder(origin_enemy: Node, triggering_damage: float, values: Dictionary) -> void:
+static func _apply_thunder(owner, origin_enemy: Node, triggering_damage: float, values: Dictionary) -> void:
 	if origin_enemy is not Node2D:
 		return
+	_spawn_stone_burst(origin_enemy, Color(0.58, 0.9, 1.0, 0.5), 28.0)
 	var current: Node2D = origin_enemy as Node2D
 	var visited: Dictionary = {origin_enemy.get_instance_id(): true}
 	var damage: float = triggering_damage * float(values.get("damage_ratio", 0.0))
@@ -60,6 +61,8 @@ static func _apply_thunder(origin_enemy: Node, triggering_damage: float, values:
 		var target: Node2D = _nearest_neighbor(current, visited)
 		if target == null:
 			break
+		_spawn_stone_link(owner, current.global_position, target.global_position, Color(0.48, 0.9, 1.0, 0.92))
+		_spawn_stone_burst(target, Color(0.58, 0.9, 1.0, 0.42), 22.0)
 		_deal_secondary_damage(target, damage)
 		visited[target.get_instance_id()] = true
 		current = target
@@ -82,11 +85,13 @@ static func _apply_poison(enemy: Node, triggering_damage: float, values: Diction
 		float(values.get("duration", 3.0)),
 		int(values.get("max_stacks", 3))
 	)
+	_spawn_stone_burst(enemy, Color(0.38, 1.0, 0.46, 0.42), 22.0)
 
 
-static func _apply_flame(origin_enemy: Node, triggering_damage: float, values: Dictionary) -> void:
+static func _apply_flame(owner, origin_enemy: Node, triggering_damage: float, values: Dictionary) -> void:
 	if origin_enemy is not Node2D:
 		return
+	_spawn_stone_burst(origin_enemy, Color(1.0, 0.46, 0.12, 0.5), 30.0)
 	var candidates: Array = []
 	for candidate in ENEMY_SPATIAL_GRID.get_neighbors(origin_enemy as Node2D, SECONDARY_QUERY_RADIUS):
 		if candidate == origin_enemy or not _is_live_enemy(candidate) or candidate is not Node2D:
@@ -99,7 +104,10 @@ static func _apply_flame(origin_enemy: Node, triggering_damage: float, values: D
 	)
 	var damage: float = triggering_damage * float(values.get("damage_ratio", 0.0))
 	for index in range(min(int(values.get("target_count", 0)), candidates.size())):
-		_deal_secondary_damage(candidates[index], damage)
+		var target := candidates[index] as Node2D
+		_spawn_stone_link(owner, (origin_enemy as Node2D).global_position, target.global_position, Color(1.0, 0.42, 0.1, 0.9))
+		_spawn_stone_burst(target, Color(1.0, 0.52, 0.16, 0.4), 24.0)
+		_deal_secondary_damage(target, damage)
 
 
 static func _apply_fury(enemy: Node, values: Dictionary) -> void:
@@ -129,6 +137,16 @@ static func _deal_secondary_damage(enemy: Node, damage: float) -> void:
 		enemy.take_batched_damage(damage)
 	elif enemy.has_method("take_damage"):
 		enemy.take_damage(damage)
+
+
+static func _spawn_stone_burst(enemy: Node, color: Color, radius: float) -> void:
+	if enemy != null and enemy.has_method("_spawn_status_burst"):
+		enemy._spawn_status_burst(color, radius)
+
+
+static func _spawn_stone_link(owner, start_position: Vector2, end_position: Vector2, color: Color) -> void:
+	if owner != null and owner.has_method("_spawn_dash_line_effect"):
+		owner._spawn_dash_line_effect(start_position, end_position, color, 4.0, 0.14)
 
 
 static func _is_live_enemy(enemy: Variant) -> bool:

@@ -340,6 +340,12 @@ func _on_restart_requested() -> void:
 func _on_main_menu_requested() -> void:
 	GAME_SESSION_FLOW.return_to_main_menu(self)
 
+func _on_endless_return_to_camp_requested() -> void:
+	GAME_SESSION_FLOW.return_to_endless_camp(self, false)
+
+func _return_to_endless_camp_preserving_run() -> void:
+	GAME_SESSION_FLOW.return_to_endless_camp(self, true)
+
 func _load_story_stage_context() -> void:
 	GAME_STORY_CONTEXT_FLOW.load_story_stage_context(self)
 

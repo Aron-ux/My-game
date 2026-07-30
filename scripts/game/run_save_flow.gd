@@ -5,9 +5,10 @@ const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
 const RUN_SAVE_RUNTIME_FLOW := preload("res://scripts/game/run_save_runtime_flow.gd")
 const PERFORMANCE_COUNTERS := preload("res://scripts/game/performance_counters.gd")
 const PERFORMANCE_RECORDER := preload("res://scripts/game/performance_recorder.gd")
+const ENDLESS_BOSS_EXIT_PENDING_META := "endless_boss_exit_pending"
 
 static func save_run_state(main: Node) -> void:
-	if main.game_over or main.player == null or DEVELOPER_MODE.should_disable_save():
+	if main.game_over or main.player == null or DEVELOPER_MODE.should_disable_save() or bool(main.get_meta(ENDLESS_BOSS_EXIT_PENDING_META, false)):
 		return
 	var save_start_usec: int = Time.get_ticks_usec()
 	PERFORMANCE_RECORDER.begin_scope("save_run_ms")
