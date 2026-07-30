@@ -36,7 +36,7 @@ static func _grant_training_level(owner) -> void:
 
 
 static func _grant_random_cycle_blessings(owner) -> void:
-	var tier: int = _get_current_cycle_blessing_tier(owner)
+	var tier := 1
 	var rng: RandomNumberGenerator = owner.get("rng") if owner != null and owner.get("rng") is RandomNumberGenerator else null
 	var granted: Array[String] = PLAYER_BLESSING_SYSTEM.grant_random_blessings(owner, tier, SMALL_BOSS_RANDOM_BLESSING_COUNT, rng)
 	var label := "%s级祝福 x%d" % [PLAYER_BLESSING_SYSTEM._tier_label(tier), granted.size()]
@@ -44,10 +44,3 @@ static func _grant_random_cycle_blessings(owner) -> void:
 		label = "祝福已达上限"
 	owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -62.0), label, Color(0.66, 1.0, 0.58, 1.0))
 	owner._spawn_ring_effect(owner.global_position, 88.0, Color(0.58, 1.0, 0.48, 0.45), 8.0, 0.22)
-
-
-static func _get_current_cycle_blessing_tier(owner) -> int:
-	var current_scene: Node = owner.get_tree().current_scene if owner != null and owner.get_tree() != null else null
-	if current_scene != null and current_scene.get("endless_mode_active") == true:
-		return 2 if int(current_scene.get("defeated_boss_count")) >= 1 else 1
-	return 1

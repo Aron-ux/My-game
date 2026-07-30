@@ -117,6 +117,8 @@ static func _write_sample(main: Node, delta: float, reason: String) -> void:
 		"paused": is_paused,
 		"survival_time": float(main.get("survival_time")) if main.get("survival_time") != null else 0.0,
 		"difficulty_id": str(main.get("difficulty_id")) if main.get("difficulty_id") != null else "",
+		"endless_tier": int(main.get("endless_tier")) if main.get("endless_tier") != null else 0,
+		"player_level": int(main.player.get("level")) if main.get("player") != null and main.player.get("level") != null else 0,
 		"counts": _build_counts(metrics),
 		"frame_time": frame_time,
 		"counters_current": current_frame_counters,
@@ -124,7 +126,8 @@ static func _write_sample(main: Node, delta: float, reason: String) -> void:
 			"flags": metrics.get("performance_flags", {}),
 			"settings": {
 				"autosave_interval": float(main.get("autosave_interval")) if main.get("autosave_interval") != null else 0.0,
-				"performance_trace_enabled": true
+				"performance_trace_enabled": true,
+				"game_speed": Engine.time_scale
 			}
 		})
 	sample_index += 1

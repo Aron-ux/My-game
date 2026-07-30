@@ -1,7 +1,6 @@
 extends RefCounted
 
 const STORY_DATA := preload("res://scripts/story_data.gd")
-const DIFFICULTY_PROFILE := preload("res://scripts/game/difficulty_profile.gd")
 const RUAN_STONE_SYSTEM := preload("res://scripts/player/ruan_stone_system.gd")
 
 const MODE_STORY := "story"
@@ -31,23 +30,31 @@ static func ensure_story_profile_defaults(profile: Dictionary, slot_id: int) -> 
 	normalized["last_updated_unix"] = Time.get_unix_time_from_system()
 	return normalized
 
-static func build_default_endless_profile(slot_id: int, difficulty: String) -> Dictionary:
-	var normalized_difficulty := DIFFICULTY_PROFILE.normalize_id(difficulty)
+static func build_default_endless_profile(slot_id: int) -> Dictionary:
 	return RUAN_STONE_SYSTEM.normalize_profile({
 		"slot_id": slot_id,
 		"mode": MODE_ENDLESS,
-		"difficulty": normalized_difficulty,
+		"highest_cleared_tier": 0,
+		"selected_tier": 1,
+		"last_rewarded_run_id": "",
 		"created_unix": Time.get_unix_time_from_system(),
 		"last_updated_unix": Time.get_unix_time_from_system()
 	})
 
 static func ensure_endless_profile_defaults(profile: Dictionary, slot_id: int) -> Dictionary:
-	var normalized := build_default_endless_profile(slot_id, str(profile.get("difficulty", "normal")))
+	var normalized := build_default_endless_profile(slot_id)
 	for key in profile.keys():
 		normalized[key] = profile[key]
 	normalized["slot_id"] = slot_id
 	normalized["mode"] = MODE_ENDLESS
-	normalized["difficulty"] = DIFFICULTY_PROFILE.normalize_id(str(normalized.get("difficulty", DIFFICULTY_PROFILE.DEFAULT_DIFFICULTY_ID)))
+	normalized.erase("difficulty")
+	normalized["highest_cleared_tier"] = max(0, int(normalized.get("highest_cleared_tier", 0)))
+	normalized["selected_tier"] = clampi(
+		max(1, int(normalized.get("selected_tier", 1))),
+		1,
+		int(normalized["highest_cleared_tier"]) + 1
+	)
+	normalized["last_rewarded_run_id"] = str(normalized.get("last_rewarded_run_id", ""))
 	normalized["last_updated_unix"] = Time.get_unix_time_from_system()
 	return RUAN_STONE_SYSTEM.normalize_profile(normalized)
 

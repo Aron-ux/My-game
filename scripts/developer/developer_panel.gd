@@ -17,11 +17,13 @@ signal all_blessings_grant_requested
 signal ruan_stone_action_requested(action_id: String)
 signal enemy_detail_display_toggled(enabled: bool)
 signal glutton_skill_test_requested(skill_id: String)
+signal endless_tier_test_requested(tier: int)
 
 var level_button: Button
 var invincibility_button: Button
 var no_cooldown_button: Button
 var enemy_detail_button: Button
+var endless_tier_spin: SpinBox
 var enemy_menu_popup: PanelContainer
 var enemy_list: VBoxContainer
 var glutton_skill_list: VBoxContainer
@@ -120,6 +122,19 @@ func set_performance_metrics_visible(visible: bool) -> void:
 
 
 func _build_top_buttons(parent: Control) -> void:
+	var tier_row := HBoxContainer.new()
+	tier_row.add_theme_constant_override("separation", 6)
+	parent.add_child(tier_row)
+	endless_tier_spin = SpinBox.new()
+	endless_tier_spin.min_value = 1
+	endless_tier_spin.max_value = 9999
+	endless_tier_spin.value = DEVELOPER_MODE.get_test_endless_tier()
+	endless_tier_spin.custom_minimum_size = Vector2(92.0, 40.0)
+	tier_row.add_child(endless_tier_spin)
+	var tier_button := _build_button("应用测试 N 层", Vector2(122.0, 40.0), 14, "primary")
+	tier_button.pressed.connect(func(): endless_tier_test_requested.emit(int(endless_tier_spin.value)))
+	tier_row.add_child(tier_button)
+
 	level_button = _build_button("角色等级 +1", Vector2(220, 40), 16, "primary")
 	level_button.pressed.connect(_on_level_button_pressed)
 	parent.add_child(level_button)

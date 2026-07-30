@@ -53,11 +53,8 @@ static func get_player_growth_score(main: Node) -> float:
 static func get_expected_growth_score(main: Node) -> float:
 	return SPAWN_PROFILE_FLOW.get_expected_growth_score(main)
 
-static func get_cycle_elapsed_time(main: Node) -> float:
-	return SPAWN_PROFILE_FLOW.get_cycle_elapsed_time(main)
-
-static func _get_cycle_spawn_count_multiplier(main: Node) -> float:
-	return SPAWN_PROFILE_FLOW.get_cycle_spawn_count_multiplier(main)
+static func get_stage_elapsed_time(main: Node) -> float:
+	return SPAWN_PROFILE_FLOW.get_stage_elapsed_time(main)
 
 static func get_spawn_position(main: Node, angle: float, distance: float) -> Vector2:
 	return SPAWN_POSITION_FLOW.get_spawn_position(main, angle, distance)

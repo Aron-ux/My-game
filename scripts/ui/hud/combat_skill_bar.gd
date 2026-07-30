@@ -623,7 +623,6 @@ class TeamRoleStatusRow:
 			])
 			draw_colored_polygon(pointer, Color(1.0, 0.78, 0.26, 0.72))
 		_draw_key_tag()
-		_draw_role_emblem()
 		_draw_role_text()
 		_draw_resource_bars()
 		_draw_connector_rail()
@@ -644,19 +643,6 @@ class TeamRoleStatusRow:
 		_draw_rounded_fill(tag_rect, 8.0, tag_fill)
 		draw_rect(tag_rect.grow(-0.5), tag_border, false, 1.0)
 		_draw_text_center(tag_rect, key_text, 18 if active else 19, Color(1.0, 0.95, 0.72, 1.0) if active else Color(0.88, 0.95, 1.0, 0.88))
-
-	func _draw_role_emblem() -> void:
-		var emblem_size: float = 34.0 if active else 25.0
-		var tag_width: float = 68.0 if active else 52.0
-		var center := Vector2(18.0 + tag_width + 14.0 + emblem_size * 0.5, size.y * 0.5)
-		var radius: float = emblem_size * 0.5
-		draw_circle(center, radius + 3.0, Color(1.0, 0.72, 0.24, 0.25) if active else Color(role_color.r, role_color.g, role_color.b, 0.16))
-		draw_circle(center, radius, Color(0.04, 0.055, 0.07, 0.95))
-		draw_arc(center, radius - 1.0, 0.0, TAU, 40, Color(1.0, 0.78, 0.28, 0.95) if active else Color(0.46, 0.62, 0.82, 0.66), 2.0)
-		var head_rect := Rect2(center - Vector2(radius * 0.32, radius * 0.52), Vector2(radius * 0.64, radius * 0.56))
-		var body_rect := Rect2(center - Vector2(radius * 0.52, -radius * 0.06), Vector2(radius * 1.04, radius * 0.58))
-		draw_rect(head_rect, Color(role_color.r, role_color.g, role_color.b, 0.92), true)
-		draw_rect(body_rect, Color(max(role_color.r - 0.12, 0.0), max(role_color.g - 0.12, 0.0), max(role_color.b - 0.12, 0.0), 0.88), true)
 
 	func _draw_role_text() -> void:
 		var name_position := _get_name_position()
@@ -845,26 +831,35 @@ func update_switch_cooldown(role_id: String, cooldown_remaining: float, cooldown
 	_refresh_switch_key_labels()
 	switch_cooldown_remaining_value = max(0.0, cooldown_remaining)
 	switch_cooldown_duration_value = max(0.01, cooldown_duration)
-	if switch_cd_portraits.is_empty():
-		return
 	var duration: float = max(cooldown_duration, 0.01)
 	var ratio: float = clamp(cooldown_remaining / duration, 0.0, 1.0)
 	var energy_values: Dictionary = switch_energy_by_role
 	if energy_values.is_empty():
 		energy_values = {role_id: switch_energy}
-	_layout_switch_portraits(role_id, switch_cd_layout_initialized and switch_cd_active_role_id != role_id)
-	switch_cd_active_role_id = role_id
-	switch_cd_layout_initialized = true
-	for switch_role_id in SWITCH_ROLE_ORDER:
-		var switch_role_id_string: String = str(switch_role_id)
-		var portrait: SwitchPortraitDisplay = switch_cd_portraits.get(switch_role_id_string, null) as SwitchPortraitDisplay
-		if portrait == null:
+	if not switch_cd_portraits.is_empty():
+		_layout_switch_portraits(role_id, switch_cd_layout_initialized and switch_cd_active_role_id != role_id)
+		switch_cd_active_role_id = role_id
+		switch_cd_layout_initialized = true
+		for switch_role_id in SWITCH_ROLE_ORDER:
+			var switch_role_id_string: String = str(switch_role_id)
+			var portrait: SwitchPortraitDisplay = switch_cd_portraits.get(switch_role_id_string, null) as SwitchPortraitDisplay
+			if portrait == null:
+				continue
+			var role_energy: float = float(energy_values.get(switch_role_id_string, 0.0))
+			var energy_ratio: float = clamp(max(role_energy, 0.0) / max(switch_energy_required, 1.0), 0.0, 1.0)
+			if role_energy >= switch_energy_required or energy_ratio >= 1.0 - ENERGY_READY_RATIO_EPSILON:
+				energy_ratio = 1.0
+			portrait.set_state(ratio, energy_ratio, switch_role_id_string == role_id)
+	for row_entry_value in team_role_rows:
+		var row_entry: Dictionary = row_entry_value
+		var portrait: SwitchPortraitDisplay = row_entry.get("portrait", null) as SwitchPortraitDisplay
+		var status: Dictionary = row_entry.get("data", {})
+		var row_role_id: String = str(status.get("role_id", ""))
+		if portrait == null or row_role_id == "":
 			continue
-		var role_energy: float = float(energy_values.get(switch_role_id_string, 0.0))
-		var energy_ratio: float = clamp(max(role_energy, 0.0) / max(switch_energy_required, 1.0), 0.0, 1.0)
-		if role_energy >= switch_energy_required or energy_ratio >= 1.0 - ENERGY_READY_RATIO_EPSILON:
-			energy_ratio = 1.0
-		portrait.set_state(ratio, energy_ratio, switch_role_id_string == role_id)
+		var role_energy: float = float(energy_values.get(row_role_id, status.get("switch_energy", 0.0)))
+		var required_energy: float = max(1.0, float(status.get("switch_energy_required", switch_energy_required)))
+		portrait.set_state(ratio, role_energy / required_energy, row_role_id == role_id)
 	if switch_cd_time_label != null:
 		var next_text: String = "%.1f" % cooldown_remaining if cooldown_remaining > 0.05 else ""
 		if switch_cd_time_label.text != next_text:
@@ -1191,6 +1186,10 @@ func _build_team_role_rows() -> void:
 		row.mouse_entered.connect(_on_team_role_row_hovered.bind(row_index))
 		row.mouse_exited.connect(_on_skill_slot_unhovered)
 		team_stack_widget.add_child(row)
+		var portrait := SwitchPortraitDisplay.new()
+		portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		portrait.z_index = 2
+		row.add_child(portrait)
 		var slot_nodes: Array = []
 		for slot_index in range(TEAM_STACK_SLOT_COUNT):
 			var slot_icon := SkillCooldownIcon.new()
@@ -1224,6 +1223,7 @@ func _build_team_role_rows() -> void:
 			})
 		team_role_rows.append({
 			"row": row,
+			"portrait": portrait,
 			"slots": slot_nodes,
 			"data": {},
 			"key": str(spec["key"]),
@@ -1372,6 +1372,17 @@ func update_team_role_statuses(statuses: Array, active_role_id: String, active_r
 		var row: TeamRoleStatusRow = row_entry["row"] as TeamRoleStatusRow
 		if row != null:
 			row.set_status(status, key_texts[row_index], state_texts[row_index], row_active)
+		var portrait: SwitchPortraitDisplay = row_entry.get("portrait", null) as SwitchPortraitDisplay
+		var scene_value: Variant = SWITCH_HEAD_SCENES.get(role_id, null)
+		if portrait != null and scene_value is PackedScene:
+			portrait.set_role_scene(role_id, scene_value)
+			var role_energy: float = float(status.get("switch_energy", 0.0))
+			var required_energy: float = max(1.0, float(status.get("switch_energy_required", 100.0)))
+			portrait.set_state(
+				switch_cooldown_remaining_value / switch_cooldown_duration_value,
+				role_energy / required_energy,
+				row_active
+			)
 		_update_team_role_slots(row_index, status.get("cooldown_slots", []))
 
 func _apply_empty_team_statuses() -> void:
@@ -1395,6 +1406,13 @@ func _layout_team_role_slots(row_index: int) -> void:
 	if row == null:
 		return
 	var row_active: bool = bool(row_entry.get("active", row_index == 1))
+	var portrait: SwitchPortraitDisplay = row_entry.get("portrait", null) as SwitchPortraitDisplay
+	if portrait != null:
+		var portrait_size := Vector2.ONE * (100.0 if row_active else 74.0)
+		var emblem_center := Vector2(117.0 if row_active else 96.5, row.size.y * 0.5)
+		portrait.position = emblem_center - portrait_size * 0.5
+		portrait.size = portrait_size
+		portrait.custom_minimum_size = portrait_size
 	var slot_size: float = TEAM_STACK_SLOT_SIZE_ACTIVE if row_active else TEAM_STACK_SLOT_SIZE_STANDBY
 	var slot_gap: float = TEAM_STACK_SLOT_GAP_ACTIVE if row_active else TEAM_STACK_SLOT_GAP_STANDBY
 	var slots: Array = row_entry["slots"]

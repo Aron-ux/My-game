@@ -33,10 +33,12 @@ func _run() -> void:
 	owner.ruan_stone_proc_events.clear()
 	owner.equipped_ruan_stone = "flame"
 	owner.ruan_stone_levels = {"flame": 1}
+	owner.stone_rings = 0
 	DamageResolver.deal_damage_to_enemy(owner, enemies[0], 20.0, "mage_basic:event_flame")
-	assert(is_equal_approx(enemies[1].damage_taken, 5.0))
-	assert(is_equal_approx(enemies[2].damage_taken, 5.0))
+	assert(is_equal_approx(enemies[1].damage_taken, 0.0))
+	assert(is_equal_approx(enemies[2].damage_taken, 0.0))
 	assert(is_equal_approx(enemies[3].damage_taken, 0.0))
+	assert(owner.stone_rings == 0)
 
 	_reset(enemies)
 	owner.ruan_stone_proc_events.clear()
@@ -100,11 +102,45 @@ func _run() -> void:
 
 	_reset(enemies)
 	owner.ruan_stone_proc_events.clear()
+	owner.equipped_ruan_stone = "flame"
+	owner.ruan_stone_levels = {"flame": 1}
+	owner.stone_rings = 0
+	enemies[0].max_health = 200.0
+	enemies[0].current_health = 10.0
+	enemies[0].remove_on_death = true
+	DamageResolver.queue_damage_to_enemy(owner, enemies[0], 10.0, "mage_basic:event_batched_flame")
+	queue._apply_job_at_index(2)
+	assert(enemies[0].get_parent() == null)
+	assert(is_equal_approx(enemies[1].damage_taken, 16.0))
+	assert(is_equal_approx(enemies[2].damage_taken, 16.0))
+	assert(is_equal_approx(enemies[3].damage_taken, 0.0))
+	assert(owner.stone_rings == 1)
+	scene.add_child(enemies[0])
+
+	_reset(enemies)
+	owner.ruan_stone_proc_events.clear()
 	owner.equipped_ruan_stone = "thunder"
 	owner.ruan_stone_levels = {"thunder": 1}
 	DamageResolver.deal_damage_to_enemy(owner, enemies[0], 10.0, "mage")
 	assert(is_equal_approx(enemies[0].damage_taken, 10.0))
 	assert(is_equal_approx(enemies[1].damage_taken, 0.0))
+
+	_reset(enemies)
+	owner.ruan_stone_proc_events.clear()
+	owner.equipped_ruan_stone = "flame"
+	owner.ruan_stone_levels = {"flame": 1}
+	owner.stone_rings = 0
+	enemies[0].max_health = 200.0
+	enemies[0].current_health = 200.0
+	enemies[0].remove_on_death = true
+	DamageResolver.deal_damage_to_enemy(owner, enemies[0], 20.0, "mage_basic:event_pooled_flame")
+	DamageResolver.deal_damage_to_enemy(owner, enemies[0], 180.0, "mage_basic:event_pooled_flame")
+	assert(enemies[0].get_parent() == null)
+	assert(is_equal_approx(enemies[1].damage_taken, 16.0))
+	assert(is_equal_approx(enemies[2].damage_taken, 16.0))
+	assert(is_equal_approx(enemies[3].damage_taken, 0.0))
+	assert(owner.stone_rings == 1)
+	enemies[0].free()
 
 	print("RUAN_STONE_COMBAT_SMOKE_OK")
 	quit(0)
@@ -112,8 +148,10 @@ func _run() -> void:
 
 func _reset(enemies: Array[StoneEnemy]) -> void:
 	for enemy in enemies:
+		enemy.max_health = 1000.0
 		enemy.current_health = 1000.0
 		enemy.damage_taken = 0.0
+		enemy.remove_on_death = false
 		enemy.slow_multiplier = 1.0
 		enemy.slow_duration = 0.0
 		enemy.vulnerability_bonus = 0.0
@@ -133,8 +171,10 @@ class CombatScene:
 
 class StoneEnemy:
 	extends Node2D
+	var max_health := 1000.0
 	var current_health := 1000.0
 	var damage_taken := 0.0
+	var remove_on_death := false
 	var slow_multiplier := 1.0
 	var slow_duration := 0.0
 	var vulnerability_bonus := 0.0
@@ -144,7 +184,10 @@ class StoneEnemy:
 		vulnerability_at_last_hit = vulnerability_bonus
 		damage_taken += amount
 		current_health -= amount
-		return current_health <= 0.0
+		var killed := current_health <= 0.0
+		if killed and remove_on_death and get_parent() != null:
+			get_parent().remove_child(self)
+		return killed
 
 	func take_batched_damage(amount: float) -> bool:
 		return take_damage(amount)
@@ -162,3 +205,7 @@ class StoneOwner:
 	var equipped_ruan_stone := ""
 	var ruan_stone_levels: Dictionary = {}
 	var ruan_stone_proc_events: Dictionary = {}
+	var stone_rings := 0
+
+	func _spawn_ring_effect(_center: Vector2, _radius: float, _color: Color, _width: float, _duration: float) -> void:
+		stone_rings += 1

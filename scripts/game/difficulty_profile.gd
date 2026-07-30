@@ -1,7 +1,13 @@
 extends RefCounted
 
 const DEFAULT_DIFFICULTY_ID := "normal"
-const DIFFICULTY_ORDER := ["easy", "normal", "hard", "hell"]
+const ENDLESS_TIER_ANCHOR_SPAN := 10.0
+const ENDLESS_UNBOUNDED_KEYS := [
+	"enemy_health_scale",
+	"special_health_scale",
+	"boss_health_scale",
+	"enemy_damage_scale"
+]
 
 const PROFILES := {
 	"easy": {
@@ -115,20 +121,27 @@ static func normalize_id(difficulty_id: String) -> String:
 static func get_profile(difficulty_id: String = DEFAULT_DIFFICULTY_ID) -> Dictionary:
 	return (PROFILES.get(normalize_id(difficulty_id), PROFILES[DEFAULT_DIFFICULTY_ID]) as Dictionary).duplicate(true)
 
-static func get_ordered_profiles() -> Array:
-	var profiles: Array = []
-	for difficulty_id in DIFFICULTY_ORDER:
-		profiles.append(get_profile(difficulty_id))
-	return profiles
-
-static func is_available(difficulty_id: String) -> bool:
-	return bool(get_profile(difficulty_id).get("available", false))
-
-static func get_label(difficulty_id: String) -> String:
-	return str(get_profile(difficulty_id).get("label", "普通"))
-
-static func get_description(difficulty_id: String) -> String:
-	return str(get_profile(difficulty_id).get("description", "标准幸存者割草体验。"))
+static func get_endless_tier_profile(tier: int) -> Dictionary:
+	var safe_tier: int = maxi(1, tier)
+	var raw_progress: float = float(safe_tier - 1) / ENDLESS_TIER_ANCHOR_SPAN
+	var capped_progress: float = minf(raw_progress, 1.0)
+	var easy: Dictionary = PROFILES["easy"]
+	var hell: Dictionary = PROFILES["hell"]
+	var profile: Dictionary = easy.duplicate(true)
+	for key in easy.keys():
+		if not hell.has(key):
+			continue
+		var from_value: Variant = easy[key]
+		var to_value: Variant = hell[key]
+		if from_value is float or from_value is int:
+			var progress: float = raw_progress if key in ENDLESS_UNBOUNDED_KEYS else capped_progress
+			var interpolated: float = lerpf(float(from_value), float(to_value), progress)
+			profile[key] = int(round(interpolated)) if from_value is int else interpolated
+	profile["id"] = "n%d" % safe_tier
+	profile["label"] = "N%d" % safe_tier
+	profile["tier"] = safe_tier
+	profile["description"] = "12 分钟内击败最终 Boss；生命与伤害随 N 层线性提升。"
+	return profile
 
 static func get_scale(profile: Dictionary, key: String, fallback: float = 1.0) -> float:
 	return float(profile.get(key, fallback))

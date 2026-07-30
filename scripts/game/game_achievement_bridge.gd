@@ -22,11 +22,11 @@ static func record_enemy_defeated(context: Node, enemy_kind: String) -> void:
 		return
 	service.record_enemy_defeated(enemy_kind)
 
-static func record_endless_boss_defeated(context: Node, defeated_boss_count: int) -> void:
+static func record_endless_tier_cleared(context: Node, cleared_tier: int) -> void:
 	var service := _get_service(context)
-	if service == null or not service.has_method("record_endless_boss_defeated"):
+	if service == null or not service.has_method("record_endless_tier_cleared"):
 		return
-	service.record_endless_boss_defeated(defeated_boss_count)
+	service.record_endless_tier_cleared(cleared_tier)
 
 static func record_survival_time(context: Node) -> void:
 	var service := _get_service(context)

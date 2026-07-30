@@ -11,7 +11,7 @@ const DEFINITIONS := {
 	STONE_THUNDER: {"title": "雷石", "summary": "普攻触发电流连锁。"},
 	STONE_FROST: {"title": "冰石", "summary": "普攻大幅减速敌人。"},
 	STONE_POISON: {"title": "毒石", "summary": "普攻附加持续毒伤。"},
-	STONE_FLAME: {"title": "炎石", "summary": "普攻向附近敌人分裂伤害。"},
+	STONE_FLAME: {"title": "炎石", "summary": "普攻击杀敌人时引爆尸骸。"},
 	STONE_FURY: {"title": "烈石", "summary": "普攻附加伤害加深。"}
 }
 
@@ -104,8 +104,8 @@ static func get_effect_values(stone_id: String, level: int) -> Dictionary:
 			}
 		STONE_FLAME:
 			return {
-				"damage_ratio": 0.25 + 0.03 * upgrades,
-				"target_count": min(5, 2 + floori(float(safe_level) / 6.0))
+				"damage_ratio": 0.08 + 0.005 * upgrades,
+				"radius": 260.0
 			}
 		STONE_FURY:
 			return {
@@ -127,7 +127,7 @@ static func get_effect_text(stone_id: String, level: int) -> String:
 		STONE_POISON:
 			return "3秒造成%s%%毒伤，最多3层" % _percent(values["total_damage_ratio"])
 		STONE_FLAME:
-			return "分裂至%d个目标，造成%s%%伤害" % [int(values["target_count"]), _percent(values["damage_ratio"])]
+			return "普攻击杀爆炸：%d范围，造成死者最大生命%s%%伤害" % [int(values["radius"]), _percent(values["damage_ratio"])]
 		STONE_FURY:
 			return "伤害加深%s%%，持续%s秒" % [_percent(values["vulnerability_ratio"]), _decimal(values["duration"])]
 	return ""

@@ -1,16 +1,13 @@
 extends RefCounted
 
 const SURVIVORS_SLOT_CARD := preload("res://scripts/ui/components/survivors_slot_card_factory.gd")
-const DIFFICULTY_PROFILE := preload("res://scripts/game/difficulty_profile.gd")
 
 const TEXT_CREATE := "\u521b\u5efa\u5b58\u6863"
-const TEXT_SURVIVED := "\u5df2\u575a\u6301%s"
 const TEXT_DELETE_TITLE := "\u5220\u9664\u5B58\u6863"
 
 static func build_slot_card(slot_payload: Dictionary, slot_pressed_callback: Callable, delete_pressed_callback: Callable) -> Control:
 	var slot_id: int = int(slot_payload.get("slot_id", 0))
 	var has_profile: bool = bool(slot_payload.get("has_profile", false))
-	var survival_time: float = float(slot_payload.get("survival_time", 0.0))
 	var profile: Dictionary = slot_payload.get("profile", {})
 
 	var root := Control.new()
@@ -20,10 +17,12 @@ static func build_slot_card(slot_payload: Dictionary, slot_pressed_callback: Cal
 
 	var detail_text := TEXT_CREATE
 	if has_profile:
-		var difficulty_name := get_difficulty_label(str(profile.get("difficulty", "normal")))
-		var survived_text := TEXT_SURVIVED % format_survival_time(survival_time)
-		detail_text = "%s\n%s" % [difficulty_name, survived_text]
-	var action_text := TEXT_CREATE if not has_profile else ("\u7ee7\u7eed" if bool(slot_payload.get("has_run", false)) else "\u5f00\u59cb")
+		var highest: int = maxi(0, int(profile.get("highest_cleared_tier", 0)))
+		var run_tier: int = int(slot_payload.get("run_tier", 0))
+		var target_text := "N%d 进行中" % run_tier if run_tier > 0 else "下个目标 N%d" % (highest + 1)
+		var highest_text := "尚未通关" if highest == 0 else "最高通关 N%d" % highest
+		detail_text = "%s\n%s" % [highest_text, target_text]
+	var action_text := TEXT_CREATE if not has_profile else "进入营地"
 
 	var card_button := SURVIVORS_SLOT_CARD.build_card(
 		"\u5b58\u6863 %d" % slot_id,
@@ -39,15 +38,6 @@ static func build_slot_card(slot_payload: Dictionary, slot_pressed_callback: Cal
 		root.add_child(_build_delete_button(slot_id, delete_pressed_callback))
 
 	return root
-
-static func format_survival_time(total_seconds: float) -> String:
-	var seconds_int: int = max(0, int(floor(total_seconds)))
-	var minutes: int = seconds_int / 60
-	var seconds: int = seconds_int % 60
-	return "%d\u5206%d\u79d2" % [minutes, seconds]
-
-static func get_difficulty_label(difficulty_id: String) -> String:
-	return DIFFICULTY_PROFILE.get_label(difficulty_id)
 
 static func _build_delete_button(slot_id: int, delete_pressed_callback: Callable) -> Button:
 	var delete_button := Button.new()

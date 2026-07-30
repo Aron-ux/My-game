@@ -21,6 +21,7 @@ func _run() -> void:
 	root.add_child(instance)
 	await process_frame
 	var portal := instance.get_node_or_null("Portal/Interactable")
+	var tutorial_entrance := instance.get_node_or_null("TutorialEntrance/Interactable")
 	var blacksmith := instance.get_node_or_null("Blacksmith/Interactable")
 	var player := instance.get_node_or_null("CampPlayer") as CharacterBody2D
 	var ruan_dog := instance.get_node_or_null("RuanDog") as Node2D
@@ -34,9 +35,18 @@ func _run() -> void:
 	var stone_cards := instance.get_node_or_null("CanvasLayer/RuanStonePanel/MarginContainer/StoneContent/Cards") as HBoxContainer
 	var stone_status := instance.get_node_or_null("CanvasLayer/RuanStonePanel/MarginContainer/StoneContent/Status") as Label
 	var stone_feedback := instance.get_node_or_null("CanvasLayer/RuanStonePanel/MarginContainer/StoneContent/Feedback") as Label
+	var tutorial_prompt := instance.get_node_or_null("CanvasLayer/TutorialPromptPanel") as PanelContainer
+	var tutorial_no_button := instance.get_node_or_null("CanvasLayer/TutorialPromptPanel/MarginContainer/TutorialPromptContent/ButtonRow/NoButton") as Button
 	var prompt_label := instance.get_node_or_null("CanvasLayer/PromptLabel") as Label
-	if portal == null or blacksmith == null or player == null:
+	var tier_overlay := instance.get_node_or_null("CanvasLayer/EndlessTierOverlay") as Control
+	if portal == null or tutorial_entrance == null or blacksmith == null or player == null:
 		failures.append("Endless camp scene is missing required interaction nodes.")
+	elif (
+		str(portal.get("interaction_kind")) != "portal"
+		or str(tutorial_entrance.get("interaction_kind")) != "tutorial"
+		or portal.get_parent().global_position.distance_to(tutorial_entrance.get_parent().global_position) < 180.0
+	):
+		failures.append("Endless portal and tutorial entrance must remain separate interactions.")
 	if ruan_dog == null or dog_interactable == null or dog_visual == null:
 		failures.append("Endless camp scene is missing Ruan Dog or its interaction nodes.")
 	elif dog_interactable.position.x >= 0.0:
@@ -49,6 +59,22 @@ func _run() -> void:
 		failures.append("Dialogue UI is missing the Ruan Dog portrait.")
 	if stone_panel == null or stone_cards == null or stone_status == null or stone_feedback == null:
 		failures.append("Endless camp scene is missing the Ruan stone shop UI.")
+	if tutorial_prompt == null or tutorial_no_button == null or tutorial_no_button.text != "取消":
+		failures.append("Tutorial entrance is missing its independent confirmation UI.")
+	elif tutorial_entrance != null:
+		instance.call("_on_interactable_interacted", tutorial_entrance)
+		if not tutorial_prompt.visible:
+			failures.append("Tutorial entrance did not open the tutorial confirmation.")
+		tutorial_no_button.pressed.emit()
+		if tutorial_prompt.visible:
+			failures.append("Cancelling the tutorial confirmation did not return to camp.")
+	if tier_overlay == null:
+		failures.append("Endless camp is missing the N-tier selector.")
+	else:
+		tier_overlay.call("open", {"highest_cleared_tier": 2, "selected_tier": 3})
+		if not tier_overlay.visible or int(tier_overlay.get("selected_tier")) != 3:
+			failures.append("N-tier selector did not open at the selected unlocked tier.")
+		tier_overlay.call("close_overlay")
 	if dog_interactable != null and dialogue_panel != null and dialogue_title != null and dialogue_body != null and prompt_label != null and player != null and stone_panel != null and stone_cards != null and stone_status != null and stone_feedback != null:
 		player.global_position = dog_interactable.global_position
 		for _frame in range(3):

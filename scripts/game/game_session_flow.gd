@@ -6,6 +6,19 @@ const SAVE_MANAGER := preload("res://scripts/save_manager.gd")
 const GAME_HUD_FLOW := preload("res://scripts/game/game_hud_flow.gd")
 const REWARD_FLOW := preload("res://scripts/game/reward_flow.gd")
 const CONTINUE_BGM_RESUME_DELAY := 0.25
+const NORMAL_GAME_SPEED := 1.0
+const ENDLESS_FAST_GAME_SPEED := 2.0
+
+static func set_endless_speed_enabled(main: Node, enabled: bool) -> void:
+	var resolved_enabled: bool = enabled and bool(main.get("endless_mode_active")) and not bool(main.get("game_over"))
+	main.set("endless_speed_enabled", resolved_enabled)
+	Engine.time_scale = ENDLESS_FAST_GAME_SPEED if resolved_enabled else NORMAL_GAME_SPEED
+	var hud = main.get("hud")
+	if hud != null and is_instance_valid(hud) and hud.has_method("set_endless_speed_active"):
+		hud.set_endless_speed_active(resolved_enabled)
+
+static func reset_game_speed(main: Node) -> void:
+	set_endless_speed_enabled(main, false)
 
 static func handle_escape_toggle(main: Node) -> void:
 	if main.pause_menu == null:
@@ -48,6 +61,7 @@ static func handle_player_died(main: Node) -> void:
 		return
 
 	main.game_over = true
+	reset_game_speed(main)
 	SAVE_MANAGER.clear_save()
 	GAME_HUD_FLOW.hide_boss_ui(main)
 
@@ -62,6 +76,7 @@ static func handle_player_died(main: Node) -> void:
 	main.get_tree().paused = true
 
 static func restart(main: Node) -> void:
+	reset_game_speed(main)
 	main.suppress_exit_save = true
 	SAVE_MANAGER.clear_save()
 	main.get_tree().paused = false
@@ -69,17 +84,16 @@ static func restart(main: Node) -> void:
 
 static func return_to_main_menu(main: Node) -> void:
 	main._save_run_state()
+	reset_game_speed(main)
 	main.suppress_exit_save = true
 	main.get_tree().paused = false
 	main.get_tree().change_scene_to_file(MAIN_MENU_SCENE_PATH)
 
-static func return_to_endless_camp(main: Node, preserve_run: bool) -> void:
+static func return_to_endless_camp(main: Node) -> void:
 	if not main.endless_mode_active:
 		return
-	if preserve_run:
-		main._save_run_state()
-	else:
-		SAVE_MANAGER.clear_save(-1, SAVE_MANAGER.MODE_ENDLESS)
+	reset_game_speed(main)
+	SAVE_MANAGER.clear_save(-1, SAVE_MANAGER.MODE_ENDLESS)
 	main.suppress_exit_save = true
 	main.get_tree().paused = false
 	main.get_tree().change_scene_to_file(ENDLESS_CAMP_SCENE_PATH)

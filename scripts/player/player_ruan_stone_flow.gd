@@ -9,7 +9,7 @@ const EVENT_RETENTION_MSEC := 8000
 const MAX_TRACKED_EVENTS := 64
 
 
-static func apply_basic_hit(owner, enemy: Node, triggering_damage: float, source_role_id: String, damage_event_id: String, killed: bool) -> void:
+static func apply_basic_hit(owner, enemy: Node, triggering_damage: float, source_role_id: String, damage_event_id: String, killed: bool, target_position: Vector2, target_max_health: float) -> void:
 	if owner == null or enemy == null or triggering_damage <= 0.0:
 		return
 	var stone_id := str(owner.get("equipped_ruan_stone"))
@@ -41,9 +41,8 @@ static func apply_basic_hit(owner, enemy: Node, triggering_damage: float, source
 			if first_target_hit and not killed:
 				_apply_poison(enemy, triggering_damage, values)
 		RUAN_STONE_SYSTEM.STONE_FLAME:
-			if not bool(state.get("primary_proc", false)):
-				state["primary_proc"] = true
-				_apply_flame(owner, enemy, triggering_damage, values)
+			if killed:
+				_apply_flame(owner, target_position, target_max_health, values)
 		RUAN_STONE_SYSTEM.STONE_FURY:
 			if first_target_hit and not killed:
 				_apply_fury(enemy, values)
@@ -88,26 +87,22 @@ static func _apply_poison(enemy: Node, triggering_damage: float, values: Diction
 	_spawn_stone_burst(enemy, Color(0.38, 1.0, 0.46, 0.42), 22.0)
 
 
-static func _apply_flame(owner, origin_enemy: Node, triggering_damage: float, values: Dictionary) -> void:
-	if origin_enemy is not Node2D:
+static func _apply_flame(owner, origin_position: Vector2, origin_max_health: float, values: Dictionary) -> void:
+	if origin_max_health <= 0.0 or owner == null or not (owner is Node) or not (owner as Node).is_inside_tree():
 		return
-	_spawn_stone_burst(origin_enemy, Color(1.0, 0.46, 0.12, 0.5), 30.0)
-	var candidates: Array = []
-	for candidate in ENEMY_SPATIAL_GRID.get_neighbors(origin_enemy as Node2D, SECONDARY_QUERY_RADIUS):
-		if candidate == origin_enemy or not _is_live_enemy(candidate) or candidate is not Node2D:
+	var radius: float = float(values.get("radius", SECONDARY_QUERY_RADIUS))
+	var damage: float = origin_max_health * float(values.get("damage_ratio", 0.0))
+	if radius <= 0.0 or damage <= 0.0:
+		return
+	_spawn_flame_explosion(owner, origin_position, radius)
+	var scene: Node = (owner as Node).get_tree().current_scene
+	for candidate in ENEMY_SPATIAL_GRID.get_neighbors_at(scene, origin_position, radius):
+		if not _is_live_enemy(candidate) or candidate is not Node2D:
 			continue
-		if (origin_enemy as Node2D).global_position.distance_squared_to((candidate as Node2D).global_position) > SECONDARY_QUERY_RADIUS * SECONDARY_QUERY_RADIUS:
+		if origin_position.distance_squared_to((candidate as Node2D).global_position) > radius * radius:
 			continue
-		candidates.append(candidate)
-	candidates.sort_custom(func(a, b) -> bool:
-		return (origin_enemy as Node2D).global_position.distance_squared_to((a as Node2D).global_position) < (origin_enemy as Node2D).global_position.distance_squared_to((b as Node2D).global_position)
-	)
-	var damage: float = triggering_damage * float(values.get("damage_ratio", 0.0))
-	for index in range(min(int(values.get("target_count", 0)), candidates.size())):
-		var target := candidates[index] as Node2D
-		_spawn_stone_link(owner, (origin_enemy as Node2D).global_position, target.global_position, Color(1.0, 0.42, 0.1, 0.9))
-		_spawn_stone_burst(target, Color(1.0, 0.52, 0.16, 0.4), 24.0)
-		_deal_secondary_damage(target, damage)
+		_spawn_stone_burst(candidate, Color(1.0, 0.52, 0.16, 0.4), 24.0)
+		_deal_secondary_damage(candidate, damage)
 
 
 static func _apply_fury(enemy: Node, values: Dictionary) -> void:
@@ -147,6 +142,11 @@ static func _spawn_stone_burst(enemy: Node, color: Color, radius: float) -> void
 static func _spawn_stone_link(owner, start_position: Vector2, end_position: Vector2, color: Color) -> void:
 	if owner != null and owner.has_method("_spawn_dash_line_effect"):
 		owner._spawn_dash_line_effect(start_position, end_position, color, 4.0, 0.14)
+
+
+static func _spawn_flame_explosion(owner, position: Vector2, radius: float) -> void:
+	if owner != null and owner.has_method("_spawn_ring_effect"):
+		owner._spawn_ring_effect(position, radius, Color(1.0, 0.34, 0.08, 0.68), 10.0, 0.24)
 
 
 static func _is_live_enemy(enemy: Variant) -> bool:

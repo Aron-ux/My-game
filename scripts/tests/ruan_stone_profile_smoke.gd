@@ -19,6 +19,8 @@ func _run() -> void:
 		"equipped_ruan_stone": "frost"
 	}, 2)
 	_expect(profile.get("legacy_field") == "kept", "旧档案字段未保留。")
+	_expect(not profile.has("difficulty"), "旧四难度字段仍被保留。")
+	_expect(profile.get("highest_cleared_tier") == 0 and profile.get("selected_tier") == 1, "N 层进度默认值错误。")
 	_expect(profile.get("bones") == 0, "骨头数量未归一化。")
 	_expect(profile.get("equipped_ruan_stone") == "", "未拥有的石头仍被装备。")
 	var levels: Dictionary = profile.get("ruan_stone_levels", {})
@@ -34,7 +36,8 @@ func _run() -> void:
 	_expect(not RUAN_STONES.equip(profile, "poison") and RUAN_STONES.get_equipped(profile) == "thunder", "未拥有石头可装备或失败装备覆盖当前选择。")
 	_expect(RUAN_STONES.get_effect_values("thunder", 5).get("jump_count") == 2, "雷石五级未增加连锁目标。")
 	_expect(is_equal_approx(float(RUAN_STONES.get_effect_values("frost", 100).get("slow_ratio")), 0.75), "冰石减速未正确封顶。")
-	_expect(RUAN_STONES.get_effect_values("flame", 18).get("target_count") == 5, "炎石目标数成长错误。")
+	_expect(is_equal_approx(float(RUAN_STONES.get_effect_values("flame", 18).get("damage_ratio")), 0.165), "炎石死亡爆炸成长错误。")
+	_expect(RUAN_STONES.get_effect_text("flame", 1).contains("最大生命8%"), "炎石效果文本错误。")
 	_expect(RUAN_STONES.get_effect_text("fury", 1).contains("6%"), "烈石效果文本错误。")
 	if failures.is_empty():
 		print("RUAN_STONE_PROFILE_SMOKE_OK")

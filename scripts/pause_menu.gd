@@ -26,7 +26,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_WHEN_PAUSED
 
 	modal = SURVIVORS_MODAL.new()
-	modal.configure(Vector2(440.0, 570.0), 0.36, 0.74, Vector2(280.0, 320.0))
+	modal.configure(Vector2(440.0, 570.0), 0.36, 0.80, Vector2(280.0, 320.0))
 	modal.set_title("暂停")
 	modal.set_hint("")
 	add_child(modal)
@@ -50,13 +50,19 @@ func set_endless_mode_enabled(enabled: bool) -> void:
 		end_run_button.visible = enabled
 
 func _build_content() -> void:
+	var scroll := ScrollContainer.new()
+	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	modal.set_body(scroll)
+
 	var content := VBoxContainer.new()
-	content.set_anchors_preset(Control.PRESET_FULL_RECT)
 	content.alignment = BoxContainer.ALIGNMENT_CENTER
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	content.add_theme_constant_override("separation", 10)
-	modal.set_body(content)
+	content.add_theme_constant_override("separation", 6)
+	scroll.add_child(content)
 
 	content.add_child(_make_action_button("继续游戏", Callable(self, "_on_resume_pressed"), "primary"))
 	content.add_child(_make_action_button("重新开始", Callable(self, "_on_restart_pressed")))

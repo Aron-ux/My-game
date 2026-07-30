@@ -5,10 +5,9 @@ const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
 const RUN_SAVE_RUNTIME_FLOW := preload("res://scripts/game/run_save_runtime_flow.gd")
 const PERFORMANCE_COUNTERS := preload("res://scripts/game/performance_counters.gd")
 const PERFORMANCE_RECORDER := preload("res://scripts/game/performance_recorder.gd")
-const ENDLESS_BOSS_EXIT_PENDING_META := "endless_boss_exit_pending"
 
 static func save_run_state(main: Node) -> void:
-	if main.game_over or main.player == null or DEVELOPER_MODE.should_disable_save() or bool(main.get_meta(ENDLESS_BOSS_EXIT_PENDING_META, false)):
+	if main.game_over or main.player == null or DEVELOPER_MODE.should_disable_save():
 		return
 	var save_start_usec: int = Time.get_ticks_usec()
 	PERFORMANCE_RECORDER.begin_scope("save_run_ms")
@@ -24,7 +23,6 @@ static func save_run_state(main: Node) -> void:
 		"spawned_elite_count": main.spawned_elite_count,
 		"spawned_small_boss_count": main.spawned_small_boss_count,
 		"boss_spawned": main.boss_spawned,
-		"defeated_boss_count": main.defeated_boss_count,
 		"player": main.player.get_save_data(),
 		"enemies": [],
 		"enemy_projectiles": [],
@@ -32,6 +30,9 @@ static func save_run_state(main: Node) -> void:
 		"heart_pickups": [],
 		"bone_pickups": []
 	}
+	if main.endless_mode_active:
+		save_data["run_tier"] = main.endless_tier
+		save_data["run_id"] = main.endless_run_id
 
 	RUN_SAVE_RUNTIME_FLOW.append_group_save_data(main, save_data, "enemies", "enemies")
 	RUN_SAVE_RUNTIME_FLOW.append_group_save_data(main, save_data, "enemy_projectiles", "enemy_projectiles")
@@ -68,7 +69,9 @@ static func load_saved_run(main: Node) -> bool:
 	main.spawned_elite_count = int(save_data.get("spawned_elite_count", 0))
 	main.spawned_small_boss_count = int(save_data.get("spawned_small_boss_count", 0))
 	main.boss_spawned = bool(save_data.get("boss_spawned", false))
-	main.defeated_boss_count = int(save_data.get("defeated_boss_count", 0))
+	if main.endless_mode_active:
+		main.endless_tier = int(save_data.get("run_tier", 1))
+		main.endless_run_id = str(save_data.get("run_id", ""))
 	main.boss_enemy = null
 
 	main.player.apply_save_data(save_data.get("player", {}))

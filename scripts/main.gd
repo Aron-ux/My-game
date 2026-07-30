@@ -67,10 +67,12 @@ var reward_context: String = ""
 var story_stage: Dictionary = {}
 var story_mode_active: bool = false
 var endless_mode_active: bool = false
+var endless_speed_enabled: bool = false
+var endless_tier: int = 1
+var endless_run_id: String = ""
 var difficulty_id: String = "normal"
 var difficulty_profile: Dictionary = {}
 var suppress_exit_save: bool = false
-var defeated_boss_count: int = 0
 var exit_snapshot_saved: bool = false
 var performance_sample_elapsed: float = 0.0
 var minimap_update_elapsed: float = 0.0
@@ -265,18 +267,13 @@ func _load_saved_run() -> bool:
 	return RUN_SAVE_FLOW.load_saved_run(self)
 
 func _get_spawn_enemy_health_multiplier(kind: String = "normal") -> float:
-	return _get_story_enemy_health_multiplier() * _get_difficulty_enemy_health_multiplier(kind) * ENEMY_DIRECTOR.get_endless_cycle_health_multiplier(_get_endless_cycle_power_level())
+	return _get_story_enemy_health_multiplier() * _get_difficulty_enemy_health_multiplier(kind)
 
 func _get_spawn_enemy_speed_multiplier() -> float:
-	return _get_story_enemy_speed_multiplier() * _get_difficulty_enemy_speed_multiplier() * ENEMY_DIRECTOR.get_endless_cycle_speed_multiplier(_get_endless_cycle_power_level())
+	return _get_story_enemy_speed_multiplier() * _get_difficulty_enemy_speed_multiplier()
 
 func _get_spawn_enemy_damage_multiplier() -> float:
-	return _get_difficulty_enemy_damage_multiplier() * ENEMY_DIRECTOR.get_endless_cycle_damage_multiplier(_get_endless_cycle_power_level())
-
-func _get_endless_cycle_power_level() -> int:
-	if not endless_mode_active:
-		return 0
-	return max(0, defeated_boss_count)
+	return _get_difficulty_enemy_damage_multiplier()
 
 func _get_game_bgm():
 	return GAME_SESSION_FLOW.get_game_bgm(self)
@@ -341,10 +338,13 @@ func _on_main_menu_requested() -> void:
 	GAME_SESSION_FLOW.return_to_main_menu(self)
 
 func _on_endless_return_to_camp_requested() -> void:
-	GAME_SESSION_FLOW.return_to_endless_camp(self, false)
+	GAME_SESSION_FLOW.return_to_endless_camp(self)
 
-func _return_to_endless_camp_preserving_run() -> void:
-	GAME_SESSION_FLOW.return_to_endless_camp(self, true)
+func _on_endless_speed_toggled(enabled: bool) -> void:
+	GAME_SESSION_FLOW.set_endless_speed_enabled(self, enabled)
+
+func _finish_endless_tier_clear() -> void:
+	GAME_SESSION_FLOW.return_to_endless_camp(self)
 
 func _load_story_stage_context() -> void:
 	GAME_STORY_CONTEXT_FLOW.load_story_stage_context(self)
@@ -561,6 +561,9 @@ func _on_developer_ruan_stone_action_requested(action_id: String) -> void:
 
 func _on_developer_glutton_skill_test_requested(skill_id: String) -> void:
 	DEVELOPER_ACTIONS.force_glutton_skill(self, skill_id)
+
+func _on_developer_endless_tier_test_requested(tier: int) -> void:
+	DEVELOPER_ACTIONS.set_endless_tier(self, tier)
 
 func _on_developer_enemy_detail_display_toggled(enabled: bool) -> void:
 	set_enemy_debug_ranges_visible(enabled)

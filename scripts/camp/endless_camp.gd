@@ -7,6 +7,7 @@ const SAVE_MANAGER := preload("res://scripts/save_manager.gd")
 const GAME_SETTINGS := preload("res://scripts/game_settings.gd")
 const RUAN_STONE_SYSTEM := preload("res://scripts/player/ruan_stone_system.gd")
 const SURVIVORS_THEME := preload("res://scripts/ui/theme/survivors_ui_theme.gd")
+const ENDLESS_TIER_OVERLAY := preload("res://scripts/ui/save/endless_tier_overlay.gd")
 
 const INTERACTABLE_TEXT := {
 	"swordsman": {
@@ -29,9 +30,13 @@ const INTERACTABLE_TEXT := {
 		"name": "阮狗",
 		"prompt": "和阮狗说话"
 	},
+	"tutorial_entrance": {
+		"name": "新手教学入口",
+		"prompt": "进入新手教学"
+	},
 	"endless_portal": {
 		"name": "\u65e0\u5c3d\u4f20\u9001\u95e8",
-		"prompt": "\u8fdb\u5165\u65e0\u5c3d\u6218\u6597"
+		"prompt": "选择无尽 N 层"
 	}
 }
 const DIALOGUE_LINES := {
@@ -71,6 +76,7 @@ var active_dialogue_id: String = ""
 var ruan_stone_profile: Dictionary = {}
 var ruan_stone_purchase_buttons: Dictionary = {}
 var ruan_stone_equip_buttons: Dictionary = {}
+var tier_overlay: Control
 
 func _ready() -> void:
 	get_tree().paused = false
@@ -78,13 +84,16 @@ func _ready() -> void:
 	_apply_camp_player_role(camp_role_id)
 	_apply_character_stand_visibility(camp_role_id)
 	_setup_ui()
+	_setup_tier_overlay()
 	_apply_interactable_texts()
 	_connect_interactables()
 	_update_prompt()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
-		if dialogue_panel.visible:
+		if tier_overlay != null and tier_overlay.visible:
+			tier_overlay.close_overlay()
+		elif dialogue_panel.visible:
 			_close_dialogue()
 		elif tutorial_prompt_panel.visible:
 			_close_tutorial_prompt()
@@ -124,16 +133,24 @@ func _setup_ui() -> void:
 	tutorial_prompt_title.text = "\u65b0\u624b\u6559\u5b66"
 	tutorial_prompt_body.text = "\u662f\u5426\u8fdb\u5165\u65b0\u624b\u6559\u5b66\uff1f"
 	tutorial_yes_button.pressed.connect(_enter_movement_tutorial)
-	tutorial_no_button.pressed.connect(_enter_endless_battle_direct)
+	tutorial_no_button.pressed.connect(_close_tutorial_prompt)
+
+func _setup_tier_overlay() -> void:
+	tier_overlay = ENDLESS_TIER_OVERLAY.new()
+	tier_overlay.name = "EndlessTierOverlay"
+	tier_overlay.tier_selected.connect(_on_endless_tier_selected)
+	tier_overlay.closed.connect(_on_tier_overlay_closed)
+	$CanvasLayer.add_child(tier_overlay)
 
 func _resolve_camp_role_id() -> String:
 	var run_data: Dictionary = SAVE_MANAGER.load_run(-1, SAVE_MANAGER.MODE_ENDLESS)
 	if run_data.is_empty():
 		return "swordsman"
-	var roles: Array = run_data.get("roles", [])
+	var player_data: Dictionary = run_data.get("player", {}) if run_data.get("player", {}) is Dictionary else {}
+	var roles: Array = player_data.get("roles", [])
 	if roles.is_empty():
 		return "swordsman"
-	var active_role_index: int = clampi(int(run_data.get("active_role_index", 0)), 0, roles.size() - 1)
+	var active_role_index: int = clampi(int(player_data.get("active_role_index", 0)), 0, roles.size() - 1)
 	var role_data: Variant = roles[active_role_index]
 	if role_data is Dictionary:
 		var role_id := str((role_data as Dictionary).get("id", "swordsman"))
@@ -216,6 +233,8 @@ func _on_interactable_interacted(interactable: Node) -> void:
 	var kind := str(interactable.get("interaction_kind"))
 	match kind:
 		"portal":
+			_open_tier_overlay()
+		"tutorial":
 			_open_tutorial_prompt()
 		"shop":
 			_open_shop()
@@ -235,7 +254,7 @@ func _get_best_interactable() -> Node:
 	return null
 
 func _update_prompt() -> void:
-	if dialogue_panel.visible or shop_panel.visible or ruan_stone_panel.visible or tutorial_prompt_panel.visible:
+	if dialogue_panel.visible or shop_panel.visible or ruan_stone_panel.visible or tutorial_prompt_panel.visible or (tier_overlay != null and tier_overlay.visible):
 		prompt_label.visible = false
 		prompt_label.text = ""
 		return
@@ -461,9 +480,32 @@ func _mark_input_handled() -> void:
 	if viewport != null:
 		viewport.set_input_as_handled()
 
-func _enter_endless_battle_direct() -> void:
+func _open_tier_overlay() -> void:
 	_close_tutorial_prompt()
-	if SAVE_MANAGER.has_save(-1, SAVE_MANAGER.MODE_ENDLESS):
+	_close_shop()
+	_close_ruan_stone_shop()
+	var profile := SAVE_MANAGER.get_current_endless_profile()
+	if profile.is_empty():
+		_show_message("未找到当前无尽存档。")
+		return
+	var run_data := SAVE_MANAGER.load_run(-1, SAVE_MANAGER.MODE_ENDLESS)
+	if run_data.is_empty() and SAVE_MANAGER.has_unarchived_legacy_endless_run():
+		_show_message("旧无尽战局归档失败，请释放存储空间后重试。")
+		return
+	tier_overlay.open(profile, run_data)
+	_set_camp_player_movement_enabled(false)
+	_update_prompt()
+
+func _on_endless_tier_selected(tier: int, continue_existing: bool) -> void:
+	if continue_existing:
 		SAVE_MANAGER.request_continue()
+	elif not SAVE_MANAGER.select_current_endless_tier(tier):
+		_show_message("该 N 层尚未解锁。")
+		return
+	tier_overlay.close_overlay()
 	get_tree().paused = false
 	get_tree().change_scene_to_file(GAME_SCENE_PATH)
+
+func _on_tier_overlay_closed() -> void:
+	_set_camp_player_movement_enabled(true)
+	_update_prompt()

@@ -21,6 +21,8 @@ signal developer_all_blessings_grant_requested
 signal developer_ruan_stone_action_requested(action_id: String)
 signal developer_enemy_detail_display_toggled(enabled: bool)
 signal developer_glutton_skill_test_requested(skill_id: String)
+signal developer_endless_tier_test_requested(tier: int)
+signal endless_speed_toggled(enabled: bool)
 
 var level_label: Label
 var role_label: Label
@@ -32,6 +34,7 @@ var mana_bar: ProgressBar
 var mana_label: Label
 var ultimate_label: Label
 var time_label: Label
+var current_endless_tier: int = 0
 var boss_panel: Control
 var boss_name_label: Label
 var boss_health_bar: ProgressBar
@@ -57,6 +60,7 @@ var minimap_panel: PanelContainer
 var minimap_view: Control
 var minimap_bounds := Rect2(Vector2(-1600.0, -900.0), Vector2(3200.0, 1800.0))
 var minimap_payload: Dictionary = {}
+var endless_speed_button: Button
 
 func _ready() -> void:
 	layer = 1
@@ -142,6 +146,7 @@ func _ready() -> void:
 
 	_build_skill_cooldown_panel(root)
 	_build_ruan_stone_status(root)
+	_build_endless_speed_toggle(root)
 	_build_attack_mode_hint(root)
 	_build_minimap(root)
 	if DEVELOPER_MODE.is_enabled():
@@ -227,6 +232,39 @@ func _build_ruan_stone_status(root: Control) -> void:
 	ruan_stone_status_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_GOLD)
 	ruan_stone_status_label.text = "骨头 0\n阮石 未装备"
 	ruan_stone_status_panel.add_child(ruan_stone_status_label)
+
+func _build_endless_speed_toggle(root: Control) -> void:
+	endless_speed_button = Button.new()
+	endless_speed_button.name = "EndlessSpeedToggle"
+	endless_speed_button.offset_left = 18.0
+	endless_speed_button.offset_top = 86.0
+	endless_speed_button.offset_right = 138.0
+	endless_speed_button.offset_bottom = 126.0
+	endless_speed_button.toggle_mode = true
+	endless_speed_button.text = "速度 ×1"
+	endless_speed_button.tooltip_text = "仅无尽模式生效；切换整个战斗的运行速度。"
+	endless_speed_button.add_theme_font_size_override("font_size", 16)
+	SURVIVORS_THEME.apply_button_style(endless_speed_button)
+	endless_speed_button.toggled.connect(_on_endless_speed_toggled)
+	endless_speed_button.visible = false
+	root.add_child(endless_speed_button)
+
+func set_endless_mode_enabled(enabled: bool) -> void:
+	if endless_speed_button == null:
+		return
+	endless_speed_button.visible = enabled
+	if not enabled:
+		set_endless_speed_active(false)
+
+func set_endless_speed_active(enabled: bool) -> void:
+	if endless_speed_button == null:
+		return
+	endless_speed_button.set_pressed_no_signal(enabled)
+	endless_speed_button.text = "速度 ×2" if enabled else "速度 ×1"
+
+func _on_endless_speed_toggled(enabled: bool) -> void:
+	set_endless_speed_active(enabled)
+	endless_speed_toggled.emit(enabled)
 
 func set_hud_layout(layout_key: String) -> void:
 	if combat_skill_bar != null and combat_skill_bar.has_method("set_hud_layout"):
@@ -392,6 +430,7 @@ func _build_developer_panel(root: Control) -> void:
 	developer_panel.ruan_stone_action_requested.connect(func(action_id: String): developer_ruan_stone_action_requested.emit(action_id))
 	developer_panel.enemy_detail_display_toggled.connect(func(enabled: bool): developer_enemy_detail_display_toggled.emit(enabled))
 	developer_panel.glutton_skill_test_requested.connect(func(skill_id: String): developer_glutton_skill_test_requested.emit(skill_id))
+	developer_panel.endless_tier_test_requested.connect(func(tier: int): developer_endless_tier_test_requested.emit(tier))
 
 func set_developer_invincibility_enabled(enabled: bool) -> void:
 	if developer_panel != null and developer_panel.has_method("set_invincibility_enabled"):
@@ -622,7 +661,11 @@ func update_time(seconds_elapsed: float) -> void:
 	var total_seconds: int = int(floor(seconds_elapsed))
 	var minutes: int = int(total_seconds / 60.0)
 	var seconds: int = total_seconds % 60
-	_set_label_text(time_label, "时间 %02d:%02d" % [minutes, seconds])
+	var prefix := "N%d · " % current_endless_tier if current_endless_tier > 0 else ""
+	_set_label_text(time_label, "%s时间 %02d:%02d" % [prefix, minutes, seconds])
+
+func set_endless_tier(tier: int) -> void:
+	current_endless_tier = max(0, tier)
 
 func _set_label_text(label: Label, next_text: String) -> void:
 	if label == null or label.text == next_text:

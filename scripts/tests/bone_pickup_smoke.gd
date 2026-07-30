@@ -26,7 +26,7 @@ func _run() -> void:
 
 
 func _check_drop_rules() -> void:
-	var expected := {"elite": 1, "small_boss": 3, "boss": 8}
+	var expected := {"elite": 1, "small_boss": 3}
 	for kind in expected:
 		var actual := ENEMY_DROPS.get_bone_drop_count(kind, 0.99)
 		if actual != int(expected[kind]):
@@ -35,6 +35,8 @@ func _check_drop_rules() -> void:
 		failures.append("normal roll below 1% should drop one bone")
 	if ENEMY_DROPS.get_bone_drop_count("normal", 0.01) != 0:
 		failures.append("normal roll at 1% boundary should not drop a bone")
+	if ENEMY_DROPS.get_bone_drop_count("boss", 0.0) != 0:
+		failures.append("final boss bones are credited by tier settlement, not spawned as a pickup")
 	if ENEMY_DROPS.get_bone_drop_count("unknown", 0.0) != 0:
 		failures.append("unknown enemy kind should not drop bones")
 

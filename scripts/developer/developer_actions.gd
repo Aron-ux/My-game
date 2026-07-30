@@ -8,6 +8,7 @@ const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessi
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_talent_system.gd")
 const DEVELOPER_OPTION_PROVIDER := preload("res://scripts/developer/developer_option_provider.gd")
+const DIFFICULTY_PROFILE := preload("res://scripts/game/difficulty_profile.gd")
 
 static func activate(main: Node) -> void:
 	DEVELOPER_MODE.set_ignore_damage_enabled(true)
@@ -38,6 +39,13 @@ static func grant_level_up(main: Node) -> void:
 	if main.player == null or not main.player.has_method("grant_developer_level_up"):
 		return
 	main.player.grant_developer_level_up()
+	main._refresh_hud()
+
+static func set_endless_tier(main: Node, tier: int) -> void:
+	DEVELOPER_MODE.set_test_endless_tier(tier)
+	main.endless_tier = DEVELOPER_MODE.get_test_endless_tier()
+	main.difficulty_profile = DIFFICULTY_PROFILE.get_endless_tier_profile(main.endless_tier)
+	main.difficulty_id = str(main.difficulty_profile.get("id", "n%d" % main.endless_tier))
 	main._refresh_hud()
 
 

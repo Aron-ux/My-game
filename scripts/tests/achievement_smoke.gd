@@ -35,7 +35,7 @@ func _init() -> void:
 		push_error("ACH_SURVIVE_5_MIN not unlocked through bridge")
 		quit(1)
 		return
-	bridge_script.record_endless_boss_defeated(main_stub, 3)
+	bridge_script.record_endless_tier_cleared(main_stub, 3)
 	if not service.is_unlocked("ACH_ENDLESS_BOSS_3"):
 		push_error("ACH_ENDLESS_BOSS_3 not unlocked through bridge")
 		quit(1)

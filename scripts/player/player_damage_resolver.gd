@@ -50,6 +50,9 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 		var attack_origin: Vector2 = _get_gunner_damage_origin(owner, enemy as Node2D)
 		if owner.has_method("_get_gunner_distance_damage_multiplier"):
 			final_damage *= float(owner._get_gunner_distance_damage_multiplier(attack_origin.distance_to((enemy as Node2D).global_position)))
+	var target_position: Vector2 = (enemy as Node2D).global_position if enemy is Node2D else Vector2.ZERO
+	var max_health_value: Variant = enemy.get("max_health")
+	var target_max_health: float = max(0.0, float(max_health_value)) if max_health_value != null else 0.0
 	var killed := false
 	if damage_amount > 0.0 and enemy.has_method("take_damage"):
 		killed = _call_enemy_take_damage(enemy, final_damage, was_critical)
@@ -82,7 +85,7 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 		elif enemy.has_method("apply_slow"):
 			enemy.apply_slow(slow_multiplier, slow_duration)
 	if damage_amount > 0.0 and _is_basic_attack_damage_source(source_role_id):
-		PLAYER_RUAN_STONE_FLOW.apply_basic_hit(owner, enemy, final_damage, source_role_id, damage_event_id, killed)
+		PLAYER_RUAN_STONE_FLOW.apply_basic_hit(owner, enemy, final_damage, source_role_id, damage_event_id, killed, target_position, target_max_health)
 	return killed
 
 static func _call_enemy_take_damage(enemy: Node, amount: float, is_critical: bool) -> bool:

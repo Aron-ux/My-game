@@ -177,6 +177,50 @@ interaction_kind = "dialogue"
 [node name="CollisionShape2D" type="CollisionShape2D" parent="RuanDog/Interactable"]
 shape = SubResource("CircleShape2D_ruan_dog_interact")
 
+[node name="TutorialEntrance" type="Node2D" parent="."]
+position = Vector2(390, -135)
+
+[node name="OuterGlow" type="Polygon2D" parent="TutorialEntrance"]
+color = Color(1, 0.72, 0.24, 0.2)
+polygon = PackedVector2Array(-70, -62, -48, -84, 48, -84, 70, -62, 70, 62, 48, 78, -48, 78, -70, 62)
+
+[node name="Frame" type="Polygon2D" parent="TutorialEntrance"]
+color = Color(0.72, 0.46, 0.16, 0.9)
+polygon = PackedVector2Array(-54, -52, -36, -68, 36, -68, 54, -52, 54, 58, -54, 58)
+
+[node name="Door" type="Polygon2D" parent="TutorialEntrance"]
+color = Color(0.16, 0.12, 0.1, 0.95)
+polygon = PackedVector2Array(-38, -42, -24, -54, 24, -54, 38, -42, 38, 50, -38, 50)
+
+[node name="Glyph" type="Label" parent="TutorialEntrance"]
+offset_left = -42.0
+offset_top = -28.0
+offset_right = 42.0
+offset_bottom = 20.0
+text = "?"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 34
+theme_override_colors/font_color = Color(1, 0.86, 0.48, 1)
+
+[node name="NameLabel" type="Label" parent="TutorialEntrance"]
+offset_left = -100.0
+offset_top = 82.0
+offset_right = 100.0
+offset_bottom = 110.0
+text = "新手教学入口"
+horizontal_alignment = 1
+
+[node name="Interactable" type="Area2D" parent="TutorialEntrance" groups=["camp_interactable"]]
+script = ExtResource("3_interactable")
+interactable_id = "tutorial_entrance"
+display_name = "tutorial_entrance"
+prompt_text = ""
+interaction_kind = "tutorial"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="TutorialEntrance/Interactable"]
+shape = SubResource("CircleShape2D_role_interact")
+
 [node name="Portal" type="Node2D" parent="."]
 position = Vector2(380, 100)
 
@@ -423,4 +467,4 @@ text = "进入教学"
 
 [node name="NoButton" type="Button" parent="CanvasLayer/TutorialPromptPanel/MarginContainer/TutorialPromptContent/ButtonRow"]
 custom_minimum_size = Vector2(140, 42)
-text = "直接开始"
+text = "取消"

@@ -6,6 +6,7 @@ const PERFORMANCE_TRACE_LOGGER := preload("res://scripts/game/performance_trace_
 
 
 static func ready(main: Node) -> void:
+	main.GAME_SESSION_FLOW.reset_game_speed(main)
 	main.rng.randomize()
 	main.player = find_player(main)
 
@@ -45,6 +46,7 @@ static func handle_notification(main: Node, what: int) -> void:
 
 static func exit_tree(main: Node) -> void:
 	PERFORMANCE_TRACE_LOGGER.stop("scene_exit")
+	main.GAME_SESSION_FLOW.reset_game_speed(main)
 	if not main.game_over and not main.suppress_exit_save and not main.exit_snapshot_saved:
 		main._save_run_state()
 	main._cleanup_runtime_nodes()
@@ -84,10 +86,11 @@ static func unhandled_input(main: Node, event: InputEvent) -> void:
 
 
 static func process(main: Node, delta: float) -> void:
-	PERFORMANCE_RECORDER.record_frame(delta)
-	PERFORMANCE_TRACE_LOGGER.tick(main, delta)
+	var real_delta: float = delta / max(Engine.time_scale, 0.001)
+	PERFORMANCE_RECORDER.record_frame(real_delta)
+	PERFORMANCE_TRACE_LOGGER.tick(main, real_delta)
 	if main.game_over or main.get_tree().paused:
-		main._update_performance_metrics(delta)
+		main._update_performance_metrics(real_delta)
 		return
 
 	PERFORMANCE_RECORDER.begin_scope("script_logic_ms")
@@ -126,7 +129,7 @@ static func process(main: Node, delta: float) -> void:
 	main._update_distant_enemy_maintenance(delta)
 	PERFORMANCE_RECORDER.end_scope("distant_enemy_maintenance_ms")
 	PERFORMANCE_RECORDER.begin_scope("performance_metrics_ms")
-	main._update_performance_metrics(delta)
+	main._update_performance_metrics(real_delta)
 	PERFORMANCE_RECORDER.end_scope("performance_metrics_ms")
 	PERFORMANCE_RECORDER.end_scope("script_logic_ms")
 

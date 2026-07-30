@@ -109,8 +109,6 @@ static func get_bone_drop_count(enemy_kind: String, random_roll: float) -> int:
 			return 1
 		"small_boss":
 			return 3
-		"boss":
-			return 8
 		_:
 			return 0
 

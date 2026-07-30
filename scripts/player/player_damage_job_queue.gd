@@ -246,6 +246,9 @@ func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_rol
 		if source_player.has_method("_get_gunner_distance_damage_multiplier"):
 			var attack_origin: Vector2 = _get_gunner_damage_origin(enemy as Node2D)
 			final_damage *= float(source_player._get_gunner_distance_damage_multiplier(attack_origin.distance_to((enemy as Node2D).global_position)))
+	var target_position: Vector2 = (enemy as Node2D).global_position if enemy is Node2D else Vector2.ZERO
+	var max_health_value: Variant = enemy.get("max_health")
+	var target_max_health: float = max(0.0, float(max_health_value)) if max_health_value != null else 0.0
 	var show_feedback := feedback_jobs_used_this_frame < _get_feedback_jobs_per_render_frame()
 	feedback_jobs_used_this_frame += 1
 	var killed := false
@@ -289,7 +292,7 @@ func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_rol
 		elif enemy.has_method("apply_slow"):
 			enemy.apply_slow(slow_multiplier, slow_duration)
 	if damage_amount > 0.0 and _is_basic_attack_damage_source(source_role_id):
-		PLAYER_RUAN_STONE_FLOW.apply_basic_hit(source_player, enemy, final_damage, source_role_id, "", killed)
+		PLAYER_RUAN_STONE_FLOW.apply_basic_hit(source_player, enemy, final_damage, source_role_id, "", killed, target_position, target_max_health)
 	return killed
 
 func _resolve_damage_source_role_id(source_role_id: String) -> String:
