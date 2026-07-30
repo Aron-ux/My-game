@@ -21,6 +21,7 @@ const EXACT_KEYS := [
 	"greed_heal_cooldown_remaining",
 	"enemy_move_slow_multiplier",
 	"enemy_move_slow_remaining",
+	"ability_runtime",
 	"gunner_infinite_reload_cooldown_remaining",
 	"gunner_infinite_reload_remaining",
 	"gunner_infinite_reload_tick_remaining",
@@ -212,7 +213,11 @@ func _seed_run_state(player: Node) -> void:
 		"cooldown_remaining": 4.5,
 		"active_remaining": 1.5,
 		"tick_remaining": 0.2,
-		"locked_aim_direction": [0.3, 0.7]
+		"locked_aim_direction": [0.3, 0.7],
+		"sweep_elapsed": 0.6,
+		"hit_during_cast": true,
+		"talent_ids": ["gunner_infinite_axis", "gunner_infinite_recycle"],
+		"talent_snapshot_valid": true
 	})
 	player.gunner_shrapnel_field_ability.apply_save_data({"cooldown_remaining": 3.4})
 	player.mage_tidal_surge_ability.cooldown_remaining = 5.6
@@ -220,14 +225,22 @@ func _seed_run_state(player: Node) -> void:
 		"cooldown_remaining": 6.7,
 		"active_remaining": 2.6,
 		"tick_remaining": 0.3,
-		"transferred_role_id": "gunner"
+		"transferred_role_id": "gunner",
+		"expansion_tick_count": 2,
+		"talent_ids": ["mage_meta_transfer", "mage_meta_expansion"],
+		"talent_snapshot_valid": true
 	})
 	player.swordsman_blade_storm_ability.apply_save_data({
 		"cooldown_remaining": 7.8,
 		"active_remaining": 1.4,
 		"tick_remaining": 0.2,
 		"cast_origin": Vector2(321.0, -123.0),
-		"cast_direction": Vector2(0.6, 0.8)
+		"cast_direction": Vector2(0.6, 0.8),
+		"ring_visual_tick_index": 3,
+		"base_tick_count": 4,
+		"cast_elapsed": 0.9,
+		"talent_ids": ["swordsman_blade_storm_stationary", "swordsman_blade_storm_rending_spin"],
+		"talent_snapshot_valid": true
 	})
 	player.swordsman_crescent_wave_ability.apply_save_data({"cooldown_remaining": 8.9})
 

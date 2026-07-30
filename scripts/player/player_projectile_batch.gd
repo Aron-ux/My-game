@@ -54,6 +54,9 @@ var wave_origins: Array[Vector2] = []
 var wave_forwards: Array[Vector2] = []
 var wave_sides: Array[Vector2] = []
 var hit_enemy_ids: Array = []
+var damage_event_ids: PackedStringArray = PackedStringArray()
+var entry_repulse_flags: Array[bool] = []
+var entry_repulse_consumed_flags: Array[bool] = []
 var scan_cursor: int = 0
 var damage_enabled_count: int = 0
 var animation_elapsed: float = 0.0
@@ -74,6 +77,11 @@ func _ready() -> void:
 	z_index = 12
 	_load_bullet_frame_textures()
 	_setup_multimesh_renderers()
+
+func _exit_tree() -> void:
+	for damage_event_id in damage_event_ids:
+		PLAYER_DAMAGE_RESOLVER.release_gunner_damage_event(source_player, damage_event_id)
+	damage_event_ids.clear()
 
 func configure(batch_owner: Node) -> void:
 	source_player = batch_owner
@@ -121,6 +129,11 @@ func add_projectile(data: Dictionary) -> bool:
 		hit_enemy_ids.append({})
 	else:
 		hit_enemy_ids.append(null)
+	var damage_event_id := str(data.get("damage_event_id", ""))
+	damage_event_ids.append(damage_event_id)
+	entry_repulse_flags.append(bool(data.get("entry_repulse_on_first_hit", false)))
+	entry_repulse_consumed_flags.append(false)
+	PLAYER_DAMAGE_RESOLVER.register_gunner_damage_event(source_player, damage_event_id, float(data.get("lifetime", 1.0)))
 	return true
 
 func add_projectile_values(
@@ -147,7 +160,9 @@ func add_projectile_values(
 	pierce_count: int = 0,
 	wave_amplitude: float = 0.0,
 	wave_frequency: float = 0.0,
-	wave_phase: float = 0.0
+	wave_phase: float = 0.0,
+	damage_event_id: String = "",
+	entry_repulse_on_first_hit: bool = false
 ) -> bool:
 	if positions.size() >= MAX_BATCHED_PROJECTILES:
 		return false
@@ -189,6 +204,10 @@ func add_projectile_values(
 		hit_enemy_ids.append({})
 	else:
 		hit_enemy_ids.append(null)
+	damage_event_ids.append(damage_event_id)
+	entry_repulse_flags.append(entry_repulse_on_first_hit)
+	entry_repulse_consumed_flags.append(false)
+	PLAYER_DAMAGE_RESOLVER.register_gunner_damage_event(source_player, damage_event_id, lifetime)
 	return true
 
 func _physics_process(delta: float) -> void:
@@ -306,19 +325,28 @@ func _apply_projectile_hit(projectile_index: int, enemy: Node2D) -> void:
 		_mark_projectile_hit_enemy(projectile_index, enemy)
 	var role_id: String = role_ids[projectile_index]
 	if damage_batcher != null:
+		var hit_damage: float = damages[projectile_index]
+		var gunner_event_prepared := damage_event_ids[projectile_index] != "" and PLAYER_DAMAGE_RESOLVER.is_gunner_talent_damage_source(role_id)
+		if gunner_event_prepared:
+			hit_damage *= PLAYER_DAMAGE_RESOLVER.snapshot_gunner_damage_event_multiplier(source_player, role_id, hit_damage > 0.0, damage_event_ids[projectile_index])
 		damage_batcher.add_enemy(
 			enemy,
-			damages[projectile_index],
+			hit_damage,
 			role_id,
 			vulnerability_bonuses[projectile_index],
 			vulnerability_durations[projectile_index],
 			slow_multipliers[projectile_index],
 			slow_durations[projectile_index],
-			source_origins[projectile_index]
+			source_origins[projectile_index],
+			0.0,
+			false,
+			gunner_event_prepared,
+			damage_event_ids[projectile_index]
 		)
+		_apply_entry_repulse(projectile_index, enemy)
 		return
 	if source_player.has_method("_deal_damage_to_enemy"):
-		source_player._deal_damage_to_enemy(enemy, damages[projectile_index], role_id, vulnerability_bonuses[projectile_index], vulnerability_durations[projectile_index], slow_multipliers[projectile_index], slow_durations[projectile_index], source_origins[projectile_index])
+		PLAYER_DAMAGE_RESOLVER.queue_damage_to_enemy(source_player, enemy, damages[projectile_index], role_id, vulnerability_bonuses[projectile_index], vulnerability_durations[projectile_index], slow_multipliers[projectile_index], slow_durations[projectile_index], source_origins[projectile_index], true, false, false, damage_event_ids[projectile_index])
 	elif enemy.has_method("take_damage"):
 		PLAYER_DAMAGE_RESOLVER.deal_damage_to_enemy(
 			source_player,
@@ -329,8 +357,13 @@ func _apply_projectile_hit(projectile_index: int, enemy: Node2D) -> void:
 			vulnerability_durations[projectile_index],
 			slow_multipliers[projectile_index],
 			slow_durations[projectile_index],
-			source_origins[projectile_index]
+			source_origins[projectile_index],
+			false,
+			0.0,
+			false,
+			damage_event_ids[projectile_index]
 		)
+	_apply_entry_repulse(projectile_index, enemy)
 
 func _has_projectile_hit_enemy(projectile_index: int, enemy: Node2D) -> bool:
 	if projectile_index < 0 or projectile_index >= hit_enemy_ids.size():
@@ -348,6 +381,17 @@ func _mark_projectile_hit_enemy(projectile_index: int, enemy: Node2D) -> void:
 		hits = {}
 		hit_enemy_ids[projectile_index] = hits
 	(hits as Dictionary)[enemy.get_instance_id()] = true
+
+func _apply_entry_repulse(projectile_index: int, enemy: Node2D) -> void:
+	if projectile_index < 0 or projectile_index >= entry_repulse_flags.size() or not entry_repulse_flags[projectile_index] or entry_repulse_consumed_flags[projectile_index]:
+		return
+	entry_repulse_consumed_flags[projectile_index] = true
+	if str(enemy.get("enemy_kind")) in ["boss", "small_boss"]:
+		return
+	var push_direction: Vector2 = directions[projectile_index]
+	if push_direction.length_squared() <= 0.001:
+		push_direction = Vector2.RIGHT
+	enemy.global_position += push_direction.normalized() * 48.0
 
 func _build_enemy_grid(enemies: Array) -> Dictionary:
 	var grid: Dictionary = {}
@@ -385,6 +429,7 @@ func _projectile_hits_enemy_shape(projectile_position: Vector2, projectile_radiu
 
 func _remove_projectile(index: int) -> void:
 	var last_index := positions.size() - 1
+	PLAYER_DAMAGE_RESOLVER.release_gunner_damage_event(source_player, damage_event_ids[index])
 	if index != last_index:
 		var removed_damage_enabled: bool = damage_enabled_flags[index]
 		positions[index] = positions[last_index]
@@ -420,6 +465,9 @@ func _remove_projectile(index: int) -> void:
 		wave_forwards[index] = wave_forwards[last_index]
 		wave_sides[index] = wave_sides[last_index]
 		hit_enemy_ids[index] = hit_enemy_ids[last_index]
+		damage_event_ids[index] = damage_event_ids[last_index]
+		entry_repulse_flags[index] = entry_repulse_flags[last_index]
+		entry_repulse_consumed_flags[index] = entry_repulse_consumed_flags[last_index]
 	elif damage_enabled_flags[index]:
 		damage_enabled_count -= 1
 	positions.pop_back()
@@ -453,10 +501,15 @@ func _remove_projectile(index: int) -> void:
 	wave_forwards.pop_back()
 	wave_sides.pop_back()
 	hit_enemy_ids.pop_back()
+	damage_event_ids.resize(last_index)
+	entry_repulse_flags.pop_back()
+	entry_repulse_consumed_flags.pop_back()
 	if scan_cursor > positions.size():
 		scan_cursor = positions.size()
 
 func _clear_projectiles() -> void:
+	for damage_event_id in damage_event_ids:
+		PLAYER_DAMAGE_RESOLVER.release_gunner_damage_event(source_player, damage_event_id)
 	positions.clear()
 	source_origins.clear()
 	directions.clear()
@@ -488,6 +541,9 @@ func _clear_projectiles() -> void:
 	wave_forwards.clear()
 	wave_sides.clear()
 	hit_enemy_ids.clear()
+	damage_event_ids.clear()
+	entry_repulse_flags.clear()
+	entry_repulse_consumed_flags.clear()
 	scan_cursor = 0
 	damage_enabled_count = 0
 	_update_multimesh_instances()

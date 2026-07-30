@@ -13,6 +13,7 @@ const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessi
 const PLAYER_ROLE_STAT_FLOW := preload("res://scripts/player/player_role_stat_flow.gd")
 const PLAYER_RESOURCE_FLOW := preload("res://scripts/player/player_resource_flow.gd")
 const PLAYER_COMBAT_MODIFIERS := preload("res://scripts/player/player_combat_modifiers.gd")
+const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_talent_system.gd")
 
 static func get_save_data(player) -> Dictionary:
 	var pending_upgrade_count: int = player.pending_level_ups
@@ -20,6 +21,7 @@ static func get_save_data(player) -> Dictionary:
 	if player.current_blessing_offer is Dictionary:
 		active_offer_context = player.current_blessing_offer.get("context", {})
 	var active_skill_talent: bool = str(player.active_upgrade_kind) == "skill_talent" or bool(active_offer_context.get("skill_talent_offer", false))
+	var active_skill_talent_context := _normalize_active_skill_talent_context(active_offer_context) if active_skill_talent else {}
 	if player.level_up_active and not active_skill_talent:
 		pending_upgrade_count += 1
 	if player.has_method("_save_active_role_health"):
@@ -34,6 +36,7 @@ static func get_save_data(player) -> Dictionary:
 		"experience_to_next_level": player.experience_to_next_level,
 		"pending_level_ups": pending_upgrade_count,
 		"active_upgrade_kind": "skill_talent" if player.level_up_active and str(player.active_upgrade_kind) == "skill_talent" else "",
+		"active_skill_talent_context": active_skill_talent_context,
 		"max_health": player.max_health,
 		"max_mana": player.max_mana,
 		"current_health": player.current_health,
@@ -64,6 +67,7 @@ static func get_save_data(player) -> Dictionary:
 		"swordsman_death_defiance_cooldown_remaining": player.swordsman_death_defiance_cooldown_remaining,
 		"enemy_move_slow_multiplier": player.enemy_move_slow_multiplier,
 		"enemy_move_slow_remaining": player.enemy_move_slow_remaining,
+		"ability_runtime": _get_ability_runtime(player),
 		"gunner_infinite_reload_cooldown_remaining": player.gunner_infinite_reload_ability.cooldown_remaining if player.gunner_infinite_reload_ability != null else 0.0,
 		"gunner_infinite_reload_remaining": player.gunner_infinite_reload_ability.active_remaining if player.gunner_infinite_reload_ability != null else 0.0,
 		"gunner_infinite_reload_tick_remaining": player.gunner_infinite_reload_ability.tick_remaining if player.gunner_infinite_reload_ability != null else 0.0,
@@ -155,7 +159,7 @@ static func get_save_data(player) -> Dictionary:
 		"skill_blessing_levels": player.skill_blessing_levels.duplicate(true),
 		"owned_magic_stones": player.owned_magic_stones.duplicate(true),
 		"blessing_skill_state": player.blessing_skill_state.duplicate(true),
-		"role_special_states": player.role_special_states.duplicate(true),
+		"role_special_states": PLAYER_SKILL_TALENT_SYSTEM.normalize_role_special_states(player.role_special_states),
 		"roles": player._serialize_roles_for_save()
 	}
 
@@ -178,6 +182,10 @@ static func apply_save_data(player, data: Dictionary) -> void:
 	)
 	player.pending_level_ups = max(0, int(data.get("pending_level_ups", player.pending_level_ups)))
 	player.active_upgrade_kind = "skill_talent" if str(data.get("active_upgrade_kind", "")) == "skill_talent" else ""
+	var saved_skill_talent_context := _normalize_active_skill_talent_context(data.get("active_skill_talent_context", {}))
+	player.current_blessing_offer = {
+		"context": saved_skill_talent_context
+	} if player.active_upgrade_kind == "skill_talent" and not saved_skill_talent_context.is_empty() else {}
 	player.max_health = float(data.get("max_health", player.max_health))
 	player.max_mana = float(data.get("max_mana", player.max_mana))
 	var saved_current_health: float = float(data.get("current_health", player.current_health))
@@ -264,7 +272,7 @@ static func apply_save_data(player, data: Dictionary) -> void:
 		player.equipment_energy_gain_bonus = float(active_equipment_summary.get("energy_gain_bonus", 0.0))
 	player.elite_relics_unlocked = data.get("elite_relics_unlocked", player.elite_relics_unlocked).duplicate(true)
 	player.attribute_training_levels = player._normalize_attribute_training_data(data.get("attribute_training_levels", player.attribute_training_levels))
-	player.role_special_states = data.get("role_special_states", player.role_special_states).duplicate(true)
+	player.role_special_states = PLAYER_SKILL_TALENT_SYSTEM.normalize_role_special_states(data.get("role_special_states", player.role_special_states))
 	player.role_blessing_levels = PLAYER_BLESSING_SYSTEM.normalize_role_state(data.get("role_blessing_levels", player.role_blessing_levels), player.roles)
 	PLAYER_BLESSING_SYSTEM.sync_shared_role_blessings(player)
 	player.skill_blessing_levels = PLAYER_BLESSING_SYSTEM.normalize_skill_state(data.get("skill_blessing_levels", player.skill_blessing_levels))
@@ -274,6 +282,10 @@ static func apply_save_data(player, data: Dictionary) -> void:
 	_apply_saved_role_temporary_health_data(player, saved_role_temporary_health_values, saved_current_temporary_health, saved_active_role_index, saved_temporary_health_stacks)
 	if player.swordsman_blade_storm_ability != null:
 		player.swordsman_blade_storm_ability.restore_effect_if_active(player)
+	if player.swordsman_crescent_wave_ability != null:
+		player.swordsman_crescent_wave_ability.restore_effect_if_active(player)
+	if player.gunner_shrapnel_field_ability != null:
+		player.gunner_shrapnel_field_ability.restore_effect_if_active(player)
 	if player.mage_meta_field_ability != null:
 		player.mage_meta_field_ability.restore_effect_if_active(player)
 	if player.has_method("_refresh_blessing_skill_unlocks"):
@@ -307,6 +319,25 @@ static func _normalize_owned_magic_stones(value: Variant) -> Array:
 		if stone_id != "" and not result.has(stone_id):
 			result.append(stone_id)
 	return result
+
+
+static func _normalize_active_skill_talent_context(value: Variant) -> Dictionary:
+	if value is not Dictionary:
+		return {}
+	var role_id := str((value as Dictionary).get("role_id", ""))
+	var progress_id := str((value as Dictionary).get("skill_progress_id", ""))
+	var stage := int((value as Dictionary).get("talent_stage", 1))
+	if role_id == "" or not PLAYER_SKILL_TALENT_SYSTEM.ROLE_PROGRESS_ORDER.get(role_id, []).has(progress_id):
+		return {}
+	if stage < 1 or stage > PLAYER_SKILL_TALENT_SYSTEM.TALENT_STAGE_COUNT:
+		return {}
+	return {
+		"offer_mode": PLAYER_SKILL_TALENT_SYSTEM.CATEGORY_SKILL_TALENT,
+		"skill_talent_offer": true,
+		"role_id": role_id,
+		"skill_progress_id": progress_id,
+		"talent_stage": stage
+	}
 
 
 static func _apply_saved_role_health_data(player, saved_role_health_values: Variant, saved_current_health: float, saved_active_role_index: int) -> void:
@@ -343,44 +374,64 @@ static func _apply_saved_role_temporary_health_data(player, saved_role_temporary
 			player.role_temporary_health_values = PLAYER_ROLE_STAT_FLOW.normalize_role_temporary_health_state(player, saved_role_temporary_health_values)
 
 static func _apply_ability_save_data(player, data: Dictionary) -> void:
+	var ability_runtime: Dictionary = data.get("ability_runtime", {}) if data.get("ability_runtime", {}) is Dictionary else {}
 	if player.gunner_infinite_reload_ability == null:
 		player.gunner_infinite_reload_ability = GUNNER_INFINITE_RELOAD_ABILITY.new()
-	player.gunner_infinite_reload_ability.apply_save_data({
+	var infinite_reload_fallback := {
 		"cooldown_remaining": float(data.get("gunner_infinite_reload_cooldown_remaining", 0.0)),
 		"active_remaining": float(data.get("gunner_infinite_reload_remaining", 0.0)),
 		"tick_remaining": float(data.get("gunner_infinite_reload_tick_remaining", 0.0)),
 		"locked_aim_direction": data.get("gunner_infinite_reload_locked_aim_direction", [1.0, 0.0])
-	})
+	}
+	player.gunner_infinite_reload_ability.apply_save_data(_get_ability_runtime_entry(ability_runtime, "infinite_reload", infinite_reload_fallback))
 	if player.mage_tidal_surge_ability == null:
 		player.mage_tidal_surge_ability = MAGE_TIDAL_SURGE_ABILITY.new()
-	player.mage_tidal_surge_ability.cooldown_remaining = max(0.0, float(data.get("mage_tidal_surge_cooldown_remaining", 0.0)))
+	player.mage_tidal_surge_ability.apply_save_data(_get_ability_runtime_entry(ability_runtime, "surging_wave", {
+		"cooldown_remaining": float(data.get("mage_tidal_surge_cooldown_remaining", 0.0))
+	}))
 	if player.mage_meta_field_ability == null:
 		player.mage_meta_field_ability = MAGE_META_FIELD_ABILITY.new()
-	player.mage_meta_field_ability.apply_save_data({
+	var meta_field_fallback := {
 		"cooldown_remaining": float(data.get("mage_meta_field_cooldown_remaining", 0.0)),
 		"active_remaining": float(data.get("mage_meta_field_remaining", 0.0)),
 		"tick_remaining": float(data.get("mage_meta_field_tick_remaining", 0.0)),
 		"transferred_role_id": str(data.get("mage_meta_field_transferred_role_id", ""))
-	})
+	}
+	player.mage_meta_field_ability.apply_save_data(_get_ability_runtime_entry(ability_runtime, "meta_field", meta_field_fallback))
 	if player.swordsman_blade_storm_ability == null:
 		player.swordsman_blade_storm_ability = SWORDSMAN_BLADE_STORM_ABILITY.new()
-	player.swordsman_blade_storm_ability.apply_save_data({
+	var blade_storm_fallback := {
 		"cooldown_remaining": float(data.get("swordsman_blade_storm_cooldown_remaining", 0.0)),
 		"active_remaining": float(data.get("swordsman_blade_storm_remaining", 0.0)),
 		"tick_remaining": float(data.get("swordsman_blade_storm_tick_remaining", 0.0)),
 		"cast_origin": _decode_vector2(data.get("swordsman_blade_storm_cast_origin", []), Vector2.ZERO),
 		"cast_direction": _decode_vector2(data.get("swordsman_blade_storm_cast_direction", []), Vector2.RIGHT)
-	})
+	}
+	player.swordsman_blade_storm_ability.apply_save_data(_get_ability_runtime_entry(ability_runtime, "blade_storm", blade_storm_fallback))
 	if player.swordsman_crescent_wave_ability == null:
 		player.swordsman_crescent_wave_ability = SWORDSMAN_CRESCENT_WAVE_ABILITY.new()
-	player.swordsman_crescent_wave_ability.apply_save_data({
+	player.swordsman_crescent_wave_ability.apply_save_data(_get_ability_runtime_entry(ability_runtime, "crescent_wave", {
 		"cooldown_remaining": float(data.get("swordsman_crescent_wave_cooldown_remaining", 0.0))
-	})
+	}))
 	if player.gunner_shrapnel_field_ability == null:
 		player.gunner_shrapnel_field_ability = GUNNER_SHRAPNEL_FIELD_ABILITY.new()
-	player.gunner_shrapnel_field_ability.apply_save_data({
+	player.gunner_shrapnel_field_ability.apply_save_data(_get_ability_runtime_entry(ability_runtime, "shrapnel_field", {
 		"cooldown_remaining": float(data.get("gunner_shrapnel_field_cooldown_remaining", 0.0))
-	})
+	}))
+
+static func _get_ability_runtime(player) -> Dictionary:
+	return {
+		"blade_storm": player.swordsman_blade_storm_ability.get_save_data() if player.swordsman_blade_storm_ability != null else {},
+		"crescent_wave": player.swordsman_crescent_wave_ability.get_save_data() if player.swordsman_crescent_wave_ability != null else {},
+		"infinite_reload": player.gunner_infinite_reload_ability.get_save_data() if player.gunner_infinite_reload_ability != null else {},
+		"shrapnel_field": player.gunner_shrapnel_field_ability.get_save_data() if player.gunner_shrapnel_field_ability != null else {},
+		"meta_field": player.mage_meta_field_ability.get_save_data() if player.mage_meta_field_ability != null else {},
+		"surging_wave": player.mage_tidal_surge_ability.get_save_data() if player.mage_tidal_surge_ability != null else {}
+	}
+
+static func _get_ability_runtime_entry(runtime: Dictionary, skill_id: String, fallback: Dictionary) -> Dictionary:
+	var value: Variant = runtime.get(skill_id, fallback)
+	return value if value is Dictionary else fallback
 
 static func _apply_stat_save_data(player, data: Dictionary) -> void:
 	player.speed = float(data.get("speed", player.speed))

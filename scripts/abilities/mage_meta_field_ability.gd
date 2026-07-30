@@ -29,6 +29,14 @@ const TICK_INTERVAL := 0.5
 const MAX_CATCH_UP_TICKS := 4
 const TRANSFER_DURATION := 4.0
 const COLLAPSE_COOLDOWN := 8.0
+const TALENT_IDS := [
+	"mage_meta_guard_pulse",
+	"mage_meta_transfer",
+	"mage_meta_collapse",
+	"mage_meta_expansion",
+	"mage_meta_inner_ring",
+	"mage_meta_stasis"
+]
 
 var cooldown_remaining: float = 0.0
 var active_remaining: float = 0.0
@@ -36,6 +44,10 @@ var tick_remaining: float = 0.0
 var transferred_role_id: String = ""
 var effect: Node2D
 var effect_pool: Array[Node2D] = []
+var expansion_tick_count: int = 0
+var inner_ring_enemy_ids: Dictionary = {}
+var cast_talent_ids: Array[String] = []
+var cast_talent_snapshot_valid: bool = false
 
 
 func update(owner, delta: float) -> void:
@@ -64,6 +76,7 @@ func update(owner, delta: float) -> void:
 		active_remaining = max(0.0, active_remaining - delta)
 	tick_remaining -= delta
 	_update_effect(owner)
+	_apply_inner_ring_pull(owner)
 	var catch_up_ticks: int = 0
 	while tick_remaining <= 0.0 and active_remaining > 0.0 and catch_up_ticks < MAX_CATCH_UP_TICKS:
 		tick_remaining += TICK_INTERVAL
@@ -90,11 +103,17 @@ func can_trigger(owner, role_id: String) -> bool:
 func try_trigger(owner) -> bool:
 	if not can_trigger(owner, str(owner._get_active_role().get("id", ""))):
 		return false
+	cast_talent_ids = _capture_talents(owner)
+	cast_talent_snapshot_valid = true
 	active_remaining = _get_duration(owner)
 	transferred_role_id = ""
 	cooldown_remaining = _get_cooldown(owner)
 	tick_remaining = 0.0
+	expansion_tick_count = 0
+	inner_ring_enemy_ids.clear()
 	_ensure_effect(owner)
+	if _has_talent(owner, "mage_meta_guard_pulse") and owner.has_method("_heal"):
+		owner._heal(float(owner.get("max_health")) * 0.04)
 	owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -70.0), "\u6885\u5854\u9886\u57df", Color(0.58, 0.88, 1.0, 1.0))
 	return true
 
@@ -103,6 +122,10 @@ func stop(owner = null) -> void:
 	active_remaining = 0.0
 	tick_remaining = 0.0
 	transferred_role_id = ""
+	expansion_tick_count = 0
+	inner_ring_enemy_ids.clear()
+	cast_talent_ids.clear()
+	cast_talent_snapshot_valid = false
 	if effect != null and is_instance_valid(effect):
 		_release_effect(effect)
 	effect = null
@@ -124,7 +147,10 @@ func get_save_data() -> Dictionary:
 		"cooldown_remaining": cooldown_remaining,
 		"active_remaining": active_remaining,
 		"tick_remaining": tick_remaining,
-		"transferred_role_id": transferred_role_id
+			"transferred_role_id": transferred_role_id,
+			"expansion_tick_count": expansion_tick_count,
+			"talent_ids": cast_talent_ids.duplicate(),
+			"talent_snapshot_valid": cast_talent_snapshot_valid
 	}
 
 
@@ -133,6 +159,10 @@ func apply_save_data(data: Dictionary) -> void:
 	transferred_role_id = str(data.get("transferred_role_id", ""))
 	active_remaining = clamp(float(data.get("active_remaining", 0.0)), 0.0, TRANSFER_DURATION) if not transferred_role_id.is_empty() else (PERMANENT_ACTIVE_REMAINING if float(data.get("active_remaining", 0.0)) > 0.0 else 0.0)
 	tick_remaining = clamp(float(data.get("tick_remaining", 0.0)), 0.0, TICK_INTERVAL)
+	expansion_tick_count = clampi(int(data.get("expansion_tick_count", 0)), 0, 3)
+	cast_talent_ids = _normalize_talent_ids(data.get("talent_ids", []))
+	cast_talent_snapshot_valid = bool(data.get("talent_snapshot_valid", data.has("talent_ids")))
+	inner_ring_enemy_ids.clear()
 
 
 func restore_effect_if_active(owner) -> void:
@@ -170,6 +200,26 @@ func _trigger_tick(owner) -> void:
 		))
 	if hits > 0 and not _uses_batched_damage(owner):
 		owner._register_attack_result("mage", hits, false)
+	if _has_talent(owner, "mage_meta_expansion"):
+		expansion_tick_count = min(3, expansion_tick_count + 1)
+
+func _apply_inner_ring_pull(owner) -> void:
+	if not _has_talent(owner, "mage_meta_inner_ring") or owner == null or not owner.has_method("_collect_enemies_in_radius_for_damage_batch"):
+		return
+	var center: Vector2 = owner.global_position
+	var inner_radius := _get_radius(owner) * 0.60
+	for enemy in owner._collect_enemies_in_radius_for_damage_batch(center, inner_radius):
+		if enemy == null or not is_instance_valid(enemy) or not (enemy is Node2D):
+			continue
+		var enemy_node := enemy as Node2D
+		var enemy_id := enemy_node.get_instance_id()
+		if inner_ring_enemy_ids.has(enemy_id) or str(enemy_node.get("enemy_kind")) == "boss":
+			continue
+		var offset := center - enemy_node.global_position
+		if offset.length_squared() <= 0.001 or offset.length() > inner_radius:
+			continue
+		inner_ring_enemy_ids[enemy_id] = true
+		enemy_node.global_position += offset.normalized() * min(36.0, offset.length())
 
 func _trigger_collapse(owner) -> void:
 	var center: Vector2 = owner.global_position
@@ -300,6 +350,8 @@ func _get_radius(owner) -> float:
 		radius *= FIELD_SIZE_MULTIPLIER
 	if not transferred_role_id.is_empty():
 		radius *= 0.75
+	if _has_talent(owner, "mage_meta_expansion"):
+		radius *= pow(1.12, float(clampi(expansion_tick_count, 0, 3)))
 	return radius
 
 
@@ -316,6 +368,8 @@ func _get_slow_multiplier(owner) -> float:
 		base_multiplier = TIER_TWO_SLOW
 	var slow_effect: float = 1.0 - base_multiplier
 	slow_effect = clamp(slow_effect + float(_get_tier_bonus_level(owner)) * SLOW_EFFECT_BONUS_PER_TIER + PLAYER_BUILD_SYSTEM.get_meta_field_slow_bonus(owner), 0.0, 0.95)
+	if _has_talent(owner, "mage_meta_stasis"):
+		slow_effect = min(0.95, slow_effect + 0.12)
 	if not transferred_role_id.is_empty():
 		slow_effect *= 0.50
 	return 1.0 - slow_effect
@@ -354,4 +408,22 @@ func _get_damage(owner) -> float:
 	return float(owner._get_role_damage("mage")) * ratio
 
 func _has_talent(owner, talent_id: String) -> bool:
+	if cast_talent_snapshot_valid:
+		return cast_talent_ids.has(talent_id)
 	return owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id))
+
+func _capture_talents(owner) -> Array[String]:
+	var result: Array[String] = []
+	for talent_id in TALENT_IDS:
+		if owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id)):
+			result.append(talent_id)
+	return result
+
+func _normalize_talent_ids(value: Variant) -> Array[String]:
+	var result: Array[String] = []
+	if value is Array:
+		for talent_id in value:
+			var normalized := str(talent_id)
+			if TALENT_IDS.has(normalized) and not result.has(normalized):
+				result.append(normalized)
+	return result

@@ -2,6 +2,7 @@ extends RefCounted
 
 const CRESCENT_SCENE := preload("res://effects/sword/fan/fan.tscn")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
+const PLAYER_COMBAT_RESULT_FLOW := preload("res://scripts/player/player_combat_result_flow.gd")
 
 const SKILL_ID := "crescent_wave"
 const COOLDOWN := 6.0
@@ -28,11 +29,22 @@ const SLASH_DAMAGE_RATIO := 1.3
 const WAVE_DAMAGE_RATIO := 1.3
 const WAVE_DAMAGE_SAMPLE_INTERVAL := 0.08
 const CRESCENT_PROJECTILE_POOL_LIMIT := 16
+const TALENT_IDS := [
+	"swordsman_crescent_afterimage",
+	"swordsman_crescent_twin_moons",
+	"swordsman_crescent_full_moon",
+	"swordsman_crescent_frost_trail",
+	"swordsman_crescent_return",
+	"swordsman_crescent_eclipse"
+]
 
 var cooldown_remaining: float = 0.0
 var crescent_projectile_pool: Array[Node2D] = []
 var crescent_projectile_spawn_serial: int = 0
 var active_crescent_projectiles: Array[Dictionary] = []
+var cast_talent_ids: Array[String] = []
+var cast_talent_snapshot_valid: bool = false
+var pending_saved_projectiles: Array[Dictionary] = []
 
 
 func update(delta: float) -> void:
@@ -56,6 +68,8 @@ func can_trigger(owner, role_id: String) -> bool:
 func try_trigger(owner) -> bool:
 	if not can_trigger(owner, str(owner._get_active_role().get("id", ""))):
 		return false
+	cast_talent_ids = _capture_talents(owner)
+	cast_talent_snapshot_valid = true
 	cooldown_remaining = _get_cooldown(owner)
 	var base_direction: Vector2 = owner._get_live_mouse_aim_direction(owner.facing_direction)
 	if base_direction.length_squared() <= 0.001:
@@ -66,6 +80,12 @@ func try_trigger(owner) -> bool:
 	var combo_scales: Array[float] = _get_combo_scales(owner)
 	_cast_direction_group(owner, directions, 1.0)
 	_schedule_combos(owner, [owner.facing_direction], combo_scales)
+	if _has_talent(owner, "swordsman_crescent_afterimage"):
+		var afterimage_direction: Vector2 = owner.facing_direction
+		owner._schedule_repeating_sequence(0.25, 1, func(_index: int) -> void:
+			if owner != null and is_instance_valid(owner) and not bool(owner.get("is_dead")):
+				_cast_afterimage(owner, afterimage_direction)
+		, 0.25)
 	return true
 
 
@@ -81,11 +101,61 @@ func get_cooldown_slot(owner = null) -> Dictionary:
 
 
 func get_save_data() -> Dictionary:
-	return {"cooldown_remaining": cooldown_remaining}
+	var projectiles: Array[Dictionary] = []
+	for data in active_crescent_projectiles:
+		projectiles.append(_serialize_projectile(data))
+	return {
+		"cooldown_remaining": cooldown_remaining,
+		"talent_ids": cast_talent_ids.duplicate(),
+		"talent_snapshot_valid": cast_talent_snapshot_valid,
+		"projectiles": projectiles
+	}
 
 
 func apply_save_data(data: Dictionary) -> void:
 	cooldown_remaining = clamp(float(data.get("cooldown_remaining", 0.0)), 0.0, COOLDOWN)
+	for projectile_data in active_crescent_projectiles:
+		_free_projectile(projectile_data.get("projectile", null) as Node2D)
+	active_crescent_projectiles.clear()
+	cast_talent_ids = _normalize_talent_ids(data.get("talent_ids", []))
+	cast_talent_snapshot_valid = bool(data.get("talent_snapshot_valid", data.has("talent_ids")))
+	pending_saved_projectiles.clear()
+	var saved_projectiles: Variant = data.get("projectiles", [])
+	if saved_projectiles is Array:
+		for saved_data in saved_projectiles:
+			if saved_data is Dictionary:
+				pending_saved_projectiles.append((saved_data as Dictionary).duplicate(true))
+
+
+func restore_effect_if_active(owner) -> void:
+	for saved_data in pending_saved_projectiles:
+		var origin := _decode_vector2(saved_data.get("origin", []), owner.global_position)
+		var direction := _decode_vector2(saved_data.get("direction", []), Vector2.RIGHT).normalized()
+		var talents := _normalize_talent_ids(saved_data.get("talent_ids", cast_talent_ids))
+		var previous_count := active_crescent_projectiles.size()
+		_spawn_crescent_projectile(
+			owner,
+			origin,
+			direction,
+			max(1.0, float(saved_data.get("length", 1.0))),
+			max(1.0, float(saved_data.get("width", 1.0))),
+			max(0.05, float(saved_data.get("visual_scale", VISUAL_AND_HIT_SCALE))),
+			max(0.0, float(saved_data.get("damage_amount", 0.0))),
+			bool(saved_data.get("allow_return", true)),
+			bool(saved_data.get("allow_eclipse", true)),
+			talents
+		)
+		if active_crescent_projectiles.size() <= previous_count:
+			continue
+		var restored: Dictionary = active_crescent_projectiles.back()
+		restored["duration"] = max(0.001, float(saved_data.get("duration", restored.get("duration", 0.1))))
+		restored["elapsed"] = clamp(float(saved_data.get("elapsed", 0.0)), 0.0, float(restored["duration"]))
+		restored["damage_elapsed"] = max(0.0, float(saved_data.get("damage_elapsed", 0.0)))
+		restored["last_damage_progress"] = clamp(float(saved_data.get("last_damage_progress", 0.0)), 0.0, 1.0)
+		restored["returned"] = bool(saved_data.get("returned", false))
+		active_crescent_projectiles[active_crescent_projectiles.size() - 1] = restored
+	pending_saved_projectiles.clear()
+	_update_crescent_projectiles(0.0)
 
 
 func _schedule_combos(owner, directions: Array[Vector2], combo_scales: Array[float]) -> void:
@@ -98,11 +168,12 @@ func _schedule_combos(owner, directions: Array[Vector2], combo_scales: Array[flo
 
 
 func _cast_direction_group(owner, directions: Array[Vector2], damage_scale: float) -> void:
-	for direction in directions:
-		_cast_once(owner, direction, damage_scale)
+	for index in range(directions.size()):
+		var twin_moon: bool = _has_talent(owner, "swordsman_crescent_twin_moons") and index == 1
+		_cast_once(owner, directions[index], damage_scale * (0.55 if twin_moon else 1.0), not twin_moon)
 
 
-func _cast_once(owner, direction: Vector2, damage_scale: float) -> void:
+func _cast_once(owner, direction: Vector2, damage_scale: float, include_slash: bool = true) -> void:
 	var width_multiplier: float = _get_width_multiplier(owner)
 	var visual_hit_multiplier: float = width_multiplier * VISUAL_AND_HIT_SCALE
 	var slash_width: float = SLASH_WIDTH * visual_hit_multiplier
@@ -111,17 +182,33 @@ func _cast_once(owner, direction: Vector2, damage_scale: float) -> void:
 	var wave_width: float = (FULL_MOON_WAVE_WIDTH if full_moon else WAVE_WIDTH) * visual_hit_multiplier
 	var wave_length: float = (FULL_MOON_WAVE_LENGTH if full_moon else WAVE_LENGTH) * _get_range_multiplier(owner)
 	var slash_center: Vector2 = owner.global_position + direction * (slash_length * 0.42)
-	owner._spawn_sword_fan_scene_effect(slash_center, direction, visual_hit_multiplier)
+	if include_slash:
+		owner._spawn_sword_fan_scene_effect(slash_center, direction, visual_hit_multiplier)
 	var damage_ratio_bonus: float = PLAYER_BUILD_SYSTEM.get_crescent_wave_damage_ratio_bonus(owner)
-	var base_damage: float = _get_damage(owner)
-	var slash_hits: int = owner._damage_enemies_in_oriented_rect(slash_center, direction, slash_length, slash_width, base_damage * (SLASH_DAMAGE_RATIO + damage_ratio_bonus) * damage_scale, 0.0, 1.0, 0.0, "swordsman")
+	var blood_surge_multiplier := PLAYER_COMBAT_RESULT_FLOW.get_swordsman_blood_surge_multiplier(owner)
+	var base_damage: float = _get_damage(owner) * blood_surge_multiplier
+	var slash_hits: int = owner._damage_enemies_in_oriented_rect(slash_center, direction, slash_length, slash_width, base_damage * (SLASH_DAMAGE_RATIO + damage_ratio_bonus) * damage_scale, 0.0, 1.0, 0.0, "swordsman") if include_slash else 0
+	if slash_hits > 0 and blood_surge_multiplier > 1.0:
+		PLAYER_COMBAT_RESULT_FLOW.consume_swordsman_blood_surge(owner)
 	var wave_origin: Vector2 = owner.global_position + direction * max(24.0, slash_length * 0.72)
 	_spawn_crescent_projectile(owner, wave_origin, direction, wave_length, wave_width, visual_hit_multiplier, base_damage * (WAVE_DAMAGE_RATIO + damage_ratio_bonus) * damage_scale)
 	if slash_hits > 0 and not _uses_batched_damage(owner):
 		owner._register_attack_result("swordsman", slash_hits, false)
 
 
-func _spawn_crescent_projectile(owner, origin: Vector2, direction: Vector2, length: float, width: float, visual_scale: float, damage_amount: float) -> void:
+func _cast_afterimage(owner, direction: Vector2) -> void:
+	var full_moon: bool = _has_talent(owner, "swordsman_crescent_full_moon")
+	var width_multiplier: float = _get_width_multiplier(owner)
+	var visual_hit_multiplier: float = width_multiplier * VISUAL_AND_HIT_SCALE
+	var wave_width: float = (FULL_MOON_WAVE_WIDTH if full_moon else WAVE_WIDTH) * visual_hit_multiplier
+	var wave_length: float = (FULL_MOON_WAVE_LENGTH if full_moon else WAVE_LENGTH) * _get_range_multiplier(owner) * 0.60
+	var damage_ratio_bonus: float = PLAYER_BUILD_SYSTEM.get_crescent_wave_damage_ratio_bonus(owner)
+	var damage_amount: float = _get_damage(owner) * (WAVE_DAMAGE_RATIO + damage_ratio_bonus) * 0.45
+	var origin: Vector2 = owner.global_position + direction * 24.0
+	_spawn_crescent_projectile(owner, origin, direction, wave_length, wave_width, visual_hit_multiplier, damage_amount, false, false)
+
+
+func _spawn_crescent_projectile(owner, origin: Vector2, direction: Vector2, length: float, width: float, visual_scale: float, damage_amount: float, allow_return: bool = true, allow_eclipse: bool = true, talent_ids: Array[String] = []) -> void:
 	var current_scene: Node = owner.get_tree().current_scene
 	if current_scene == null:
 		return
@@ -138,7 +225,8 @@ func _spawn_crescent_projectile(owner, origin: Vector2, direction: Vector2, leng
 	projectile.scale = Vector2.ONE
 	projectile.set_meta("crescent_projectile_released", false)
 	projectile.set_meta("crescent_projectile_token", spawn_token)
-	var visual_width_multiplier: float = FULL_MOON_WAVE_WIDTH / WAVE_WIDTH if _has_talent(owner, "swordsman_crescent_full_moon") else 1.0
+	var snapshot_talents := talent_ids if not talent_ids.is_empty() else cast_talent_ids
+	var visual_width_multiplier: float = FULL_MOON_WAVE_WIDTH / WAVE_WIDTH if _has_cast_talent(owner, snapshot_talents, "swordsman_crescent_full_moon") else 1.0
 	_configure_crescent_visual(projectile, visual_scale, visual_width_multiplier)
 	var duration: float = length / max(1.0, _get_wave_speed(owner))
 	active_crescent_projectiles.append({
@@ -150,12 +238,16 @@ func _spawn_crescent_projectile(owner, origin: Vector2, direction: Vector2, leng
 		"length": length,
 		"width": width,
 		"damage_amount": damage_amount,
+		"visual_scale": visual_scale,
 		"duration": duration,
 		"elapsed": 0.0,
 		"damage_elapsed": 0.0,
 		"last_damage_progress": 0.0,
 		"hit_registry": {},
-		"returned": false
+		"returned": false,
+		"allow_return": allow_return,
+		"allow_eclipse": allow_eclipse,
+		"talent_ids": snapshot_talents.duplicate()
 	})
 
 
@@ -191,14 +283,20 @@ func _update_crescent_projectiles(delta: float) -> void:
 			data["damage_elapsed"] = 0.0
 			var sample_length: float = max(52.0 * VISUAL_AND_HIT_SCALE, length * WAVE_DAMAGE_SAMPLE_INTERVAL / duration + 52.0 * VISUAL_AND_HIT_SCALE)
 			var hit_registry: Dictionary = data.get("hit_registry", {})
-			var hit_count: int = owner._damage_enemies_in_oriented_rect_unique(current_position, direction, sample_length, float(data.get("width", 1.0)), float(data.get("damage_amount", 0.0)), 0.0, 1.0, 0.0, hit_registry, "swordsman")
+			var talent_ids: Array = data.get("talent_ids", [])
+			var slow_multiplier: float = 0.80 if _has_cast_talent(owner, talent_ids, "swordsman_crescent_frost_trail") else 1.0
+			var slow_duration: float = 0.6 if slow_multiplier < 1.0 else 0.0
+			var hit_count: int = owner._damage_enemies_in_oriented_rect_unique(current_position, direction, sample_length, float(data.get("width", 1.0)), float(data.get("damage_amount", 0.0)), 0.0, slow_multiplier, slow_duration, hit_registry, "swordsman")
+			if hit_count > 0 and PLAYER_COMBAT_RESULT_FLOW.get_swordsman_blood_surge_multiplier(owner) > 1.0:
+				PLAYER_COMBAT_RESULT_FLOW.consume_swordsman_blood_surge(owner)
 			data["hit_registry"] = hit_registry
 			if hit_count > 0 and not _uses_batched_damage(owner):
 				owner._register_attack_result("swordsman", hit_count, false)
 		else:
 			data["damage_elapsed"] = damage_elapsed
 		if elapsed >= duration:
-			if not bool(data.get("returned", false)) and _has_talent(owner, "swordsman_crescent_return"):
+			var talent_ids: Array = data.get("talent_ids", [])
+			if bool(data.get("allow_return", true)) and not bool(data.get("returned", false)) and _has_cast_talent(owner, talent_ids, "swordsman_crescent_return"):
 				data["origin"] = current_position
 				data["direction"] = -direction
 				data["damage_amount"] = float(data.get("damage_amount", 0.0)) * 0.60
@@ -210,6 +308,10 @@ func _update_crescent_projectiles(delta: float) -> void:
 				projectile.rotation = (-direction).angle() + PI
 				active_crescent_projectiles[index] = data
 				continue
+			if bool(data.get("allow_eclipse", true)) and _has_cast_talent(owner, talent_ids, "swordsman_crescent_eclipse"):
+				var eclipse_damage: float = float(data.get("damage_amount", 0.0)) * 0.70
+				owner._damage_enemies_in_radius(current_position, 86.0, eclipse_damage, 0.0, 1.0, 0.0, "swordsman")
+				owner._spawn_ring_effect(current_position, 86.0, Color(0.46, 0.84, 1.0, 0.58), 6.0, 0.14)
 			_free_projectile(projectile)
 			active_crescent_projectiles.remove_at(index)
 			continue
@@ -316,6 +418,8 @@ func _uses_batched_damage(owner) -> bool:
 
 func _get_cast_directions(owner, base_direction: Vector2) -> Array[Vector2]:
 	var directions: Array[Vector2] = [base_direction.normalized()]
+	if _has_talent(owner, "swordsman_crescent_twin_moons"):
+		directions.append(base_direction.rotated(deg_to_rad(18.0)).normalized())
 	var extra_count: int = 0
 	if owner != null and owner.has_method("_get_blessing_skill_quantity_count"):
 		extra_count = int(owner._get_blessing_skill_quantity_count(SKILL_ID))
@@ -384,7 +488,60 @@ func _get_wave_speed(owner) -> float:
 
 
 func _has_talent(owner, talent_id: String) -> bool:
+	if cast_talent_snapshot_valid:
+		return cast_talent_ids.has(talent_id)
 	return owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id))
+
+
+func _has_cast_talent(owner, talent_ids: Array, talent_id: String) -> bool:
+	return talent_ids.has(talent_id) if cast_talent_snapshot_valid or not talent_ids.is_empty() else _has_talent(owner, talent_id)
+
+
+func _capture_talents(owner) -> Array[String]:
+	var result: Array[String] = []
+	for talent_id in TALENT_IDS:
+		if owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id)):
+			result.append(talent_id)
+	return result
+
+
+func _normalize_talent_ids(value: Variant) -> Array[String]:
+	var result: Array[String] = []
+	if value is Array:
+		for talent_id in value:
+			var normalized := str(talent_id)
+			if TALENT_IDS.has(normalized) and not result.has(normalized):
+				result.append(normalized)
+	return result
+
+
+func _serialize_projectile(data: Dictionary) -> Dictionary:
+	var origin: Vector2 = data.get("origin", Vector2.ZERO)
+	var direction: Vector2 = data.get("direction", Vector2.RIGHT)
+	return {
+		"origin": [origin.x, origin.y],
+		"direction": [direction.x, direction.y],
+		"length": float(data.get("length", 1.0)),
+		"width": float(data.get("width", 1.0)),
+		"visual_scale": float(data.get("visual_scale", VISUAL_AND_HIT_SCALE)),
+		"damage_amount": float(data.get("damage_amount", 0.0)),
+		"duration": float(data.get("duration", 0.1)),
+		"elapsed": float(data.get("elapsed", 0.0)),
+		"damage_elapsed": float(data.get("damage_elapsed", 0.0)),
+		"last_damage_progress": float(data.get("last_damage_progress", 0.0)),
+		"returned": bool(data.get("returned", false)),
+		"allow_return": bool(data.get("allow_return", true)),
+		"allow_eclipse": bool(data.get("allow_eclipse", true)),
+		"talent_ids": _normalize_talent_ids(data.get("talent_ids", cast_talent_ids))
+	}
+
+
+func _decode_vector2(value: Variant, fallback: Vector2) -> Vector2:
+	if value is Vector2:
+		return value
+	if value is Array and value.size() >= 2:
+		return Vector2(float(value[0]), float(value[1]))
+	return fallback
 
 
 func _get_damage(owner) -> float:

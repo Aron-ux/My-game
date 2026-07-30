@@ -876,7 +876,7 @@ func update_ultimate_energy(current_energy: float, required_energy: float, displ
 	ultimate_required_energy = max(required_energy, 1.0)
 	ultimate_display = display_data.duplicate(true)
 	if ultimate_energy_widget != null:
-		ultimate_energy_widget.set_skill_name(str(ultimate_display.get("name", "大招")))
+		ultimate_energy_widget.set_skill_name(str(ultimate_display.get("hud_name", ultimate_display.get("name", "大招"))))
 		var energy_ratio: float = ultimate_current_energy / ultimate_required_energy
 		if force_ready or ultimate_current_energy >= ultimate_required_energy or energy_ratio >= 1.0 - ENERGY_READY_RATIO_EPSILON:
 			energy_ratio = 1.0
@@ -911,8 +911,9 @@ func update_skill_cooldown_slots(slot_data_list: Array) -> void:
 		var ratio: float = remaining / duration
 		slot_view.set_state(true, slot_color, ratio)
 		var slot_name: String = str(slot_data.get("name", "OK"))
-		if label.text != slot_name:
-			label.text = slot_name
+		var hud_name: String = str(slot_data.get("hud_name", slot_name))
+		if label.text != hud_name:
+			label.text = hud_name
 		if slot_view.tooltip_text != "":
 			slot_view.tooltip_text = ""
 		if str(slot_nodes.get("title", "")) != slot_name:
@@ -1445,7 +1446,7 @@ func _update_team_role_slots(row_index: int, slot_data_list: Array) -> void:
 		var ratio: float = remaining / duration
 		slot_view.set_state(true, slot_color, ratio)
 		var slot_name: String = str(slot_data.get("name", "技能"))
-		var display_text: String = _get_slot_display_text(slot_name, row_active)
+		var display_text: String = _get_slot_display_text(str(slot_data.get("hud_name", slot_name)), row_active)
 		if label.text != display_text:
 			label.text = display_text
 		slot_view.tooltip_text = ""

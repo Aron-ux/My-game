@@ -99,6 +99,8 @@ static func register_attack_result(owner, role_id: String, hit_count: int, kille
 		apply_greed_heal_on_hit(owner, role_id, hit_count)
 	apply_role_flat_heal_on_hit(owner, role_id, hit_count)
 	apply_entry_lifesteal(owner, role_id, hit_count, killed)
+	if killed:
+		_try_apply_swordsman_basic_cooldown_cut(owner, role_id)
 	if killed and owner._has_elite_relic("elite_execution_pact") and not owner.execution_pact_burst_active:
 		owner.execution_pact_burst_active = true
 		owner._spawn_burst_effect(owner.global_position + owner.facing_direction * 20.0, 42.0, Color(1.0, 0.62, 0.4, 0.16), 0.16)
@@ -112,6 +114,22 @@ static func register_attack_result(owner, role_id: String, hit_count: int, kille
 			owner.frenzy_overkill_counter += 1
 			if owner.frenzy_overkill_counter >= 6:
 				owner.frenzy_overkill_counter = 0
+
+
+static func _try_apply_swordsman_basic_cooldown_cut(owner, role_id: String) -> void:
+	if role_id != "swordsman" or owner == null or not owner.has_method("_has_skill_talent"):
+		return
+	if not owner._has_skill_talent("swordsman_basic_cooldown_cut"):
+		return
+	if not owner.has_method("_has_attack_result_context_tag") or not owner._has_attack_result_context_tag("swordsman_basic_attack"):
+		return
+	var state := _get_swordsman_talent_state(owner)
+	if float(state.get("basic_cooldown_cut_lock_remaining", 0.0)) > 0.0:
+		return
+	state["basic_cooldown_cut_lock_remaining"] = 0.6
+	owner.role_special_states["swordsman"] = state
+	if owner.get("fire_timer") is Timer and not owner.fire_timer.is_stopped():
+		owner.fire_timer.start(max(0.001, owner.fire_timer.time_left * 0.88))
 
 
 static func apply_theme_hit_returns(owner, role_id: String, hit_count: int, killed: bool) -> void:
@@ -131,6 +149,7 @@ static func apply_swordsman_trait_heal_on_hit(owner, role_id: String, hit_count:
 	var max_trigger_count: int = min(hit_count, SWORDSMAN_TRAIT_MAX_ROLL_HITS + PLAYER_BUILD_SYSTEM.get_swordsman_trait_extra_rolls(owner))
 	var successful_triggers: int = 0
 	var actual_heal_total: float = 0.0
+	var lowest_health_ratio_before_heal: float = 1.0
 	for _index in range(max_trigger_count):
 		if randf() > clamp(proc_chance, 0.0, 1.0):
 			continue
@@ -143,12 +162,15 @@ static func apply_swordsman_trait_heal_on_hit(owner, role_id: String, hit_count:
 		if owner.has_method("_get_swordsman_bloodthirst_ratio"):
 			heal_amount *= max(0.0, float(owner.swordsman_bloodthirst_heal_multiplier))
 		var health_before: float = _get_role_current_health_value(owner, "swordsman")
+		lowest_health_ratio_before_heal = min(lowest_health_ratio_before_heal, health_before / max(1.0, role_max_health))
 		owner._heal(heal_amount)
 		actual_heal_total += max(0.0, _get_role_current_health_value(owner, "swordsman") - health_before)
 		_share_swordsman_entry_lifesteal(owner, heal_amount)
 		successful_triggers += 1
 	if successful_triggers > 0:
 		owner.swordsman_trait_heal_cooldown_remaining = SWORDSMAN_TRAIT_HEAL_COOLDOWN
+	if actual_heal_total > 0.0:
+		_activate_swordsman_heal_talents(owner, lowest_health_ratio_before_heal)
 	if (
 		actual_heal_total > 0.0
 		and owner.has_method("_has_skill_talent")
@@ -156,6 +178,54 @@ static func apply_swordsman_trait_heal_on_hit(owner, role_id: String, hit_count:
 		and str(owner._get_active_role().get("id", "")) == "swordsman"
 	):
 		owner._activate_switch_power("swordsman", "血战昂扬", 3.0 + PLAYER_BUILD_SYSTEM.get_swordsman_knight_glory_duration_bonus(owner), 1.15, 0.0)
+
+
+static func _activate_swordsman_heal_talents(owner, health_ratio_before_heal: float = -1.0) -> void:
+	if owner == null or not owner.has_method("_has_skill_talent"):
+		return
+	var state := _get_swordsman_talent_state(owner)
+	var health_ratio := health_ratio_before_heal if health_ratio_before_heal >= 0.0 else _get_role_health_ratio(owner, "swordsman")
+	if owner._has_skill_talent("swordsman_trait_blood_surge"):
+		state["blood_surge_remaining"] = 2.0
+	if owner._has_skill_talent("swordsman_trait_guard_stance"):
+		state["guard_stance_remaining"] = 2.0
+	if owner._has_skill_talent("swordsman_trait_head_high") and health_ratio < 0.50:
+		state["head_high_remaining"] = 2.0
+	if (
+		owner._has_skill_talent("swordsman_trait_unyielding")
+		and health_ratio < 0.35
+		and float(state.get("unyielding_cooldown_remaining", 0.0)) <= 0.0
+	):
+		state["unyielding_remaining"] = 1.2
+		state["unyielding_cooldown_remaining"] = 12.0
+	owner.role_special_states["swordsman"] = state
+
+
+static func get_swordsman_blood_surge_multiplier(owner) -> float:
+	var state := _get_swordsman_talent_state(owner)
+	if float(state.get("blood_surge_remaining", 0.0)) <= 0.0:
+		return 1.0
+	if (
+		float(owner.get("switch_power_remaining")) > 0.0
+		and str(owner.get("switch_power_role_id")) == "swordsman"
+		and str(owner.get("switch_power_label")) == "血战昂扬"
+	):
+		return 1.35 / 1.15
+	return 1.20
+
+
+static func consume_swordsman_blood_surge(owner) -> void:
+	var state := _get_swordsman_talent_state(owner)
+	state["blood_surge_remaining"] = 0.0
+	owner.role_special_states["swordsman"] = state
+
+
+static func _get_swordsman_talent_state(owner) -> Dictionary:
+	if owner == null or owner.get("role_special_states") is not Dictionary:
+		return {}
+	if not owner.role_special_states.has("swordsman") or owner.role_special_states["swordsman"] is not Dictionary:
+		owner.role_special_states["swordsman"] = {}
+	return owner.role_special_states["swordsman"]
 
 
 static func _get_role_health_ratio(owner, role_id: String) -> float:

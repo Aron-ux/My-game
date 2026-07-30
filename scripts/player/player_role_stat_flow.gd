@@ -51,7 +51,12 @@ static func get_effective_attack_interval(owner, role_id: String) -> float:
 	if owner.has_method("_get_role_blessing_stat_bonus"):
 		blessing_multiplier = max(0.2, 1.0 - float(owner._get_role_blessing_stat_bonus(role_id, "basic_attack_cooldown_reduction")))
 	var build_multiplier: float = PLAYER_BUILD_SYSTEM.get_basic_attack_cooldown_multiplier(owner, role_id)
-	return max(0.18, base_interval * owner._get_role_attack_interval_multiplier(role_id) * blessing_multiplier * build_multiplier)
+	var talent_multiplier := 1.0
+	if role_id == "swordsman" and owner.get("swordsman_role") != null:
+		talent_multiplier *= float(owner.swordsman_role.get_talent_basic_attack_interval_multiplier(owner))
+	elif role_id == "gunner" and owner.get("gunner_role") != null:
+		talent_multiplier *= float(owner.gunner_role.get_basic_attack_interval_multiplier(owner))
+	return max(0.18, base_interval * owner._get_role_attack_interval_multiplier(role_id) * blessing_multiplier * build_multiplier * talent_multiplier)
 
 
 static func get_effective_background_attack_interval(owner, role_id: String) -> float:
@@ -103,6 +108,8 @@ static func get_role_move_speed(owner, role_id: String) -> float:
 		move_speed *= float(owner._get_gunner_infinite_reload_move_speed_multiplier())
 	if role_id == "gunner" and owner.has_method("_get_gunner_flash_move_speed_multiplier"):
 		move_speed *= float(owner._get_gunner_flash_move_speed_multiplier())
+	if role_id == "gunner" and owner.get("gunner_role") != null:
+		move_speed *= float(owner.gunner_role.get_talent_move_speed_multiplier(owner))
 	if owner.ultimate_haste_remaining > 0.0:
 		move_speed *= max(0.0, float(owner.ultimate_haste_move_speed_multiplier))
 	if owner._is_last_stand_active():

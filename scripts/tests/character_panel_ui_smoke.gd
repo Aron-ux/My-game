@@ -61,7 +61,28 @@ func _seed_character_build(player: Node) -> void:
 		offer
 	)
 	PLAYER_BUILD_SYSTEM.apply_option(player, "role_build:swordsman:basic_attack_damage")
-	PLAYER_BUILD_SYSTEM.apply_option(player, "role_build:swordsman:basic_attack_cooldown")
+	while PLAYER_SKILL_TALENT_SYSTEM.get_skill_progress_level(player, "swordsman", "swordsman_basic") < 6:
+		PLAYER_BUILD_SYSTEM.apply_option(player, "role_build:swordsman:basic_attack_cooldown")
+	offer = PLAYER_SKILL_TALENT_SYSTEM.build_choice_offer(player, {
+		"role_id": "swordsman",
+		"progress_id": "swordsman_basic"
+	})
+	PLAYER_SKILL_TALENT_SYSTEM.apply_option_with_result(
+		player,
+		"skill_talent:swordsman_basic_pursuit",
+		offer
+	)
+	while PLAYER_SKILL_TALENT_SYSTEM.get_skill_progress_level(player, "swordsman", "swordsman_basic") < 9:
+		PLAYER_BUILD_SYSTEM.apply_option(player, "role_build:swordsman:basic_attack_cooldown")
+	offer = PLAYER_SKILL_TALENT_SYSTEM.build_choice_offer(player, {
+		"role_id": "swordsman",
+		"progress_id": "swordsman_basic"
+	})
+	PLAYER_SKILL_TALENT_SYSTEM.apply_option_with_result(
+		player,
+		"skill_talent:swordsman_basic_sword_wheel",
+		offer
+	)
 	PLAYER_BUILD_SYSTEM.apply_option(player, "role_build:swordsman:entry_damage")
 	PLAYER_BUILD_SYSTEM.apply_option(player, "role_build:swordsman:entry_damage")
 	PLAYER_BUILD_SYSTEM.apply_option(player, "role_build:gunner:entry_damage")
@@ -124,39 +145,35 @@ func _check_skill_tree_content(panel: Node) -> void:
 
 	detail = panel.find_child("SkillTreeDetail", true, false)
 	var text := _collect_text(detail)
-	for title in ["普通攻击", "十字剑势", "背身斩"]:
+	for title in ["普通攻击", "十字剑势", "背身斩", "追锋", "破绽", "剑轮", "截流"]:
 		_expect(text.contains(title), "basic attack tree should show %s" % title)
-	_expect(text.contains("当前路径：1--"), "selected first talent should render path 1--")
-	var stage_one_left := panel.find_child("SkillTreeStage1Left", true, false)
-	var stage_one_right := panel.find_child("SkillTreeStage1Right", true, false)
-	_expect(
-		stage_one_left != null and _collect_text(stage_one_left).contains("已选择"),
-		"selected left stage-I option should say 已选择"
-	)
-	_expect(
-		stage_one_right != null and _collect_text(stage_one_right).contains("本局未选"),
-		"unselected right stage-I option should say 本局未选"
-	)
-	for stage_number in [2, 3]:
-		var stage := panel.find_child("SkillTreeStage%d" % stage_number, true, false)
+	_expect(text.contains("构筑 Lv.9"), "completed basic attack tree should show build Lv.9")
+	_expect(text.contains("当前路径：111"), "three selected left talents should render path 111")
+	for stage_number in range(1, 4):
+		var stage_left := panel.find_child("SkillTreeStage%dLeft" % stage_number, true, false)
+		var stage_right := panel.find_child("SkillTreeStage%dRight" % stage_number, true, false)
 		_expect(
-			stage != null and _collect_text(stage).contains("尚未开放"),
-			"stage %d should be explicit about being unavailable" % stage_number
+			stage_left != null and _collect_text(stage_left).contains("已选择"),
+			"selected left stage-%s option should say 已选择" % ["I", "II", "III"][stage_number - 1]
+		)
+		_expect(
+			stage_right != null and _collect_text(stage_right).contains("本局未选"),
+			"unselected right stage-%s option should say 本局未选" % ["I", "II", "III"][stage_number - 1]
 		)
 	_expect(
-		not text.contains("Lv.6") and not text.contains("Lv.9"),
-		"unimplemented stages should not expose invented Lv.6/Lv.9 thresholds"
+		PLAYER_SKILL_TALENT_SYSTEM.TRIGGER_LEVELS == [3, 6, 9],
+		"skill tree stages should use build Lv.3/Lv.6/Lv.9 thresholds"
 	)
 	_expect(
 		_compact(text).contains("剑士普通攻击伤害倍率增加10％×3"),
 		"basic attack tree should keep the concrete ordinary build ×3 count"
 	)
 	_expect(
-		text.contains("主斩与第3击垂直追斩同步继承伤害"),
+		text.contains("伤害、范围和攻速同步作用主斩与追斩"),
 		"basic attack tree should explain how later upgrades affect the evolved skill"
 	)
 	var header_instance_id := panel.find_child("SkillTreeHeader", true, false).get_instance_id()
-	var option_instance_id := stage_one_left.get_instance_id()
+	var option_instance_id := panel.find_child("SkillTreeStage1Left", true, false).get_instance_id()
 	var build_instance_id := panel.find_child("SkillTreeBuildDetails", true, false).get_instance_id()
 	await _check_locked_skill_copy(panel)
 	await _check_pretrigger_skill_copy(panel)
@@ -200,7 +217,7 @@ func _check_locked_skill_copy(panel: Node) -> void:
 	for expected in ["尚未解锁", "第一阶段不可用", "先解锁"]:
 		_expect(text.contains(expected), "locked skill detail should say %s" % expected)
 	_expect(
-		not text.contains("第一阶段待选择") and not text.contains("继续获得该技能"),
+		not text.contains("阶段 I 待选择") and not text.contains("继续获得该技能"),
 		"locked skill detail should not describe unavailable progression as pending"
 	)
 
@@ -217,8 +234,10 @@ func _check_pretrigger_skill_copy(panel: Node) -> void:
 		text.contains("阶段 I 于构筑 Lv.3 解锁"),
 		"an unlocked level-1 skill should state its exact stage-I threshold"
 	)
+	for expected in ["阶段 II", "构筑 Lv.6 解锁", "阶段 III", "构筑 Lv.9 解锁"]:
+		_expect(text.contains(expected), "skill tree should expose future threshold %s" % expected)
 	_expect(
-		not text.contains("第一阶段待选择"),
+		not text.contains("阶段 I 待选择"),
 		"an unlocked skill below build Lv.3 should not say the choice is pending"
 	)
 
@@ -237,9 +256,11 @@ func _check_pending_skill_copy(panel: Node) -> void:
 		"moving to another skill should update both stage-I options"
 	)
 	_expect(
-		text.contains("第一阶段待选择"),
+		text.contains("阶段 I 待选择"),
 		"an unlocked build Lv.3 skill without a talent should say the choice is pending"
 	)
+	for expected in ["阶段 I", "阶段 II", "构筑 Lv.6 解锁", "阶段 III", "构筑 Lv.9 解锁"]:
+		_expect(text.contains(expected), "pending skill tree should expose stage state %s" % expected)
 
 
 func _check_archive_ctrl_tab_focus(panel: Node) -> void:

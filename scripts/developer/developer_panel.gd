@@ -28,6 +28,8 @@ var skill_list: VBoxContainer
 var blessing_list: VBoxContainer
 var performance_label: Label
 var enemy_detail_display_enabled: bool = false
+var cached_skill_options: Array = []
+var skill_options_initialized: bool = false
 
 
 func _ready() -> void:
@@ -90,6 +92,10 @@ func set_enemy_options(options: Array) -> void:
 
 
 func set_skill_options(options: Array) -> void:
+	if skill_options_initialized and cached_skill_options == options:
+		return
+	skill_options_initialized = true
+	cached_skill_options = options.duplicate(true)
 	_populate_option_list(skill_list, options, "暂无技能选项", Callable(self, "_on_skill_button_pressed"))
 
 

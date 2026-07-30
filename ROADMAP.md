@@ -6,19 +6,19 @@ This roadmap tracks project direction, not a promise of release dates.
 
 - Keep the current survivor-like combat loop playable.
 - Stabilize save/load and continue-game behavior.
-- Validate the current 36 single-tier skill talents, which are candidates for the first tier of the planned system, especially transformed follow-up upgrades, visual readability, and branch balance.
+- Validate the implemented 108 three-stage skill-talent nodes, especially ordinary-build inheritance, visual readability, branch balance, and long-session behavior.
 - Extend the character panel from total skill-build level to the exact acquired build cards and stack counts.
 - Identify the Boss referenced by the meeting, then measure its difficulty and high-tier blessing timing before changing values.
 - Keep dense-combat and autosave optimization evidence-driven through the existing benchmark, evaluator, trace, and feature-flag paths.
 
-## Next: three-tier skill talents
+## Now: three-tier skill-talent verification
 
-- Implement the locked Lv.3/Lv.6/Lv.9, naming, upgrade-inheritance, and 108-node content specification in `docs/14_三角色完整三层技能天赋设计.md`.
-- Replace the current per-skill single talent selection with three fixed binary tiers; paths such as `221` are composed from six independent options, not recursive branch-specific subtrees.
+- Validate the implemented Lv.3/Lv.6/Lv.9, naming, upgrade-inheritance, and 108-node specification in `docs/14_三角色完整三层技能天赋设计.md`; complete 144-path behavior regression and balance passes.
+- Exercise the implemented three fixed binary tiers; paths such as `221` are composed from six independent options, not recursive branch-specific subtrees.
 - Keep talent thresholds derived from the existing skill-build level and preserve the ordinary four-card/select-two reward.
-- Migrate old saves from one stable `talent_id` to ordered tier selections without losing the current 36 talents.
-- Update HUD, character panel, upgrade copy, developer tools, and continue-save restoration for tiered selections.
-- Pilot the swordsman first, then expand to all three roles after cadence, save, UI, and local path tests pass.
+- Regression-test old-save migration from one stable `talent_id` to ordered tier selections without losing the original stage-I talent.
+- Verify HUD, character panel, upgrade copy, developer tools, and continue-save restoration stay consistent for tiered selections.
+- Complete 144 single-skill-path regression and cross-role high-risk smoke coverage for the already implemented three roles.
 - Keep the gunner without periodic background attacks; its later talents reinforce entry and on-field damage instead.
 - Planning and acceptance criteria live in `docs/13_会议目标与三层技能天赋规划.md`; the complete content specification lives in `docs/14_三角色完整三层技能天赋设计.md`.
 

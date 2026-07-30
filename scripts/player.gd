@@ -860,6 +860,49 @@ func build_next_skill_talent_offer() -> Dictionary:
 func apply_skill_talent_choice(option_id: String, expected_progress_id: String = "") -> bool:
 	return PLAYER_SKILL_TALENT_SYSTEM.apply_choice(self, option_id, expected_progress_id)
 
+func _clear_skill_talent_runtime_state(removed_ids: Array) -> void:
+	var swordsman_keys := {
+		"swordsman_basic_cooldown_cut": ["basic_cooldown_cut_lock_remaining"],
+		"swordsman_trait_blood_surge": ["blood_surge_remaining"],
+		"swordsman_trait_guard_stance": ["guard_stance_remaining"],
+		"swordsman_trait_head_high": ["head_high_remaining"],
+		"swordsman_trait_unyielding": ["unyielding_remaining", "unyielding_cooldown_remaining"],
+		"swordsman_entry_through_ranks": ["entry_move_speed_remaining"],
+		"swordsman_blade_storm_returning_gale": ["returning_gale_remaining", "returning_gale_role_id"],
+		"swordsman_ultimate_triumph": ["ultimate_triumph_remaining"]
+	}
+	var gunner_keys := {
+		"gunner_basic_steady_aim": ["steady_aim_elapsed"],
+		"gunner_entry_follow_fire": ["follow_fire_remaining"],
+		"gunner_trait_escape_step": ["escape_step_remaining"],
+		"gunner_trait_execution": ["execution_cooldown_remaining"]
+	}
+	var swordsman_state := _get_role_special_state("swordsman")
+	var gunner_state := _get_role_special_state("gunner")
+	var gunner_runtime: Dictionary = gunner_state.get("talent_runtime", {})
+	var mage_state := _get_role_special_state("mage")
+	for talent_value in removed_ids:
+		var talent_id := str(talent_value)
+		for key in swordsman_keys.get(talent_id, []):
+			swordsman_state.erase(key)
+		for key in gunner_keys.get(talent_id, []):
+			gunner_runtime.erase(key)
+		if talent_id == "swordsman_trait_blood_battle" and switch_power_role_id == "swordsman" and switch_power_label == "血战昂扬":
+			switch_power_remaining = 0.0
+			switch_power_role_id = ""
+			switch_power_damage_multiplier = 1.0
+			switch_power_interval_bonus = 0.0
+			switch_power_label = ""
+		if talent_id == "mage_trait_dawn":
+			mage_state.erase("arcane_dawn_armed")
+		if talent_id in ["mage_trait_relay", "mage_trait_relay_chain"]:
+			mage_state.erase("arcane_relay_count")
+			mage_arcane_charge_transfer_relay_used = false
+	role_special_states["swordsman"] = swordsman_state
+	gunner_state["talent_runtime"] = gunner_runtime
+	role_special_states["gunner"] = gunner_state
+	role_special_states["mage"] = mage_state
+
 func get_skill_progress_level(role_id: String, progress_id: String) -> int:
 	return PLAYER_SKILL_TALENT_SYSTEM.get_skill_progress_level(self, role_id, progress_id)
 
@@ -1223,11 +1266,14 @@ func _transfer_mage_arcane_charge_to_role_on_switch(target_role_id: String) -> v
 		_clear_mage_arcane_charge_transfer(false)
 		stats_changed.emit(get_frame_hud_summary())
 		return
+	if mage_role != null:
+		mage_role.record_arcane_dawn(self, transfer_stacks)
 	mage_arcane_charge_transfer_stacks = transfer_stacks
 	mage_arcane_charge_transfer_target_role_id = target_role_id
-	mage_arcane_charge_transfer_duration = float(transfer_stacks) * MAGE_ARCANE_CHARGE_TRANSFER_DURATION_PER_STACK
+	var base_duration := float(transfer_stacks) * MAGE_ARCANE_CHARGE_TRANSFER_DURATION_PER_STACK
+	mage_arcane_charge_transfer_duration = mage_role.get_arcane_transfer_duration(self, transfer_stacks, base_duration) if mage_role != null else base_duration
 	mage_arcane_charge_transfer_remaining = mage_arcane_charge_transfer_duration
-	mage_arcane_charge_transfer_relay_used = false
+	_set_mage_arcane_relay_count(0)
 	stats_changed.emit(get_frame_hud_summary())
 
 func _relay_mage_arcane_charge_on_switch(previous_role_id: String, target_role_id: String) -> void:
@@ -1238,9 +1284,12 @@ func _relay_mage_arcane_charge_on_switch(previous_role_id: String, target_role_i
 	if target_role_id == "mage":
 		_clear_mage_arcane_charge_transfer()
 		return
-	if _has_skill_talent("mage_trait_relay") and not mage_arcane_charge_transfer_relay_used and target_role_id != "":
+	var relay_limit := mage_role.get_arcane_relay_limit(self) if mage_role != null else (1 if _has_skill_talent("mage_trait_relay") else 0)
+	var relay_count := _get_mage_arcane_relay_count()
+	if relay_count < relay_limit and target_role_id != "":
 		mage_arcane_charge_transfer_target_role_id = target_role_id
-		mage_arcane_charge_transfer_relay_used = true
+		mage_arcane_charge_transfer_remaining = mage_role.get_arcane_relay_remaining(self, mage_arcane_charge_transfer_remaining) if mage_role != null else mage_arcane_charge_transfer_remaining
+		_set_mage_arcane_relay_count(relay_count + 1)
 		stats_changed.emit(get_frame_hud_summary())
 		return
 	_clear_mage_arcane_charge_transfer()
@@ -1250,9 +1299,22 @@ func _clear_mage_arcane_charge_transfer(emit_stats_changed: bool = true) -> void
 	mage_arcane_charge_transfer_remaining = 0.0
 	mage_arcane_charge_transfer_duration = 0.0
 	mage_arcane_charge_transfer_target_role_id = ""
-	mage_arcane_charge_transfer_relay_used = false
+	_set_mage_arcane_relay_count(0)
 	if emit_stats_changed:
 		stats_changed.emit(get_frame_hud_summary())
+
+func _get_mage_arcane_relay_count() -> int:
+	var state := _get_role_special_state("mage")
+	return max(0, int(state.get("arcane_relay_count", 1 if mage_arcane_charge_transfer_relay_used else 0)))
+
+func _set_mage_arcane_relay_count(count: int) -> void:
+	var state := _get_role_special_state("mage")
+	if count > 0:
+		state["arcane_relay_count"] = count
+	else:
+		state.erase("arcane_relay_count")
+	role_special_states["mage"] = state
+	mage_arcane_charge_transfer_relay_used = count > 0
 
 func _get_mage_arcane_charge_effective_stacks_for_role(role_id: String) -> int:
 	if role_id == "mage":

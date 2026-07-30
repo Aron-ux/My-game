@@ -115,6 +115,10 @@ var cached_animated_visible_bounds: Rect2 = Rect2(-1.0, -1.0, -1.0, -1.0)
 var split_triggered: bool = false
 var runtime_pool_key: String = ""
 var projectile_scene_defaults: Dictionary = {}
+var damage_event_id: String = ""
+var damage_event_registered: bool = false
+var entry_repulse_on_first_hit: bool = false
+var entry_repulse_consumed: bool = false
 
 func _get_desktop_sketch_path(relative_path: String) -> String:
 	return (OS.get_system_dir(OS.SYSTEM_DIR_DESKTOP).replace("\\", "/") + "/草图/" + relative_path)
@@ -245,6 +249,7 @@ func _ready() -> void:
 		_initialize_wave_motion()
 
 func _exit_tree() -> void:
+	_release_damage_event()
 	var tree := get_tree()
 	if tree != null:
 		var scene: Node = tree.current_scene
@@ -326,6 +331,9 @@ func reset_projectile(config: Dictionary = {}) -> void:
 	target = config.get("target", null) as Node2D
 	source_player = config.get("source_player", null) as Node
 	source_role_id = str(config.get("source_role_id", ""))
+	damage_event_id = str(config.get("damage_event_id", ""))
+	entry_repulse_on_first_hit = bool(config.get("entry_repulse_on_first_hit", false))
+	entry_repulse_consumed = false
 	global_position = config.get("position", global_position)
 	source_origin_position = config.get("source_origin_position", global_position)
 	traveled_distance = 0.0
@@ -341,6 +349,7 @@ func reset_projectile(config: Dictionary = {}) -> void:
 	hit_scan_elapsed = 0.0
 	last_hit_scan_position = global_position
 	split_triggered = false
+	_register_damage_event()
 	visible = true
 	modulate = Color.WHITE
 	set_physics_process(true)
@@ -528,23 +537,28 @@ func _grid_cell(position: Vector2) -> Vector2i:
 func _apply_hit(enemy: Node2D) -> void:
 	hit_enemy_ids[enemy.get_instance_id()] = true
 
+	var hit_damage := _get_hit_damage(enemy)
 	var killed: bool = false
 	var queued_damage := false
 	if source_player != null and source_player.has_method("_deal_damage_to_enemy"):
-		PLAYER_DAMAGE_RESOLVER.queue_damage_to_enemy(source_player, enemy, damage, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_origin_position, true)
+		PLAYER_DAMAGE_RESOLVER.queue_damage_to_enemy(source_player, enemy, hit_damage, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_origin_position, true, false, false, damage_event_id)
 		queued_damage = true
 	else:
 		if enemy.has_method("take_damage"):
 			killed = bool(PLAYER_DAMAGE_RESOLVER.deal_damage_to_enemy(
 				source_player,
 				enemy,
-				damage,
+				hit_damage,
 				source_role_id,
 				vulnerability_bonus,
 				vulnerability_duration,
 				slow_multiplier,
 				slow_duration,
-				global_position
+				global_position,
+				false,
+				0.0,
+				false,
+				damage_event_id
 			))
 		if slow_duration > 0.0 and enemy.has_method("apply_slow"):
 			enemy.apply_slow(slow_multiplier, slow_duration)
@@ -553,6 +567,7 @@ func _apply_hit(enemy: Node2D) -> void:
 
 	if not queued_damage and source_player != null and source_player.has_method("_register_attack_result"):
 		source_player._register_attack_result(source_role_id, 1, killed)
+	_apply_entry_repulse(enemy)
 
 	_spawn_impact_effect(enemy.global_position, killed)
 	if split_burst_enabled and split_count > 0 and not split_triggered:
@@ -575,10 +590,14 @@ func _apply_hit(enemy: Node2D) -> void:
 
 	_release_or_free()
 
+func _get_hit_damage(enemy: Node2D) -> float:
+	return damage * 1.15 if bool(get_meta("mage_surge_rapid", false)) and str(enemy.get("enemy_kind")) in ["elite", "small_boss", "boss"] else damage
+
 func _release_or_free() -> void:
 	if bool(get_meta("player_projectile_released", false)):
 		return
 	set_meta("player_projectile_released", true)
+	_release_damage_event()
 	var tree := get_tree()
 	var scene: Node = tree.current_scene if tree != null else null
 	hide()
@@ -594,6 +613,29 @@ func _release_or_free() -> void:
 		scene.release_runtime_player_projectile(self, runtime_pool_key)
 	else:
 		queue_free()
+
+func _register_damage_event() -> void:
+	if damage_event_registered or source_player == null or damage_event_id == "":
+		return
+	damage_event_registered = true
+	PLAYER_DAMAGE_RESOLVER.register_gunner_damage_event(source_player, damage_event_id, lifetime)
+
+func _release_damage_event() -> void:
+	if not damage_event_registered:
+		return
+	damage_event_registered = false
+	PLAYER_DAMAGE_RESOLVER.release_gunner_damage_event(source_player, damage_event_id)
+
+func _apply_entry_repulse(enemy: Node2D) -> void:
+	if not entry_repulse_on_first_hit or entry_repulse_consumed:
+		return
+	entry_repulse_consumed = true
+	if str(enemy.get("enemy_kind")) in ["boss", "small_boss"]:
+		return
+	var push_direction := direction.normalized()
+	if push_direction.length_squared() <= 0.001:
+		push_direction = Vector2.RIGHT
+	enemy.global_position += push_direction * 48.0
 
 func _trigger_split_bursts(center: Vector2) -> void:
 	var burst_count: int = clamp(split_count, 0, 2)

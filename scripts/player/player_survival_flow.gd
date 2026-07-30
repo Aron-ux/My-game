@@ -54,6 +54,7 @@ static func physics_process(owner, delta: float) -> void:
 		return
 
 	owner._update_timers(delta)
+	_tick_swordsman_talent_states(owner, delta)
 	_update_area_control_states(owner, delta)
 	owner._regenerate_energy(delta)
 	owner._apply_equipment_passives(delta)
@@ -88,7 +89,7 @@ static func physics_process(owner, delta: float) -> void:
 
 	direction = direction.normalized()
 	_update_moving_visual_facing(owner, direction)
-	owner.velocity = direction * owner._get_current_move_speed()
+	owner.velocity = direction * owner._get_current_move_speed() * _get_swordsman_talent_move_multiplier(owner)
 	owner.move_and_slide()
 	owner.gem_collection_elapsed += delta
 	if owner.gem_collection_elapsed >= owner.GEM_COLLECTION_INTERVAL:
@@ -349,7 +350,7 @@ static func take_damage(owner, amount: float) -> void:
 		if nearby_enemy_count > 0:
 			amount *= max(0.84, 0.96 - min(nearby_enemy_count, 3) * 0.04)
 
-	var adjusted_damage: float = amount * owner._get_effective_damage_taken_multiplier()
+	var adjusted_damage: float = amount * owner._get_effective_damage_taken_multiplier() * _get_swordsman_talent_damage_taken_multiplier(owner)
 	var remaining_damage: float = adjusted_damage
 	if adjusted_damage > 0.0 and owner.current_temporary_health > 0.0:
 		var absorbed_damage: float = owner._consume_temporary_health(adjusted_damage) if owner.has_method("_consume_temporary_health") else min(owner.current_temporary_health, adjusted_damage)
@@ -359,6 +360,8 @@ static func take_damage(owner, amount: float) -> void:
 		if not owner.has_method("_consume_temporary_health") and owner.has_method("_save_active_role_temporary_health"):
 			owner._save_active_role_temporary_health()
 	owner.current_health = max(0.0, owner.current_health - remaining_damage)
+	if adjusted_damage > 0.0 and owner.get("gunner_role") != null and owner.gunner_role.has_method("handle_damage_taken"):
+		owner.gunner_role.handle_damage_taken(owner)
 	if adjusted_damage > 0.0 and owner.has_method("_break_gunner_flash_trait"):
 		owner._break_gunner_flash_trait()
 	if owner.current_health <= 0.0 and _try_trigger_swordsman_last_guard(owner):
@@ -383,6 +386,7 @@ static func _start_death_sequence(owner) -> void:
 	owner.is_dead = true
 	owner.level_up_active = false
 	owner.velocity = Vector2.ZERO
+	_clear_swordsman_talent_states(owner)
 	if owner.fire_timer != null:
 		owner.fire_timer.stop()
 	if owner.has_method("_update_player_health_bar"):
@@ -468,3 +472,73 @@ static func apply_enemy_slow(owner, multiplier: float, duration: float) -> void:
 		return
 	owner.enemy_move_slow_multiplier = min(owner.enemy_move_slow_multiplier, clamp(multiplier, 0.15, 1.0))
 	owner.enemy_move_slow_remaining = max(owner.enemy_move_slow_remaining, duration)
+
+
+static func _tick_swordsman_talent_states(owner, delta: float) -> void:
+	if owner == null or owner.get("role_special_states") is not Dictionary:
+		return
+	var state: Dictionary = owner.role_special_states.get("swordsman", {})
+	for key in [
+		"blood_surge_remaining",
+		"guard_stance_remaining",
+		"head_high_remaining",
+		"unyielding_remaining",
+		"unyielding_cooldown_remaining",
+		"entry_move_speed_remaining",
+		"returning_gale_remaining",
+		"ultimate_triumph_remaining",
+		"basic_cooldown_cut_lock_remaining"
+	]:
+		state[key] = max(0.0, float(state.get(key, 0.0)) - delta)
+	owner.role_special_states["swordsman"] = state
+
+
+static func _get_swordsman_talent_move_multiplier(owner) -> float:
+	if owner == null or str(owner._get_active_role().get("id", "")) != "swordsman":
+		return 1.0
+	var state: Dictionary = owner.role_special_states.get("swordsman", {})
+	var bonus := 0.0
+	if float(state.get("head_high_remaining", 0.0)) > 0.0:
+		bonus += 0.25
+	if float(state.get("entry_move_speed_remaining", 0.0)) > 0.0:
+		bonus += 0.25
+	if float(state.get("ultimate_triumph_remaining", 0.0)) > 0.0:
+		bonus += 0.20
+	return 1.0 + min(0.50, bonus)
+
+
+static func _get_swordsman_talent_damage_taken_multiplier(owner) -> float:
+	if owner == null:
+		return 1.0
+	var state: Dictionary = owner.role_special_states.get("swordsman", {})
+	var reduction := 0.0
+	if str(owner._get_active_role().get("id", "")) == "swordsman":
+		if float(state.get("guard_stance_remaining", 0.0)) > 0.0:
+			reduction = max(reduction, 0.15)
+		if float(state.get("unyielding_remaining", 0.0)) > 0.0:
+			reduction = max(reduction, 0.40)
+		if float(state.get("ultimate_triumph_remaining", 0.0)) > 0.0:
+			reduction = max(reduction, 0.30)
+	if (
+		float(state.get("returning_gale_remaining", 0.0)) > 0.0
+		and str(state.get("returning_gale_role_id", "")) == str(owner._get_active_role().get("id", ""))
+	):
+		reduction = max(reduction, 0.30)
+	return 1.0 - reduction
+
+
+static func _clear_swordsman_talent_states(owner) -> void:
+	if owner == null or owner.get("role_special_states") is not Dictionary:
+		return
+	var state: Dictionary = owner.role_special_states.get("swordsman", {})
+	for key in [
+		"blood_surge_remaining",
+		"guard_stance_remaining",
+		"head_high_remaining",
+		"unyielding_remaining",
+		"entry_move_speed_remaining",
+		"returning_gale_remaining",
+		"ultimate_triumph_remaining"
+	]:
+		state[key] = 0.0
+	owner.role_special_states["swordsman"] = state

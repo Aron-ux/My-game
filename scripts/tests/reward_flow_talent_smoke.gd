@@ -62,9 +62,16 @@ func _check_active_talent_save_roundtrip() -> void:
 	scene.add_child(source)
 	scene.add_child(target)
 	await process_frame
+	if not source.has_method("get_save_data") or not target.has_method("apply_save_data"):
+		_expect(false, "player scene must compile before talent save/resume can be verified")
+		scene.queue_free()
+		await process_frame
+		current_scene = null
+		return
 
 	source.role_special_states["swordsman"] = {
-		"build_levels": {"trait_extra_roll": 1, "trait_heal_bonus": 1}
+		"build_levels": {"trait_extra_roll": 8},
+		"skill_talents": {"swordsman_trait": ["swordsman_trait_blood_battle"]}
 	}
 	source.role_special_states["gunner"] = {
 		"skill_talents": {"gunner_basic": "gunner_basic_armor"}
@@ -74,9 +81,11 @@ func _check_active_talent_save_roundtrip() -> void:
 	source.active_upgrade_kind = "skill_talent"
 	source.current_blessing_offer = source.build_next_skill_talent_offer()
 	var saved: Dictionary = source.get_save_data()
+	var saved_context: Dictionary = source.current_blessing_offer.get("context", {})
 
 	_expect(int(saved.get("pending_level_ups", -1)) == 2, "active talent save should not create a duplicate normal level-up")
 	_expect(str(saved.get("active_upgrade_kind", "")) == "skill_talent", "active talent kind should be saved")
+	_expect(int(saved_context.get("talent_stage", 0)) == 2, "active talent save should identify the pending second stage")
 
 	target.apply_save_data(saved)
 	var resumed_offer: Dictionary = target.build_next_skill_talent_offer()
@@ -85,6 +94,8 @@ func _check_active_talent_save_roundtrip() -> void:
 	_expect(not target.level_up_active, "loaded talent should be reopened by reward flow instead of staying falsely active")
 	_expect(target.pending_level_ups == 2, "normal level-up queue should survive active talent load unchanged")
 	_expect(str(resumed_context.get("skill_progress_id", "")) == "swordsman_trait", "loaded run should derive the same pending talent")
+	_expect(int(resumed_context.get("talent_stage", 0)) == 2, "loaded run should resume the same pending talent stage")
+	_expect(target._has_skill_talent("swordsman_trait_blood_battle"), "completed first-stage talent should survive the save roundtrip")
 	_expect(target._has_skill_talent("gunner_basic_armor"), "already selected talents should survive the save roundtrip")
 
 	var save_main := MainStub.new()
@@ -93,6 +104,7 @@ func _check_active_talent_save_roundtrip() -> void:
 	_expect(REWARD_FLOW.resume_saved_reward(save_main), "continue flow should reopen the saved talent choice")
 	_expect(target.level_up_active and target.active_upgrade_kind == "skill_talent", "reopened talent should become the active reward")
 	_expect(save_main.level_up_ui.talent_progress_ids == ["swordsman_trait"], "continue flow should reopen the same pending talent UI")
+	_expect(save_main.level_up_ui.talent_stages == [2], "continue flow should reopen the same pending talent stage")
 	_expect(target.pending_level_ups == 2, "reopening a saved talent should not consume a normal level-up")
 	save_main.queue_free()
 	paused = false
@@ -188,6 +200,7 @@ class LevelUpUiStub:
 	extends RefCounted
 
 	var talent_progress_ids: Array[String] = []
+	var talent_stages: Array[int] = []
 
 	func hide_ui() -> void:
 		pass
@@ -198,3 +211,4 @@ class LevelUpUiStub:
 	func show_options(_options: Array, _attribute_options: Array = [], context: Dictionary = {}) -> void:
 		if bool(context.get("skill_talent_offer", false)):
 			talent_progress_ids.append(str(context.get("skill_progress_id", "")))
+			talent_stages.append(int(context.get("talent_stage", 0)))
