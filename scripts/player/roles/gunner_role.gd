@@ -191,12 +191,13 @@ func _spawn_primary_batched_bullet(owner, shot_direction: Vector2, damage_amount
 	var vulnerability_bonus: float = 0.06 if _has_talent(owner, "gunner_basic_mark") else 0.0
 	var vulnerability_duration: float = 1.0 if vulnerability_bonus > 0.0 else 0.0
 	var damage_event_id := str(overrides.get("damage_event_id", ""))
+	var damage_source_id := "gunner_basic:%s" % damage_event_id if damage_event_id != "" else str(role_data["id"])
 	if owner.has_method("_spawn_batched_directional_bullet"):
 		return bool(owner._spawn_batched_directional_bullet(
 			shot_direction,
 			damage_amount,
 			bullet_color,
-			role_data["id"],
+			damage_source_id,
 			origin,
 			{
 				"speed": bullet_speed,
@@ -217,7 +218,7 @@ func _spawn_primary_batched_bullet(owner, shot_direction: Vector2, damage_amount
 		shot_direction,
 		damage_amount,
 		bullet_color,
-		role_data["id"],
+		damage_source_id,
 		origin,
 		bullet_speed,
 		lifetime,

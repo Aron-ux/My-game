@@ -325,6 +325,60 @@ vertical_alignment = 1
 theme_override_font_sizes/font_size = 22
 theme_override_colors/font_color = Color(0.9, 0.93, 1, 1)
 
+[node name="RuanStonePanel" type="PanelContainer" parent="CanvasLayer"]
+visible = false
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -560.0
+offset_top = -300.0
+offset_right = 560.0
+offset_bottom = 300.0
+
+[node name="MarginContainer" type="MarginContainer" parent="CanvasLayer/RuanStonePanel"]
+theme_override_constants/margin_left = 22
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 22
+theme_override_constants/margin_bottom = 18
+
+[node name="StoneContent" type="VBoxContainer" parent="CanvasLayer/RuanStonePanel/MarginContainer"]
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="CanvasLayer/RuanStonePanel/MarginContainer/StoneContent"]
+text = "阮狗的石头收藏"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 30
+theme_override_colors/font_color = Color(1, 0.86, 0.48, 1)
+
+[node name="Status" type="Label" parent="CanvasLayer/RuanStonePanel/MarginContainer/StoneContent"]
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 19
+theme_override_colors/font_color = Color(0.9, 0.93, 1, 1)
+
+[node name="Cards" type="HBoxContainer" parent="CanvasLayer/RuanStonePanel/MarginContainer/StoneContent"]
+size_flags_vertical = 3
+alignment = 1
+theme_override_constants/separation = 10
+
+[node name="Feedback" type="Label" parent="CanvasLayer/RuanStonePanel/MarginContainer/StoneContent"]
+custom_minimum_size = Vector2(0, 28)
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 17
+theme_override_colors/font_color = Color(1, 0.86, 0.48, 1)
+
+[node name="Hint" type="Label" parent="CanvasLayer/RuanStonePanel/MarginContainer/StoneContent"]
+text = "方向键 / 摇杆选择  ·  确认购买或装备  ·  [Esc] 关闭"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 15
+theme_override_colors/font_color = Color(0.62, 0.68, 0.8, 1)
+
+[node name="CloseButton" type="Button" parent="CanvasLayer/RuanStonePanel/MarginContainer/StoneContent"]
+custom_minimum_size = Vector2(0, 42)
+text = "关闭"
+
 [node name="TutorialPromptPanel" type="PanelContainer" parent="CanvasLayer"]
 visible = false
 anchors_preset = 8

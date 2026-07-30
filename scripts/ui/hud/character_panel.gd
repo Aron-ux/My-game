@@ -4,6 +4,7 @@ signal close_requested
 
 const GAME_SETTINGS := preload("res://scripts/game_settings.gd")
 const PLAYER_EQUIPMENT_FLOW := preload("res://scripts/player/player_equipment_flow.gd")
+const RUAN_STONE_SYSTEM := preload("res://scripts/player/ruan_stone_system.gd")
 const PLAYER_BLESSING_SYSTEM := preload("res://scripts/player/player_blessing_system.gd")
 const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
@@ -386,12 +387,12 @@ func _build_role_detail_column(content_layout: HBoxContainer) -> void:
 
 	var equipment_section := _make_panel_section("装备")
 	equipment_section.size_flags_vertical = Control.SIZE_FILL
-	equipment_section.custom_minimum_size = Vector2(0.0, 88.0)
+	equipment_section.custom_minimum_size = Vector2(0.0, 104.0)
 	detail_box.add_child(equipment_section)
 
 	var equipment_body := _get_section_body(equipment_section)
 	var equipment_hint := Label.new()
-	equipment_hint.text = "右键道具可赠与其他角色"
+	equipment_hint.text = "阮石全队共享 · 右键普通道具可赠与其他角色"
 	equipment_hint.add_theme_font_size_override("font_size", 12)
 	equipment_hint.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_MUTED)
 	equipment_body.add_child(equipment_hint)
@@ -399,7 +400,7 @@ func _build_role_detail_column(content_layout: HBoxContainer) -> void:
 	var equipment_scroll := ScrollContainer.new()
 	equipment_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	equipment_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	equipment_scroll.custom_minimum_size = Vector2(0.0, 42.0)
+	equipment_scroll.custom_minimum_size = Vector2(0.0, 58.0)
 	equipment_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	equipment_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	equipment_body.add_child(equipment_scroll)
@@ -747,6 +748,28 @@ func _refresh_equipment_list(role_id: String) -> void:
 	for child in equipment_list.get_children():
 		equipment_list.remove_child(child)
 		child.queue_free()
+	var stone_id: String = str(cached_player.get_equipped_ruan_stone()) if cached_player.has_method("get_equipped_ruan_stone") else ""
+	var stone_level: int = int(cached_player.get_ruan_stone_level(stone_id)) if stone_id != "" and cached_player.has_method("get_ruan_stone_level") else 0
+	var stone_definition: Dictionary = RUAN_STONE_SYSTEM.get_definition(stone_id)
+	var stone_title: String = str(stone_definition.get("title", "未装备"))
+	var stone_effect: String = RUAN_STONE_SYSTEM.get_effect_text(stone_id, stone_level) if stone_level > 0 else "在阮狗处装备已拥有的石头"
+	var stone_button := Button.new()
+	stone_button.name = "RuanStoneSlot"
+	stone_button.text = "全队 · 阮石槽\n%s%s\n%s" % [
+		stone_title,
+		" Lv.%d" % stone_level if stone_level > 0 else "",
+		stone_effect
+	]
+	stone_button.tooltip_text = "全队共享，不可赠与\n骨头：%d\n%s" % [
+		cached_player.get_ruan_bone_count() if cached_player.has_method("get_ruan_bone_count") else 0,
+		stone_effect
+	]
+	stone_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	stone_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	stone_button.custom_minimum_size = Vector2(210.0, 58.0)
+	stone_button.focus_mode = Control.FOCUS_NONE
+	_apply_archive_button_style(stone_button, stone_level > 0, false, false)
+	equipment_list.add_child(stone_button)
 	var equipment_levels: Dictionary = cached_player._get_role_equipment_levels(role_id) if cached_player.has_method("_get_role_equipment_levels") else {}
 	var has_any := false
 	for equipment_id in PLAYER_EQUIPMENT_FLOW.EQUIPMENT_DEFINITIONS.keys():
@@ -769,8 +792,8 @@ func _refresh_equipment_list(role_id: String) -> void:
 		equipment_list.add_child(button)
 	if not has_any:
 		var empty_label := Label.new()
-		empty_label.text = "暂无道具"
-		empty_label.custom_minimum_size = Vector2(0.0, 42.0)
+		empty_label.text = "当前角色暂无普通道具"
+		empty_label.custom_minimum_size = Vector2(0.0, 58.0)
 		empty_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_MUTED)
 		equipment_list.add_child(empty_label)
 

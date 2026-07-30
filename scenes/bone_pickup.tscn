@@ -1,0 +1,15 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/bone_pickup.gd" id="1_bone"]
+
+[node name="BonePickup" type="Node2D"]
+script = ExtResource("1_bone")
+
+[node name="Shadow" type="Polygon2D" parent="."]
+position = Vector2(0, 5)
+color = Color(0.04, 0.03, 0.02, 0.32)
+polygon = PackedVector2Array(-10, -2, 10, -2, 8, 2, -8, 2)
+
+[node name="Polygon2D" type="Polygon2D" parent="."]
+color = Color(0.94, 0.86, 0.68, 1)
+polygon = PackedVector2Array(-11, -3, -8, -8, -4, -9, -2, -5, 7, 0, 10, -1, 13, 2, 10, 6, 6, 6, 4, 3, -5, -2, -8, 0)

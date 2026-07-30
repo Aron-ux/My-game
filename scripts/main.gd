@@ -37,6 +37,7 @@ const REWARD_MAINTENANCE_DEFER_SECONDS := 0.12
 @export var enemy_bullet_scene: PackedScene = preload("res://scenes/enemy_bullet.tscn")
 @export var exp_gem_scene: PackedScene = preload("res://scenes/exp_gem.tscn")
 @export var heart_pickup_scene: PackedScene = preload("res://scenes/heart_pickup.tscn")
+@export var bone_pickup_scene: PackedScene = preload("res://scenes/bone_pickup.tscn")
 @export var hud_scene: PackedScene = preload("res://scenes/hud.tscn")
 @export var level_up_ui_scene: PackedScene = preload("res://scenes/level_up_ui.tscn")
 @export var pause_menu_scene: PackedScene = preload("res://scenes/pause_menu.tscn")
@@ -82,7 +83,8 @@ var runtime_spawn_budget_frame: int = -1
 var runtime_spawn_counts: Dictionary = {}
 var runtime_pickup_nodes: Dictionary = {
 	"exp_gems": {},
-	"heart_pickups": {}
+	"heart_pickups": {},
+	"bone_pickups": {}
 }
 var runtime_pickup_cache: Dictionary = {}
 var runtime_pickup_cache_dirty: Dictionary = {}
@@ -548,6 +550,9 @@ func _on_developer_blessing_grant_requested(blessing_id: String, tier: int) -> v
 func _on_developer_all_blessings_grant_requested() -> void:
 	DEVELOPER_ACTIONS.grant_all_blessings(self)
 
+func _on_developer_ruan_stone_action_requested(action_id: String) -> void:
+	DEVELOPER_ACTIONS.apply_ruan_stone_action(self, action_id)
+
 func _on_developer_glutton_skill_test_requested(skill_id: String) -> void:
 	DEVELOPER_ACTIONS.force_glutton_skill(self, skill_id)
 
@@ -579,6 +584,9 @@ func _get_developer_skill_options() -> Array:
 
 func _get_developer_blessing_options() -> Array:
 	return DEVELOPER_OPTION_PROVIDER.get_blessing_options(player)
+
+func _get_developer_ruan_stone_options() -> Array:
+	return DEVELOPER_OPTION_PROVIDER.get_ruan_stone_options(player)
 
 func _spawn_developer_boss(archetype_id: String = "boss_spellcore") -> void:
 	DEVELOPER_ACTIONS.spawn_boss(self, archetype_id)

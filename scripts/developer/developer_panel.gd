@@ -14,6 +14,7 @@ signal skill_unlock_requested(skill_id: String, tier: int)
 signal skill_talent_grant_requested(talent_id: String)
 signal blessing_grant_requested(blessing_id: String, tier: int)
 signal all_blessings_grant_requested
+signal ruan_stone_action_requested(action_id: String)
 signal enemy_detail_display_toggled(enabled: bool)
 signal glutton_skill_test_requested(skill_id: String)
 
@@ -26,6 +27,7 @@ var enemy_list: VBoxContainer
 var glutton_skill_list: VBoxContainer
 var skill_list: VBoxContainer
 var blessing_list: VBoxContainer
+var ruan_stone_list: VBoxContainer
 var performance_label: Label
 var enemy_detail_display_enabled: bool = false
 var cached_skill_options: Array = []
@@ -103,6 +105,10 @@ func set_blessing_options(options: Array) -> void:
 	_populate_option_list(blessing_list, options, "暂无祝福选项", Callable(self, "_on_blessing_button_pressed"))
 
 
+func set_ruan_stone_options(options: Array) -> void:
+	_populate_option_list(ruan_stone_list, options, "暂无阮石调试选项", Callable(self, "_on_ruan_stone_button_pressed"))
+
+
 func update_performance_metrics(metrics: Dictionary) -> void:
 	if performance_label != null:
 		performance_label.text = PERFORMANCE_MONITOR.format_metrics(metrics)
@@ -147,6 +153,7 @@ func _build_scroll_content(parent: Control) -> void:
 	_build_enemy_menu_button(menu_content)
 	glutton_skill_list = _add_menu_section(menu_content, "Glutton Skill Test")
 	_populate_glutton_skill_list()
+	ruan_stone_list = _add_menu_section(menu_content, "阮狗石头调试")
 	blessing_list = _add_menu_section(menu_content, "添加祝福")
 	skill_list = _add_menu_section(menu_content, "添加技能 / 技能质变")
 
@@ -373,6 +380,11 @@ func _on_blessing_button_pressed(option_id: String) -> void:
 	var tier: int = max(1, int(parts[1]))
 	if blessing_id != "":
 		blessing_grant_requested.emit(blessing_id, tier)
+
+
+func _on_ruan_stone_button_pressed(option_id: String) -> void:
+	if option_id.begins_with(DEVELOPER_OPTION_PROVIDER.RUAN_STONE_OPTION_PREFIX):
+		ruan_stone_action_requested.emit(option_id.trim_prefix(DEVELOPER_OPTION_PROVIDER.RUAN_STONE_OPTION_PREFIX))
 
 
 func _on_glutton_skill_button_pressed(option_id: String) -> void:

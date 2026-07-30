@@ -40,6 +40,7 @@ static func apply_damage(enemy, amount: float, show_feedback: bool = true, is_cr
 		enemy.defeated.emit(enemy.enemy_kind)
 		enemy._drop_experience_gem()
 		enemy._maybe_drop_heart()
+		enemy._maybe_drop_bones()
 		enemy.drop_absorber = null
 		if enemy.has_method("release_after_defeat") and bool(enemy.release_after_defeat()):
 			return true

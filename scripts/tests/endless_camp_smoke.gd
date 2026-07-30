@@ -30,6 +30,10 @@ func _run() -> void:
 	var dialogue_title := instance.get_node_or_null("CanvasLayer/DialoguePanel/MarginContainer/DialogueContent/TextContent/Title") as Label
 	var dialogue_body := instance.get_node_or_null("CanvasLayer/DialoguePanel/MarginContainer/DialogueContent/TextContent/Body") as Label
 	var dialogue_portrait := instance.get_node_or_null("CanvasLayer/DialoguePanel/MarginContainer/DialogueContent/Portrait") as TextureRect
+	var stone_panel := instance.get_node_or_null("CanvasLayer/RuanStonePanel") as PanelContainer
+	var stone_cards := instance.get_node_or_null("CanvasLayer/RuanStonePanel/MarginContainer/StoneContent/Cards") as HBoxContainer
+	var stone_status := instance.get_node_or_null("CanvasLayer/RuanStonePanel/MarginContainer/StoneContent/Status") as Label
+	var stone_feedback := instance.get_node_or_null("CanvasLayer/RuanStonePanel/MarginContainer/StoneContent/Feedback") as Label
 	var prompt_label := instance.get_node_or_null("CanvasLayer/PromptLabel") as Label
 	if portal == null or blacksmith == null or player == null:
 		failures.append("Endless camp scene is missing required interaction nodes.")
@@ -43,7 +47,9 @@ func _run() -> void:
 		failures.append("Endless camp scene is missing the dialogue UI.")
 	elif dialogue_portrait.texture == null:
 		failures.append("Dialogue UI is missing the Ruan Dog portrait.")
-	if dog_interactable != null and dialogue_panel != null and dialogue_title != null and dialogue_body != null and prompt_label != null and player != null:
+	if stone_panel == null or stone_cards == null or stone_status == null or stone_feedback == null:
+		failures.append("Endless camp scene is missing the Ruan stone shop UI.")
+	if dog_interactable != null and dialogue_panel != null and dialogue_title != null and dialogue_body != null and prompt_label != null and player != null and stone_panel != null and stone_cards != null and stone_status != null and stone_feedback != null:
 		player.global_position = dog_interactable.global_position
 		for _frame in range(3):
 			await physics_frame
@@ -63,18 +69,29 @@ func _run() -> void:
 		if dialogue_body.text == first_line:
 			failures.append("Advancing Ruan Dog dialogue did not change the line.")
 		instance.call("_unhandled_input", interact_event)
-		if not dialogue_panel.visible:
-			failures.append("Ruan Dog dialogue closed before its final line.")
-		instance.call("_unhandled_input", interact_event)
-		if dialogue_panel.visible or not player.is_physics_processing():
-			failures.append("Finishing dialogue did not restore camp movement.")
-		instance.call("_unhandled_input", interact_event)
+		if dialogue_panel.visible or not stone_panel.visible:
+			failures.append("Finishing Ruan Dog dialogue did not open the stone shop.")
+		if stone_cards.get_child_count() != 5 or not stone_status.text.contains("骨头"):
+			failures.append("Ruan stone shop did not build all five stone cards and balance status.")
+		if instance.get_viewport().gui_get_focus_owner() == null:
+			failures.append("Ruan stone shop did not assign keyboard/gamepad focus.")
+		if player.is_physics_processing():
+			failures.append("Camp player movement must stop while the stone shop is open.")
+		instance.set("ruan_stone_profile", {"bones": 4})
+		instance.call("_rebuild_ruan_stone_cards")
+		instance.call("_on_ruan_stone_purchase", "thunder")
+		if not stone_feedback.text.contains("骨头不足"):
+			failures.append("Ruan stone shop did not show a clear insufficient-bones message.")
 		var escape_event := InputEventKey.new()
 		escape_event.keycode = KEY_ESCAPE
 		escape_event.pressed = true
 		instance.call("_unhandled_input", escape_event)
+		if stone_panel.visible or not player.is_physics_processing():
+			failures.append("Escape did not close the stone shop and restore camp movement.")
+		instance.call("_unhandled_input", interact_event)
+		instance.call("_unhandled_input", escape_event)
 		if dialogue_panel.visible or not player.is_physics_processing():
-			failures.append("Escape did not close dialogue and restore camp movement.")
+			failures.append("Escape did not close Ruan Dog dialogue and restore camp movement.")
 	instance.queue_free()
 	await process_frame
 	if failures.is_empty():

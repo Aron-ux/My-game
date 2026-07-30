@@ -23,6 +23,7 @@ const POST_ULTIMATE_BLOODTHIRST_DURATION := 4.5
 var ultimate_pursuit_target: WeakRef = null
 var ultimate_pursuit_hits: int = 0
 var ultimate_pursuit_armed: bool = false
+var basic_damage_event_serial: int = 0
 
 func get_talent_basic_attack_interval_multiplier(owner) -> float:
 	if owner == null or owner.get("role_special_states") is not Dictionary:
@@ -42,35 +43,42 @@ func _try_start_bloodthirst(owner, duration: float, heal_multiplier: float) -> b
 func perform_attack(owner) -> void:
 	var base_direction: Vector2 = owner._get_attack_aim_direction(owner.facing_direction)
 	var blood_surge_multiplier := PLAYER_COMBAT_RESULT_FLOW.get_swordsman_blood_surge_multiplier(owner)
-	var total_hits := _perform_combo_segment(owner, base_direction, 1.0, true, true, blood_surge_multiplier)
-	total_hits += _apply_basic_talent_followup(owner, base_direction, blood_surge_multiplier)
+	var basic_source_id := _create_basic_source_id(owner)
+	var total_hits := _perform_combo_segment(owner, base_direction, 1.0, true, true, blood_surge_multiplier, basic_source_id)
+	total_hits += _apply_basic_talent_followup(owner, base_direction, blood_surge_multiplier, basic_source_id)
 	if total_hits > 0 and blood_surge_multiplier > 1.0:
 		PLAYER_COMBAT_RESULT_FLOW.consume_swordsman_blood_surge(owner)
-	_schedule_reprise_segments(owner, base_direction)
+	_schedule_reprise_segments(owner, base_direction, basic_source_id)
 
-func _apply_basic_talent_followup(owner, base_direction: Vector2, blood_surge_multiplier: float) -> int:
+func _create_basic_source_id(owner) -> String:
+	if owner != null and owner.has_method("_create_basic_attack_source_id"):
+		return str(owner._create_basic_attack_source_id("swordsman"))
+	basic_damage_event_serial += 1
+	return "swordsman_basic:%s:%s" % [owner.get_instance_id() if owner != null else 0, basic_damage_event_serial]
+
+func _apply_basic_talent_followup(owner, base_direction: Vector2, blood_surge_multiplier: float, basic_source_id: String) -> int:
 	var total_hits := 0
 	if _has_talent(owner, "swordsman_basic_back"):
-		total_hits += _perform_attack_variant(owner, -base_direction, 0.45, false, false, false, blood_surge_multiplier)
+		total_hits += _perform_attack_variant(owner, -base_direction, 0.45, false, false, false, blood_surge_multiplier, basic_source_id)
 	if not _has_talent(owner, "swordsman_basic_cross"):
 		pass
 	elif owner.swordsman_attack_chain == 0:
-		total_hits += _perform_attack_variant(owner, base_direction.rotated(PI * 0.5), 0.70, false, false, false, blood_surge_multiplier)
+		total_hits += _perform_attack_variant(owner, base_direction.rotated(PI * 0.5), 0.70, false, false, false, blood_surge_multiplier, basic_source_id)
 	if owner.swordsman_attack_chain == 0 and _has_talent(owner, "swordsman_basic_sword_wheel"):
-		total_hits += _perform_attack_variant(owner, base_direction.rotated(PI * 0.5), 0.35, false, false, false, blood_surge_multiplier)
-		total_hits += _perform_attack_variant(owner, base_direction.rotated(-PI * 0.5), 0.35, false, false, false, blood_surge_multiplier)
+		total_hits += _perform_attack_variant(owner, base_direction.rotated(PI * 0.5), 0.35, false, false, false, blood_surge_multiplier, basic_source_id)
+		total_hits += _perform_attack_variant(owner, base_direction.rotated(-PI * 0.5), 0.35, false, false, false, blood_surge_multiplier, basic_source_id)
 	return total_hits
 
-func _perform_combo_segment(owner, base_direction: Vector2, combo_scale: float, allow_trick_variants: bool = true, allow_followthrough: bool = true, blood_surge_multiplier: float = -1.0) -> int:
+func _perform_combo_segment(owner, base_direction: Vector2, combo_scale: float, allow_trick_variants: bool = true, allow_followthrough: bool = true, blood_surge_multiplier: float = -1.0, basic_source_id: String = "") -> int:
 	var consumes_blood_surge := blood_surge_multiplier < 0.0
 	if consumes_blood_surge:
 		blood_surge_multiplier = PLAYER_COMBAT_RESULT_FLOW.get_swordsman_blood_surge_multiplier(owner)
 	var total_hits: int = 0
 	if owner.has_method("_push_attack_result_context_tag"):
 		owner._push_attack_result_context_tag("swordsman_basic_attack")
-	total_hits += _perform_attack_variant(owner, base_direction, combo_scale, true, true, allow_followthrough, blood_surge_multiplier)
+	total_hits += _perform_attack_variant(owner, base_direction, combo_scale, true, true, allow_followthrough, blood_surge_multiplier, basic_source_id)
 	if allow_trick_variants:
-		total_hits += _apply_trick_variants(owner, base_direction, blood_surge_multiplier)
+		total_hits += _apply_trick_variants(owner, base_direction, blood_surge_multiplier, basic_source_id)
 	if total_hits > 0 and not _uses_batched_basic_attack_damage(owner):
 		var role_data: Dictionary = owner._get_active_role()
 		owner._register_attack_result(role_data["id"], total_hits, false)
@@ -80,7 +88,7 @@ func _perform_combo_segment(owner, base_direction: Vector2, combo_scale: float, 
 		PLAYER_COMBAT_RESULT_FLOW.consume_swordsman_blood_surge(owner)
 	return total_hits
 
-func _perform_attack_variant(owner, attack_direction: Vector2, effect_scale: float = 1.0, advance_chain: bool = true, spawn_aftershock: bool = true, allow_followthrough: bool = false, blood_surge_multiplier: float = 1.0) -> int:
+func _perform_attack_variant(owner, attack_direction: Vector2, effect_scale: float = 1.0, advance_chain: bool = true, spawn_aftershock: bool = true, allow_followthrough: bool = false, blood_surge_multiplier: float = 1.0, basic_source_id: String = "") -> int:
 	var role_data: Dictionary = owner._get_active_role()
 	var upgrade_data: Dictionary = owner.role_upgrade_levels[role_data["id"]]
 	if attack_direction.length_squared() <= 0.001:
@@ -124,9 +132,10 @@ func _perform_attack_variant(owner, attack_direction: Vector2, effect_scale: flo
 	var slash_animation_duration: float = owner._get_sword_slash_scene_animation_duration()
 	var slow_multiplier: float = 0.75 if third_main_slash and _has_talent(owner, "swordsman_basic_opening") else 1.0
 	var slow_duration: float = 1.0 if slow_multiplier < 1.0 else 0.0
-	var enemies_hit: int = owner._damage_enemies_in_oriented_rect_unique(slash_center, slash_axis, slash_length, slash_rect_width, attack_damage, 0.0, slow_multiplier, slow_duration, slash_hit_registry, role_data["id"])
+	var damage_source_id := basic_source_id if basic_source_id != "" else str(role_data["id"])
+	var enemies_hit: int = owner._damage_enemies_in_oriented_rect_unique(slash_center, slash_axis, slash_length, slash_rect_width, attack_damage, 0.0, slow_multiplier, slow_duration, slash_hit_registry, damage_source_id)
 	if allow_followthrough:
-		owner._schedule_swordsman_slash_followthrough(slash_center, slash_axis, slash_length, slash_rect_width, attack_damage, 0.0, slow_multiplier, slow_duration, slash_animation_duration, role_data["id"], slash_hit_registry)
+		owner._schedule_swordsman_slash_followthrough(slash_center, slash_axis, slash_length, slash_rect_width, attack_damage, 0.0, slow_multiplier, slow_duration, slash_animation_duration, damage_source_id, slash_hit_registry)
 
 	if advance_chain:
 		owner.swordsman_attack_chain = (owner.swordsman_attack_chain + 1) % 3
@@ -136,26 +145,26 @@ func _perform_attack_variant(owner, attack_direction: Vector2, effect_scale: flo
 
 	return enemies_hit
 
-func _schedule_reprise_segments(owner, base_direction: Vector2) -> void:
+func _schedule_reprise_segments(owner, base_direction: Vector2, basic_source_id: String) -> void:
 	var combo_scales := _get_skill_effect_scales(owner, "combo_skill_extra")
 	if combo_scales.is_empty():
 		return
 	owner._schedule_repeating_sequence(BASIC_COMBO_INTERVAL, combo_scales.size(), func(index: int) -> void:
 		if index >= 0 and index < combo_scales.size():
-			_perform_combo_segment_if_valid(owner, base_direction, float(combo_scales[index]))
+			_perform_combo_segment_if_valid(owner, base_direction, float(combo_scales[index]), basic_source_id)
 	, BASIC_COMBO_INTERVAL)
 
-func _perform_combo_segment_if_valid(owner, base_direction: Vector2, combo_scale: float) -> void:
+func _perform_combo_segment_if_valid(owner, base_direction: Vector2, combo_scale: float, basic_source_id: String) -> void:
 	if owner == null or not is_instance_valid(owner) or bool(owner.get("is_dead")):
 		return
-	_perform_combo_segment(owner, base_direction, combo_scale, false, false)
+	_perform_combo_segment(owner, base_direction, combo_scale, false, false, -1.0, basic_source_id)
 
-func _apply_trick_variants(owner, base_direction: Vector2, blood_surge_multiplier: float) -> int:
+func _apply_trick_variants(owner, base_direction: Vector2, blood_surge_multiplier: float, basic_source_id: String) -> int:
 	var total_hits := 0
 	var index := 1
 	for scale in _get_skill_effect_scales(owner, "quantity_skill_count"):
 		var direction := base_direction.rotated(deg_to_rad(30.0 * float(index)))
-		total_hits += _perform_attack_variant(owner, direction, float(scale), false, false, false, blood_surge_multiplier)
+		total_hits += _perform_attack_variant(owner, direction, float(scale), false, false, false, blood_surge_multiplier, basic_source_id)
 		index += 1
 	return total_hits
 

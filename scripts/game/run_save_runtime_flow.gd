@@ -14,7 +14,7 @@ static func get_runtime_or_group_nodes(main: Node, group_name: String) -> Array:
 		return main.get_runtime_enemies()
 	if group_name == "enemy_projectiles" and main.has_method("get_runtime_enemy_projectiles"):
 		return main.get_runtime_enemy_projectiles()
-	if (group_name == "exp_gems" or group_name == "heart_pickups") and main.has_method("get_runtime_pickups"):
+	if (group_name == "exp_gems" or group_name == "heart_pickups" or group_name == "bone_pickups") and main.has_method("get_runtime_pickups"):
 		return main.get_runtime_pickups(group_name)
 	return main.get_tree().get_nodes_in_group(group_name)
 
@@ -63,3 +63,12 @@ static func restore_heart_pickups(main: Node, hearts_data: Array) -> void:
 			continue
 		main.add_child(heart_pickup)
 		heart_pickup.apply_save_data(heart_data)
+
+
+static func restore_bone_pickups(main: Node, bones_data: Array) -> void:
+	for bone_data in bones_data:
+		var bone_pickup = main.bone_pickup_scene.instantiate()
+		if bone_pickup == null:
+			continue
+		main.add_child(bone_pickup)
+		bone_pickup.apply_save_data(bone_data)

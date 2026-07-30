@@ -2,6 +2,7 @@ extends Node
 
 const PERFORMANCE_COUNTERS := preload("res://scripts/game/performance_counters.gd")
 const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
+const PLAYER_RUAN_STONE_FLOW := preload("res://scripts/player/player_ruan_stone_flow.gd")
 
 const MAX_DAMAGE_APPLICATIONS_PER_RENDER_FRAME := 24
 const LARGE_QUEUE_DAMAGE_APPLICATIONS_PER_RENDER_FRAME := 56
@@ -287,12 +288,20 @@ func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_rol
 			enemy.apply_slow_silent(slow_multiplier, slow_duration)
 		elif enemy.has_method("apply_slow"):
 			enemy.apply_slow(slow_multiplier, slow_duration)
+	if damage_amount > 0.0 and _is_basic_attack_damage_source(source_role_id):
+		PLAYER_RUAN_STONE_FLOW.apply_basic_hit(source_player, enemy, final_damage, source_role_id, "", killed)
 	return killed
 
 func _resolve_damage_source_role_id(source_role_id: String) -> String:
 	if source_role_id == GUNNER_NO_HUNT_SOURCE_ROLE_ID:
 		return "gunner"
+	for role_id in ["swordsman", "gunner", "mage"]:
+		if source_role_id.begins_with("%s_basic:" % role_id):
+			return role_id
 	return source_role_id
+
+func _is_basic_attack_damage_source(source_role_id: String) -> bool:
+	return source_role_id.begins_with("swordsman_basic:") or source_role_id.begins_with("gunner_basic:") or source_role_id.begins_with("mage_basic:")
 
 func _is_enemy_damageable(enemy: Node) -> bool:
 	if enemy == null or not is_instance_valid(enemy):

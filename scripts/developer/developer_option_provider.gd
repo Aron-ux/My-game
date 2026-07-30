@@ -4,9 +4,11 @@ const ENEMY_ARCHETYPE_DATABASE := preload("res://scripts/enemy/enemy_archetype_d
 const PLAYER_BLESSING_SYSTEM := preload("res://scripts/player/player_blessing_system.gd")
 const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
 const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_talent_system.gd")
+const RUAN_STONE_SYSTEM := preload("res://scripts/player/ruan_stone_system.gd")
 
 const ALL_BLESSINGS_OPTION_ID := "__all_blessings__"
 const SKILL_TALENT_OPTION_PREFIX := "skill_talent:"
+const RUAN_STONE_OPTION_PREFIX := "ruan_stone:"
 const CLEAR_SKILL_TALENTS_OPTION_ID := "__clear_skill_talents__"
 const CLEAR_SKILL_TALENT_STAGE_PREFIX := "__clear_skill_talent_stage__:"
 const SKILL_TALENT_PATH_PREFIX := "__skill_talent_path__:"
@@ -22,6 +24,68 @@ static func get_normal_enemy_options() -> Array:
 
 static func get_enemy_options() -> Array:
 	return ENEMY_ARCHETYPE_DATABASE.get_developer_enemy_options()
+
+
+static func get_ruan_stone_options(player) -> Array:
+	var bones := _get_developer_bones(player)
+	var equipped := _get_equipped_ruan_stone(player)
+	var runtime_ready: bool = player != null \
+		and player.has_method("get_developer_bone_count") \
+		and player.has_method("set_developer_bone_count") \
+		and player.has_method("get_ruan_stone_level") \
+		and player.has_method("set_developer_ruan_stone_level") \
+		and player.has_method("get_equipped_ruan_stone") \
+		and player.has_method("equip_developer_ruan_stone")
+	var options: Array = [
+		{
+			"id": RUAN_STONE_OPTION_PREFIX + "bones:add:100",
+			"title": "临时骨头 +100（当前 %d）" % bones,
+			"description": "仅修改本局开发者运行时骨头，不写入无尽档案。",
+			"enabled": runtime_ready
+		},
+		{
+			"id": RUAN_STONE_OPTION_PREFIX + "bones:set:0",
+			"title": "清空临时骨头",
+			"description": "将本局开发者运行时骨头设为 0，不写入无尽档案。",
+			"enabled": runtime_ready
+		}
+	]
+	for stone_id_value in RUAN_STONE_SYSTEM.STONE_IDS:
+		var stone_id := str(stone_id_value)
+		var definition := RUAN_STONE_SYSTEM.get_definition(stone_id)
+		var level := _get_ruan_stone_level(player, stone_id)
+		var title := str(definition.get("title", stone_id))
+		options.append({
+			"id": RUAN_STONE_OPTION_PREFIX + "level:add:%s:1" % stone_id,
+			"title": "%s等级 +1（当前 Lv.%d）" % [title, level],
+			"description": "仅提高本局开发者运行时等级。",
+			"enabled": runtime_ready
+		})
+		options.append({
+			"id": RUAN_STONE_OPTION_PREFIX + "level:set:%s:10" % stone_id,
+			"title": "%s设为 Lv.10" % title,
+			"description": "直接设置本局开发者运行时等级，便于检查无限升级数值。",
+			"enabled": runtime_ready
+		})
+		options.append({
+			"id": RUAN_STONE_OPTION_PREFIX + "equip:%s" % stone_id,
+			"title": "装备%s%s" % [title, "（当前）" if equipped == stone_id else ""],
+			"description": "装备本局开发者运行时石头；未拥有时不会生效。",
+			"enabled": runtime_ready and level > 0
+		})
+	return options
+
+
+static func _get_developer_bones(player) -> int:
+	return max(0, int(player.get_developer_bone_count())) if player != null and player.has_method("get_developer_bone_count") else 0
+
+
+static func _get_ruan_stone_level(player, stone_id: String) -> int:
+	return max(0, int(player.get_ruan_stone_level(stone_id))) if player != null and player.has_method("get_ruan_stone_level") else 0
+
+
+static func _get_equipped_ruan_stone(player) -> String:
+	return str(player.get_equipped_ruan_stone()) if player != null and player.has_method("get_equipped_ruan_stone") else ""
 
 
 static func get_skill_options(player) -> Array:

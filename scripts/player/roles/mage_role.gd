@@ -24,9 +24,11 @@ const ENTRY_LIGHTNING_DAMAGE_SCALE := 1.0
 const BASIC_QUICKCAST_WARNING_MULTIPLIER := 0.75
 const BASIC_FROST_SLOW_MULTIPLIER := 0.80
 const BASIC_FROST_SLOW_DURATION := 0.8
+var basic_damage_event_serial: int = 0
 
 func perform_attack(owner) -> void:
-	var contexts: Array = _build_attack_contexts(owner)
+	var basic_source_id := _create_basic_source_id(owner)
+	var contexts: Array = _build_attack_contexts(owner, basic_source_id)
 	if (contexts[0] as Array).is_empty():
 		return
 	var base_contexts: Array = _get_attack_context_subset(contexts, 0, 1)
@@ -45,21 +47,30 @@ func perform_attack(owner) -> void:
 		_schedule_basic_aftershock(owner, base_contexts)
 	owner._spawn_attack_aftershock((base_contexts[0] as Array)[0], str((base_contexts[3] as Array)[0]))
 
+func _create_basic_source_id(owner) -> String:
+	if owner != null and owner.has_method("_create_basic_attack_source_id"):
+		return str(owner._create_basic_attack_source_id("mage"))
+	basic_damage_event_serial += 1
+	return "mage_basic:%s:%s" % [owner.get_instance_id() if owner != null else 0, basic_damage_event_serial]
+
 func _build_triangle_attack_contexts(contexts: Array) -> Array:
 	var origin: Vector2 = (contexts[0] as Array)[0]
 	var base_radius: float = float((contexts[1] as Array)[0])
 	var base_damage: float = float((contexts[2] as Array)[0])
 	var role_id: String = str((contexts[3] as Array)[0])
+	var source_id: String = str((contexts[4] as Array)[0]) if contexts.size() > 4 else role_id
 	var centers: Array[Vector2] = []
 	var radii: Array[float] = []
 	var damages: Array[float] = []
 	var role_ids: Array[String] = []
+	var source_ids: Array[String] = []
 	for index in range(3):
 		centers.append(origin + Vector2.RIGHT.rotated(-PI * 0.5 + TAU * float(index) / 3.0) * 48.0)
 		radii.append(base_radius * 0.70)
 		damages.append(base_damage * 0.40)
 		role_ids.append(role_id)
-	return [centers, radii, damages, role_ids]
+		source_ids.append(source_id)
+	return [centers, radii, damages, role_ids, source_ids]
 
 func _schedule_basic_aftershock(owner, contexts: Array) -> void:
 	var delay: float = _get_basic_warning_duration(owner)
@@ -139,6 +150,7 @@ func _resolve_basic_attack_context(owner, contexts: Array, index: int, combo_sca
 	var radii: Array = contexts[1]
 	var damages: Array = contexts[2]
 	var role_ids: Array = contexts[3]
+	var source_ids: Array = contexts[4]
 	var center: Vector2 = centers[index]
 	var radius: float = float(radii[index])
 	var damage_amount: float = float(damages[index]) * max(0.0, combo_scale)
@@ -149,7 +161,7 @@ func _resolve_basic_attack_context(owner, contexts: Array, index: int, combo_sca
 		_pull_non_boss_enemies(owner, center, radius, 24.0)
 	var slow_multiplier := BASIC_FROST_SLOW_MULTIPLIER if _has_talent(owner, "mage_basic_frostburst") else 1.0
 	var slow_duration := BASIC_FROST_SLOW_DURATION if slow_multiplier < 1.0 else 0.0
-	owner._resolve_basic_mage_bombardment_damage(center, radius, damage_amount, 0.0, slow_multiplier, slow_duration, 0, 0, 0, str(role_ids[index]), true, advance_attack_chain)
+	owner._resolve_basic_mage_bombardment_damage(center, radius, damage_amount, 0.0, slow_multiplier, slow_duration, 0, 0, 0, str(source_ids[index]), true, advance_attack_chain)
 	if rift_target != null and is_instance_valid(rift_target):
 		cast_state["rift_triggered"] = true
 		var rift_center: Vector2 = rift_target.global_position
@@ -197,10 +209,12 @@ func _get_attack_context_subset(contexts: Array, start_index: int, count: int) -
 	var source_radii: Array = contexts[1]
 	var source_damages: Array = contexts[2]
 	var source_role_ids: Array = contexts[3]
+	var source_damage_ids: Array = contexts[4] if contexts.size() > 4 else source_role_ids
 	var centers: Array[Vector2] = []
 	var radii: Array[float] = []
 	var damages: Array[float] = []
 	var role_ids: Array[String] = []
+	var damage_source_ids: Array[String] = []
 	var first_index: int = max(0, start_index)
 	var end_index: int = min(source_centers.size(), first_index + max(0, count))
 	for index in range(first_index, end_index):
@@ -208,9 +222,10 @@ func _get_attack_context_subset(contexts: Array, start_index: int, count: int) -
 		radii.append(float(source_radii[index]))
 		damages.append(float(source_damages[index]))
 		role_ids.append(str(source_role_ids[index]))
-	return [centers, radii, damages, role_ids]
+		damage_source_ids.append(str(source_damage_ids[index]))
+	return [centers, radii, damages, role_ids, damage_source_ids]
 
-func _build_attack_contexts(owner) -> Array:
+func _build_attack_contexts(owner, basic_source_id: String) -> Array:
 	var role_data: Dictionary = owner._get_active_role()
 	var upgrade_data: Dictionary = owner.role_upgrade_levels[role_data["id"]]
 	var special_data: Dictionary = owner._get_role_special_state("mage")
@@ -229,6 +244,7 @@ func _build_attack_contexts(owner) -> Array:
 	var context_radii: Array[float] = []
 	var context_damages: Array[float] = []
 	var context_role_ids: Array[String] = []
+	var context_source_ids: Array[String] = []
 	var quantity_scales: Array[float] = [1.0]
 	quantity_scales.append_array(_get_skill_effect_scales(owner, "quantity_skill_count"))
 	for index in range(centers.size()):
@@ -239,7 +255,8 @@ func _build_attack_contexts(owner) -> Array:
 		context_radii.append(float(context[1]))
 		context_damages.append(float(context[2]))
 		context_role_ids.append(str(context[3]))
-	return [context_centers, context_radii, context_damages, context_role_ids]
+		context_source_ids.append(basic_source_id)
+	return [context_centers, context_radii, context_damages, context_role_ids, context_source_ids]
 
 func _build_attack_context(owner, role_data: Dictionary, upgrade_data: Dictionary, _special_data: Dictionary, bombard_center: Vector2, effect_scale: float, arcane_focus_level: float) -> Array:
 	var target_enemy: Node2D = owner._get_enemy_near_position(bombard_center, 56.0 + float(upgrade_data.get("range_bonus", 0.0)) * 0.25)
@@ -258,11 +275,11 @@ func _cast_attack_context(owner, contexts: Array, index: int, scale: float, adva
 	var centers: Array = contexts[0]
 	var radii: Array = contexts[1]
 	var damages: Array = contexts[2]
-	var role_ids: Array = contexts[3]
+	var source_ids: Array = contexts[4]
 	var bombard_center: Vector2 = centers[index]
 	var radius: float = float(radii[index])
 	var damage_amount: float = float(damages[index]) * max(0.0, scale)
-	owner._start_basic_mage_bombardment(bombard_center, radius, damage_amount, 0.0, 1.0, 0.0, 0, 0, 0, str(role_ids[index]), true, advance_attack_chain)
+	owner._start_basic_mage_bombardment(bombard_center, radius, damage_amount, 0.0, 1.0, 0.0, 0, 0, 0, str(source_ids[index]), true, advance_attack_chain)
 
 func _get_skill_effect_scales(owner, stat: String) -> Array[float]:
 	if owner != null and owner.has_method("_get_skill_blessing_effect_scales_for_skill"):

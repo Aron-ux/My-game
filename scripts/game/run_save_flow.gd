@@ -28,13 +28,15 @@ static func save_run_state(main: Node) -> void:
 		"enemies": [],
 		"enemy_projectiles": [],
 		"gems": [],
-		"heart_pickups": []
+		"heart_pickups": [],
+		"bone_pickups": []
 	}
 
 	RUN_SAVE_RUNTIME_FLOW.append_group_save_data(main, save_data, "enemies", "enemies")
 	RUN_SAVE_RUNTIME_FLOW.append_group_save_data(main, save_data, "enemy_projectiles", "enemy_projectiles")
 	RUN_SAVE_RUNTIME_FLOW.append_group_save_data(main, save_data, "gems", "exp_gems")
 	RUN_SAVE_RUNTIME_FLOW.append_group_save_data(main, save_data, "heart_pickups", "heart_pickups")
+	RUN_SAVE_RUNTIME_FLOW.append_group_save_data(main, save_data, "bone_pickups", "bone_pickups")
 
 	var payload_chars: int = int(SAVE_MANAGER.save_run(save_data))
 	PERFORMANCE_RECORDER.end_scope("save_run_ms")
@@ -48,6 +50,7 @@ static func _record_save_probe_counters(save_data: Dictionary, payload_chars: in
 	PERFORMANCE_COUNTERS.add("save_enemy_projectiles", (save_data.get("enemy_projectiles", []) as Array).size())
 	PERFORMANCE_COUNTERS.add("save_gems", (save_data.get("gems", []) as Array).size())
 	PERFORMANCE_COUNTERS.add("save_hearts", (save_data.get("heart_pickups", []) as Array).size())
+	PERFORMANCE_COUNTERS.add("save_bones", (save_data.get("bone_pickups", []) as Array).size())
 
 static func _get_runtime_or_group_nodes(main: Node, group_name: String) -> Array:
 	return RUN_SAVE_RUNTIME_FLOW.get_runtime_or_group_nodes(main, group_name)
@@ -72,6 +75,7 @@ static func load_saved_run(main: Node) -> bool:
 	_restore_enemy_projectiles(main, save_data.get("enemy_projectiles", []))
 	_restore_gems(main, save_data.get("gems", []))
 	_restore_heart_pickups(main, save_data.get("heart_pickups", []))
+	_restore_bone_pickups(main, save_data.get("bone_pickups", []))
 
 	var game_bgm = main._get_game_bgm()
 	if game_bgm != null and game_bgm.has_method("restore_playback_position"):
@@ -92,3 +96,6 @@ static func _restore_gems(main: Node, gems_data: Array) -> void:
 
 static func _restore_heart_pickups(main: Node, hearts_data: Array) -> void:
 	RUN_SAVE_RUNTIME_FLOW.restore_heart_pickups(main, hearts_data)
+
+static func _restore_bone_pickups(main: Node, bones_data: Array) -> void:
+	RUN_SAVE_RUNTIME_FLOW.restore_bone_pickups(main, bones_data)

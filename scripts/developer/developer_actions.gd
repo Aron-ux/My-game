@@ -40,6 +40,43 @@ static func grant_level_up(main: Node) -> void:
 	main.player.grant_developer_level_up()
 	main._refresh_hud()
 
+
+static func apply_ruan_stone_action(main: Node, action_id: String) -> bool:
+	if main == null or main.player == null:
+		return false
+	var parts := action_id.split(":")
+	var changed := false
+	if parts.size() == 3 and parts[0] == "bones":
+		changed = _set_developer_bones(main.player, str(parts[1]), int(parts[2]))
+	elif parts.size() == 4 and parts[0] == "level":
+		changed = _set_developer_ruan_stone_level(main.player, str(parts[1]), str(parts[2]), int(parts[3]))
+	elif parts.size() == 2 and parts[0] == "equip" and main.player.has_method("equip_developer_ruan_stone"):
+		changed = bool(main.player.equip_developer_ruan_stone(str(parts[1])))
+	if changed and main.has_method("_refresh_hud"):
+		main._refresh_hud()
+	return changed
+
+
+static func _set_developer_bones(player, operation: String, value: int) -> bool:
+	if not player.has_method("get_developer_bone_count") or not player.has_method("set_developer_bone_count"):
+		return false
+	var target := value if operation == "set" else int(player.get_developer_bone_count()) + value
+	if operation != "set" and operation != "add":
+		return false
+	player.set_developer_bone_count(max(0, target))
+	return true
+
+
+static func _set_developer_ruan_stone_level(player, operation: String, stone_id: String, value: int) -> bool:
+	if not player.has_method("get_ruan_stone_level") or not player.has_method("set_developer_ruan_stone_level"):
+		return false
+	var target := value if operation == "set" else int(player.get_ruan_stone_level(stone_id)) + value
+	if operation != "set" and operation != "add":
+		return false
+	player.set_developer_ruan_stone_level(stone_id, max(0, target))
+	return true
+
+
 static func spawn_boss(main: Node, archetype_id: String = "boss_spellcore") -> void:
 	if not ENEMY_ARCHETYPE_DATABASE.is_boss_archetype(archetype_id):
 		return

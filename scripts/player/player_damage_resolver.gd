@@ -4,6 +4,7 @@ const PERFORMANCE_COUNTERS := preload("res://scripts/game/performance_counters.g
 const PLAYER_DAMAGE_JOB_QUEUE := preload("res://scripts/player/player_damage_job_queue.gd")
 const PLAYER_DAMAGE_BATCHER := preload("res://scripts/player/player_damage_batcher.gd")
 const PLAYER_DAMAGE_SHAPE_FLOW := preload("res://scripts/player/player_damage_shape_flow.gd")
+const PLAYER_RUAN_STONE_FLOW := preload("res://scripts/player/player_ruan_stone_flow.gd")
 const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
 const ENEMY_SPATIAL_GRID := preload("res://scripts/enemies/enemy_spatial_grid.gd")
 
@@ -80,6 +81,8 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 			enemy.apply_slow_silent(slow_multiplier, slow_duration)
 		elif enemy.has_method("apply_slow"):
 			enemy.apply_slow(slow_multiplier, slow_duration)
+	if damage_amount > 0.0 and _is_basic_attack_damage_source(source_role_id):
+		PLAYER_RUAN_STONE_FLOW.apply_basic_hit(owner, enemy, final_damage, source_role_id, damage_event_id, killed)
 	return killed
 
 static func _call_enemy_take_damage(enemy: Node, amount: float, is_critical: bool) -> bool:
@@ -854,7 +857,13 @@ static func _resolve_role_id(owner, source_role_id: String) -> String:
 static func _resolve_damage_source_role_id(source_role_id: String) -> String:
 	if source_role_id == GUNNER_NO_HUNT_SOURCE_ROLE_ID:
 		return "gunner"
+	for role_id in ["swordsman", "gunner", "mage"]:
+		if source_role_id.begins_with("%s_basic:" % role_id):
+			return role_id
 	return source_role_id
+
+static func _is_basic_attack_damage_source(source_role_id: String) -> bool:
+	return source_role_id.begins_with("swordsman_basic:") or source_role_id.begins_with("gunner_basic:") or source_role_id.begins_with("mage_basic:")
 
 static func snapshot_gunner_damage_event_multiplier(owner, source_role_id: String, has_hits: bool, damage_event_id: String = "") -> float:
 	var resolved_role_id := _resolve_damage_source_role_id(source_role_id)

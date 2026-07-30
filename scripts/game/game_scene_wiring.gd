@@ -46,6 +46,7 @@ static func _setup_hud(main: Node) -> void:
 	_connect_if_present(main.hud, "developer_skill_talent_grant_requested", Callable(main, "_on_developer_skill_talent_grant_requested"))
 	_connect_if_present(main.hud, "developer_blessing_grant_requested", Callable(main, "_on_developer_blessing_grant_requested"))
 	_connect_if_present(main.hud, "developer_all_blessings_grant_requested", Callable(main, "_on_developer_all_blessings_grant_requested"))
+	_connect_if_present(main.hud, "developer_ruan_stone_action_requested", Callable(main, "_on_developer_ruan_stone_action_requested"))
 	_connect_if_present(main.hud, "developer_enemy_detail_display_toggled", Callable(main, "_on_developer_enemy_detail_display_toggled"))
 	_connect_if_present(main.hud, "developer_glutton_skill_test_requested", Callable(main, "_on_developer_glutton_skill_test_requested"))
 

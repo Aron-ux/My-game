@@ -2,6 +2,7 @@ extends RefCounted
 
 const STORY_DATA := preload("res://scripts/story_data.gd")
 const DIFFICULTY_PROFILE := preload("res://scripts/game/difficulty_profile.gd")
+const RUAN_STONE_SYSTEM := preload("res://scripts/player/ruan_stone_system.gd")
 
 const MODE_STORY := "story"
 const MODE_ENDLESS := "endless"
@@ -32,13 +33,13 @@ static func ensure_story_profile_defaults(profile: Dictionary, slot_id: int) -> 
 
 static func build_default_endless_profile(slot_id: int, difficulty: String) -> Dictionary:
 	var normalized_difficulty := DIFFICULTY_PROFILE.normalize_id(difficulty)
-	return {
+	return RUAN_STONE_SYSTEM.normalize_profile({
 		"slot_id": slot_id,
 		"mode": MODE_ENDLESS,
 		"difficulty": normalized_difficulty,
 		"created_unix": Time.get_unix_time_from_system(),
 		"last_updated_unix": Time.get_unix_time_from_system()
-	}
+	})
 
 static func ensure_endless_profile_defaults(profile: Dictionary, slot_id: int) -> Dictionary:
 	var normalized := build_default_endless_profile(slot_id, str(profile.get("difficulty", "normal")))
@@ -48,7 +49,7 @@ static func ensure_endless_profile_defaults(profile: Dictionary, slot_id: int) -
 	normalized["mode"] = MODE_ENDLESS
 	normalized["difficulty"] = DIFFICULTY_PROFILE.normalize_id(str(normalized.get("difficulty", DIFFICULTY_PROFILE.DEFAULT_DIFFICULTY_ID)))
 	normalized["last_updated_unix"] = Time.get_unix_time_from_system()
-	return normalized
+	return RUAN_STONE_SYSTEM.normalize_profile(normalized)
 
 static func _normalize_team_order(team_order: Array) -> Array:
 	var ordered_roles: Array = []

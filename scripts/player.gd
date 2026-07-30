@@ -2,6 +2,7 @@
 
 const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
 const GAME_SETTINGS := preload("res://scripts/game_settings.gd")
+const SAVE_MANAGER := preload("res://scripts/save_manager.gd")
 const PLAYER_SAVE_CODEC := preload("res://scripts/player/player_save_codec.gd")
 const PLAYER_STATE_FACTORY := preload("res://scripts/player/player_state_factory.gd")
 const PLAYER_LIFECYCLE_FLOW := preload("res://scripts/player/player_lifecycle_flow.gd")
@@ -27,6 +28,7 @@ const PLAYER_DAMAGE_RESOLVER := preload("res://scripts/player/player_damage_reso
 const PLAYER_COMBAT_RESULT_FLOW := preload("res://scripts/player/player_combat_result_flow.gd")
 const PLAYER_COMBAT_MODIFIERS := preload("res://scripts/player/player_combat_modifiers.gd")
 const PLAYER_EQUIPMENT_FLOW := preload("res://scripts/player/player_equipment_flow.gd")
+const RUAN_STONE_SYSTEM := preload("res://scripts/player/ruan_stone_system.gd")
 const PLAYER_HEALTH_VISUALS := preload("res://scripts/player/player_health_visuals.gd")
 const PLAYER_TIMER_FLOW := preload("res://scripts/player/player_timer_flow.gd")
 const PLAYER_ULTIMATE_FLOW := preload("res://scripts/player/player_ultimate_flow.gd")
@@ -265,6 +267,11 @@ var blessing_health_regen_elapsed: float = 0.0
 var elite_relics_unlocked: Dictionary = {}
 var equipment_levels: Dictionary = {}
 var role_equipment_levels: Dictionary = {}
+var ruan_bone_count: int = 0
+var ruan_stone_levels: Dictionary = {}
+var equipped_ruan_stone: String = ""
+var ruan_stone_proc_events: Dictionary = {}
+var basic_attack_event_serial: int = 0
 var equipment_damage_multiplier_bonus: float = 0.0
 var equipment_speed_bonus: float = 0.0
 var equipment_max_health_bonus: float = 0.0
@@ -2193,6 +2200,68 @@ func get_final_core_options() -> Array:
 
 func get_save_data() -> Dictionary:
 	return PLAYER_RUN_SAVE_STATE.get_save_data(self)
+
+
+func configure_ruan_stones(profile: Dictionary) -> void:
+	var normalized := RUAN_STONE_SYSTEM.normalize_profile(profile.duplicate(true))
+	ruan_bone_count = int(normalized.get("bones", 0))
+	ruan_stone_levels = (normalized.get("ruan_stone_levels", {}) as Dictionary).duplicate(true)
+	equipped_ruan_stone = RUAN_STONE_SYSTEM.get_equipped(normalized)
+	ruan_stone_proc_events.clear()
+
+
+func get_ruan_bone_count() -> int:
+	return ruan_bone_count
+
+
+func collect_ruan_bones(amount: int) -> int:
+	if amount <= 0:
+		return ruan_bone_count
+	ruan_bone_count += amount
+	if SAVE_MANAGER.is_endless_mode_active() and not DEVELOPER_MODE.should_disable_save():
+		var profile := SAVE_MANAGER.get_current_endless_profile()
+		if not profile.is_empty():
+			profile["bones"] = ruan_bone_count
+			SAVE_MANAGER.save_endless_profile(profile)
+	return ruan_bone_count
+
+
+func get_ruan_stone_level(stone_id: String) -> int:
+	return max(0, int(ruan_stone_levels.get(stone_id, 0)))
+
+
+func get_equipped_ruan_stone() -> String:
+	return equipped_ruan_stone
+
+
+func get_developer_bone_count() -> int:
+	return ruan_bone_count
+
+
+func set_developer_bone_count(value: int) -> void:
+	ruan_bone_count = max(0, value)
+
+
+func set_developer_ruan_stone_level(stone_id: String, level: int) -> void:
+	if not RUAN_STONE_SYSTEM.STONE_IDS.has(stone_id):
+		return
+	ruan_stone_levels[stone_id] = max(0, level)
+	if equipped_ruan_stone == stone_id and get_ruan_stone_level(stone_id) <= 0:
+		equipped_ruan_stone = ""
+
+
+func equip_developer_ruan_stone(stone_id: String) -> bool:
+	if stone_id != "" and (not RUAN_STONE_SYSTEM.STONE_IDS.has(stone_id) or get_ruan_stone_level(stone_id) <= 0):
+		return false
+	equipped_ruan_stone = stone_id
+	ruan_stone_proc_events.clear()
+	return true
+
+
+func _create_basic_attack_source_id(role_id: String) -> String:
+	basic_attack_event_serial += 1
+	return "%s_basic:%s:%s" % [role_id, get_instance_id(), basic_attack_event_serial]
+
 
 func apply_save_data(data: Dictionary) -> void:
 	PLAYER_RUN_SAVE_STATE.apply_save_data(self, data)

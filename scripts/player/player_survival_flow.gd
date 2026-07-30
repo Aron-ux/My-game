@@ -262,6 +262,25 @@ static func collect_nearby_gems(owner) -> void:
 	if heart_count > 0:
 		owner.set_meta(HEART_SCAN_CURSOR_KEY, (heart_cursor + heart_scan_count) % heart_count)
 
+	var bones: Array = _get_runtime_pickups_near(owner, "bone_pickups", attract_center, max(attract_radius, absorb_radius))
+	for bone_pickup in bones:
+		if not is_instance_valid(bone_pickup):
+			continue
+		var bone_distance_squared: float = attract_center.distance_squared_to(bone_pickup.global_position)
+		if bone_distance_squared <= attract_radius_squared and bone_pickup.has_method("set_attraction_target"):
+			bone_pickup.set_attraction_target(owner)
+		if bone_distance_squared <= absorb_radius_squared and bone_pickup.has_method("collect"):
+			_collect_bones(owner, int(bone_pickup.collect()))
+
+
+static func _collect_bones(owner, amount: int) -> void:
+	if amount <= 0:
+		return
+	if owner == null or not owner.has_method("collect_ruan_bones"):
+		push_error("Player survival flow requires collect_ruan_bones().")
+		return
+	owner.collect_ruan_bones(amount)
+
 static func _get_runtime_pickups(owner, group_name: String) -> Array:
 	if owner != null and owner.get_tree() != null:
 		var scene: Node = owner.get_tree().current_scene

@@ -18,6 +18,7 @@ signal developer_skill_unlock_requested(skill_id: String, tier: int)
 signal developer_skill_talent_grant_requested(talent_id: String)
 signal developer_blessing_grant_requested(blessing_id: String, tier: int)
 signal developer_all_blessings_grant_requested
+signal developer_ruan_stone_action_requested(action_id: String)
 signal developer_enemy_detail_display_toggled(enabled: bool)
 signal developer_glutton_skill_test_requested(skill_id: String)
 
@@ -50,6 +51,8 @@ var attack_mode_hint_panel: PanelContainer
 var attack_mode_hint_label: Label
 var attack_mode_hint_key_name: String = ""
 var attack_mode_hint_tween: Tween
+var ruan_stone_status_panel: PanelContainer
+var ruan_stone_status_label: Label
 var minimap_panel: PanelContainer
 var minimap_view: Control
 var minimap_bounds := Rect2(Vector2(-1600.0, -900.0), Vector2(3200.0, 1800.0))
@@ -138,6 +141,7 @@ func _ready() -> void:
 	boss_panel.add_child(boss_status_bar)
 
 	_build_skill_cooldown_panel(root)
+	_build_ruan_stone_status(root)
 	_build_attack_mode_hint(root)
 	_build_minimap(root)
 	if DEVELOPER_MODE.is_enabled():
@@ -198,6 +202,31 @@ func _build_team_panel(root: Control) -> void:
 func _build_skill_cooldown_panel(root: Control) -> void:
 	combat_skill_bar = COMBAT_SKILL_BAR.new()
 	root.add_child(combat_skill_bar)
+
+
+func _build_ruan_stone_status(root: Control) -> void:
+	ruan_stone_status_panel = PanelContainer.new()
+	ruan_stone_status_panel.name = "RuanStoneHudPanel"
+	ruan_stone_status_panel.anchor_left = 0.0
+	ruan_stone_status_panel.anchor_right = 0.0
+	ruan_stone_status_panel.offset_left = 18.0
+	ruan_stone_status_panel.offset_top = 18.0
+	ruan_stone_status_panel.offset_right = 258.0
+	ruan_stone_status_panel.offset_bottom = 78.0
+	ruan_stone_status_panel.add_theme_stylebox_override(
+		"panel",
+		SURVIVORS_THEME.panel_style(Color(0.055, 0.04, 0.018, 0.88), SURVIVORS_THEME.COLOR_BORDER_GOLD, 1, 9, 8.0)
+	)
+	root.add_child(ruan_stone_status_panel)
+
+	ruan_stone_status_label = Label.new()
+	ruan_stone_status_label.name = "RuanStoneHudLabel"
+	ruan_stone_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ruan_stone_status_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	ruan_stone_status_label.add_theme_font_size_override("font_size", 15)
+	ruan_stone_status_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_GOLD)
+	ruan_stone_status_label.text = "骨头 0\n阮石 未装备"
+	ruan_stone_status_panel.add_child(ruan_stone_status_label)
 
 func set_hud_layout(layout_key: String) -> void:
 	if combat_skill_bar != null and combat_skill_bar.has_method("set_hud_layout"):
@@ -360,6 +389,7 @@ func _build_developer_panel(root: Control) -> void:
 	developer_panel.skill_talent_grant_requested.connect(func(talent_id: String): developer_skill_talent_grant_requested.emit(talent_id))
 	developer_panel.blessing_grant_requested.connect(func(blessing_id: String, tier: int): developer_blessing_grant_requested.emit(blessing_id, tier))
 	developer_panel.all_blessings_grant_requested.connect(func(): developer_all_blessings_grant_requested.emit())
+	developer_panel.ruan_stone_action_requested.connect(func(action_id: String): developer_ruan_stone_action_requested.emit(action_id))
 	developer_panel.enemy_detail_display_toggled.connect(func(enabled: bool): developer_enemy_detail_display_toggled.emit(enabled))
 	developer_panel.glutton_skill_test_requested.connect(func(skill_id: String): developer_glutton_skill_test_requested.emit(skill_id))
 
@@ -390,6 +420,10 @@ func set_developer_skill_options(options: Array) -> void:
 func set_developer_blessing_options(options: Array) -> void:
 	if developer_panel != null and developer_panel.has_method("set_blessing_options"):
 		developer_panel.set_blessing_options(options)
+
+func set_developer_ruan_stone_options(options: Array) -> void:
+	if developer_panel != null and developer_panel.has_method("set_ruan_stone_options"):
+		developer_panel.set_ruan_stone_options(options)
 
 func update_performance_metrics(metrics: Dictionary) -> void:
 	if not performance_overlay_visible:
@@ -469,6 +503,7 @@ func update_mana(current_mana: float, max_mana: float) -> void:
 func update_stats(summary: Dictionary) -> void:
 	sync_hud_layout_from_settings()
 	_update_attack_mode_hint(bool(summary.get("auto_attack_enabled", false)))
+	_update_ruan_stone_status(summary)
 	_set_label_text(role_label, "角色 %s" % str(summary.get("role_name", "剑士")))
 	var active_role_index := int(summary.get("active_role_index", 0))
 	var team_roles: Array = summary.get("team_roles", ["剑士", "枪手", "法师"])
@@ -569,6 +604,19 @@ func update_stats(summary: Dictionary) -> void:
 				if status_buff_value is Dictionary:
 					buff_slots.append(status_buff_value)
 		combat_skill_bar.update_buff_slots(buff_slots)
+
+
+func _update_ruan_stone_status(summary: Dictionary) -> void:
+	var bone_count: int = max(0, int(summary.get("ruan_bone_count", 0)))
+	var stone_id: String = str(summary.get("equipped_ruan_stone", ""))
+	var stone_level: int = max(0, int(summary.get("equipped_ruan_stone_level", 0)))
+	var stone_title: String = str(summary.get("equipped_ruan_stone_title", ""))
+	if stone_id == "" or stone_level <= 0:
+		stone_title = "未装备"
+		stone_level = 0
+	var stone_text: String = stone_title if stone_level <= 0 else "%s Lv.%d" % [stone_title, stone_level]
+	_set_label_text(ruan_stone_status_label, "骨头 %d\n阮石 %s" % [bone_count, stone_text])
+
 
 func update_time(seconds_elapsed: float) -> void:
 	var total_seconds: int = int(floor(seconds_elapsed))

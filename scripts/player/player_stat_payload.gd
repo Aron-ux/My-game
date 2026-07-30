@@ -3,6 +3,7 @@ extends RefCounted
 const PLAYER_ROLE_PRESENTER := preload("res://scripts/player/player_role_presenter.gd")
 const PLAYER_SWITCH_FLOW := preload("res://scripts/player/player_switch_flow.gd")
 const PLAYER_ULTIMATE_FLOW := preload("res://scripts/player/player_ultimate_flow.gd")
+const RUAN_STONE_SYSTEM := preload("res://scripts/player/ruan_stone_system.gd")
 const PERFORMANCE_RECORDER := preload("res://scripts/game/performance_recorder.gd")
 
 static func build_from_player(owner) -> Dictionary:
@@ -14,6 +15,7 @@ static func build_from_player(owner) -> Dictionary:
 	var ultimate_display: Dictionary = _build_ultimate_display(owner, role_id)
 	var buff_status_slots: Array = _build_buff_status_slots(owner)
 	var team_role_statuses: Array = _build_team_role_statuses(owner, role_id, true)
+	var ruan_stone_summary := _build_ruan_stone_summary(owner)
 	return build_stat_summary({
 		"level": owner.level,
 		"move_speed": owner._get_current_move_speed(),
@@ -57,7 +59,11 @@ static func build_from_player(owner) -> Dictionary:
 		"entry_blessing_role_id": owner.entry_blessing_role_id,
 		"skill_cooldown_slots": skill_cooldown_slots,
 		"team_role_statuses": team_role_statuses,
-		"buff_status_slots": buff_status_slots
+		"buff_status_slots": buff_status_slots,
+		"ruan_bone_count": ruan_stone_summary["ruan_bone_count"],
+		"equipped_ruan_stone": ruan_stone_summary["equipped_ruan_stone"],
+		"equipped_ruan_stone_level": ruan_stone_summary["equipped_ruan_stone_level"],
+		"equipped_ruan_stone_title": ruan_stone_summary["equipped_ruan_stone_title"]
 	})
 
 static func build_frame_hud_from_player(owner) -> Dictionary:
@@ -74,6 +80,7 @@ static func build_frame_hud_from_player(owner) -> Dictionary:
 	PERFORMANCE_RECORDER.begin_scope("hud_payload_misc_ms")
 	var buff_status_slots: Array = _build_buff_status_slots(owner)
 	var team_role_statuses: Array = _build_team_role_statuses(owner, role_id, false)
+	var ruan_stone_summary := _build_ruan_stone_summary(owner)
 	var summary: Dictionary = {
 		"current_mana": owner._get_role_mana(role_id),
 		"max_mana": owner.max_mana,
@@ -96,7 +103,11 @@ static func build_frame_hud_from_player(owner) -> Dictionary:
 		"entry_blessing_remaining": owner.entry_blessing_remaining,
 		"skill_cooldown_slots": cooldown_slots,
 		"team_role_statuses": team_role_statuses,
-		"buff_status_slots": buff_status_slots
+		"buff_status_slots": buff_status_slots,
+		"ruan_bone_count": ruan_stone_summary["ruan_bone_count"],
+		"equipped_ruan_stone": ruan_stone_summary["equipped_ruan_stone"],
+		"equipped_ruan_stone_level": ruan_stone_summary["equipped_ruan_stone_level"],
+		"equipped_ruan_stone_title": ruan_stone_summary["equipped_ruan_stone_title"]
 	}
 	PERFORMANCE_RECORDER.end_scope("hud_payload_misc_ms")
 	return summary
@@ -123,6 +134,18 @@ static func _build_switch_energy_by_role(owner) -> Dictionary:
 			continue
 		energy_by_role[role_id] = owner._get_role_switch_energy(role_id)
 	return energy_by_role
+
+
+static func _build_ruan_stone_summary(owner) -> Dictionary:
+	var stone_id := str(owner.get_equipped_ruan_stone()) if owner != null and owner.has_method("get_equipped_ruan_stone") else ""
+	var level := int(owner.get_ruan_stone_level(stone_id)) if stone_id != "" and owner.has_method("get_ruan_stone_level") else 0
+	var definition := RUAN_STONE_SYSTEM.get_definition(stone_id)
+	return {
+		"ruan_bone_count": max(0, int(owner.get_ruan_bone_count())) if owner != null and owner.has_method("get_ruan_bone_count") else 0,
+		"equipped_ruan_stone": stone_id if level > 0 else "",
+		"equipped_ruan_stone_level": max(0, level),
+		"equipped_ruan_stone_title": str(definition.get("title", "")) if level > 0 else ""
+	}
 
 static func _build_team_role_statuses(owner, active_role_id: String, include_descriptions: bool) -> Array:
 	var statuses: Array = []
@@ -250,5 +273,9 @@ static func build_stat_summary(context: Dictionary) -> Dictionary:
 		"entry_blessing_role_id": context.get("entry_blessing_role_id", ""),
 		"skill_cooldown_slots": context.get("skill_cooldown_slots", []),
 		"team_role_statuses": context.get("team_role_statuses", []),
-		"buff_status_slots": context.get("buff_status_slots", [])
+		"buff_status_slots": context.get("buff_status_slots", []),
+		"ruan_bone_count": context.get("ruan_bone_count", 0),
+		"equipped_ruan_stone": context.get("equipped_ruan_stone", ""),
+		"equipped_ruan_stone_level": context.get("equipped_ruan_stone_level", 0),
+		"equipped_ruan_stone_title": context.get("equipped_ruan_stone_title", "")
 	}

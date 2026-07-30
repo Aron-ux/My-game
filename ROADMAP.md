@@ -27,10 +27,12 @@ This roadmap tracks project direction, not a promise of release dates.
 - Rebuild elite and Boss reward identity through the existing reward modules.
 - Define whether a Boss talent reward targets one role, lets several roles choose separately, or is a true team reward.
 - Improve Boss pressure, readability, and phase identity after the current difficulty evidence is collected.
+- Balance the implemented endless meta loop: normal/elite/Boss bone income, linear Ruan-stone costs, five-stone pick rates, and long-session proc performance.
 
 ## Later: minimum meta loop and main story
 
-- Build one complete meta loop before expanding the economy: one persistent resource, one repeatable Ruan Gou task, and one clear blacksmith sink.
+- The first complete meta loop is implemented: persistent bones feed Ruan Gou's five infinitely upgradable stones and one team-wide active slot.
+- Give the blacksmith one clear sink only after bone income and Ruan-stone balance are stable.
 - Keep the story on a fixed route with entry/Boss dialogue and replayable cleared maps; do not add room-selection structure.
 - Add quest-style equipment or limited consumables only after equipment ownership and the first meta loop are stable.
 - Defer complex camp gambling/buff facilities, large RPG equipment-slot trees, and dedicated crafting catalogs.

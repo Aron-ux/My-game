@@ -442,6 +442,9 @@ func _drop_experience_gem() -> void:
 func _maybe_drop_heart() -> void:
 	ENEMY_DROPS.maybe_drop_heart(self)
 
+func _maybe_drop_bones() -> void:
+	ENEMY_DROPS.maybe_drop_bones(self)
+
 func absorb_exp_gem(gem) -> int:
 	return ENEMY_GLUTTON_BEHAVIOR.absorb_exp_gem(self, gem)
 

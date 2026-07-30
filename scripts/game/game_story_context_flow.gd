@@ -18,10 +18,13 @@ static func load_story_stage_context(main: Node) -> void:
 	main.difficulty_id = str(main.difficulty_profile.get("id", DIFFICULTY_PROFILE.DEFAULT_DIFFICULTY_ID))
 
 static func apply_story_loadout(main: Node) -> void:
-	if not main.story_mode_active or main.player == null or not main.player.has_method("configure_story_loadout"):
+	if main.player == null:
 		return
-	var profile := SAVE_MANAGER.load_story_profile()
-	main.player.configure_story_loadout(profile.get("team_order", ["swordsman", "gunner", "mage"]))
+	if main.endless_mode_active and main.player.has_method("configure_ruan_stones"):
+		main.player.configure_ruan_stones(SAVE_MANAGER.get_current_endless_profile())
+	if main.story_mode_active and main.player.has_method("configure_story_loadout"):
+		var profile := SAVE_MANAGER.load_story_profile()
+		main.player.configure_story_loadout(profile.get("team_order", ["swordsman", "gunner", "mage"]))
 
 static func get_effective_boss_spawn_time(main: Node) -> float:
 	return ENEMY_DIRECTOR.get_effective_boss_spawn_time(
