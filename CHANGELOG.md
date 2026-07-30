@@ -72,6 +72,7 @@
 
 ### Added
 
+- Added the complete implementation specification for all 18 three-stage skill-talent trees: 108 stable nodes, Lv.3/Lv.6/Lv.9 triggers, per-choice naming changes, ordinary-upgrade inheritance, save/UI contracts, and path validation boundaries.
 - Added a character-panel UI smoke covering the six-skill selector, fixed left/right talent tree and path state, concrete build stacks, mutation upgrade explanations, blessing I–IV display, role preview isolation, empty states, scrolling, and supported viewport bounds.
 - Added 36 mutually exclusive Lv.3 skill-build talents across the swordsman, gunner, and mage, with one derived build level for each role trait, entry, basic attack, two active skills, and ultimate.
 - Added a serial reward step for skill-talent choices after normal four-card/select-two upgrades and blessing binding, including continue-save restoration without duplicating pending level-ups.

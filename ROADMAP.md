@@ -13,13 +13,14 @@ This roadmap tracks project direction, not a promise of release dates.
 
 ## Next: three-tier skill talents
 
+- Implement the locked Lv.3/Lv.6/Lv.9, naming, upgrade-inheritance, and 108-node content specification in `docs/14_三角色完整三层技能天赋设计.md`.
 - Replace the current per-skill single talent selection with three fixed binary tiers; paths such as `221` are composed from six independent options, not recursive branch-specific subtrees.
 - Keep talent thresholds derived from the existing skill-build level and preserve the ordinary four-card/select-two reward.
 - Migrate old saves from one stable `talent_id` to ordered tier selections without losing the current 36 talents.
 - Update HUD, character panel, upgrade copy, developer tools, and continue-save restoration for tiered selections.
-- Pilot one role first, then expand to all three roles after cadence, save, UI, and local path tests pass.
-- Before designing the gunner's second- and third-tier talents, decide whether it stays without periodic background attacks or receives a role-specific off-field behavior.
-- Detailed scope and acceptance criteria live in `docs/13_会议目标与三层技能天赋规划.md`.
+- Pilot the swordsman first, then expand to all three roles after cadence, save, UI, and local path tests pass.
+- Keep the gunner without periodic background attacks; its later talents reinforce entry and on-field damage instead.
+- Planning and acceptance criteria live in `docs/13_会议目标与三层技能天赋规划.md`; the complete content specification lives in `docs/14_三角色完整三层技能天赋设计.md`.
 
 ## Next: rewards
 
