@@ -1494,7 +1494,7 @@ static func _collect_recipe_usage_lines(blessing_id: String, tier: int, recipes:
 		var requirement_text := _get_recipe_blessing_requirement_text(recipe, blessing_id, tier)
 		if requirement_text == "":
 			continue
-		lines.append("%s：%s（需要 %s）" % [action_label, str(SKILL_TITLES.get(skill_id, skill_id)), requirement_text])
+		lines.append("%s：%s（需要 %s）" % [action_label, get_skill_title(skill_id), requirement_text])
 	return lines
 
 static func _get_recipe_blessing_requirement_text(recipe: Dictionary, blessing_id: String, tier: int) -> String:
@@ -1525,4 +1525,4 @@ static func _get_recipe_blessing_requirement_text(recipe: Dictionary, blessing_i
 
 static func _get_blessing_tier_label(blessing_id: String, tier: int) -> String:
 	var suffix: String = "II" if tier >= 2 else "I"
-	return "%s%s" % [blessing_id, suffix]
+	return "%s %s" % [_get_blessing_title(blessing_id), suffix]

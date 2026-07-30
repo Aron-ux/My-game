@@ -155,6 +155,26 @@ static func get_count(owner, role_id: String, build_id: String) -> int:
 	return max(0, int(levels.get(build_id, 0)))
 
 
+static func get_progress_build_entries(owner, role_id: String, progress_id: String) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for definition_value in BUILD_DEFINITIONS.get(role_id, []):
+		if definition_value is not Dictionary:
+			continue
+		var definition: Dictionary = definition_value
+		if str(definition.get("skill_progress_id", "")) != progress_id or str(definition.get("unlock_skill", "")) != "":
+			continue
+		var build_id := str(definition.get("id", ""))
+		var count := get_count(owner, role_id, build_id)
+		if build_id == "" or count <= 0:
+			continue
+		var entry := definition.duplicate(true)
+		entry["build_id"] = build_id
+		entry["role_id"] = role_id
+		entry["count"] = count
+		result.append(entry)
+	return result
+
+
 static func get_basic_attack_damage_multiplier(owner, role_id: String) -> float:
 	match role_id:
 		"swordsman":

@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Changed
+- Removed character-panel interaction stalls by keeping role cards, skill selectors, talent-tree controls, and blessing rows alive and updating them in place; the local 1280×720 headless probe reduced synchronous skill-hover handling from roughly 486ms to 4ms on average, panel opening from roughly 453ms to 18ms, and role preview switching from roughly 445ms to 19ms.
+- Rebuilt the character panel's skill-build tab as a six-skill selector plus one focused three-stage left/right talent tree: current single-tier choices show `1--` / `2--`, unavailable future stages stay explicitly locked, and repeatable build stacks plus post-mutation upgrade behavior remain separate below the tree; the blessing ledger remains grouped by team-shared role blessings and skill-type effects.
+- Documented the 2026-07-29 meeting goals and the confirmed but unimplemented three-tier fixed binary skill-talent direction, including `221` path semantics, the current single-tier gap, migration/UI/testing boundaries, deferred ideas, and a prioritized roadmap; corrected current documentation to note that periodic background attacks are globally disabled and legacy final-core applicators are not offered by the current final-Boss menu.
 - Skill talents now rename their live skill, ultimate, character-panel, and upgrade-card displays to `base skill·talent`; subsequent build cards keep stable IDs while explaining and applying their bonuses to the transformed form. Swordsman trait builds now also extend Blood Battle duration and improve Last Guard rescue health/invulnerability.
 - Removed the retired `I x3 -> II x1` blessing composition flow from the blessing system and character panel.
 - Fixed leaving the movement-tutorial role introduction so input is marked handled before the scene switch, avoiding a null viewport script error.
@@ -69,6 +72,7 @@
 
 ### Added
 
+- Added a character-panel UI smoke covering the six-skill selector, fixed left/right talent tree and path state, concrete build stacks, mutation upgrade explanations, blessing I–IV display, role preview isolation, empty states, scrolling, and supported viewport bounds.
 - Added 36 mutually exclusive Lv.3 skill-build talents across the swordsman, gunner, and mage, with one derived build level for each role trait, entry, basic attack, two active skills, and ultimate.
 - Added a serial reward step for skill-talent choices after normal four-card/select-two upgrades and blessing binding, including continue-save restoration without duplicating pending level-ups.
 - Added developer-mode controls to select, replace, or clear skill talents; direct selection automatically unlocks and raises the corresponding skill build to Lv.3 for testing.
