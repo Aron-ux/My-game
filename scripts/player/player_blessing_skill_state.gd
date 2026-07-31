@@ -581,7 +581,7 @@ static func get_skill_graph_entries(owner, role_context: String = "") -> Array[D
 				target_tier = current_tier
 		entries.append({
 			"skill_id": skill_id,
-			"title": get_skill_title(skill_id),
+			"title": _get_skill_title_for_owner(owner, skill_id),
 			"role_id": get_skill_role_id(skill_id),
 			"current_tier": current_tier,
 			"target_tier": target_tier,
@@ -591,6 +591,14 @@ static func get_skill_graph_entries(owner, role_context: String = "") -> Array[D
 			"enhancements": _build_skill_enhancement_progress(owner, skill_id)
 		})
 	return entries
+
+
+static func _get_skill_title_for_owner(owner, skill_id: String) -> String:
+	if owner != null and owner.has_method("get_skill_talent_display_for_skill_id"):
+		var display: Dictionary = owner.get_skill_talent_display_for_skill_id(skill_id)
+		if str(display.get("name", "")) != "":
+			return str(display.get("name"))
+	return get_skill_title(skill_id)
 
 static func get_skill_graph_text(owner, role_id_filter: String = "") -> String:
 	var lines: Array[String] = []
@@ -1486,7 +1494,7 @@ static func _collect_recipe_usage_lines(blessing_id: String, tier: int, recipes:
 		var requirement_text := _get_recipe_blessing_requirement_text(recipe, blessing_id, tier)
 		if requirement_text == "":
 			continue
-		lines.append("%s：%s（需要 %s）" % [action_label, str(SKILL_TITLES.get(skill_id, skill_id)), requirement_text])
+		lines.append("%s：%s（需要 %s）" % [action_label, get_skill_title(skill_id), requirement_text])
 	return lines
 
 static func _get_recipe_blessing_requirement_text(recipe: Dictionary, blessing_id: String, tier: int) -> String:
@@ -1517,4 +1525,4 @@ static func _get_recipe_blessing_requirement_text(recipe: Dictionary, blessing_i
 
 static func _get_blessing_tier_label(blessing_id: String, tier: int) -> String:
 	var suffix: String = "II" if tier >= 2 else "I"
-	return "%s%s" % [blessing_id, suffix]
+	return "%s %s" % [_get_blessing_title(blessing_id), suffix]

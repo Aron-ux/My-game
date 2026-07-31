@@ -43,8 +43,8 @@
 	},
 	{
 	  "id": "ACH_ENDLESS_BOSS_3",
-	  "title": "无尽回响",
-	  "description": "在无尽模式中击败 3 个 Boss。",
+	  "title": "无尽进阶",
+	  "description": "通关无尽难度 N3。",
 	  "hidden": false,
 	  "goal": 3,
 	  "steam_api_name": "ACH_ENDLESS_BOSS_3"

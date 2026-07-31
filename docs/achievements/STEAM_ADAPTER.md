@@ -80,7 +80,7 @@ Steam.storeStats()
 - `ACH_FIRST_BOSS`：击败第一个 Boss
 - `ACH_SURVIVE_5_MIN`：单局生存 5 分钟
 - `ACH_REACH_LEVEL_5`：单局达到 5 级
-- `ACH_ENDLESS_BOSS_3`：无尽模式击败 3 个 Boss
+- `ACH_ENDLESS_BOSS_3`：通关无尽难度 N3
 
 ## 游戏内显示效果
 

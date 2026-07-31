@@ -48,11 +48,20 @@ const SHRAPNEL_VISUAL_MAX_SCALE := 0.62
 const SHRAPNEL_ATLAS_REGION := Rect2(320.0, 320.0, 320.0, 240.0)
 const MAX_CATCH_UP_TICKS := 5
 const SHRAPNEL_VISUAL_POOL_LIMIT := 32
+const TALENT_IDS := [
+	"gunner_shrapnel_mobile",
+	"gunner_shrapnel_delayed",
+	"gunner_shrapnel_quick_throw",
+	"gunner_shrapnel_rend",
+	"gunner_shrapnel_afterfield",
+	"gunner_shrapnel_snare"
+]
 
 var cooldown_remaining: float = 0.0
 var active_fields: Array[Dictionary] = []
 var cached_shrapnel_frames: SpriteFrames
 var shrapnel_visual_pool: Array[Node2D] = []
+var pending_saved_fields: Array[Dictionary] = []
 
 
 func update(owner, delta: float) -> void:
@@ -62,6 +71,9 @@ func update(owner, delta: float) -> void:
 		return
 	if owner == null or not is_instance_valid(owner):
 		stop()
+		return
+	if bool(owner.get("is_dead")):
+		stop(owner)
 		return
 	if str(owner._get_active_role().get("id", "")) != "gunner":
 		stop(owner)
@@ -88,10 +100,27 @@ func try_trigger(owner) -> bool:
 	active_fields.clear()
 	var duration: float = _get_duration(owner)
 	var extra_field_count: int = _get_trick_extra_field_count(owner)
-	var centers: Array = _get_field_centers(owner, DEFAULT_FIELD_COUNT + extra_field_count)
-	for center_value in centers:
+	var mobile: bool = _has_talent(owner, "gunner_shrapnel_mobile")
+	var base_field_count: int = 1 if mobile else DEFAULT_FIELD_COUNT
+	var centers: Array = _get_field_centers(owner, base_field_count + extra_field_count)
+	if mobile and not centers.is_empty():
+		centers[0] = owner.global_position
+	for index in range(centers.size()):
+		var center_value: Variant = centers[index]
 		var center: Vector2 = center_value if center_value is Vector2 else owner.global_position
-		_create_field(owner, center, 1.0, true, duration)
+		var is_primary: bool = index < base_field_count
+		_create_field(
+			owner,
+			center,
+			1.5 if mobile and is_primary else 1.0,
+			true,
+			duration,
+			mobile and is_primary,
+			is_primary and _has_talent(owner, "gunner_shrapnel_delayed"),
+			1.2 if mobile and is_primary else 1.0,
+			"",
+			is_primary
+		)
 	owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -66.0), "\u6563\u5f39", Color(1.0, 0.62, 0.32, 1.0))
 	return true
 
@@ -147,6 +176,8 @@ func _is_field_center_far_enough(existing_centers: Array, candidate: Vector2) ->
 	return true
 func stop(owner = null) -> void:
 	for field_data in active_fields:
+		if owner != null:
+			_apply_snare_to_tracked_enemies(owner, field_data)
 		_free_field(field_data)
 	active_fields.clear()
 
@@ -163,12 +194,61 @@ func get_cooldown_slot(owner = null) -> Dictionary:
 
 
 func get_save_data() -> Dictionary:
-	return {"cooldown_remaining": cooldown_remaining}
+	var fields: Array[Dictionary] = []
+	for field_data in active_fields:
+		fields.append(_serialize_field(field_data))
+	return {
+		"cooldown_remaining": cooldown_remaining,
+		"fields": fields
+	}
 
 
 func apply_save_data(data: Dictionary) -> void:
 	cooldown_remaining = clamp(float(data.get("cooldown_remaining", 0.0)), 0.0, COOLDOWN)
 	stop()
+	pending_saved_fields.clear()
+	var saved_fields: Variant = data.get("fields", [])
+	if saved_fields is Array:
+		for saved_data in saved_fields:
+			if saved_data is Dictionary:
+				pending_saved_fields.append((saved_data as Dictionary).duplicate(true))
+
+
+func restore_effect_if_active(owner) -> void:
+	for saved_data in pending_saved_fields:
+		var talents := _normalize_talent_ids(saved_data.get("talent_ids", []))
+		var previous_count := active_fields.size()
+		_create_field(
+			owner,
+			_decode_vector2(saved_data.get("center", []), owner.global_position),
+			max(0.05, float(saved_data.get("effect_scale", 1.0))),
+			bool(saved_data.get("spawn_reprise_on_end", false)),
+			max(0.001, float(saved_data.get("remaining", 0.001))),
+			bool(saved_data.get("follows_owner", false)),
+			bool(saved_data.get("delayed_explosion", false)),
+			1.0,
+			str(saved_data.get("field_kind", "")),
+			bool(saved_data.get("is_primary_cast", false)),
+			talents,
+			max(0.0, float(saved_data.get("damage", 0.0))),
+			clamp(float(saved_data.get("slow_multiplier", 1.0)), 0.0, 1.0),
+			true
+		)
+		if active_fields.size() <= previous_count:
+			continue
+		var restored: Dictionary = active_fields.back()
+		restored["remaining"] = max(0.0, float(saved_data.get("remaining", restored.get("remaining", 0.0))))
+		restored["tick_remaining"] = max(0.0, float(saved_data.get("tick_remaining", 0.0)))
+		restored["tick_interval"] = max(0.01, float(saved_data.get("tick_interval", restored.get("tick_interval", TIER_ONE_TICK_INTERVAL))))
+		restored["visual_remaining"] = max(0.0, float(saved_data.get("visual_remaining", 0.0)))
+		restored["radius"] = max(1.0, float(saved_data.get("radius", restored.get("radius", BASE_RADIUS))))
+		restored["reprise_scales"] = (saved_data.get("reprise_scales", []) as Array).duplicate()
+		var root := restored.get("root", null) as Node2D
+		var circle := root.get_node_or_null("FieldCircle") as Sprite2D if root != null else null
+		if circle != null:
+			circle.scale = Vector2.ONE * (float(restored["radius"]) * 2.0 / FIELD_CIRCLE_VISIBLE_DIAMETER * FIELD_CIRCLE_VISUAL_SCALE)
+		active_fields[active_fields.size() - 1] = restored
+	pending_saved_fields.clear()
 
 
 func _update_fields(owner, delta: float) -> void:
@@ -178,14 +258,24 @@ func _update_fields(owner, delta: float) -> void:
 		var remaining: float = max(0.0, float(field_data.get("remaining", 0.0)) - delta)
 		field_data["remaining"] = remaining
 		if remaining <= 0.0:
+			if bool(field_data.get("delayed_explosion", false)):
+				hits += _explode_field(owner, field_data)
 			_spawn_reprise_fields_on_end(owner, field_data)
+			_spawn_afterfield_on_end(owner, field_data)
+			_apply_snare_to_tracked_enemies(owner, field_data)
 			_free_field(field_data)
 			active_fields.remove_at(index)
 			continue
+		if bool(field_data.get("follows_owner", false)):
+			field_data["center"] = owner.global_position
+			var root: Node2D = field_data.get("root", null) as Node2D
+			if root != null and is_instance_valid(root):
+				root.global_position = owner.global_position
+		_update_snare_tracked_enemies(owner, field_data)
 		field_data["tick_remaining"] = float(field_data.get("tick_remaining", 0.0)) - delta
 		var catch_up_ticks: int = 0
 		while float(field_data.get("tick_remaining", 0.0)) <= 0.0 and catch_up_ticks < MAX_CATCH_UP_TICKS:
-			field_data["tick_remaining"] = float(field_data.get("tick_remaining", 0.0)) + _get_tick_interval(owner)
+			field_data["tick_remaining"] = float(field_data.get("tick_remaining", 0.0)) + float(field_data.get("tick_interval", _get_tick_interval(owner)))
 			hits += _damage_field(owner, field_data)
 			catch_up_ticks += 1
 		field_data["visual_remaining"] = float(field_data.get("visual_remaining", 0.0)) - delta
@@ -196,12 +286,13 @@ func _update_fields(owner, delta: float) -> void:
 		owner._register_attack_result("gunner", hits, false)
 
 
-func _create_field(owner, center: Vector2, effect_scale: float = 1.0, spawn_reprise_on_end: bool = false, duration_override: float = -1.0) -> void:
+func _create_field(owner, center: Vector2, effect_scale: float = 1.0, spawn_reprise_on_end: bool = false, duration_override: float = -1.0, follows_owner: bool = false, delayed_explosion: bool = false, radius_scale: float = 1.0, field_kind: String = "", is_primary_cast: bool = false, talent_ids: Array[String] = [], damage_override: float = -1.0, slow_override: float = -1.0, talent_snapshot_valid: bool = false) -> void:
 	var current_scene: Node = owner.get_tree().current_scene
 	if current_scene == null:
 		return
-	var radius: float = _get_radius(owner)
+	var radius: float = _get_radius(owner) * max(0.05, radius_scale)
 	var safe_scale: float = max(0.05, effect_scale)
+	var snapshot_talents := talent_ids if talent_snapshot_valid else _capture_talents(owner)
 	var root: Node2D = null
 	root = Node2D.new()
 	root.name = "GunnerShrapnelField"
@@ -224,12 +315,21 @@ func _create_field(owner, center: Vector2, effect_scale: float = 1.0, spawn_repr
 		"center": center,
 		"remaining": duration_override if duration_override > 0.0 else _get_duration(owner),
 		"tick_remaining": 0.0,
+		"tick_interval": 0.5 if field_kind == "afterfield" else _get_tick_interval(owner),
 		"visual_remaining": 0.0,
 		"visuals": [],
 		"radius": radius,
 		"effect_scale": safe_scale,
+		"damage": damage_override if damage_override >= 0.0 else _get_damage(owner),
+		"slow_multiplier": slow_override if slow_override >= 0.0 else _get_slow_multiplier(owner),
+		"talent_ids": snapshot_talents.duplicate(),
+		"reprise_scales": _get_reprise_field_scales(owner).duplicate(),
 		"spawn_reprise_on_end": spawn_reprise_on_end,
-		"is_primary_cast": spawn_reprise_on_end
+		"is_primary_cast": is_primary_cast,
+		"follows_owner": follows_owner,
+		"delayed_explosion": delayed_explosion,
+		"field_kind": field_kind,
+		"snare_inside": {}
 	}
 	active_fields.append(field_data)
 
@@ -238,15 +338,135 @@ func _damage_field(owner, field_data: Dictionary) -> int:
 	var center: Vector2 = field_data.get("center", owner.global_position)
 	var radius: float = float(field_data.get("radius", _get_radius(owner)))
 	var effect_scale: float = max(0.0, float(field_data.get("effect_scale", 1.0)))
-	return owner._damage_enemies_in_radius(center, radius, _get_damage(owner) * effect_scale, 0.0, _get_slow_multiplier(owner), 1.2, SHRAPNEL_DAMAGE_SOURCE_ROLE_ID)
+	var vulnerability_bonus := 0.05 if _field_has_talent(owner, field_data, "gunner_shrapnel_rend") else 0.0
+	var slow_multiplier := 0.8 if str(field_data.get("field_kind", "")) == "afterfield" else float(field_data.get("slow_multiplier", 1.0))
+	var slow_duration := 1.2
+	return owner._damage_enemies_in_radius(center, radius, float(field_data.get("damage", 0.0)) * effect_scale, vulnerability_bonus, slow_multiplier, slow_duration, SHRAPNEL_DAMAGE_SOURCE_ROLE_ID)
+
+
+func _explode_field(owner, field_data: Dictionary) -> int:
+	var center: Vector2 = field_data.get("center", owner.global_position)
+	var radius: float = float(field_data.get("radius", _get_radius(owner)))
+	var effect_scale: float = max(0.0, float(field_data.get("effect_scale", 1.0)))
+	owner._spawn_burst_effect(center, radius, Color(1.0, 0.5, 0.24, 0.22), 0.18)
+	return owner._damage_enemies_in_radius(center, radius, float(field_data.get("damage", 0.0)) * effect_scale * 2.5, 0.0, float(field_data.get("slow_multiplier", 1.0)), 1.2, SHRAPNEL_DAMAGE_SOURCE_ROLE_ID)
 
 
 func _spawn_reprise_fields_on_end(owner, field_data: Dictionary) -> void:
 	if not bool(field_data.get("spawn_reprise_on_end", false)):
 		return
-	for combo_scale in _get_reprise_field_scales(owner):
+	for combo_scale in field_data.get("reprise_scales", []):
 		var center: Vector2 = field_data.get("center", owner.global_position)
-		_create_field(owner, center, float(combo_scale), false, REPRISE_FIELD_DURATION)
+		_create_field(owner, center, float(combo_scale), false, REPRISE_FIELD_DURATION, false, false, 1.0, "", false, _normalize_talent_ids(field_data.get("talent_ids", [])), float(field_data.get("damage", 0.0)), float(field_data.get("slow_multiplier", 1.0)), true)
+
+func _spawn_afterfield_on_end(owner, field_data: Dictionary) -> void:
+	if not _field_has_talent(owner, field_data, "gunner_shrapnel_afterfield"):
+		return
+	if not bool(field_data.get("is_primary_cast", false)) or str(field_data.get("field_kind", "")) == "afterfield":
+		return
+	var center: Vector2 = field_data.get("center", owner.global_position)
+	var effect_scale: float = max(0.0, float(field_data.get("effect_scale", 1.0))) * 0.30
+	_create_field(owner, center, effect_scale, false, 1.0, false, false, 0.6, "afterfield", false, _normalize_talent_ids(field_data.get("talent_ids", [])), float(field_data.get("damage", 0.0)), 0.8, true)
+
+func _update_snare_tracked_enemies(owner, field_data: Dictionary) -> void:
+	if not _field_has_talent(owner, field_data, "gunner_shrapnel_snare"):
+		return
+	var center: Vector2 = field_data.get("center", owner.global_position)
+	var radius := float(field_data.get("radius", 0.0))
+	var previous: Dictionary = field_data.get("snare_inside", {})
+	var current: Dictionary = {}
+	var candidates: Array = owner._get_candidate_enemies_for_circle(center, radius) if owner.has_method("_get_candidate_enemies_for_circle") else owner._get_live_enemies()
+	for enemy_value in candidates:
+		var enemy := enemy_value as Node2D
+		if enemy == null or not is_instance_valid(enemy) or center.distance_squared_to(enemy.global_position) > radius * radius:
+			continue
+		current[enemy.get_instance_id()] = weakref(enemy)
+	for enemy_id in previous:
+		if current.has(enemy_id):
+			continue
+		var enemy_ref: WeakRef = previous[enemy_id] as WeakRef
+		_apply_snare_tail(owner, enemy_ref.get_ref() as Node if enemy_ref != null else null)
+	field_data["snare_inside"] = current
+
+func _apply_snare_to_tracked_enemies(owner, field_data: Dictionary) -> void:
+	if not _field_has_talent(owner, field_data, "gunner_shrapnel_snare"):
+		return
+	var tracked: Dictionary = field_data.get("snare_inside", {})
+	for enemy_ref_value in tracked.values():
+		var enemy_ref := enemy_ref_value as WeakRef
+		_apply_snare_tail(owner, enemy_ref.get_ref() as Node if enemy_ref != null else null)
+	field_data["snare_inside"] = {}
+
+func _apply_snare_tail(owner, enemy: Node) -> void:
+	if enemy == null or not is_instance_valid(enemy):
+		return
+	var delay: float = max(0.0, float(enemy.get("slow_timer")) if enemy.get("slow_timer") != null else 0.0)
+	var apply_tail := func() -> void:
+		if is_instance_valid(enemy) and enemy.has_method("apply_slow"):
+			enemy.apply_slow(0.75, 0.65)
+	if delay <= 0.0 or not owner.has_method("_schedule_repeating_sequence"):
+		apply_tail.call()
+		return
+	owner._schedule_repeating_sequence(delay, 1, func(_index: int) -> void:
+		apply_tail.call()
+	, delay)
+
+
+func _has_talent(owner, talent_id: String) -> bool:
+	return owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id))
+
+
+func _field_has_talent(owner, field_data: Dictionary, talent_id: String) -> bool:
+	var talent_ids: Variant = field_data.get("talent_ids", null)
+	return (talent_ids as Array).has(talent_id) if talent_ids is Array else _has_talent(owner, talent_id)
+
+
+func _capture_talents(owner) -> Array[String]:
+	var result: Array[String] = []
+	for talent_id in TALENT_IDS:
+		if _has_talent(owner, talent_id):
+			result.append(talent_id)
+	return result
+
+
+func _normalize_talent_ids(value: Variant) -> Array[String]:
+	var result: Array[String] = []
+	if value is Array:
+		for talent_id in value:
+			var normalized := str(talent_id)
+			if TALENT_IDS.has(normalized) and not result.has(normalized):
+				result.append(normalized)
+	return result
+
+
+func _serialize_field(field_data: Dictionary) -> Dictionary:
+	var center: Vector2 = field_data.get("center", Vector2.ZERO)
+	return {
+		"center": [center.x, center.y],
+		"remaining": float(field_data.get("remaining", 0.0)),
+		"tick_remaining": float(field_data.get("tick_remaining", 0.0)),
+		"tick_interval": float(field_data.get("tick_interval", TIER_ONE_TICK_INTERVAL)),
+		"visual_remaining": float(field_data.get("visual_remaining", 0.0)),
+		"radius": float(field_data.get("radius", BASE_RADIUS)),
+		"effect_scale": float(field_data.get("effect_scale", 1.0)),
+		"damage": float(field_data.get("damage", 0.0)),
+		"slow_multiplier": float(field_data.get("slow_multiplier", 1.0)),
+		"spawn_reprise_on_end": bool(field_data.get("spawn_reprise_on_end", false)),
+		"is_primary_cast": bool(field_data.get("is_primary_cast", false)),
+		"follows_owner": bool(field_data.get("follows_owner", false)),
+		"delayed_explosion": bool(field_data.get("delayed_explosion", false)),
+		"field_kind": str(field_data.get("field_kind", "")),
+		"talent_ids": _normalize_talent_ids(field_data.get("talent_ids", [])),
+		"reprise_scales": (field_data.get("reprise_scales", []) as Array).duplicate()
+	}
+
+
+func _decode_vector2(value: Variant, fallback: Vector2) -> Vector2:
+	if value is Vector2:
+		return value
+	if value is Array and value.size() >= 2:
+		return Vector2(float(value[0]), float(value[1]))
+	return fallback
 
 
 func _spawn_shrapnel_visual_if_room(field_data: Dictionary) -> void:
@@ -425,7 +645,8 @@ func _get_cooldown(owner) -> float:
 		cooldown_multiplier *= float(owner._get_equipment_cooldown_multiplier())
 	if owner != null and is_instance_valid(owner) and owner.has_method("_get_kebiru_magic_cooldown_multiplier"):
 		cooldown_multiplier *= float(owner._get_kebiru_magic_cooldown_multiplier(SKILL_ID))
-	return COOLDOWN * cooldown_multiplier
+	var talent_multiplier := 0.78 if _has_talent(owner, "gunner_shrapnel_quick_throw") else 1.0
+	return COOLDOWN * cooldown_multiplier * talent_multiplier
 
 
 func _get_radius(owner) -> float:
@@ -477,6 +698,8 @@ func _get_duration(owner) -> float:
 		duration *= float(owner._get_blessing_skill_duration_multiplier(SKILL_ID))
 	if owner != null and owner.has_method("_get_blessing_skill_duration_flat_bonus"):
 		duration += float(owner._get_blessing_skill_duration_flat_bonus(SKILL_ID))
+	if _has_talent(owner, "gunner_shrapnel_quick_throw"):
+		duration = max(2.4, duration * 0.80)
 	return duration
 
 func _uses_batched_damage(owner) -> bool:

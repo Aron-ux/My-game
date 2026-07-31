@@ -1,9 +1,24 @@
 extends RefCounted
 
 const MAIN_MENU_SCENE_PATH := "res://scenes/main_menu.tscn"
+const ENDLESS_CAMP_SCENE_PATH := "res://scenes/endless_camp.tscn"
 const SAVE_MANAGER := preload("res://scripts/save_manager.gd")
 const GAME_HUD_FLOW := preload("res://scripts/game/game_hud_flow.gd")
+const REWARD_FLOW := preload("res://scripts/game/reward_flow.gd")
 const CONTINUE_BGM_RESUME_DELAY := 0.25
+const NORMAL_GAME_SPEED := 1.0
+const ENDLESS_FAST_GAME_SPEED := 2.0
+
+static func set_endless_speed_enabled(main: Node, enabled: bool) -> void:
+	var resolved_enabled: bool = enabled and bool(main.get("endless_mode_active")) and not bool(main.get("game_over"))
+	main.set("endless_speed_enabled", resolved_enabled)
+	Engine.time_scale = ENDLESS_FAST_GAME_SPEED if resolved_enabled else NORMAL_GAME_SPEED
+	var hud = main.get("hud")
+	if hud != null and is_instance_valid(hud) and hud.has_method("set_endless_speed_active"):
+		hud.set_endless_speed_active(resolved_enabled)
+
+static func reset_game_speed(main: Node) -> void:
+	set_endless_speed_enabled(main, false)
 
 static func handle_escape_toggle(main: Node) -> void:
 	if main.pause_menu == null:
@@ -32,8 +47,10 @@ static func resume_game(main: Node) -> void:
 	main.get_tree().paused = false
 
 	var resume_delay: float = CONTINUE_BGM_RESUME_DELAY
-	if main.loaded_from_save and main.player != null and main.player.has_method("resume_pending_level_ups"):
-		main.player.resume_pending_level_ups()
+	if main.loaded_from_save and main.player != null:
+		var resumed_reward: bool = REWARD_FLOW.resume_saved_reward(main)
+		if not resumed_reward and main.player.has_method("resume_pending_level_ups"):
+			main.player.resume_pending_level_ups()
 		resume_delay = CONTINUE_BGM_RESUME_DELAY
 		main.loaded_from_save = false
 
@@ -44,6 +61,7 @@ static func handle_player_died(main: Node) -> void:
 		return
 
 	main.game_over = true
+	reset_game_speed(main)
 	SAVE_MANAGER.clear_save()
 	GAME_HUD_FLOW.hide_boss_ui(main)
 
@@ -52,12 +70,13 @@ static func handle_player_died(main: Node) -> void:
 	if main.level_up_ui != null and main.level_up_ui.has_method("hide_ui"):
 		main.level_up_ui.hide_ui()
 	if main.game_over_ui != null and main.game_over_ui.has_method("show_game_over"):
-		main.game_over_ui.show_game_over(main.survival_time, main.player.level)
+		main.game_over_ui.show_game_over(main.survival_time, main.player.level, main.endless_mode_active)
 
 	pause_game_bgm(main)
 	main.get_tree().paused = true
 
 static func restart(main: Node) -> void:
+	reset_game_speed(main)
 	main.suppress_exit_save = true
 	SAVE_MANAGER.clear_save()
 	main.get_tree().paused = false
@@ -65,11 +84,19 @@ static func restart(main: Node) -> void:
 
 static func return_to_main_menu(main: Node) -> void:
 	main._save_run_state()
+	reset_game_speed(main)
 	main.suppress_exit_save = true
-	if main._is_developer_mode():
-		SAVE_MANAGER.clear_save()
 	main.get_tree().paused = false
 	main.get_tree().change_scene_to_file(MAIN_MENU_SCENE_PATH)
+
+static func return_to_endless_camp(main: Node) -> void:
+	if not main.endless_mode_active:
+		return
+	reset_game_speed(main)
+	SAVE_MANAGER.clear_save(-1, SAVE_MANAGER.MODE_ENDLESS)
+	main.suppress_exit_save = true
+	main.get_tree().paused = false
+	main.get_tree().change_scene_to_file(ENDLESS_CAMP_SCENE_PATH)
 
 static func get_game_bgm(main: Node):
 	return main.get_node_or_null("GameBGM")

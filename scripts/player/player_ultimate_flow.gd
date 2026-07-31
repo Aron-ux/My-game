@@ -48,7 +48,7 @@ static func get_ultimate_energy_cost(owner) -> float:
 	return ULTIMATE_ENERGY_REQUIRED
 
 
-static func get_ultimate_display(owner, role_id: String) -> Dictionary:
+static func get_ultimate_display(owner, role_id: String, include_description: bool = true) -> Dictionary:
 	var fallback := {
 		"name": "大招",
 		"description": "当前英雄的大招。"
@@ -57,8 +57,10 @@ static func get_ultimate_display(owner, role_id: String) -> Dictionary:
 	var display: Dictionary = ULTIMATE_DISPLAY_OVERRIDE.get(role_id, fallback)
 	var result := display.duplicate(true)
 	result["skill_id"] = _get_ultimate_skill_id(role_id)
-	var enhancement_text := _make_ultimate_enhancement_description(owner, role_id)
-	if enhancement_text != "":
+	if owner != null and owner.has_method("_project_skill_talent_payload"):
+		result = owner._project_skill_talent_payload(str(result.get("skill_id", "")), result, include_description)
+	var enhancement_text := _make_ultimate_enhancement_description(owner, role_id) if include_description else ""
+	if include_description and enhancement_text != "":
 		result["description"] = "%s\n\n已获得的大招强化：\n%s" % [str(result.get("description", "")), enhancement_text]
 	return result
 
@@ -129,12 +131,24 @@ static func try_use_ultimate(owner) -> void:
 
 	var role_id: String = owner._get_active_role()["id"]
 	var cast_payload: Dictionary = build_ultimate_cast_payload(owner)
+	var consume_mage_transfer: bool = (
+		owner.has_method("_has_skill_talent")
+		and owner._has_skill_talent("mage_trait_ultimate")
+		and role_id == str(owner.mage_arcane_charge_transfer_target_role_id)
+		and owner.mage_arcane_charge_transfer_remaining > 0.0
+		and owner.mage_arcane_charge_transfer_stacks > 0
+	)
+	if consume_mage_transfer:
+		var transfer_bonus: float = min(0.20, float(owner.mage_arcane_charge_transfer_stacks) * 0.02)
+		cast_payload["damage_multiplier"] = float(cast_payload.get("damage_multiplier", 1.0)) * (1.0 + transfer_bonus)
 	if not DEVELOPER_MODE.should_unlock_ultimate_freely():
 		owner._set_role_ultimate_lock_remaining(role_id, ULTIMATE_ENERGY_LOCK_AFTER_CAST)
 	if not DEVELOPER_MODE.should_unlock_ultimate_freely() and not owner._has_elite_relic("elite_perpetual_motion"):
 		owner._add_role_mana(role_id, -ultimate_cost, false)
 	if not DEVELOPER_MODE.should_unlock_ultimate_freely():
 		owner._emit_active_mana_changed()
+	if consume_mage_transfer and owner.has_method("_clear_mage_arcane_charge_transfer"):
+		owner._clear_mage_arcane_charge_transfer()
 
 	match role_id:
 		"swordsman":

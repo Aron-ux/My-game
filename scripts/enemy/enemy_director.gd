@@ -15,12 +15,6 @@ const WAVE_BATCH_INTERVAL_MULTIPLIER := 3.2
 const WAVE_BATCH_MIN_INTERVAL := 1.22
 const WAVE_BATCH_MAX_INTERVAL := 2.85
 const WAVE_BATCH_MAX_PACKS := 6
-const ENDLESS_FIRST_CYCLE_SPAWN_COUNT_MULTIPLIER := 0.88
-const ENDLESS_CYCLE_HEALTH_BASE_MULTIPLIER := 1.5
-const ENDLESS_CYCLE_DAMAGE_BASE_MULTIPLIER := 2.0
-const ENDLESS_CYCLE_SPAWN_COUNT_BASE_MULTIPLIER := 2.0
-const ENDLESS_CYCLE_RANGED_FREQUENCY_BASE_MULTIPLIER := 1.5
-const ENDLESS_CYCLE_GROWTH_STEP := 0.5
 
 static func get_default_stage_duration() -> float:
 	return DEFAULT_STAGE_DURATION
@@ -36,9 +30,6 @@ static func get_active_enemy_limit(survival_time: float) -> int:
 		return EARLY_ACTIVE_ENEMY_LIMIT
 	var ramp_ratio: float = clamp((survival_time - LATE_GAME_START_TIME) / LATE_GAME_ACTIVE_ENEMY_LIMIT_RAMP_TIME, 0.0, 1.0)
 	return int(round(lerpf(float(EARLY_ACTIVE_ENEMY_LIMIT), float(LATE_ACTIVE_ENEMY_LIMIT), ramp_ratio)))
-
-static func get_cycle_active_enemy_limit(cycle_elapsed_time: float) -> int:
-	return get_active_enemy_limit(cycle_elapsed_time)
 
 static func get_body_collision_radius_multiplier() -> float:
 	return BODY_COLLISION_RADIUS_MULTIPLIER
@@ -58,13 +49,12 @@ static func get_default_minimum_spawn_interval() -> float:
 static func get_effective_boss_spawn_time(
 	story_stage: Dictionary,
 	story_mode_active: bool,
-	endless_mode_active: bool,
-	defeated_boss_count: int
+	endless_mode_active: bool
 ) -> float:
 	if story_mode_active:
 		return float(story_stage.get("boss_spawn_time", DEFAULT_BOSS_SPAWN_TIME))
 	if endless_mode_active:
-		return DEFAULT_BOSS_SPAWN_TIME * float(defeated_boss_count + 1)
+		return DEFAULT_BOSS_SPAWN_TIME
 	return DEFAULT_BOSS_SPAWN_TIME
 
 static func get_effective_stage_curve_time(story_stage: Dictionary, story_mode_active: bool) -> float:
@@ -88,45 +78,6 @@ static func get_story_enemy_speed_multiplier(story_stage: Dictionary, story_mode
 	if not story_mode_active:
 		return 1.0
 	return float(story_stage.get("enemy_speed_multiplier", 1.0))
-
-static func get_endless_cycle_health_multiplier(cycle_power_level: int) -> float:
-	if cycle_power_level <= 0:
-		return 1.0
-	return ENDLESS_CYCLE_HEALTH_BASE_MULTIPLIER + float(cycle_power_level - 1) * ENDLESS_CYCLE_GROWTH_STEP
-
-static func get_endless_cycle_damage_multiplier(cycle_power_level: int) -> float:
-	if cycle_power_level <= 0:
-		return 1.0
-	return ENDLESS_CYCLE_DAMAGE_BASE_MULTIPLIER + float(cycle_power_level - 1) * ENDLESS_CYCLE_GROWTH_STEP
-
-static func get_endless_cycle_speed_multiplier(_cycle_power_level: int) -> float:
-	return 1.0
-
-static func get_endless_cycle_spawn_count_multiplier(cycle_power_level: int) -> float:
-	if cycle_power_level <= 0:
-		return ENDLESS_FIRST_CYCLE_SPAWN_COUNT_MULTIPLIER
-	return ENDLESS_CYCLE_SPAWN_COUNT_BASE_MULTIPLIER + float(cycle_power_level - 1) * ENDLESS_CYCLE_GROWTH_STEP
-
-static func get_endless_cycle_ranged_frequency_multiplier(cycle_power_level: int) -> float:
-	if cycle_power_level <= 0:
-		return 1.0
-	return ENDLESS_CYCLE_RANGED_FREQUENCY_BASE_MULTIPLIER + float(cycle_power_level - 1) * ENDLESS_CYCLE_GROWTH_STEP
-
-static func apply_endless_cycle_to_enemy_profile(kind: String, enemy_profile: Dictionary, cycle_power_level: int) -> Dictionary:
-	var adjusted: Dictionary = enemy_profile.duplicate(true)
-	if kind == "boss":
-		return adjusted
-	var ranged_frequency_multiplier := get_endless_cycle_ranged_frequency_multiplier(cycle_power_level)
-	if ranged_frequency_multiplier <= 1.0:
-		return adjusted
-	_divide_interval(adjusted, "shot_interval", ranged_frequency_multiplier, 0.18)
-	_divide_interval(adjusted, "turret_bombard_interval", ranged_frequency_multiplier, 0.5)
-	return adjusted
-
-static func _divide_interval(target: Dictionary, key: String, divisor: float, minimum: float) -> void:
-	if not target.has(key):
-		return
-	target[key] = max(minimum, float(target.get(key, minimum)) / max(0.001, divisor))
 
 static func get_wave_profile(survival_time: float, elite_spawn_times: Array, player_growth_score: float, expected_growth_score: float) -> Dictionary:
 	var profile: Dictionary
@@ -269,9 +220,7 @@ static func collect_stage_events(
 	has_active_small_boss: bool,
 	story_stage: Dictionary,
 	story_mode_active: bool,
-	stage_cleared: bool,
-	endless_mode_active: bool = false,
-	cycle_duration: float = DEFAULT_BOSS_SPAWN_TIME
+	stage_cleared: bool
 ) -> Array:
 	var events: Array = []
 	if story_mode_active and str(story_stage.get("type", "")) == "normal" and not stage_cleared and survival_time >= float(story_stage.get("target_time", 0.0)):
@@ -281,60 +230,18 @@ static func collect_stage_events(
 	if boss_spawned:
 		return events
 
-	if endless_mode_active:
-		_collect_cyclic_special_events(
-			events,
-			survival_time,
-			elite_spawn_times,
-			spawned_elite_count,
-			small_boss_spawn_times,
-			spawned_small_boss_count,
-			has_active_small_boss,
-			cycle_duration
-		)
-	else:
-		var pending_elite_count := spawned_elite_count
-		while pending_elite_count < elite_spawn_times.size() and survival_time >= float(elite_spawn_times[pending_elite_count]):
-			events.append({"type": "elite"})
-			pending_elite_count += 1
+	var pending_elite_count := spawned_elite_count
+	while pending_elite_count < elite_spawn_times.size() and survival_time >= float(elite_spawn_times[pending_elite_count]):
+		events.append({"type": "elite"})
+		pending_elite_count += 1
 
-		if not has_active_small_boss and spawned_small_boss_count < small_boss_spawn_times.size() and survival_time >= float(small_boss_spawn_times[spawned_small_boss_count]):
-			events.append({"type": "small_boss"})
+	if not has_active_small_boss and spawned_small_boss_count < small_boss_spawn_times.size() and survival_time >= float(small_boss_spawn_times[spawned_small_boss_count]):
+		events.append({"type": "small_boss"})
 
 	if not boss_spawned and survival_time >= boss_spawn_time:
 		events.append({"type": "boss"})
 
 	return events
-
-static func _collect_cyclic_special_events(
-	events: Array,
-	survival_time: float,
-	elite_spawn_times: Array,
-	spawned_elite_count: int,
-	small_boss_spawn_times: Array,
-	spawned_small_boss_count: int,
-	has_active_small_boss: bool,
-	cycle_duration: float
-) -> void:
-	var pending_elite_count := spawned_elite_count
-	var safe_cycle_duration: float = max(1.0, cycle_duration)
-	while _is_cyclic_event_due(survival_time, elite_spawn_times, pending_elite_count, safe_cycle_duration):
-		events.append({"type": "elite"})
-		pending_elite_count += 1
-
-	if has_active_small_boss:
-		return
-	if _is_cyclic_event_due(survival_time, small_boss_spawn_times, spawned_small_boss_count, safe_cycle_duration):
-		events.append({"type": "small_boss"})
-
-static func _is_cyclic_event_due(survival_time: float, event_times: Array, spawned_count: int, cycle_duration: float) -> bool:
-	if event_times.is_empty():
-		return false
-	var cycle_index: int = int(spawned_count / float(event_times.size()))
-	var event_index: int = spawned_count % event_times.size()
-	var event_time: float = float(event_times[event_index])
-	var absolute_event_time: float = float(cycle_index) * cycle_duration + event_time
-	return survival_time >= absolute_event_time
 
 static func pick_normal_archetype(wave_profile: Dictionary, rng: RandomNumberGenerator) -> String:
 	return weighted_pick(wave_profile.get("weights", {"chaser": 1.0}), "chaser", rng)

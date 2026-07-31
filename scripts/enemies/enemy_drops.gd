@@ -1,11 +1,13 @@
 extends RefCounted
 
 const PICKUP_COMPACTOR := preload("res://scripts/game/pickup_compactor.gd")
+const BONE_PICKUP_SCENE := preload("res://scenes/bone_pickup.tscn")
 
 const HEART_HEAL_AMOUNT := 25.0
 const HEART_DROP_CHANCE := 0.006
 const HEART_DROP_CHANCE_ELITE := 0.012
 const HEART_DROP_CHANCE_BOSS := 0.044
+const NORMAL_BONE_DROP_CHANCE := 0.01
 
 static func drop_experience_gem(enemy) -> void:
 	if enemy.exp_gem_scene == null:
@@ -76,6 +78,40 @@ static func get_heart_drop_chance(enemy_kind: String) -> float:
 			return HEART_DROP_CHANCE_BOSS
 		_:
 			return HEART_DROP_CHANCE
+
+
+static func maybe_drop_bones(enemy) -> void:
+	var current_scene: Node = _get_enemy_current_scene(enemy)
+	if current_scene == null or current_scene.get("endless_mode_active") != true:
+		return
+	var bone_count := get_bone_drop_count(str(enemy.enemy_kind), randf())
+	if bone_count <= 0:
+		return
+	var bone_pickup: Node = _take_pickup_from_pool(current_scene, "bone_pickups")
+	if bone_pickup == null:
+		bone_pickup = BONE_PICKUP_SCENE.instantiate()
+	if bone_pickup == null:
+		return
+	current_scene.add_child(bone_pickup)
+	var spawn_position: Vector2 = enemy.global_position + Vector2(randf_range(-10.0, 10.0), randf_range(-8.0, 8.0))
+	if bone_pickup.has_method("reset_pickup"):
+		bone_pickup.reset_pickup(spawn_position, bone_count)
+	else:
+		bone_pickup.global_position = spawn_position
+		bone_pickup.set("value", bone_count)
+
+
+static func get_bone_drop_count(enemy_kind: String, random_roll: float) -> int:
+	match enemy_kind:
+		"normal":
+			return 1 if random_roll < NORMAL_BONE_DROP_CHANCE else 0
+		"elite":
+			return 1
+		"small_boss":
+			return 3
+		_:
+			return 0
+
 
 static func _take_pickup_from_pool(current_scene: Node, group_name: String) -> Node:
 	if current_scene != null and current_scene.has_method("take_runtime_pickup_from_pool"):

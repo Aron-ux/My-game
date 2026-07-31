@@ -25,6 +25,8 @@ def main() -> int:
     player_map_bounds_flow = read("scripts/player/player_map_bounds_flow.gd")
     player_level_flow = read("scripts/player/player_level_flow.gd")
     player_blessing_system = read("scripts/player/player_blessing_system.gd")
+    player_blessing_bridge = read("scripts/player/player_blessing_skill_bridge.gd")
+    character_panel_script = read("scripts/ui/hud/character_panel.gd")
     developer_mode = read("scripts/developer_mode.gd")
     developer_panel = read("scripts/developer/developer_panel.gd")
     reward_flow = read("scripts/game/reward_flow.gd")
@@ -207,6 +209,40 @@ def main() -> int:
                 "static func _pick_options",
                 "_ensure_forced_tier_four_blessing",
                 "_build_offerable_options_for_tier",
+                "MANUAL_COMPOSE_TIER_ONE_LEVEL",
+                "can_compose_role_blessing",
+                "can_compose_skill_blessing",
+                "compose_role_blessing",
+                "compose_skill_blessing",
+                "_compose_blessing",
+            ),
+        ),
+        "scripts/player/player_blessing_skill_bridge.gd": (
+            player_blessing_bridge,
+            (
+                "can_compose_role_blessing",
+                "can_compose_skill_blessing",
+                "compose_role_blessing",
+                "compose_skill_blessing",
+            ),
+        ),
+        "scripts/player.gd": (
+            player_script,
+            (
+                "can_compose_role_blessing",
+                "can_compose_skill_blessing",
+                "compose_role_blessing",
+                "compose_skill_blessing",
+            ),
+        ),
+        "scripts/ui/hud/character_panel.gd": (
+            character_panel_script,
+            (
+                "blessing_popup",
+                "pending_compose_",
+                "右键合成",
+                "I x3",
+                "_show_blessing_compose_popup",
             ),
         ),
         "scripts/developer_mode.gd": (

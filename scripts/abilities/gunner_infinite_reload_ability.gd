@@ -30,12 +30,25 @@ const TIER_TWO_DAMAGE_MULTIPLIER := 1.0
 const TIER_THREE_DAMAGE_MULTIPLIER := 1.0
 const ACTIVE_CAMERA_SHAKE_STRENGTH := 1.4
 const ACTIVE_CAMERA_SHAKE_DURATION := 0.045
+const TALENT_IDS := [
+	"gunner_infinite_axis",
+	"gunner_infinite_dual",
+	"gunner_infinite_sweep",
+	"gunner_infinite_sear",
+	"gunner_infinite_overload",
+	"gunner_infinite_recycle"
+]
 
 var cooldown_remaining: float = 0.0
 var active_remaining: float = 0.0
 var tick_remaining: float = 0.0
 var locked_aim_direction: Vector2 = Vector2.RIGHT
 var effects: Array[Node2D] = []
+var sweep_elapsed: float = 0.0
+var hit_during_cast: bool = false
+var last_tick_data: Dictionary = {}
+var cast_talent_ids: Array[String] = []
+var cast_talent_snapshot_valid: bool = false
 
 func update(owner, delta: float) -> void:
 	if cooldown_remaining > 0.0:
@@ -61,7 +74,7 @@ func update(owner, delta: float) -> void:
 	if catch_up_ticks >= MAX_CATCH_UP_TICKS and tick_remaining <= 0.0:
 		tick_remaining = _get_tick_interval(owner)
 	if active_remaining <= 0.0:
-		stop(owner)
+		_finish_cast(owner)
 
 func can_trigger(owner, role_id: String) -> bool:
 	if owner == null or not is_instance_valid(owner):
@@ -77,6 +90,8 @@ func can_trigger(owner, role_id: String) -> bool:
 func try_trigger(owner) -> bool:
 	if not can_trigger(owner, str(owner._get_active_role().get("id", ""))):
 		return false
+	cast_talent_ids = _capture_talents(owner)
+	cast_talent_snapshot_valid = true
 	active_remaining = _get_duration(owner)
 	cooldown_remaining = _get_cooldown(owner)
 	tick_remaining = 0.0
@@ -85,6 +100,9 @@ func try_trigger(owner) -> bool:
 		locked_aim_direction = Vector2.RIGHT
 	owner.facing_direction = locked_aim_direction
 	owner.gunner_attack_chain = 0
+	sweep_elapsed = 0.0
+	hit_during_cast = false
+	last_tick_data.clear()
 	_cleanup_effects()
 	owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -64.0), "\u65E0\u9650\u88C5\u586B", Color(1.0, 0.6, 0.34, 1.0))
 	owner._spawn_ring_effect(owner.global_position, 104.0, Color(1.0, 0.58, 0.32, 0.34), 8.0, 0.2)
@@ -95,6 +113,11 @@ func stop(owner = null) -> void:
 	active_remaining = 0.0
 	tick_remaining = 0.0
 	locked_aim_direction = Vector2.RIGHT
+	sweep_elapsed = 0.0
+	hit_during_cast = false
+	last_tick_data.clear()
+	cast_talent_ids.clear()
+	cast_talent_snapshot_valid = false
 	for effect in effects:
 		if effect != null and is_instance_valid(effect):
 			_release_visual_effect(effect)
@@ -137,24 +160,68 @@ func get_save_data() -> Dictionary:
 		"cooldown_remaining": cooldown_remaining,
 		"active_remaining": active_remaining,
 		"tick_remaining": tick_remaining,
-		"locked_aim_direction": [locked_aim_direction.x, locked_aim_direction.y]
+		"locked_aim_direction": [locked_aim_direction.x, locked_aim_direction.y],
+		"sweep_elapsed": sweep_elapsed,
+		"hit_during_cast": hit_during_cast,
+		"last_tick_data": _serialize_last_tick_data(),
+		"talent_ids": cast_talent_ids.duplicate(),
+		"talent_snapshot_valid": cast_talent_snapshot_valid
 	}
 
 func apply_save_data(data: Dictionary) -> void:
 	cooldown_remaining = clamp(float(data.get("cooldown_remaining", 0.0)), 0.0, COOLDOWN)
 	active_remaining = clamp(float(data.get("active_remaining", 0.0)), 0.0, TIER_THREE_DURATION + 3.0 * DIELANG_DURATION_BONUS)
 	tick_remaining = clamp(float(data.get("tick_remaining", 0.0)), 0.0, TICK_INTERVAL)
+	sweep_elapsed = max(0.0, float(data.get("sweep_elapsed", 0.0)))
+	hit_during_cast = bool(data.get("hit_during_cast", false))
+	last_tick_data = _deserialize_last_tick_data(data.get("last_tick_data", {}))
+	cast_talent_ids = _normalize_talent_ids(data.get("talent_ids", []))
+	cast_talent_snapshot_valid = bool(data.get("talent_snapshot_valid", data.has("talent_ids")))
 	var direction_data: Array = data.get("locked_aim_direction", [locked_aim_direction.x, locked_aim_direction.y])
 	if direction_data.size() >= 2:
-		locked_aim_direction = Vector2(float(direction_data[0]), float(direction_data[1])).normalized()
+		var restored_direction := Vector2(float(direction_data[0]), float(direction_data[1]))
+		locked_aim_direction = restored_direction if absf(restored_direction.length_squared() - 1.0) <= 0.0001 else restored_direction.normalized()
 	if locked_aim_direction.length_squared() <= 0.001:
 		locked_aim_direction = Vector2.RIGHT
 	_cleanup_effects()
 
+func _serialize_last_tick_data() -> Dictionary:
+	if last_tick_data.is_empty():
+		return {}
+	var origin: Vector2 = last_tick_data.get("origin", Vector2.ZERO)
+	var direction: Vector2 = last_tick_data.get("direction", Vector2.RIGHT)
+	return {
+		"origin": [origin.x, origin.y],
+		"direction": [direction.x, direction.y],
+		"length": float(last_tick_data.get("length", 0.0)),
+		"width": float(last_tick_data.get("width", 0.0)),
+		"damage": float(last_tick_data.get("damage", 0.0))
+	}
+
+func _deserialize_last_tick_data(value: Variant) -> Dictionary:
+	if value is not Dictionary or (value as Dictionary).is_empty():
+		return {}
+	var data := value as Dictionary
+	var origin_data: Array = data.get("origin", [0.0, 0.0])
+	var direction_data: Array = data.get("direction", [1.0, 0.0])
+	return {
+		"origin": Vector2(float(origin_data[0]), float(origin_data[1])) if origin_data.size() >= 2 else Vector2.ZERO,
+		"direction": Vector2(float(direction_data[0]), float(direction_data[1])).normalized() if direction_data.size() >= 2 else Vector2.RIGHT,
+		"length": max(0.0, float(data.get("length", 0.0))),
+		"width": max(0.0, float(data.get("width", 0.0))),
+		"damage": max(0.0, float(data.get("damage", 0.0)))
+	}
+
 func _trigger_tick(owner) -> void:
-	var aim_direction: Vector2 = owner._get_live_mouse_aim_direction(locked_aim_direction)
+	var axis_talent: bool = _has_talent(owner, "gunner_infinite_axis")
+	var dual_talent: bool = _has_talent(owner, "gunner_infinite_dual")
+	var aim_direction: Vector2 = locked_aim_direction if axis_talent else owner._get_live_mouse_aim_direction(locked_aim_direction)
 	if aim_direction.length_squared() <= 0.001:
 		aim_direction = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
+	aim_direction = aim_direction.normalized()
+	if _has_talent(owner, "gunner_infinite_sweep"):
+		sweep_elapsed += _get_tick_interval(owner)
+		aim_direction = aim_direction.rotated(deg_to_rad(14.0) * sin(TAU * sweep_elapsed / 0.7))
 	owner.facing_direction = aim_direction
 	var range_multiplier: float = _get_range_multiplier(owner) * float(owner._get_role_attribute_range_multiplier("gunner")) * owner._get_equipment_skill_range_multiplier()
 	var beam_length: float = (BEAM_LENGTH + PLAYER_BUILD_SYSTEM.get_infinite_reload_range_bonus(owner)) * range_multiplier
@@ -162,14 +229,77 @@ func _trigger_tick(owner) -> void:
 	var base_origin: Vector2 = owner.global_position + aim_direction * 20.0
 	var damage_amount: float = float(owner._get_role_damage("gunner")) * BASE_DAMAGE_RATIO * _get_damage_multiplier(owner)
 	var combo_scales: Array[float] = _get_combo_scales(owner)
-	_spawn_visuals(owner, base_origin, aim_direction, beam_length, hit_width)
-	for combo_scale in combo_scales:
-		var offset_origin: Vector2 = _get_random_origin_in_hit_width(owner, base_origin, aim_direction, hit_width)
-		_spawn_visuals(owner, offset_origin, aim_direction, beam_length, hit_width)
 	var damage_scale: float = _get_combined_damage_scale(combo_scales)
-	var hit_count: int = _apply_piercing_beam_damage(owner, base_origin, aim_direction, beam_length, hit_width * 2.0, damage_amount * damage_scale)
+	if axis_talent:
+		beam_length *= 1.25
+		hit_width *= 0.55
+		damage_amount *= 1.55
+	last_tick_data = {
+		"origin": base_origin,
+		"direction": aim_direction,
+		"length": beam_length,
+		"width": hit_width * 2.0,
+		"damage": damage_amount * damage_scale
+	}
+	var hit_count: int = 0
+	if dual_talent:
+		hit_count = _trigger_dual_beams(owner, base_origin, aim_direction, beam_length, hit_width, damage_amount * damage_scale)
+	else:
+		_spawn_visuals(owner, base_origin, aim_direction, beam_length, hit_width)
+		for combo_scale in combo_scales:
+			var offset_origin: Vector2 = _get_random_origin_in_hit_width(owner, base_origin, aim_direction, hit_width)
+			_spawn_visuals(owner, offset_origin, aim_direction, beam_length, hit_width)
+		hit_count = _apply_piercing_beam_damage(owner, base_origin, aim_direction, beam_length, hit_width * 2.0, damage_amount * damage_scale)
 	if hit_count > 0 and not _uses_batched_damage(owner):
 		owner._register_attack_result("gunner", hit_count, false)
+	hit_during_cast = hit_during_cast or hit_count > 0
+
+func _finish_cast(owner) -> void:
+	if owner != null and is_instance_valid(owner):
+		if _has_talent(owner, "gunner_infinite_overload"):
+			_trigger_terminal_overload(owner)
+		if _has_talent(owner, "gunner_infinite_recycle") and hit_during_cast:
+			var reduction: float = min(3.0, cooldown_remaining * 0.15)
+			cooldown_remaining = max(0.0, cooldown_remaining - reduction)
+	stop(owner)
+
+func _trigger_terminal_overload(owner) -> void:
+	if last_tick_data.is_empty():
+		return
+	var origin: Vector2 = last_tick_data.get("origin", owner.global_position)
+	var direction: Vector2 = last_tick_data.get("direction", Vector2.RIGHT)
+	var beam_length := float(last_tick_data.get("length", BEAM_LENGTH)) * 1.15
+	var hit_width := float(last_tick_data.get("width", BEAM_THICKNESS)) * 0.6
+	var damage_amount := float(last_tick_data.get("damage", 0.0)) * 6.0
+	_spawn_visuals(owner, origin, direction, beam_length, hit_width)
+	var hit_count := _apply_piercing_beam_damage(owner, origin, direction, beam_length, hit_width, damage_amount)
+	if hit_count > 0 and not _uses_batched_damage(owner):
+		owner._register_attack_result("gunner", hit_count, false)
+
+
+func _trigger_dual_beams(owner, base_origin: Vector2, aim_direction: Vector2, beam_length: float, hit_width: float, damage_amount: float) -> int:
+	var perpendicular := aim_direction.orthogonal().normalized()
+	var original_damage_width: float = hit_width * 2.0
+	var lane_offset: float = original_damage_width * 0.35
+	var shapes: Array[Dictionary] = []
+	for side in [-1.0, 1.0]:
+		var lane_origin: Vector2 = base_origin + perpendicular * lane_offset * side
+		_spawn_visuals(owner, lane_origin, aim_direction, beam_length, hit_width * 0.65)
+		shapes.append({
+			"type": "oriented_rect",
+			"center": lane_origin + aim_direction * (beam_length * 0.5),
+			"axis": aim_direction,
+			"length": beam_length,
+			"width": original_damage_width * 0.65,
+			"damage_amount": damage_amount * 0.60,
+			"vulnerability_bonus": 0.06 if _has_talent(owner, "gunner_infinite_sear") else 0.0,
+			"vulnerability_duration": 0.45 if _has_talent(owner, "gunner_infinite_sear") else 0.0,
+			"slow_multiplier": 1.0,
+			"slow_duration": 0.0,
+			"source_position": lane_origin,
+			"source_role_id": "gunner"
+		})
+	return _apply_piercing_beam_shapes(owner, shapes)
 
 func _apply_piercing_beam_damage(owner, base_origin: Vector2, aim_direction: Vector2, beam_length: float, hit_width: float, damage_amount: float) -> int:
 	var hit_center: Vector2 = base_origin + aim_direction * (beam_length * 0.5)
@@ -180,8 +310,8 @@ func _apply_piercing_beam_damage(owner, base_origin: Vector2, aim_direction: Vec
 		"length": beam_length,
 		"width": hit_width,
 		"damage_amount": damage_amount,
-		"vulnerability_bonus": 0.0,
-		"vulnerability_duration": 2.0,
+		"vulnerability_bonus": 0.06 if _has_talent(owner, "gunner_infinite_sear") else 0.0,
+		"vulnerability_duration": 0.45 if _has_talent(owner, "gunner_infinite_sear") else 0.0,
 		"slow_multiplier": 1.0,
 		"slow_duration": 0.0,
 		"source_position": hit_center,
@@ -341,6 +471,28 @@ func _get_combined_damage_scale(combo_scales: Array[float]) -> float:
 	for combo_scale in combo_scales:
 		damage_scale += max(0.0, float(combo_scale))
 	return damage_scale
+
+
+func _has_talent(owner, talent_id: String) -> bool:
+	if cast_talent_snapshot_valid:
+		return cast_talent_ids.has(talent_id)
+	return owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id))
+
+func _capture_talents(owner) -> Array[String]:
+	var result: Array[String] = []
+	for talent_id in TALENT_IDS:
+		if owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id)):
+			result.append(talent_id)
+	return result
+
+func _normalize_talent_ids(value: Variant) -> Array[String]:
+	var result: Array[String] = []
+	if value is Array:
+		for talent_id in value:
+			var normalized := str(talent_id)
+			if TALENT_IDS.has(normalized) and not result.has(normalized):
+				result.append(normalized)
+	return result
 
 func _uses_batched_damage(owner) -> bool:
 	return owner != null and owner.has_method("_damage_enemies_in_shapes_batched")

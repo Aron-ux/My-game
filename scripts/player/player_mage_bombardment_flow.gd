@@ -87,9 +87,9 @@ static func resolve_basic_mage_bombardment_damage(owner, center: Vector2, radius
 		if echo_target != null and is_instance_valid(echo_target) and center.distance_to(echo_target.global_position) <= 132.0 + echo_level * 16.0:
 			var echo_center: Vector2 = echo_target.global_position
 			owner._spawn_burst_effect(echo_center, 24.0 + echo_level * 6.0, Color(0.64, 0.94, 1.0, 0.16), 0.14)
-			hits += owner._damage_enemies_in_radius(echo_center, 24.0 + echo_level * 6.0, damage_amount * (0.24 + echo_level * 0.05), 0.0, max(0.62, slow_multiplier + 0.08), 0.8 + echo_level * 0.15, role_id)
+			hits += owner._damage_enemies_in_radius(echo_center, 24.0 + echo_level * 6.0, damage_amount * (0.24 + echo_level * 0.05), 0.0, max(0.62, slow_multiplier + 0.08), 0.8 + echo_level * 0.15, _base_role_id(role_id))
 	if hits > 0 and not _uses_batched_damage(owner):
-		owner._register_attack_result(role_id, hits, false)
+		owner._register_attack_result(_base_role_id(role_id), hits, false)
 
 	if frost_level >= 2:
 		owner._spawn_pulsing_field(center, 28.0 + frost_level * 5.0, Color(0.56, 0.9, 1.0, 0.14), 2, 0.12, damage_amount * (0.12 + frost_level * 0.02), 0.02 * frost_level, max(0.4, slow_multiplier - 0.08), 0.9 + frost_level * 0.18)
@@ -118,6 +118,13 @@ static func get_enemy_near_position(owner, position: Vector2, max_distance: floa
 
 static func _uses_batched_damage(owner) -> bool:
 	return owner != null and owner.has_method("_damage_enemies_in_radius")
+
+
+static func _base_role_id(source_role_id: String) -> String:
+	for role_id in ["swordsman", "gunner", "mage"]:
+		if source_role_id.begins_with("%s_basic:" % role_id):
+			return role_id
+	return source_role_id
 
 
 static func get_mage_mouse_bombard_center(owner, base_range: float) -> Vector2:

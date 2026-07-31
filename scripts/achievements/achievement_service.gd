@@ -141,9 +141,9 @@ func record_enemy_defeated(enemy_kind: String) -> void:
 		var bosses := add_stat("bosses_defeated_total", 1)
 		set_progress("ACH_FIRST_BOSS", bosses)
 
-func record_endless_boss_defeated(count: int) -> void:
-	set_stat_max("endless_bosses_defeated_best", count)
-	set_progress("ACH_ENDLESS_BOSS_3", count)
+func record_endless_tier_cleared(cleared_tier: int) -> void:
+	set_stat_max("endless_tier_cleared_best", cleared_tier)
+	set_progress("ACH_ENDLESS_BOSS_3", cleared_tier)
 
 func record_survival_time(seconds: float) -> void:
 	var elapsed := int(floor(maxf(0.0, seconds)))

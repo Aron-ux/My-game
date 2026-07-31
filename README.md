@@ -10,7 +10,7 @@ The project currently includes:
 - Three playable roles: swordsman, gunner, and mage.
 - Role switching, normal attacks, ultimate skills, skill cooldown HUD, and character panel.
 - Level-up rewards based on the current blessing system.
-- Small boss equipment rewards and final boss core rewards.
+- Small boss equipment rewards and final-Boss victory continuation; legacy final-core applicators remain in code but are not currently offered by the reward menu.
 - Map-bounded wave spawning, spawn warnings, elite/small boss/boss flow, and difficulty profiles.
 - Local achievements and project health checks.
 

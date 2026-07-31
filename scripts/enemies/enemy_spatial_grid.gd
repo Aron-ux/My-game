@@ -20,10 +20,16 @@ static func get_neighbors(enemy: Node2D, query_radius: float) -> Array:
 	var scene := enemy.get_tree().current_scene
 	if scene == null:
 		return []
+	return get_neighbors_at(scene, enemy.global_position, query_radius)
+
+
+static func get_neighbors_at(scene: Node, position: Vector2, query_radius: float) -> Array:
+	if scene == null:
+		return []
 	var grid := _get_grid(scene)
 	if grid.is_empty():
 		return []
-	var center_cell := _grid_cell(enemy.global_position)
+	var center_cell := _grid_cell(position)
 	var cell_radius := int(ceil(max(1.0, query_radius) / CELL_SIZE))
 	var candidates: Array = []
 	for x in range(center_cell.x - cell_radius, center_cell.x + cell_radius + 1):

@@ -11,22 +11,29 @@ signal small_boss_spawn_requested(archetype_id: String)
 signal normal_enemy_batch_spawn_requested(archetype_id: String, count: int)
 signal enemy_spawn_requested(kind: String, archetype_id: String, count: int)
 signal skill_unlock_requested(skill_id: String, tier: int)
+signal skill_talent_grant_requested(talent_id: String)
 signal blessing_grant_requested(blessing_id: String, tier: int)
 signal all_blessings_grant_requested
+signal ruan_stone_action_requested(action_id: String)
 signal enemy_detail_display_toggled(enabled: bool)
 signal glutton_skill_test_requested(skill_id: String)
+signal endless_tier_test_requested(tier: int)
 
 var level_button: Button
 var invincibility_button: Button
 var no_cooldown_button: Button
 var enemy_detail_button: Button
+var endless_tier_spin: SpinBox
 var enemy_menu_popup: PanelContainer
 var enemy_list: VBoxContainer
 var glutton_skill_list: VBoxContainer
 var skill_list: VBoxContainer
 var blessing_list: VBoxContainer
+var ruan_stone_list: VBoxContainer
 var performance_label: Label
 var enemy_detail_display_enabled: bool = false
+var cached_skill_options: Array = []
+var skill_options_initialized: bool = false
 
 
 func _ready() -> void:
@@ -89,11 +96,19 @@ func set_enemy_options(options: Array) -> void:
 
 
 func set_skill_options(options: Array) -> void:
+	if skill_options_initialized and cached_skill_options == options:
+		return
+	skill_options_initialized = true
+	cached_skill_options = options.duplicate(true)
 	_populate_option_list(skill_list, options, "暂无技能选项", Callable(self, "_on_skill_button_pressed"))
 
 
 func set_blessing_options(options: Array) -> void:
 	_populate_option_list(blessing_list, options, "暂无祝福选项", Callable(self, "_on_blessing_button_pressed"))
+
+
+func set_ruan_stone_options(options: Array) -> void:
+	_populate_option_list(ruan_stone_list, options, "暂无阮石调试选项", Callable(self, "_on_ruan_stone_button_pressed"))
 
 
 func update_performance_metrics(metrics: Dictionary) -> void:
@@ -107,6 +122,19 @@ func set_performance_metrics_visible(visible: bool) -> void:
 
 
 func _build_top_buttons(parent: Control) -> void:
+	var tier_row := HBoxContainer.new()
+	tier_row.add_theme_constant_override("separation", 6)
+	parent.add_child(tier_row)
+	endless_tier_spin = SpinBox.new()
+	endless_tier_spin.min_value = 1
+	endless_tier_spin.max_value = 9999
+	endless_tier_spin.value = DEVELOPER_MODE.get_test_endless_tier()
+	endless_tier_spin.custom_minimum_size = Vector2(92.0, 40.0)
+	tier_row.add_child(endless_tier_spin)
+	var tier_button := _build_button("应用测试 N 层", Vector2(122.0, 40.0), 14, "primary")
+	tier_button.pressed.connect(func(): endless_tier_test_requested.emit(int(endless_tier_spin.value)))
+	tier_row.add_child(tier_button)
+
 	level_button = _build_button("角色等级 +1", Vector2(220, 40), 16, "primary")
 	level_button.pressed.connect(_on_level_button_pressed)
 	parent.add_child(level_button)
@@ -140,8 +168,9 @@ func _build_scroll_content(parent: Control) -> void:
 	_build_enemy_menu_button(menu_content)
 	glutton_skill_list = _add_menu_section(menu_content, "Glutton Skill Test")
 	_populate_glutton_skill_list()
+	ruan_stone_list = _add_menu_section(menu_content, "阮狗石头调试")
 	blessing_list = _add_menu_section(menu_content, "添加祝福")
-	skill_list = _add_menu_section(menu_content, "添加技能")
+	skill_list = _add_menu_section(menu_content, "添加技能 / 技能质变")
 
 	performance_label = Label.new()
 	performance_label.text = "Performance: collecting..."
@@ -343,6 +372,9 @@ func _on_normal_enemy_button_pressed(archetype_id: String) -> void:
 
 
 func _on_skill_button_pressed(option_id: String) -> void:
+	if option_id.begins_with(DEVELOPER_OPTION_PROVIDER.SKILL_TALENT_OPTION_PREFIX):
+		skill_talent_grant_requested.emit(option_id.trim_prefix(DEVELOPER_OPTION_PROVIDER.SKILL_TALENT_OPTION_PREFIX))
+		return
 	var parts: PackedStringArray = option_id.split(":")
 	if parts.size() < 2:
 		return
@@ -363,6 +395,11 @@ func _on_blessing_button_pressed(option_id: String) -> void:
 	var tier: int = max(1, int(parts[1]))
 	if blessing_id != "":
 		blessing_grant_requested.emit(blessing_id, tier)
+
+
+func _on_ruan_stone_button_pressed(option_id: String) -> void:
+	if option_id.begins_with(DEVELOPER_OPTION_PROVIDER.RUAN_STONE_OPTION_PREFIX):
+		ruan_stone_action_requested.emit(option_id.trim_prefix(DEVELOPER_OPTION_PROVIDER.RUAN_STONE_OPTION_PREFIX))
 
 
 func _on_glutton_skill_button_pressed(option_id: String) -> void:

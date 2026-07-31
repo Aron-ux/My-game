@@ -3,6 +3,7 @@ extends RefCounted
 const GAME_ACHIEVEMENT_BRIDGE := preload("res://scripts/game/game_achievement_bridge.gd")
 const GAME_HUD_FLOW := preload("res://scripts/game/game_hud_flow.gd")
 const REWARD_FLOW := preload("res://scripts/game/reward_flow.gd")
+const SAVE_MANAGER := preload("res://scripts/save_manager.gd")
 
 # Handoff note:
 # Enemy defeat consequences live here so main.gd stays a combat scene
@@ -46,8 +47,11 @@ static func _handle_boss_defeated(main: Node, enemy: Node2D) -> void:
 
 static func _handle_endless_boss_defeated(main: Node) -> void:
 	main.boss_enemy = null
-	main.boss_spawned = false
-	main.defeated_boss_count += 1
-	GAME_ACHIEVEMENT_BRIDGE.record_endless_boss_defeated(main, main.defeated_boss_count)
+	main.game_over = true
+	if main.spawn_timer != null:
+		main.spawn_timer.stop()
 	GAME_HUD_FLOW.hide_boss_ui(main)
-	REWARD_FLOW.show_endless_boss_reward(main)
+	var settlement := SAVE_MANAGER.complete_current_endless_tier(main.endless_tier, main.endless_run_id)
+	if not settlement.is_empty():
+		GAME_ACHIEVEMENT_BRIDGE.record_endless_tier_cleared(main, int(settlement.get("highest_cleared_tier", 0)))
+	REWARD_FLOW.show_endless_boss_reward(main, settlement)

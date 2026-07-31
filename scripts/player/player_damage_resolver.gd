@@ -4,6 +4,7 @@ const PERFORMANCE_COUNTERS := preload("res://scripts/game/performance_counters.g
 const PLAYER_DAMAGE_JOB_QUEUE := preload("res://scripts/player/player_damage_job_queue.gd")
 const PLAYER_DAMAGE_BATCHER := preload("res://scripts/player/player_damage_batcher.gd")
 const PLAYER_DAMAGE_SHAPE_FLOW := preload("res://scripts/player/player_damage_shape_flow.gd")
+const PLAYER_RUAN_STONE_FLOW := preload("res://scripts/player/player_ruan_stone_flow.gd")
 const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
 const ENEMY_SPATIAL_GRID := preload("res://scripts/enemies/enemy_spatial_grid.gd")
 
@@ -31,11 +32,15 @@ static var reusable_candidates: Array = []
 static var reusable_seen_enemy_ids: Dictionary = {}
 static var reusable_bounds_list: Array[Rect2] = []
 
-static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, suppress_status_visual: bool = false, kill_energy_bonus: float = 0.0) -> bool:
+static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, suppress_status_visual: bool = false, kill_energy_bonus: float = 0.0, gunner_event_prepared: bool = false, damage_event_id: String = "") -> bool:
 	if not _is_live_enemy(enemy):
 		return false
 	var final_damage := damage_amount
 	var resolved_source_role_id: String = _resolve_damage_source_role_id(source_role_id)
+	var applies_gunner_target_talents := damage_amount > 0.0 and owner != null and _should_apply_gunner_hunt_multiplier(source_role_id, resolved_source_role_id) and enemy is Node2D
+	if applies_gunner_target_talents:
+		if not gunner_event_prepared:
+			final_damage *= snapshot_gunner_damage_event_multiplier(owner, source_role_id, damage_amount > 0.0, damage_event_id)
 	var was_critical := false
 	if owner != null and resolved_source_role_id != "" and owner.has_method("_roll_critical_hit") and owner.has_method("_get_critical_damage_multiplier"):
 		was_critical = bool(owner._roll_critical_hit(resolved_source_role_id))
@@ -45,6 +50,9 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 		var attack_origin: Vector2 = _get_gunner_damage_origin(owner, enemy as Node2D)
 		if owner.has_method("_get_gunner_distance_damage_multiplier"):
 			final_damage *= float(owner._get_gunner_distance_damage_multiplier(attack_origin.distance_to((enemy as Node2D).global_position)))
+	var target_position: Vector2 = (enemy as Node2D).global_position if enemy is Node2D else Vector2.ZERO
+	var max_health_value: Variant = enemy.get("max_health")
+	var target_max_health: float = max(0.0, float(max_health_value)) if max_health_value != null else 0.0
 	var killed := false
 	if damage_amount > 0.0 and enemy.has_method("take_damage"):
 		killed = _call_enemy_take_damage(enemy, final_damage, was_critical)
@@ -67,6 +75,8 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 				owner._add_kill_energy(bonus_energy, bypass_lock_role_id, resolved_source_role_id)
 				if owner.has_method("_try_apply_mage_kill_energy_proc"):
 					owner._try_apply_mage_kill_energy_proc(resolved_source_role_id, bonus_energy, bypass_lock_role_id)
+	if applies_gunner_target_talents:
+		_apply_gunner_damage_target_talents(owner, enemy as Node2D, resolved_source_role_id, source_position)
 	if vulnerability_bonus > 0.0 and enemy.has_method("apply_vulnerability"):
 		enemy.apply_vulnerability(vulnerability_bonus, vulnerability_duration)
 	if slow_duration > 0.0:
@@ -74,6 +84,8 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 			enemy.apply_slow_silent(slow_multiplier, slow_duration)
 		elif enemy.has_method("apply_slow"):
 			enemy.apply_slow(slow_multiplier, slow_duration)
+	if damage_amount > 0.0 and _is_basic_attack_damage_source(source_role_id):
+		PLAYER_RUAN_STONE_FLOW.apply_basic_hit(owner, enemy, final_damage, source_role_id, damage_event_id, killed, target_position, target_max_health)
 	return killed
 
 static func _call_enemy_take_damage(enemy: Node, amount: float, is_critical: bool) -> bool:
@@ -97,12 +109,18 @@ static func _method_accepts_argument_count(target: Object, method_name: String, 
 		return argument_count >= min_args and argument_count <= max_args
 	return false
 
-static func queue_damage_to_enemy(owner, enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, prefer_silent_feedback: bool = false, suppress_status_visual: bool = false) -> void:
+static func queue_damage_to_enemy(owner, enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, prefer_silent_feedback: bool = false, suppress_status_visual: bool = false, gunner_event_prepared: bool = false, damage_event_id: String = "") -> void:
+	if not _is_live_enemy(enemy):
+		return
+	var resolved_source_role_id := _resolve_damage_source_role_id(source_role_id)
+	if not gunner_event_prepared and _should_apply_gunner_hunt_multiplier(source_role_id, resolved_source_role_id):
+		damage_amount *= snapshot_gunner_damage_event_multiplier(owner, source_role_id, damage_amount > 0.0, damage_event_id)
+		gunner_event_prepared = true
 	var queue := _get_or_create_damage_job_queue(owner)
 	if queue == null:
-		deal_damage_to_enemy(owner, enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, suppress_status_visual)
+		deal_damage_to_enemy(owner, enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, suppress_status_visual, 0.0, gunner_event_prepared, damage_event_id)
 		return
-	queue.enqueue_values(weakref(enemy), enemy.get_instance_id(), damage_amount, 1, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, 0.0, prefer_silent_feedback, suppress_status_visual)
+	queue.enqueue_values(weakref(enemy), enemy.get_instance_id(), damage_amount, 1, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, 0.0, prefer_silent_feedback, suppress_status_visual, gunner_event_prepared, damage_event_id)
 
 static func apply_or_queue_damage_job(owner, job: Dictionary) -> void:
 	var enemy_ref: WeakRef = job.get("enemy_ref", null) as WeakRef
@@ -122,10 +140,12 @@ static func apply_or_queue_damage_job(owner, job: Dictionary) -> void:
 		job.get("source_position", null),
 		float(job.get("kill_energy_bonus", 0.0)),
 		bool(job.get("prefer_silent_feedback", false)),
-		bool(job.get("suppress_status_visual", false))
+		bool(job.get("suppress_status_visual", false)),
+		bool(job.get("gunner_event_prepared", false)),
+		str(job.get("damage_event_id", ""))
 	)
 
-static func apply_or_queue_damage_values(owner, enemy_ref: WeakRef, enemy_id: int, damage_amount: float, hit_count: int, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, kill_energy_bonus: float = 0.0, prefer_silent_feedback: bool = false, suppress_status_visual: bool = false) -> void:
+static func apply_or_queue_damage_values(owner, enemy_ref: WeakRef, enemy_id: int, damage_amount: float, hit_count: int, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, kill_energy_bonus: float = 0.0, prefer_silent_feedback: bool = false, suppress_status_visual: bool = false, gunner_event_prepared: bool = false, damage_event_id: String = "") -> void:
 	if enemy_ref == null:
 		return
 	var enemy: Node = enemy_ref.get_ref() as Node
@@ -144,10 +164,12 @@ static func apply_or_queue_damage_values(owner, enemy_ref: WeakRef, enemy_id: in
 			slow_duration,
 			source_position,
 			suppress_status_visual,
-			kill_energy_bonus
+			kill_energy_bonus,
+			gunner_event_prepared,
+			damage_event_id
 		)
 		return
-	queue.enqueue_values(enemy_ref, enemy_id, damage_amount, hit_count, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, kill_energy_bonus, prefer_silent_feedback, suppress_status_visual)
+	queue.enqueue_values(enemy_ref, enemy_id, damage_amount, hit_count, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, kill_energy_bonus, prefer_silent_feedback, suppress_status_visual, gunner_event_prepared, damage_event_id)
 
 static func damage_enemies_in_radius(owner, center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "") -> int:
 	return damage_enemies_in_radius_with_kill_energy(owner, center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id, 0.0)
@@ -248,12 +270,14 @@ static func damage_enemies_in_radius_count_kills(owner, center: Vector2, radius:
 		if enemy is Node2D and _enemy_hit_shape_hits_circle(owner, enemy as Node2D, center, radius):
 			matched_enemies.append(enemy)
 	hit_count = matched_enemies.size()
+	var gunner_event_prepared := _should_apply_gunner_hunt_multiplier(resolved_role_id, _resolve_damage_source_role_id(resolved_role_id))
+	var prepared_damage := damage_amount * snapshot_gunner_damage_event_multiplier(owner, resolved_role_id, hit_count > 0 and damage_amount > 0.0)
 	if _should_queue_hits(hit_count):
 		for enemy in matched_enemies:
-			queue_damage_to_enemy(owner, enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center)
+			queue_damage_to_enemy(owner, enemy, prepared_damage, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center, false, false, gunner_event_prepared)
 	else:
 		for enemy in matched_enemies:
-			if deal_damage_to_enemy(owner, enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center):
+			if deal_damage_to_enemy(owner, enemy, prepared_damage, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center, false, 0.0, gunner_event_prepared):
 				kill_count += 1
 	PERFORMANCE_COUNTERS.add("damage_hits", hit_count)
 	return {"hits": hit_count, "kills": kill_count}
@@ -463,14 +487,16 @@ static func _record_damage_query(candidate_count: int) -> void:
 	PERFORMANCE_COUNTERS.add("damage_candidates", candidate_count)
 
 static func _apply_or_queue_hits(owner, enemies: Array, damage_amount: float, source_role_id: String, vulnerability_bonus: float, vulnerability_duration: float, slow_multiplier: float, slow_duration: float, source_position: Variant) -> void:
+	var gunner_event_prepared := _should_apply_gunner_hunt_multiplier(source_role_id, _resolve_damage_source_role_id(source_role_id))
+	var prepared_damage := damage_amount * snapshot_gunner_damage_event_multiplier(owner, source_role_id, not enemies.is_empty() and damage_amount > 0.0)
 	if _should_queue_hits(enemies.size()):
 		var batcher := _get_reusable_damage_batcher(owner)
 		for enemy in enemies:
-			batcher.add_enemy(enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position)
+			batcher.add_enemy(enemy, prepared_damage, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, 0.0, false, gunner_event_prepared)
 		batcher.flush()
 		return
 	for enemy in enemies:
-		deal_damage_to_enemy(owner, enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position)
+		deal_damage_to_enemy(owner, enemy, prepared_damage, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, false, 0.0, gunner_event_prepared)
 
 static func _should_queue_hits(hit_count: int) -> bool:
 	return hit_count >= _get_queued_hit_threshold()
@@ -834,7 +860,44 @@ static func _resolve_role_id(owner, source_role_id: String) -> String:
 static func _resolve_damage_source_role_id(source_role_id: String) -> String:
 	if source_role_id == GUNNER_NO_HUNT_SOURCE_ROLE_ID:
 		return "gunner"
+	for role_id in ["swordsman", "gunner", "mage"]:
+		if source_role_id.begins_with("%s_basic:" % role_id):
+			return role_id
 	return source_role_id
+
+static func _is_basic_attack_damage_source(source_role_id: String) -> bool:
+	return source_role_id.begins_with("swordsman_basic:") or source_role_id.begins_with("gunner_basic:") or source_role_id.begins_with("mage_basic:")
+
+static func snapshot_gunner_damage_event_multiplier(owner, source_role_id: String, has_hits: bool, damage_event_id: String = "") -> float:
+	var resolved_role_id := _resolve_damage_source_role_id(source_role_id)
+	if not has_hits or owner == null or not _should_apply_gunner_hunt_multiplier(source_role_id, resolved_role_id):
+		return 1.0
+	var gunner_role = owner.get("gunner_role")
+	if gunner_role == null:
+		return 1.0
+	if damage_event_id != "" and gunner_role.has_method("get_or_lock_damage_event_multiplier"):
+		return float(gunner_role.get_or_lock_damage_event_multiplier(owner, resolved_role_id, damage_event_id))
+	if not gunner_role.has_method("consume_damage_event_multiplier"):
+		return 1.0
+	return float(gunner_role.consume_damage_event_multiplier(owner, resolved_role_id))
+
+static func register_gunner_damage_event(owner, damage_event_id: String, lifetime: float) -> void:
+	var gunner_role = owner.get("gunner_role") if owner != null and is_instance_valid(owner) else null
+	if gunner_role != null and gunner_role.has_method("register_damage_event"):
+		gunner_role.register_damage_event(owner, damage_event_id, lifetime)
+
+static func release_gunner_damage_event(owner, damage_event_id: String) -> void:
+	var gunner_role = owner.get("gunner_role") if owner != null and is_instance_valid(owner) else null
+	if gunner_role != null and gunner_role.has_method("release_damage_event"):
+		gunner_role.release_damage_event(owner, damage_event_id)
+
+static func is_gunner_talent_damage_source(source_role_id: String) -> bool:
+	return _should_apply_gunner_hunt_multiplier(source_role_id, _resolve_damage_source_role_id(source_role_id))
+
+static func _apply_gunner_damage_target_talents(owner, enemy: Node2D, resolved_source_role_id: String, source_position: Variant) -> void:
+	var gunner_role = owner.get("gunner_role") if owner != null else null
+	if gunner_role != null and gunner_role.has_method("apply_damage_target_talents"):
+		gunner_role.apply_damage_target_talents(owner, enemy, resolved_source_role_id, source_position)
 
 static func _should_apply_gunner_hunt_multiplier(source_role_id: String, resolved_source_role_id: String) -> bool:
 	return resolved_source_role_id == "gunner" and source_role_id != GUNNER_NO_HUNT_SOURCE_ROLE_ID

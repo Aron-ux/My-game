@@ -37,6 +37,7 @@ const REWARD_MAINTENANCE_DEFER_SECONDS := 0.12
 @export var enemy_bullet_scene: PackedScene = preload("res://scenes/enemy_bullet.tscn")
 @export var exp_gem_scene: PackedScene = preload("res://scenes/exp_gem.tscn")
 @export var heart_pickup_scene: PackedScene = preload("res://scenes/heart_pickup.tscn")
+@export var bone_pickup_scene: PackedScene = preload("res://scenes/bone_pickup.tscn")
 @export var hud_scene: PackedScene = preload("res://scenes/hud.tscn")
 @export var level_up_ui_scene: PackedScene = preload("res://scenes/level_up_ui.tscn")
 @export var pause_menu_scene: PackedScene = preload("res://scenes/pause_menu.tscn")
@@ -66,10 +67,12 @@ var reward_context: String = ""
 var story_stage: Dictionary = {}
 var story_mode_active: bool = false
 var endless_mode_active: bool = false
+var endless_speed_enabled: bool = false
+var endless_tier: int = 1
+var endless_run_id: String = ""
 var difficulty_id: String = "normal"
 var difficulty_profile: Dictionary = {}
 var suppress_exit_save: bool = false
-var defeated_boss_count: int = 0
 var exit_snapshot_saved: bool = false
 var performance_sample_elapsed: float = 0.0
 var minimap_update_elapsed: float = 0.0
@@ -82,7 +85,8 @@ var runtime_spawn_budget_frame: int = -1
 var runtime_spawn_counts: Dictionary = {}
 var runtime_pickup_nodes: Dictionary = {
 	"exp_gems": {},
-	"heart_pickups": {}
+	"heart_pickups": {},
+	"bone_pickups": {}
 }
 var runtime_pickup_cache: Dictionary = {}
 var runtime_pickup_cache_dirty: Dictionary = {}
@@ -263,18 +267,13 @@ func _load_saved_run() -> bool:
 	return RUN_SAVE_FLOW.load_saved_run(self)
 
 func _get_spawn_enemy_health_multiplier(kind: String = "normal") -> float:
-	return _get_story_enemy_health_multiplier() * _get_difficulty_enemy_health_multiplier(kind) * ENEMY_DIRECTOR.get_endless_cycle_health_multiplier(_get_endless_cycle_power_level())
+	return _get_story_enemy_health_multiplier() * _get_difficulty_enemy_health_multiplier(kind)
 
 func _get_spawn_enemy_speed_multiplier() -> float:
-	return _get_story_enemy_speed_multiplier() * _get_difficulty_enemy_speed_multiplier() * ENEMY_DIRECTOR.get_endless_cycle_speed_multiplier(_get_endless_cycle_power_level())
+	return _get_story_enemy_speed_multiplier() * _get_difficulty_enemy_speed_multiplier()
 
 func _get_spawn_enemy_damage_multiplier() -> float:
-	return _get_difficulty_enemy_damage_multiplier() * ENEMY_DIRECTOR.get_endless_cycle_damage_multiplier(_get_endless_cycle_power_level())
-
-func _get_endless_cycle_power_level() -> int:
-	if not endless_mode_active:
-		return 0
-	return max(0, defeated_boss_count)
+	return _get_difficulty_enemy_damage_multiplier()
 
 func _get_game_bgm():
 	return GAME_SESSION_FLOW.get_game_bgm(self)
@@ -337,6 +336,15 @@ func _on_restart_requested() -> void:
 
 func _on_main_menu_requested() -> void:
 	GAME_SESSION_FLOW.return_to_main_menu(self)
+
+func _on_endless_return_to_camp_requested() -> void:
+	GAME_SESSION_FLOW.return_to_endless_camp(self)
+
+func _on_endless_speed_toggled(enabled: bool) -> void:
+	GAME_SESSION_FLOW.set_endless_speed_enabled(self, enabled)
+
+func _finish_endless_tier_clear() -> void:
+	GAME_SESSION_FLOW.return_to_endless_camp(self)
 
 func _load_story_stage_context() -> void:
 	GAME_STORY_CONTEXT_FLOW.load_story_stage_context(self)
@@ -539,14 +547,23 @@ func _on_developer_enemy_spawn_requested(kind: String, archetype_id: String, cou
 func _on_developer_skill_unlock_requested(skill_id: String, tier: int) -> void:
 	DEVELOPER_ACTIONS.unlock_skill(self, skill_id, tier)
 
+func _on_developer_skill_talent_grant_requested(talent_id: String) -> void:
+	DEVELOPER_ACTIONS.grant_skill_talent(self, talent_id)
+
 func _on_developer_blessing_grant_requested(blessing_id: String, tier: int) -> void:
 	DEVELOPER_ACTIONS.grant_blessing(self, blessing_id, tier)
 
 func _on_developer_all_blessings_grant_requested() -> void:
 	DEVELOPER_ACTIONS.grant_all_blessings(self)
 
+func _on_developer_ruan_stone_action_requested(action_id: String) -> void:
+	DEVELOPER_ACTIONS.apply_ruan_stone_action(self, action_id)
+
 func _on_developer_glutton_skill_test_requested(skill_id: String) -> void:
 	DEVELOPER_ACTIONS.force_glutton_skill(self, skill_id)
+
+func _on_developer_endless_tier_test_requested(tier: int) -> void:
+	DEVELOPER_ACTIONS.set_endless_tier(self, tier)
 
 func _on_developer_enemy_detail_display_toggled(enabled: bool) -> void:
 	set_enemy_debug_ranges_visible(enabled)
@@ -576,6 +593,9 @@ func _get_developer_skill_options() -> Array:
 
 func _get_developer_blessing_options() -> Array:
 	return DEVELOPER_OPTION_PROVIDER.get_blessing_options(player)
+
+func _get_developer_ruan_stone_options() -> Array:
+	return DEVELOPER_OPTION_PROVIDER.get_ruan_stone_options(player)
 
 func _spawn_developer_boss(archetype_id: String = "boss_spellcore") -> void:
 	DEVELOPER_ACTIONS.spawn_boss(self, archetype_id)

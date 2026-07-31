@@ -44,6 +44,14 @@ if [[ -n "$GODOT_BIN" ]]; then
   fi
   echo "MAIN_MENU_SCENE_SMOKE_OK"
 
+  echo "== Godot endless save select scene smoke =="
+  "$GODOT_BIN" --headless --path . res://scenes/endless_save_select.tscn --quit --verbose 2>&1 | tee /tmp/my-game-endless-save-select-scene-smoke.log >/dev/null
+  if grep -E "$GODOT_ERROR_PATTERN" /tmp/my-game-endless-save-select-scene-smoke.log; then
+    echo "ENDLESS_SAVE_SELECT_SCENE_SMOKE_FAILED"
+    exit 1
+  fi
+  echo "ENDLESS_SAVE_SELECT_SCENE_SMOKE_OK"
+
   echo "== Godot battle scene smoke =="
   "$GODOT_BIN" --headless --path . res://scenes/main.tscn --quit --verbose 2>&1 | tee /tmp/my-game-main-scene-smoke.log >/dev/null
   if grep -E "$GODOT_ERROR_PATTERN" /tmp/my-game-main-scene-smoke.log; then

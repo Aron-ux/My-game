@@ -37,16 +37,22 @@ static func _setup_hud(main: Node) -> void:
 		return
 	main.hud = main.hud_scene.instantiate()
 	main.add_child(main.hud)
+	_connect_if_present(main.hud, "endless_speed_toggled", Callable(main, "_on_endless_speed_toggled"))
+	if main.hud.has_method("set_endless_mode_enabled"):
+		main.hud.set_endless_mode_enabled(main.endless_mode_active)
 	_connect_if_present(main.hud, "developer_level_up_requested", Callable(main, "_on_developer_level_up_requested"))
 	_connect_if_present(main.hud, "developer_boss_spawn_requested", Callable(main, "_on_developer_boss_spawn_requested"))
 	_connect_if_present(main.hud, "developer_small_boss_spawn_requested", Callable(main, "_on_developer_small_boss_spawn_requested"))
 	_connect_if_present(main.hud, "developer_normal_enemy_batch_spawn_requested", Callable(main, "_on_developer_normal_enemy_batch_spawn_requested"))
 	_connect_if_present(main.hud, "developer_enemy_spawn_requested", Callable(main, "_on_developer_enemy_spawn_requested"))
 	_connect_if_present(main.hud, "developer_skill_unlock_requested", Callable(main, "_on_developer_skill_unlock_requested"))
+	_connect_if_present(main.hud, "developer_skill_talent_grant_requested", Callable(main, "_on_developer_skill_talent_grant_requested"))
 	_connect_if_present(main.hud, "developer_blessing_grant_requested", Callable(main, "_on_developer_blessing_grant_requested"))
 	_connect_if_present(main.hud, "developer_all_blessings_grant_requested", Callable(main, "_on_developer_all_blessings_grant_requested"))
+	_connect_if_present(main.hud, "developer_ruan_stone_action_requested", Callable(main, "_on_developer_ruan_stone_action_requested"))
 	_connect_if_present(main.hud, "developer_enemy_detail_display_toggled", Callable(main, "_on_developer_enemy_detail_display_toggled"))
 	_connect_if_present(main.hud, "developer_glutton_skill_test_requested", Callable(main, "_on_developer_glutton_skill_test_requested"))
+	_connect_if_present(main.hud, "developer_endless_tier_test_requested", Callable(main, "_on_developer_endless_tier_test_requested"))
 
 static func _setup_character_panel(main: Node) -> void:
 	main.character_panel = CHARACTER_PANEL.new()
@@ -70,6 +76,9 @@ static func _setup_pause_menu(main: Node) -> void:
 	_connect_if_present(main.pause_menu, "resume_requested", Callable(main, "_on_resume_requested"))
 	_connect_if_present(main.pause_menu, "restart_requested", Callable(main, "_on_restart_requested"))
 	_connect_if_present(main.pause_menu, "main_menu_requested", Callable(main, "_on_main_menu_requested"))
+	_connect_if_present(main.pause_menu, "end_run_requested", Callable(main, "_on_endless_return_to_camp_requested"))
+	if main.pause_menu.has_method("set_endless_mode_enabled"):
+		main.pause_menu.set_endless_mode_enabled(main.endless_mode_active)
 	if main.hud != null and main.hud.has_method("set_hud_layout"):
 		_connect_if_present(main.pause_menu, "hud_layout_changed", Callable(main.hud, "set_hud_layout"))
 
@@ -79,6 +88,7 @@ static func _setup_game_over_ui(main: Node) -> void:
 	main.game_over_ui = main.game_over_ui_scene.instantiate()
 	main.add_child(main.game_over_ui)
 	_connect_if_present(main.game_over_ui, "restart_requested", Callable(main, "_on_restart_requested"))
+	_connect_if_present(main.game_over_ui, "return_to_camp_requested", Callable(main, "_on_endless_return_to_camp_requested"))
 
 static func _setup_enemy_debug_range_overlay(main: Node) -> void:
 	var overlay := ENEMY_DEBUG_RANGE_OVERLAY.new()

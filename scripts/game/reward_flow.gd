@@ -9,6 +9,10 @@ const BLESSING_BINDING_CHOICE_META := "blessing_binding_choice"
 const BLESSING_BINDING_RETURN_CONTEXT_META := "blessing_binding_return_context"
 const DIRECT_BLESSING_CHOICE_COUNT := 2
 const DIRECT_BLESSING_TIER_TWO := 2
+const SKILL_TALENT_CONTEXT := "skill_talent_choice"
+const ENDLESS_TIER_CLEAR_CONTEXT := "endless_tier_clear"
+const ENDLESS_TIER_CLEAR_OPTION_ID := "endless_tier_clear_confirm"
+const ENDLESS_TIER_CLEAR_RETRY_OPTION_ID := "endless_tier_clear_retry"
 
 static func show_level_up(main: Node, options: Array) -> void:
 	if main.game_over:
@@ -101,6 +105,39 @@ static func handle_upgrade_selected(main: Node, option_id: String, attribute_opt
 
 	main.get_tree().paused = false
 
+	if main.reward_context == ENDLESS_TIER_CLEAR_CONTEXT:
+		main.reward_context = ""
+		if option_id == ENDLESS_TIER_CLEAR_RETRY_OPTION_ID:
+			show_endless_boss_reward(
+				main,
+				SAVE_MANAGER.complete_current_endless_tier(main.endless_tier, main.endless_run_id)
+			)
+			return
+		if main.has_method("_finish_endless_tier_clear"):
+			main._finish_endless_tier_clear()
+		return
+
+	if main.reward_context == SKILL_TALENT_CONTEXT:
+		var progress_id := ""
+		if main.player != null and main.player.has_method("get_current_blessing_offer_context"):
+			progress_id = str(main.player.get_current_blessing_offer_context().get("skill_progress_id", ""))
+		var applied: bool = (
+			main.player != null
+			and main.player.has_method("apply_skill_talent_choice")
+			and main.player.apply_skill_talent_choice(option_id, progress_id)
+		)
+		if not applied:
+			_show_pending_skill_talent_choice(main)
+			return
+		main.player.level_up_active = false
+		main.player.active_upgrade_kind = ""
+		main.player.current_blessing_offer = {}
+		if _show_pending_skill_talent_choice(main):
+			return
+		main.reward_context = ""
+		_schedule_post_reward_maintenance(main, true)
+		return
+
 	if main.reward_context == "blessing_binding_choice":
 		var choice: Dictionary = main.get_meta(BLESSING_BINDING_CHOICE_META, {})
 		var return_context := str(main.get_meta(BLESSING_BINDING_RETURN_CONTEXT_META, ""))
@@ -114,6 +151,8 @@ static func handle_upgrade_selected(main: Node, option_id: String, attribute_opt
 			return
 		if return_context == "small_boss_blessing_choice":
 			_finish_direct_blessing_choice(main)
+			return
+		if return_context == "level_up" and _show_pending_skill_talent_choice(main):
 			return
 		main.reward_context = ""
 		_schedule_post_reward_maintenance(main, true)
@@ -139,6 +178,8 @@ static func handle_upgrade_selected(main: Node, option_id: String, attribute_opt
 		_apply_player_upgrades(main, upgrade_ids)
 		if _show_pending_blessing_binding_choice(main):
 			return
+		if _show_pending_skill_talent_choice(main):
+			return
 		main.reward_context = ""
 		_schedule_post_reward_maintenance(main, true)
 		return
@@ -155,17 +196,6 @@ static func handle_upgrade_selected(main: Node, option_id: String, attribute_opt
 		main.reward_context = ""
 		_schedule_post_reward_maintenance(main)
 		return
-	if main.reward_context == "endless_boss_reward":
-		if option_id == "small_boss_choose_blessing":
-			show_direct_blessing_choice(main, DIRECT_BLESSING_CHOICE_COUNT, DIRECT_BLESSING_TIER_TWO)
-			return
-		_apply_player_upgrade(main, option_id)
-		if _show_pending_blessing_binding_choice(main):
-			return
-		main.reward_context = ""
-		_schedule_post_reward_maintenance(main)
-		return
-
 	_apply_player_upgrade(main, option_id)
 	if _show_pending_blessing_binding_choice(main):
 		return
@@ -209,18 +239,36 @@ static func show_direct_blessing_choice(main: Node, choices_remaining: int = DIR
 	offer_context["summary"] = "Boss 奖励：从%s中自选。剩余 %d 次。" % [tier_text, max(1, choices_remaining)]
 	main.level_up_ui.show_options(options, [], offer_context)
 
-static func show_endless_boss_reward(main: Node) -> void:
-	if main.level_up_ui == null or not main.level_up_ui.has_method("show_menu"):
-		_schedule_post_reward_maintenance(main)
-		return
-	main.reward_context = "endless_boss_reward"
+static func show_endless_boss_reward(main: Node, settlement: Dictionary = {}) -> void:
+	main.reward_context = ENDLESS_TIER_CLEAR_CONTEXT
 	main.get_tree().paused = true
-	var options: Array = []
-	if main.player != null and main.player.has_method("get_boss_skill_reward_options"):
-		options = main.player.get_boss_skill_reward_options()
-	if options.is_empty():
-		options = get_blank_small_boss_reward_options()
-	main.level_up_ui.show_menu("技能奖励（三选一）", options)
+	if main.level_up_ui == null or not main.level_up_ui.has_method("show_menu"):
+		if settlement.is_empty() or str(settlement.get("error", "")) == "save_failed":
+			push_error("Endless tier settlement failed and no retry UI is available; the run was preserved.")
+			return
+		if main.has_method("_finish_endless_tier_clear"):
+			main._finish_endless_tier_clear()
+		return
+	var tier := int(settlement.get("tier", main.get("endless_tier")))
+	var description := "本次结算已处理，返回营地。"
+	var option_id := ENDLESS_TIER_CLEAR_OPTION_ID
+	var option_title := "返回营地"
+	if settlement.is_empty() or str(settlement.get("error", "")) == "save_failed":
+		description = "永久档案写入失败，当前战局仍保留。请重试结算。"
+		option_id = ENDLESS_TIER_CLEAR_RETRY_OPTION_ID
+		option_title = "重试结算"
+	if bool(settlement.get("applied", false)):
+		description = "通关奖励：%d 骨。" % int(settlement.get("base_reward", 0))
+		if bool(settlement.get("first_clear", false)):
+			description += "\n首通奖励：%d 骨。已解锁 N%d。" % [
+				int(settlement.get("first_clear_bonus", 0)),
+				int(settlement.get("next_tier", tier + 1))
+			]
+	main.level_up_ui.show_menu("N%d 已通关" % tier, [{
+		"id": option_id,
+		"title": option_title,
+		"description": description
+	}])
 
 static func get_blank_small_boss_reward_options() -> Array:
 	return [
@@ -278,6 +326,33 @@ static func _show_pending_blessing_binding_choice(main: Node, return_context_ove
 	main.level_up_ui.show_menu("祝福绑定技能", options)
 	return true
 
+static func _show_pending_skill_talent_choice(main: Node) -> bool:
+	if main.game_over or main.player == null or main.level_up_ui == null:
+		return false
+	if not main.player.has_method("build_next_skill_talent_offer") or not main.level_up_ui.has_method("show_options"):
+		return false
+	var offer: Dictionary = main.player.build_next_skill_talent_offer()
+	var options: Array = offer.get("options", []) if offer.get("options", []) is Array else []
+	var context: Dictionary = offer.get("context", {}) if offer.get("context", {}) is Dictionary else {}
+	if options.size() != 2 or not bool(context.get("skill_talent_offer", false)):
+		if str(main.player.get("active_upgrade_kind")) == "skill_talent":
+			main.player.active_upgrade_kind = ""
+			main.player.level_up_active = false
+			main.player.current_blessing_offer = {}
+		return false
+	main.player.current_blessing_offer = offer
+	main.player.level_up_active = true
+	main.player.active_upgrade_kind = "skill_talent"
+	main.reward_context = SKILL_TALENT_CONTEXT
+	main.get_tree().paused = true
+	main.level_up_ui.show_options(options, [], context)
+	if main.has_method("_save_run_state"):
+		main._save_run_state()
+	return true
+
+static func resume_saved_reward(main: Node) -> bool:
+	return _show_pending_skill_talent_choice(main)
+
 static func _finish_direct_blessing_choice(main: Node) -> void:
 	var remaining_choices: int = max(0, int(main.get_meta(DIRECT_BLESSING_CHOICES_META, 1)) - 1)
 	main.set_meta(DIRECT_BLESSING_CHOICES_META, remaining_choices)
@@ -289,6 +364,7 @@ static func _finish_direct_blessing_choice(main: Node) -> void:
 		main.remove_meta(DIRECT_BLESSING_TIER_META)
 	main.reward_context = ""
 	_schedule_post_reward_maintenance(main)
+
 
 static func _schedule_post_reward_maintenance(main: Node, resume_level_ups: bool = false) -> void:
 	if main.has_method("_schedule_reward_maintenance"):

@@ -5,12 +5,15 @@ const ENEMY_ARCHETYPE_DATABASE := preload("res://scripts/enemy/enemy_archetype_d
 
 
 static func get_wave_profile(main: Node) -> Dictionary:
-	var cycle_elapsed_time: float = get_cycle_elapsed_time(main)
+	var player_growth_score := get_player_growth_score(main)
+	var expected_growth_score := get_expected_growth_score(main)
+	if main != null and bool(main.get("endless_mode_active")):
+		player_growth_score = expected_growth_score
 	var profile: Dictionary = ENEMY_DIRECTOR.get_wave_profile(
-		cycle_elapsed_time,
+		get_stage_elapsed_time(main),
 		ENEMY_DIRECTOR.get_default_elite_spawn_times(),
-		get_player_growth_score(main),
-		get_expected_growth_score(main)
+		player_growth_score,
+		expected_growth_score
 	)
 	if main.has_method("_apply_difficulty_to_wave_profile"):
 		return main._apply_difficulty_to_wave_profile(profile)
@@ -46,29 +49,17 @@ static func _get_active_role_damage(player: Node) -> float:
 
 
 static func get_expected_growth_score(main: Node) -> float:
-	return ENEMY_DIRECTOR.get_expected_growth_score(get_cycle_elapsed_time(main), ENEMY_DIRECTOR.get_default_boss_spawn_time())
+	return ENEMY_DIRECTOR.get_expected_growth_score(get_stage_elapsed_time(main), ENEMY_DIRECTOR.get_default_boss_spawn_time())
 
 
-static func get_cycle_elapsed_time(main: Node) -> float:
-	if main != null and bool(main.get("endless_mode_active")):
-		var cycle_duration: float = ENEMY_DIRECTOR.get_default_boss_spawn_time()
-		var cycle_index: int = max(0, int(main.get("defeated_boss_count")))
-		return max(0.0, float(main.get("survival_time")) - float(cycle_index) * cycle_duration)
+static func get_stage_elapsed_time(main: Node) -> float:
 	return float(main.get("survival_time")) if main != null else 0.0
-
-
-static func get_cycle_spawn_count_multiplier(main: Node) -> float:
-	if main == null or not bool(main.get("endless_mode_active")):
-		return 1.0
-	return ENEMY_DIRECTOR.get_endless_cycle_spawn_count_multiplier(int(main.get("defeated_boss_count")))
 
 
 static func get_enemy_profile(main: Node, kind: String, archetype: String) -> Dictionary:
 	var profile: Dictionary = ENEMY_ARCHETYPE_DATABASE.get_profile(kind, archetype)
 	if main != null and main.has_method("_apply_difficulty_to_enemy_profile"):
 		profile = main._apply_difficulty_to_enemy_profile(kind, profile)
-	if main != null and bool(main.get("endless_mode_active")):
-		profile = ENEMY_DIRECTOR.apply_endless_cycle_to_enemy_profile(kind, profile, int(main.get("defeated_boss_count")))
 	return profile
 
 

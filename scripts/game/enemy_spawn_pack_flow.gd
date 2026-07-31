@@ -78,8 +78,8 @@ static func spawn_configured_enemy_at(main: Node, kind: String, archetype: Strin
 static func get_runtime_enemy_limit(main: Node) -> int:
 	var fallback_limit: int = PERFORMANCE_GUARD.DEFAULT_ACTIVE_ENEMY_LIMIT
 	if main != null:
-		var cycle_elapsed_time: float = main.ENEMY_SPAWN_FLOW.get_cycle_elapsed_time(main)
-		fallback_limit = ENEMY_DIRECTOR.get_cycle_active_enemy_limit(cycle_elapsed_time)
+		var stage_elapsed_time: float = main.ENEMY_SPAWN_FLOW.get_stage_elapsed_time(main)
+		fallback_limit = ENEMY_DIRECTOR.get_active_enemy_limit(stage_elapsed_time)
 	if main != null and main.has_method("_get_runtime_group_limit"):
 		return min(fallback_limit, int(main._get_runtime_group_limit("enemies", fallback_limit)))
 	return fallback_limit

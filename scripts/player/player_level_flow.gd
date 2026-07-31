@@ -114,6 +114,7 @@ static func try_request_level_up(owner) -> void:
 
 	owner.pending_level_ups -= 1
 	owner.level_up_active = true
+	_set_active_upgrade_kind(owner, "level_up")
 	if owner.has_method("_emit_deferred_level_up_requested"):
 		owner.call_deferred("_emit_deferred_level_up_requested")
 	else:
@@ -174,3 +175,10 @@ static func _emit_lightweight_stats_changed(owner) -> void:
 		owner.emit_frame_stats_changed()
 	else:
 		owner.stats_changed.emit(owner.get_stat_summary())
+
+
+static func _set_active_upgrade_kind(owner, kind: String) -> void:
+	for property in owner.get_property_list():
+		if property is Dictionary and str((property as Dictionary).get("name", "")) == "active_upgrade_kind":
+			owner.set("active_upgrade_kind", kind)
+			return

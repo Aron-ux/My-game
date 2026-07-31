@@ -4,7 +4,11 @@ signal close_requested
 
 const GAME_SETTINGS := preload("res://scripts/game_settings.gd")
 const PLAYER_EQUIPMENT_FLOW := preload("res://scripts/player/player_equipment_flow.gd")
+const RUAN_STONE_SYSTEM := preload("res://scripts/player/ruan_stone_system.gd")
 const PLAYER_BLESSING_SYSTEM := preload("res://scripts/player/player_blessing_system.gd")
+const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
+const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
+const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_talent_system.gd")
 const SURVIVORS_THEME := preload("res://scripts/ui/theme/survivors_ui_theme.gd")
 const ARCHIVE_ORNAMENT_LAYER := preload("res://scripts/ui/hud/archive_ornament_layer.gd")
 const WHITE_KEY_SHADER := preload("res://shaders/white_key.gdshader")
@@ -57,11 +61,23 @@ var role_texture_rect: TextureRect
 var role_title_label: Label
 var role_subtitle_label: Label
 var role_nav_list: VBoxContainer
-var role_button_row: HBoxContainer
 var stats_label: RichTextLabel
 var equipment_list: HBoxContainer
 var blessing_list: VBoxContainer
-var card_label: RichTextLabel
+var blessing_rows: Dictionary = {}
+var blessing_role_group_header: Label
+var blessing_skill_group_header: Label
+var blessing_empty_label: Label
+var skill_tree_selector_list: VBoxContainer
+var skill_tree_detail: VBoxContainer
+var blessing_scroll: ScrollContainer
+var skill_tree_detail_scroll: ScrollContainer
+var blessing_page: VBoxContainer
+var skill_build_page: VBoxContainer
+var blessing_tab_button: Button
+var skill_build_tab_button: Button
+var blessing_summary_label: Label
+var skill_build_summary_label: Label
 var panel_title_label: Label
 var panel_role_pill_label: Label
 var panel_status_label: Label
@@ -70,17 +86,17 @@ var backdrop: ColorRect
 var panel: Panel
 var panel_margin: MarginContainer
 var gift_popup: PopupMenu
-var blessing_popup: PopupMenu
 var cached_player: Node
 var viewed_role_index: int = 0
 var pending_gift_equipment_id: String = ""
 var pending_gift_from_role_id: String = ""
 var gift_target_role_ids: Array[String] = []
-var pending_compose_blessing_id: String = ""
-var pending_compose_role_id: String = ""
-var pending_compose_is_skill_bound: bool = false
 var ui_white_key_material: ShaderMaterial
 var role_pixel_texture_cache: Dictionary = {}
+var archive_card_style_cache: Dictionary = {}
+var selected_archive_tab := "build"
+var selected_skill_tree_index := 0
+var expanded_blessing_key := ""
 
 
 func _archive_panel_style(
@@ -99,6 +115,9 @@ func _archive_panel_style(
 	return style
 
 func _archive_card_style(selected: bool = false, accented: bool = false, disabled: bool = false) -> StyleBoxFlat:
+	var cache_key := "normal:%s:%s:%s" % [selected, accented, disabled]
+	if archive_card_style_cache.has(cache_key):
+		return archive_card_style_cache[cache_key]
 	var bg := Color(0.055, 0.073, 0.10, 0.96)
 	var border := Color(0.43, 0.49, 0.60, 0.86)
 	var border_width := 1
@@ -113,12 +132,27 @@ func _archive_card_style(selected: bool = false, accented: bool = false, disable
 	if disabled:
 		bg = bg.darkened(0.28)
 		border = border.darkened(0.30)
-	return _archive_panel_style(bg, border, border_width, 12, 8.0, 5)
+	var style := _archive_panel_style(bg, border, border_width, 12, 8.0, 5)
+	archive_card_style_cache[cache_key] = style
+	return style
 
 func _archive_card_hover_style(selected: bool = false, accented: bool = false) -> StyleBoxFlat:
-	var style := _archive_card_style(selected, accented, false)
+	var cache_key := "hover:%s:%s" % [selected, accented]
+	if archive_card_style_cache.has(cache_key):
+		return archive_card_style_cache[cache_key]
+	var style := _archive_card_style(selected, accented, false).duplicate() as StyleBoxFlat
 	style.bg_color = style.bg_color.lightened(0.08)
 	style.border_color = style.border_color.lightened(0.12)
+	archive_card_style_cache[cache_key] = style
+	return style
+
+func _archive_card_pressed_style(selected: bool, accented: bool, disabled: bool) -> StyleBoxFlat:
+	var cache_key := "pressed:%s:%s:%s" % [selected, accented, disabled]
+	if archive_card_style_cache.has(cache_key):
+		return archive_card_style_cache[cache_key]
+	var style := _archive_card_style(selected, accented, disabled).duplicate() as StyleBoxFlat
+	style.bg_color = style.bg_color.darkened(0.08)
+	archive_card_style_cache[cache_key] = style
 	return style
 
 func _apply_archive_button_style(button: Button, selected: bool = false, accented: bool = false, disabled: bool = false) -> void:
@@ -126,10 +160,9 @@ func _apply_archive_button_style(button: Button, selected: bool = false, accente
 		return
 	button.add_theme_stylebox_override("normal", _archive_card_style(selected, accented, disabled))
 	button.add_theme_stylebox_override("hover", _archive_card_hover_style(selected, accented))
-	var pressed := _archive_card_style(selected, accented, disabled)
-	pressed.bg_color = pressed.bg_color.darkened(0.08)
-	button.add_theme_stylebox_override("pressed", pressed)
-	button.add_theme_stylebox_override("focus", _archive_card_hover_style(true, accented))
+	button.add_theme_stylebox_override("pressed", _archive_card_pressed_style(selected, accented, disabled))
+	button.add_theme_stylebox_override("focus", _archive_card_hover_style(selected, accented))
+	button.add_theme_stylebox_override("disabled", _archive_card_style(selected, accented, true))
 	var font_color := SURVIVORS_THEME.COLOR_TEXT
 	if accented:
 		font_color = SURVIVORS_THEME.COLOR_TEXT_GOOD
@@ -199,11 +232,6 @@ func _ready() -> void:
 	gift_popup.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
 	gift_popup.index_pressed.connect(_on_gift_popup_index_pressed)
 	add_child(gift_popup)
-
-	blessing_popup = PopupMenu.new()
-	blessing_popup.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
-	blessing_popup.index_pressed.connect(_on_blessing_popup_index_pressed)
-	add_child(blessing_popup)
 
 	hide_panel()
 
@@ -286,10 +314,8 @@ func _build_role_sidebar(content_layout: HBoxContainer) -> void:
 	role_nav_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	role_nav_list.add_theme_constant_override("separation", 10)
 	side_box.add_child(role_nav_list)
-
-	role_button_row = HBoxContainer.new()
-	role_button_row.visible = false
-	side_box.add_child(role_button_row)
+	for index in range(ROLE_PIXEL_TEXTURE_PATHS.size()):
+		role_nav_list.add_child(_make_role_card(index))
 
 func _build_role_detail_column(content_layout: HBoxContainer) -> void:
 	var detail_panel := PanelContainer.new()
@@ -361,12 +387,12 @@ func _build_role_detail_column(content_layout: HBoxContainer) -> void:
 
 	var equipment_section := _make_panel_section("装备")
 	equipment_section.size_flags_vertical = Control.SIZE_FILL
-	equipment_section.custom_minimum_size = Vector2(0.0, 88.0)
+	equipment_section.custom_minimum_size = Vector2(0.0, 104.0)
 	detail_box.add_child(equipment_section)
 
 	var equipment_body := _get_section_body(equipment_section)
 	var equipment_hint := Label.new()
-	equipment_hint.text = "右键道具可赠与其他角色"
+	equipment_hint.text = "阮石全队共享 · 右键普通道具可赠与其他角色"
 	equipment_hint.add_theme_font_size_override("font_size", 12)
 	equipment_hint.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_MUTED)
 	equipment_body.add_child(equipment_hint)
@@ -374,7 +400,7 @@ func _build_role_detail_column(content_layout: HBoxContainer) -> void:
 	var equipment_scroll := ScrollContainer.new()
 	equipment_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	equipment_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	equipment_scroll.custom_minimum_size = Vector2(0.0, 42.0)
+	equipment_scroll.custom_minimum_size = Vector2(0.0, 58.0)
 	equipment_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	equipment_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	equipment_body.add_child(equipment_scroll)
@@ -388,62 +414,124 @@ func _build_build_detail_column(content_layout: HBoxContainer) -> void:
 	var right_column := VBoxContainer.new()
 	right_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_column.add_theme_constant_override("separation", 10)
 	content_layout.add_child(right_column)
 
-	var blessing_section := _make_panel_section("祝福清单")
-	blessing_section.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	blessing_section.custom_minimum_size = Vector2(0.0, 245.0)
-	right_column.add_child(blessing_section)
-	var blessing_body := _get_section_body(blessing_section)
+	var archive_section := _make_panel_section("战斗档案")
+	archive_section.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	archive_section.custom_minimum_size = Vector2(0.0, 470.0)
+	right_column.add_child(archive_section)
+	var archive_body := _get_section_body(archive_section)
 
-	var blessing_header := HBoxContainer.new()
-	blessing_header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	blessing_header.add_theme_constant_override("separation", 8)
-	blessing_body.add_child(blessing_header)
+	var tab_row := HBoxContainer.new()
+	tab_row.name = "ArchiveTabRow"
+	tab_row.custom_minimum_size = Vector2(0.0, 42.0)
+	tab_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tab_row.add_theme_constant_override("separation", 8)
+	archive_body.add_child(tab_row)
 
-	var owned_label := Label.new()
-	owned_label.text = "已装备（生效中）"
-	owned_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	owned_label.add_theme_font_size_override("font_size", 14)
-	owned_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_MUTED)
-	blessing_header.add_child(owned_label)
+	skill_build_tab_button = Button.new()
+	skill_build_tab_button.name = "BuildTabButton"
+	skill_build_tab_button.text = "技能构筑  6"
+	skill_build_tab_button.toggle_mode = true
+	skill_build_tab_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	skill_build_tab_button.custom_minimum_size = Vector2(0.0, 42.0)
+	skill_build_tab_button.pressed.connect(_set_archive_tab.bind("build"))
+	_apply_archive_button_style(skill_build_tab_button)
+	skill_build_tab_button.add_theme_stylebox_override("pressed", _archive_card_style(true))
+	skill_build_tab_button.add_theme_color_override("font_pressed_color", SURVIVORS_THEME.COLOR_TEXT_GOLD)
+	tab_row.add_child(skill_build_tab_button)
 
-	var compose_label := Label.new()
-	compose_label.text = "I x3 → II x1"
-	compose_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	compose_label.add_theme_font_size_override("font_size", 14)
-	compose_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_GOLD)
-	blessing_header.add_child(compose_label)
+	blessing_tab_button = Button.new()
+	blessing_tab_button.name = "BlessingTabButton"
+	blessing_tab_button.text = "祝福账本  0"
+	blessing_tab_button.toggle_mode = true
+	blessing_tab_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	blessing_tab_button.custom_minimum_size = Vector2(0.0, 42.0)
+	blessing_tab_button.pressed.connect(_set_archive_tab.bind("blessing"))
+	_apply_archive_button_style(blessing_tab_button)
+	blessing_tab_button.add_theme_stylebox_override("pressed", _archive_card_style(true))
+	blessing_tab_button.add_theme_color_override("font_pressed_color", SURVIVORS_THEME.COLOR_TEXT_GOLD)
+	tab_row.add_child(blessing_tab_button)
 
-	var blessing_scroll := ScrollContainer.new()
+	skill_build_page = VBoxContainer.new()
+	skill_build_page.name = "SkillBuildPage"
+	skill_build_page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	skill_build_page.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	skill_build_page.add_theme_constant_override("separation", 8)
+	archive_body.add_child(skill_build_page)
+
+	skill_build_summary_label = Label.new()
+	skill_build_summary_label.text = "6 个技能树 · 已质变 0 个 · 指向技能查看路径"
+	skill_build_summary_label.add_theme_font_size_override("font_size", 14)
+	skill_build_summary_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_MUTED)
+	skill_build_page.add_child(skill_build_summary_label)
+
+	var skill_tree_workspace := HBoxContainer.new()
+	skill_tree_workspace.name = "SkillTreeWorkspace"
+	skill_tree_workspace.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	skill_tree_workspace.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	skill_tree_workspace.add_theme_constant_override("separation", 8)
+	skill_build_page.add_child(skill_tree_workspace)
+
+	var selector_scroll := ScrollContainer.new()
+	selector_scroll.name = "SkillTreeSelectorScroll"
+	selector_scroll.custom_minimum_size = Vector2(150.0, 0.0)
+	selector_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	selector_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	selector_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	skill_tree_workspace.add_child(selector_scroll)
+
+	skill_tree_selector_list = VBoxContainer.new()
+	skill_tree_selector_list.name = "SkillTreeSelectorList"
+	skill_tree_selector_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	skill_tree_selector_list.add_theme_constant_override("separation", 6)
+	selector_scroll.add_child(skill_tree_selector_list)
+	_build_skill_tree_selectors()
+
+	skill_tree_detail_scroll = ScrollContainer.new()
+	skill_tree_detail_scroll.name = "SkillTreeDetailScroll"
+	skill_tree_detail_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	skill_tree_detail_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	skill_tree_detail_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	skill_tree_detail_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	skill_tree_workspace.add_child(skill_tree_detail_scroll)
+
+	skill_tree_detail = VBoxContainer.new()
+	skill_tree_detail.name = "SkillTreeDetail"
+	skill_tree_detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	skill_tree_detail.add_theme_constant_override("separation", 7)
+	skill_tree_detail_scroll.add_child(skill_tree_detail)
+	_build_skill_tree_detail_shell()
+
+	blessing_page = VBoxContainer.new()
+	blessing_page.name = "BlessingPage"
+	blessing_page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	blessing_page.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	blessing_page.add_theme_constant_override("separation", 8)
+	archive_body.add_child(blessing_page)
+
+	blessing_summary_label = Label.new()
+	blessing_summary_label.text = "0 项祝福 · 各阶独立持有，不提供合成"
+	blessing_summary_label.add_theme_font_size_override("font_size", 14)
+	blessing_summary_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_MUTED)
+	blessing_page.add_child(blessing_summary_label)
+
+	blessing_scroll = ScrollContainer.new()
+	blessing_scroll.name = "BlessingScroll"
 	blessing_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	blessing_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	blessing_scroll.custom_minimum_size = Vector2(0.0, 172.0)
-	blessing_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
+	blessing_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	blessing_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	blessing_body.add_child(blessing_scroll)
+	blessing_page.add_child(blessing_scroll)
 
 	blessing_list = VBoxContainer.new()
+	blessing_list.name = "BlessingList"
 	blessing_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	blessing_list.add_theme_constant_override("separation", 6)
+	blessing_list.add_theme_constant_override("separation", 8)
 	blessing_scroll.add_child(blessing_list)
+	_build_blessing_list_shell()
 
-	var card_section := _make_panel_section("技能与配方")
-	card_section.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	card_section.custom_minimum_size = Vector2(0.0, 225.0)
-	right_column.add_child(card_section)
-	var card_body := _get_section_body(card_section)
-
-	card_label = RichTextLabel.new()
-	card_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	card_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	card_label.custom_minimum_size = Vector2(0.0, 170.0)
-	card_label.bbcode_enabled = true
-	card_label.fit_content = false
-	card_label.scroll_active = true
-	SURVIVORS_THEME.apply_rich_label_font(card_label, 15)
-	card_body.add_child(card_label)
+	_set_archive_tab("build")
 
 func _build_archive_footer(root_layout: VBoxContainer) -> void:
 	var footer := HBoxContainer.new()
@@ -452,12 +540,32 @@ func _build_archive_footer(root_layout: VBoxContainer) -> void:
 	root_layout.add_child(footer)
 
 	var hint := Label.new()
-	hint.text = "长按查看提示：祝福行右键合成；装备行右键赠与；属性为当前战斗中的实时生效值。"
+	hint.text = "Ctrl+Tab 切换技能与祝福 · 指向技能查看天赋树 · 装备行右键赠与"
 	hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_font_size_override("font_size", 12)
 	hint.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_MUTED)
 	footer.add_child(hint)
+
+
+func _set_archive_tab(tab_id: String) -> void:
+	selected_archive_tab = "blessing" if tab_id == "blessing" else "build"
+	if skill_build_page != null:
+		skill_build_page.visible = selected_archive_tab == "build"
+	if blessing_page != null:
+		blessing_page.visible = selected_archive_tab == "blessing"
+	if skill_build_tab_button != null:
+		skill_build_tab_button.button_pressed = selected_archive_tab == "build"
+	if blessing_tab_button != null:
+		blessing_tab_button.button_pressed = selected_archive_tab == "blessing"
+
+
+func _reset_archive_scrolls() -> void:
+	if skill_tree_detail_scroll != null:
+		skill_tree_detail_scroll.scroll_vertical = 0
+	if blessing_scroll != null:
+		blessing_scroll.scroll_vertical = 0
+
 
 func show_for_player(player: Node) -> void:
 	cached_player = player
@@ -471,8 +579,6 @@ func hide_panel() -> void:
 	visible = false
 	if gift_popup != null:
 		gift_popup.hide()
-	if blessing_popup != null:
-		blessing_popup.hide()
 
 func _request_close() -> void:
 	close_requested.emit()
@@ -483,6 +589,14 @@ func _input(event: InputEvent) -> void:
 	if GAME_SETTINGS.event_matches_action(event, GAME_SETTINGS.ACTION_CHARACTER_PANEL):
 		close_requested.emit()
 		get_viewport().set_input_as_handled()
+		return
+	if event is InputEventKey:
+		var key_event := event as InputEventKey
+		if key_event.pressed and not key_event.echo and key_event.ctrl_pressed and key_event.keycode == KEY_TAB:
+			var next_tab := "blessing" if selected_archive_tab == "build" else "build"
+			_set_archive_tab(next_tab)
+			(blessing_tab_button if next_tab == "blessing" else skill_build_tab_button).grab_focus()
+			get_viewport().set_input_as_handled()
 
 func refresh() -> void:
 	if cached_player == null or not is_instance_valid(cached_player):
@@ -500,12 +614,11 @@ func refresh() -> void:
 	_apply_role_texture(role_texture_rect, role_id, true)
 	panel_role_pill_label.text = "%s · %s" % [role_name, "当前" if is_active else "查看"]
 	panel_status_label.text = "战斗暂停中"
-	_refresh_role_buttons()
 	_refresh_role_cards()
 	stats_label.text = _build_stats_text(role_data)
 	_refresh_equipment_list(role_id)
+	_refresh_skill_build_list(role_id)
 	_refresh_blessing_list(role_id)
-	card_label.text = _build_card_text()
 
 func _make_panel_section(title: String) -> PanelContainer:
 	var section := PanelContainer.new()
@@ -548,36 +661,29 @@ func _layout_panel() -> void:
 	)
 	panel.add_theme_stylebox_override("panel", _archive_panel_style(Color(0.014, 0.024, 0.038, 0.98), Color(0.95, 0.68, 0.23, 1.0), 2, 16, 0.0, 14))
 
-func _refresh_role_buttons() -> void:
-	if role_button_row == null:
-		return
-	for child in role_button_row.get_children():
-		role_button_row.remove_child(child)
-		child.queue_free()
-
 func _refresh_role_cards() -> void:
 	if role_nav_list == null:
 		return
-	for child in role_nav_list.get_children():
-		role_nav_list.remove_child(child)
-		child.queue_free()
 	var roles: Array = _get_roles()
+	if role_nav_list.get_child_count() != roles.size():
+		for child in role_nav_list.get_children():
+			role_nav_list.remove_child(child)
+			child.queue_free()
+		for index in range(roles.size()):
+			role_nav_list.add_child(_make_role_card(index))
 	var active_index: int = int(cached_player.get("active_role_index"))
 	for index in range(roles.size()):
 		var role: Dictionary = roles[index]
-		role_nav_list.add_child(_make_role_card(role, index, active_index))
+		_update_role_card(role_nav_list.get_child(index) as PanelContainer, role, index, active_index)
 
-func _make_role_card(role: Dictionary, index: int, active_index: int) -> PanelContainer:
-	var role_id := str(role.get("id", "swordsman"))
-	var selected := index == viewed_role_index
-	var active := index == active_index
+func _make_role_card(index: int) -> PanelContainer:
 	var card := PanelContainer.new()
+	card.name = "RoleCard%d" % index
 	card.custom_minimum_size = Vector2(0.0, 124.0)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	card.mouse_filter = Control.MOUSE_FILTER_STOP
-	card.tooltip_text = "点击查看 %s 构筑" % str(role.get("name", role_id))
-	card.add_theme_stylebox_override("panel", _archive_card_style(selected, active, false))
+	card.add_theme_stylebox_override("panel", _archive_card_style())
 	card.gui_input.connect(_on_role_card_gui_input.bind(index))
 
 	var box := VBoxContainer.new()
@@ -592,23 +698,39 @@ func _make_role_card(role: Dictionary, index: int, active_index: int) -> PanelCo
 	texture_rect.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	texture_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
 	texture_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_apply_role_texture(texture_rect, role_id, active or selected)
 	box.add_child(texture_rect)
 
 	var name_label := Label.new()
-	name_label.text = str(role.get("name", role_id))
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.add_theme_font_size_override("font_size", 19)
-	name_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_GOLD if selected else SURVIVORS_THEME.COLOR_TEXT)
 	box.add_child(name_label)
 
 	var status_label := Label.new()
-	status_label.text = "当前" if active else "待命"
 	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	status_label.add_theme_font_size_override("font_size", 14)
-	status_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_GOOD if active else SURVIVORS_THEME.COLOR_TEXT_MUTED)
 	box.add_child(status_label)
 	return card
+
+func _update_role_card(card: PanelContainer, role: Dictionary, index: int, active_index: int) -> void:
+	var role_id := str(role.get("id", "swordsman"))
+	var selected := index == viewed_role_index
+	var active := index == active_index
+	var box := card.get_child(0) as VBoxContainer
+	var texture_rect := box.get_child(0) as TextureRect
+	var name_label := box.get_child(1) as Label
+	var status_label := box.get_child(2) as Label
+	card.name = "RoleCard_%s" % role_id
+	card.tooltip_text = "点击查看 %s 构筑" % str(role.get("name", role_id))
+	name_label.text = str(role.get("name", role_id))
+	var visual_state := "%s:%s:%s" % [role_id, selected, active]
+	if str(card.get_meta("visual_state", "")) == visual_state:
+		return
+	card.set_meta("visual_state", visual_state)
+	card.add_theme_stylebox_override("panel", _archive_card_style(selected, active, false))
+	_apply_role_texture(texture_rect, role_id, active or selected)
+	name_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_GOLD if selected else SURVIVORS_THEME.COLOR_TEXT)
+	status_label.text = "当前" if active else "待命"
+	status_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_GOOD if active else SURVIVORS_THEME.COLOR_TEXT_MUTED)
 
 func _on_role_card_gui_input(event: InputEvent, role_index: int) -> void:
 	if event is InputEventMouseButton:
@@ -618,12 +740,36 @@ func _on_role_card_gui_input(event: InputEvent, role_index: int) -> void:
 
 func _view_role(role_index: int) -> void:
 	viewed_role_index = role_index
+	expanded_blessing_key = ""
 	refresh()
+	_reset_archive_scrolls.call_deferred()
 
 func _refresh_equipment_list(role_id: String) -> void:
 	for child in equipment_list.get_children():
 		equipment_list.remove_child(child)
 		child.queue_free()
+	var stone_id: String = str(cached_player.get_equipped_ruan_stone()) if cached_player.has_method("get_equipped_ruan_stone") else ""
+	var stone_level: int = int(cached_player.get_ruan_stone_level(stone_id)) if stone_id != "" and cached_player.has_method("get_ruan_stone_level") else 0
+	var stone_definition: Dictionary = RUAN_STONE_SYSTEM.get_definition(stone_id)
+	var stone_title: String = str(stone_definition.get("title", "未装备"))
+	var stone_effect: String = RUAN_STONE_SYSTEM.get_effect_text(stone_id, stone_level) if stone_level > 0 else "在阮狗处装备已拥有的石头"
+	var stone_button := Button.new()
+	stone_button.name = "RuanStoneSlot"
+	stone_button.text = "全队 · 阮石槽\n%s%s\n%s" % [
+		stone_title,
+		" Lv.%d" % stone_level if stone_level > 0 else "",
+		stone_effect
+	]
+	stone_button.tooltip_text = "全队共享，不可赠与\n骨头：%d\n%s" % [
+		cached_player.get_ruan_bone_count() if cached_player.has_method("get_ruan_bone_count") else 0,
+		stone_effect
+	]
+	stone_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	stone_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	stone_button.custom_minimum_size = Vector2(210.0, 58.0)
+	stone_button.focus_mode = Control.FOCUS_NONE
+	_apply_archive_button_style(stone_button, stone_level > 0, false, false)
+	equipment_list.add_child(stone_button)
 	var equipment_levels: Dictionary = cached_player._get_role_equipment_levels(role_id) if cached_player.has_method("_get_role_equipment_levels") else {}
 	var has_any := false
 	for equipment_id in PLAYER_EQUIPMENT_FLOW.EQUIPMENT_DEFINITIONS.keys():
@@ -646,8 +792,8 @@ func _refresh_equipment_list(role_id: String) -> void:
 		equipment_list.add_child(button)
 	if not has_any:
 		var empty_label := Label.new()
-		empty_label.text = "暂无道具"
-		empty_label.custom_minimum_size = Vector2(0.0, 42.0)
+		empty_label.text = "当前角色暂无普通道具"
+		empty_label.custom_minimum_size = Vector2(0.0, 58.0)
 		empty_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_MUTED)
 		equipment_list.add_child(empty_label)
 
@@ -688,105 +834,554 @@ func _on_gift_popup_index_pressed(index: int) -> void:
 		cached_player.transfer_role_equipment_item(pending_gift_equipment_id, pending_gift_from_role_id, target_role_id)
 	refresh()
 
+func _build_skill_tree_selectors() -> void:
+	for index in range(6):
+		var button := Button.new()
+		button.name = "SkillTreeSelector%d" % index
+		button.toggle_mode = true
+		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		button.custom_minimum_size = Vector2(142.0, 62.0)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.add_theme_font_size_override("font_size", 13)
+		_apply_archive_button_style(button)
+		button.add_theme_stylebox_override("pressed", _archive_card_style(true))
+		button.add_theme_color_override("font_pressed_color", SURVIVORS_THEME.COLOR_TEXT_GOLD)
+		button.pressed.connect(_select_skill_tree.bind(index))
+		button.mouse_entered.connect(_select_skill_tree.bind(index))
+		button.focus_entered.connect(_select_skill_tree.bind(index))
+		skill_tree_selector_list.add_child(button)
+
+func _refresh_skill_build_list(role_id: String) -> void:
+	var progress_ids: Array = PLAYER_SKILL_TALENT_SYSTEM.ROLE_PROGRESS_ORDER.get(role_id, [])
+	if progress_ids.is_empty():
+		return
+	selected_skill_tree_index = clamp(selected_skill_tree_index, 0, progress_ids.size() - 1)
+	var evolved_count := 0
+	for index in range(progress_ids.size()):
+		var progress_id_value: Variant = progress_ids[index]
+		var progress_id := str(progress_id_value)
+		var display := PLAYER_SKILL_TALENT_SYSTEM.get_display(cached_player, role_id, progress_id)
+		var level := PLAYER_SKILL_TALENT_SYSTEM.get_skill_progress_level(cached_player, role_id, progress_id)
+		var talent_ids: Array = display.get("talent_ids", [])
+		if not talent_ids.is_empty():
+			evolved_count += 1
+		var button := skill_tree_selector_list.get_child(index) as Button
+		button.name = "SkillTreeSelector_%s" % progress_id
+		button.text = "%s\n%s\n%s" % [
+			_get_skill_slot_label(progress_id, index),
+			str(display.get("name", PLAYER_SKILL_TALENT_SYSTEM.PROGRESS_TITLES.get(progress_id, progress_id))),
+			"尚未解锁" if level <= 0 else "Lv.%d · 路径 %s" % [level, str(display.get("path", "---"))]
+		]
+		button.tooltip_text = button.text
+		button.button_pressed = index == selected_skill_tree_index
+		button.modulate = Color(0.70, 0.72, 0.78, 0.72) if level <= 0 else Color.WHITE
+	skill_build_summary_label.text = "%d 个技能树 · 已质变 %d 个 · 指向技能查看路径" % [progress_ids.size(), evolved_count]
+	skill_build_tab_button.text = "技能构筑  %d" % progress_ids.size()
+	_refresh_skill_tree_detail(role_id, str(progress_ids[selected_skill_tree_index]))
+
+func _select_skill_tree(index: int) -> void:
+	var role_id := _get_viewed_role_id()
+	var progress_ids: Array = PLAYER_SKILL_TALENT_SYSTEM.ROLE_PROGRESS_ORDER.get(role_id, [])
+	if index < 0 or index >= progress_ids.size():
+		return
+	var selected_button := skill_tree_selector_list.get_child(index) as Button
+	if index == selected_skill_tree_index:
+		selected_button.button_pressed = true
+		return
+	var previous_index := selected_skill_tree_index
+	selected_skill_tree_index = index
+	(skill_tree_selector_list.get_child(previous_index) as Button).button_pressed = false
+	selected_button.button_pressed = true
+	_refresh_skill_tree_detail(role_id, str(progress_ids[selected_skill_tree_index]))
+	skill_tree_detail_scroll.scroll_vertical = 0
+
+func _build_skill_tree_detail_shell() -> void:
+	var header := PanelContainer.new()
+	header.name = "SkillTreeHeader"
+	header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_theme_stylebox_override("panel", _archive_card_style(true))
+	skill_tree_detail.add_child(header)
+	var header_box := VBoxContainer.new()
+	header_box.name = "Content"
+	header_box.add_theme_constant_override("separation", 3)
+	header.add_child(header_box)
+	var title_label := Label.new()
+	title_label.name = "Title"
+	title_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	title_label.add_theme_font_size_override("font_size", 19)
+	title_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_GOLD)
+	header_box.add_child(title_label)
+	var state_label := Label.new()
+	state_label.name = "SkillTreePathLabel"
+	state_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	state_label.add_theme_font_size_override("font_size", 13)
+	state_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_MUTED)
+	header_box.add_child(state_label)
+
+	for stage_number in [3, 2, 1]:
+		if stage_number < 3:
+			var connector := Label.new()
+			connector.text = "│"
+			connector.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			connector.add_theme_color_override("font_color", Color(0.62, 0.50, 0.28, 0.76))
+			skill_tree_detail.add_child(connector)
+		skill_tree_detail.add_child(_make_skill_tree_stage_shell(stage_number))
+
+	var build_panel := PanelContainer.new()
+	build_panel.name = "SkillTreeBuildDetails"
+	build_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	build_panel.add_theme_stylebox_override("panel", _archive_card_style())
+	skill_tree_detail.add_child(build_panel)
+	var build_box := VBoxContainer.new()
+	build_box.name = "Content"
+	build_box.add_theme_constant_override("separation", 5)
+	build_panel.add_child(build_box)
+	var build_title := Label.new()
+	build_title.text = "普通构筑（与天赋节点分离）"
+	build_title.add_theme_font_size_override("font_size", 15)
+	build_title.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_GOLD)
+	build_box.add_child(build_title)
+	var requirement_label := Label.new()
+	requirement_label.name = "Requirement"
+	requirement_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	requirement_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_MUTED)
+	requirement_label.visible = false
+	build_box.add_child(requirement_label)
+	var build_entries_label := Label.new()
+	build_entries_label.name = "Entries"
+	build_entries_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	build_entries_label.add_theme_font_size_override("font_size", 13)
+	build_entries_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT)
+	build_box.add_child(build_entries_label)
+	var upgrade_note := Label.new()
+	upgrade_note.name = "SkillTreeUpgradeNote"
+	upgrade_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	upgrade_note.add_theme_font_size_override("font_size", 13)
+	build_box.add_child(upgrade_note)
+
+func _refresh_skill_tree_detail(role_id: String, progress_id: String) -> void:
+	var display := PLAYER_SKILL_TALENT_SYSTEM.get_display(cached_player, role_id, progress_id)
+	var level := PLAYER_SKILL_TALENT_SYSTEM.get_skill_progress_level(cached_player, role_id, progress_id)
+	var talent_ids: Array = display.get("talent_ids", [])
+	var stage_data_list: Array = display.get("stages", [])
+	var build_entries := _get_projected_build_entries(role_id, progress_id)
+
+	var header := skill_tree_detail.get_node("SkillTreeHeader") as PanelContainer
+	var title_label := header.get_node("Content/Title") as Label
+	var state_label := header.get_node("Content/SkillTreePathLabel") as Label
+	header.modulate = Color(0.72, 0.75, 0.82, 0.78) if level <= 0 else Color.WHITE
+	title_label.text = "[%s]  %s" % [
+		_get_skill_slot_label(progress_id, selected_skill_tree_index),
+		str(display.get("name", PLAYER_SKILL_TALENT_SYSTEM.PROGRESS_TITLES.get(progress_id, progress_id)))
+	]
+	var next_stage := talent_ids.size() + 1
+	var path_note := "三阶段已完成"
+	if level <= 0:
+		path_note = "第一阶段不可用"
+	elif next_stage <= PLAYER_SKILL_TALENT_SYSTEM.TALENT_STAGE_COUNT:
+		var next_level: int = int(PLAYER_SKILL_TALENT_SYSTEM.TRIGGER_LEVELS[next_stage - 1])
+		path_note = (
+			"阶段 %s 待选择" % _get_stage_roman(next_stage)
+			if level >= next_level
+			else "阶段 %s 于构筑 Lv.%d 解锁" % [_get_stage_roman(next_stage), next_level]
+		)
+	state_label.text = "%s · 当前路径：%s · %s" % [
+		"尚未解锁" if level <= 0 else "构筑 Lv.%d" % level,
+		str(display.get("path", "---")),
+		path_note
+	]
+
+	for stage_number in range(1, PLAYER_SKILL_TALENT_SYSTEM.TALENT_STAGE_COUNT + 1):
+		var stage_data: Dictionary = stage_data_list[stage_number - 1] if stage_data_list.size() >= stage_number else {}
+		var trigger_level := int(stage_data.get("trigger_level", PLAYER_SKILL_TALENT_SYSTEM.TRIGGER_LEVELS[stage_number - 1]))
+		var selected_id := str(stage_data.get("talent_id", ""))
+		var stage_options: Array = stage_data.get("options", [])
+		var stage_node := skill_tree_detail.get_node("SkillTreeStage%d" % stage_number) as VBoxContainer
+		var stage_label := stage_node.get_node("SkillTreeStage%dLabel" % stage_number) as Label
+		if level <= 0:
+			stage_label.text = "阶段 %s · 技能尚未解锁" % _get_stage_roman(stage_number)
+		elif selected_id != "":
+			stage_label.text = "阶段 %s · 已选择" % _get_stage_roman(stage_number)
+		elif level < trigger_level:
+			stage_label.text = "阶段 %s · 构筑 Lv.%d 解锁" % [_get_stage_roman(stage_number), trigger_level]
+		elif stage_number == next_stage:
+			stage_label.text = "阶段 %s · 待选择（升级奖励中二选一）" % _get_stage_roman(stage_number)
+		else:
+			stage_label.text = "阶段 %s · 等待前置阶段" % _get_stage_roman(stage_number)
+		for side in range(2):
+			var definition: Dictionary = stage_options[side] if side < stage_options.size() and stage_options[side] is Dictionary else {}
+			var selected := str(definition.get("id", "")) == selected_id and selected_id != ""
+			var available := level >= trigger_level and stage_number == next_stage
+			var dimmed := not available and not selected
+			var status := "技能锁定"
+			if level > 0:
+				if selected_id != "":
+					status = "已选择" if selected else "本局未选"
+				elif level < trigger_level:
+					status = "构筑 Lv.%d 解锁" % trigger_level
+				elif stage_number > next_stage:
+					status = "等待前置阶段"
+				else:
+					status = "可选择"
+			var side_name := "Left" if side == 0 else "Right"
+			var card := stage_node.get_node("Options/SkillTreeStage%d%s" % [stage_number, side_name]) as Button
+			var option_title := card.get_node("Content/Title") as Label
+			var option_status := card.get_node("Content/Status") as Label
+			var option_description := card.get_node("Content/Description") as Label
+			card.button_pressed = selected
+			card.modulate = Color(0.68, 0.72, 0.80, 0.72) if dimmed else Color.WHITE
+			option_title.text = "%s · %s" % ["左" if side == 0 else "右", str(definition.get("title", "选择"))]
+			option_title.modulate = SURVIVORS_THEME.COLOR_TEXT_GOOD if selected else Color.WHITE
+			option_status.text = status
+			option_status.modulate = SURVIVORS_THEME.COLOR_TEXT_GOOD if selected else SURVIVORS_THEME.COLOR_TEXT_GOLD
+			option_description.text = str(definition.get("description", ""))
+			option_description.visible = option_description.text != ""
+
+	var build_panel := skill_tree_detail.get_node("SkillTreeBuildDetails") as PanelContainer
+	var requirement_label := build_panel.get_node("Content/Requirement") as Label
+	var build_entries_label := build_panel.get_node("Content/Entries") as Label
+	var upgrade_note := build_panel.get_node("Content/SkillTreeUpgradeNote") as Label
+	build_panel.modulate = Color(0.72, 0.75, 0.82, 0.78) if level <= 0 else Color.WHITE
+	requirement_label.text = "解锁条件：%s" % _get_skill_unlock_requirement(progress_id) if level <= 0 else ""
+	requirement_label.visible = requirement_label.text != ""
+	var build_lines: Array[String] = []
+	if build_entries.is_empty():
+		build_lines.append("暂无普通构筑强化。天赋选择不计入此列表。")
+	else:
+		for entry in build_entries:
+			var title := str(entry.get("title", entry.get("build_id", "")))
+			var summary := _get_projected_build_summary(entry, str(display.get("upgrade_note", "")))
+			build_lines.append("• %s ×%d" % [title, int(entry.get("count", 0))])
+			if summary != "" and summary != title:
+				build_lines.append("  %s" % summary)
+	build_entries_label.text = "\n".join(build_lines)
+	build_entries_label.custom_minimum_size.y = 54.0 if build_entries.is_empty() else 0.0
+	if not talent_ids.is_empty():
+		upgrade_note.text = "质变后续升级：%s" % str(display.get("upgrade_note", "原构筑强化继续作用于当前形态。"))
+		upgrade_note.modulate = SURVIVORS_THEME.COLOR_TEXT_GOOD
+	elif level <= 0:
+		upgrade_note.text = "先解锁该技能；解锁后获得的普通构筑才会推进其构筑等级。"
+		upgrade_note.modulate = SURVIVORS_THEME.COLOR_TEXT_MUTED
+	elif level >= PLAYER_SKILL_TALENT_SYSTEM.TRIGGER_LEVEL:
+		upgrade_note.text = "阶段 I 待选择；请在升级奖励中完成二选一，本面板仅用于查看。"
+		upgrade_note.modulate = SURVIVORS_THEME.COLOR_TEXT_GOLD
+	else:
+		upgrade_note.text = "继续获得该技能的普通构筑，达到构筑 Lv.%d 后开放第一阶段二选一。" % PLAYER_SKILL_TALENT_SYSTEM.TRIGGER_LEVEL
+		upgrade_note.modulate = SURVIVORS_THEME.COLOR_TEXT_MUTED
+
+func _make_skill_tree_stage_shell(stage_number: int) -> VBoxContainer:
+	var stage := VBoxContainer.new()
+	stage.name = "SkillTreeStage%d" % stage_number
+	stage.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	stage.add_theme_constant_override("separation", 4)
+	var stage_label := Label.new()
+	stage_label.name = "SkillTreeStage%dLabel" % stage_number
+	stage_label.text = "阶段 %s · 尚未开放" % ["", "I", "II", "III"][stage_number] if stage_number > 1 else "阶段 I"
+	stage_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	stage_label.add_theme_font_size_override("font_size", 14)
+	stage_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_GOLD)
+	stage.add_child(stage_label)
+	var option_row := HBoxContainer.new()
+	option_row.name = "Options"
+	option_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	option_row.add_theme_constant_override("separation", 6)
+	stage.add_child(option_row)
+	for side in range(2):
+		option_row.add_child(_make_skill_tree_option_shell(stage_number, side))
+	return stage
+
+func _make_skill_tree_option_shell(stage_number: int, side: int) -> Button:
+	var card := Button.new()
+	card.name = "SkillTreeStage%d%s" % [stage_number, "Left" if side == 0 else "Right"]
+	card.toggle_mode = true
+	card.focus_mode = Control.FOCUS_NONE
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.custom_minimum_size = Vector2(0.0, 104.0)
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_apply_archive_button_style(card)
+	card.add_theme_stylebox_override("pressed", _archive_card_style(false, true))
+	card.modulate = Color(0.68, 0.72, 0.80, 0.72)
+	var box := VBoxContainer.new()
+	box.name = "Content"
+	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	box.offset_left = 8.0
+	box.offset_top = 8.0
+	box.offset_right = -8.0
+	box.offset_bottom = -8.0
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_theme_constant_override("separation", 3)
+	card.add_child(box)
+	var title_label := Label.new()
+	title_label.name = "Title"
+	title_label.text = "%s · 选择" % ["左" if side == 0 else "右"]
+	title_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	title_label.add_theme_font_size_override("font_size", 15)
+	title_label.add_theme_color_override("font_color", Color.WHITE)
+	box.add_child(title_label)
+	var status_label := Label.new()
+	status_label.name = "Status"
+	status_label.text = "尚未开放" if stage_number > 1 else ""
+	status_label.add_theme_font_size_override("font_size", 12)
+	status_label.add_theme_color_override("font_color", Color.WHITE)
+	box.add_child(status_label)
+	var description_label := Label.new()
+	description_label.name = "Description"
+	description_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	description_label.add_theme_font_size_override("font_size", 12)
+	description_label.add_theme_color_override("font_color", Color.WHITE)
+	description_label.visible = false
+	box.add_child(description_label)
+	return card
+
+func _get_projected_build_entries(role_id: String, progress_id: String) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for entry in PLAYER_BUILD_SYSTEM.get_progress_build_entries(cached_player, role_id, progress_id):
+		var projected := PLAYER_SKILL_TALENT_SYSTEM.project_build_option(cached_player, entry)
+		projected["count"] = int(entry.get("count", 0))
+		result.append(projected)
+	return result
+
+func _get_projected_build_summary(entry: Dictionary, upgrade_note: String) -> String:
+	var summary := str(entry.get("summary", entry.get("title", "")))
+	var suffix := "；%s" % upgrade_note
+	if upgrade_note != "" and summary.ends_with(suffix):
+		summary = summary.trim_suffix(suffix)
+	return summary
+
+func _get_stage_roman(stage_number: int) -> String:
+	return ["I", "II", "III"][clampi(stage_number, 1, 3) - 1]
+
+func _get_skill_slot_label(progress_id: String, slot_index: int = -1) -> String:
+	if progress_id.ends_with("_trait"):
+		return "特性"
+	if progress_id.ends_with("_entry"):
+		return "入场"
+	if progress_id.ends_with("_basic"):
+		return "普攻"
+	if progress_id.ends_with("_ultimate"):
+		return "终结"
+	if slot_index == 3:
+		return "主动一"
+	if slot_index == 4:
+		return "主动二"
+	return "技能"
+
+func _get_skill_unlock_requirement(progress_id: String) -> String:
+	var skill_id := str(PLAYER_SKILL_TALENT_SYSTEM.UNLOCKABLE_PROGRESS.get(progress_id, ""))
+	if skill_id != "" and cached_player.has_method("get_skill_next_requirement_text"):
+		return str(cached_player.get_skill_next_requirement_text(skill_id))
+	return "该技能尚未解锁。"
+
+func _build_blessing_list_shell() -> void:
+	blessing_role_group_header = _make_blessing_group_header("", 0)
+	blessing_role_group_header.name = "BlessingRoleGroupHeader"
+	blessing_role_group_header.visible = false
+	blessing_list.add_child(blessing_role_group_header)
+	for blessing_id in PLAYER_BLESSING_SYSTEM.DEFINITIONS.keys():
+		var definition: Dictionary = PLAYER_BLESSING_SYSTEM.DEFINITIONS.get(str(blessing_id), {})
+		if str(definition.get("binding", PLAYER_BLESSING_SYSTEM.ROLE_BOUND)) == PLAYER_BLESSING_SYSTEM.ROLE_BOUND:
+			_add_blessing_row_shell(str(blessing_id), PLAYER_BLESSING_SYSTEM.ROLE_BOUND)
+	blessing_skill_group_header = _make_blessing_group_header("", 0)
+	blessing_skill_group_header.name = "BlessingSkillGroupHeader"
+	blessing_skill_group_header.visible = false
+	blessing_list.add_child(blessing_skill_group_header)
+	for blessing_id in PLAYER_BLESSING_SYSTEM.DEFINITIONS.keys():
+		var definition: Dictionary = PLAYER_BLESSING_SYSTEM.DEFINITIONS.get(str(blessing_id), {})
+		if str(definition.get("binding", PLAYER_BLESSING_SYSTEM.ROLE_BOUND)) == PLAYER_BLESSING_SYSTEM.SKILL_BOUND:
+			_add_blessing_row_shell(str(blessing_id), PLAYER_BLESSING_SYSTEM.SKILL_BOUND)
+	blessing_empty_label = _make_archive_empty_label("")
+	blessing_empty_label.name = "BlessingEmptyLabel"
+	blessing_empty_label.visible = false
+	blessing_list.add_child(blessing_empty_label)
+
+func _add_blessing_row_shell(blessing_id: String, binding: String) -> void:
+	var expanded_key := "%s:%s" % [binding, blessing_id]
+	var button := Button.new()
+	button.name = "BlessingRow_%s" % blessing_id
+	button.toggle_mode = true
+	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	button.custom_minimum_size = Vector2(0.0, 68.0)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.add_theme_font_size_override("font_size", 14)
+	_apply_archive_button_style(button)
+	button.add_theme_stylebox_override("pressed", _archive_card_style(true))
+	button.add_theme_color_override("font_pressed_color", SURVIVORS_THEME.COLOR_TEXT_GOLD)
+	button.pressed.connect(_toggle_blessing_row.bind(expanded_key))
+	button.visible = false
+	blessing_rows[blessing_id] = button
+	blessing_list.add_child(button)
+
 func _refresh_blessing_list(role_id: String) -> void:
-	for child in blessing_list.get_children():
-		blessing_list.remove_child(child)
-		child.queue_free()
 	var role_levels: Dictionary = cached_player.get_role_blessing_levels(role_id) if cached_player.has_method("get_role_blessing_levels") else {}
 	var skill_levels: Dictionary = cached_player.get_skill_blessing_levels() if cached_player.has_method("get_skill_blessing_levels") else {}
-	var has_any := false
+	var role_count := _count_owned_blessings(role_levels, PLAYER_BLESSING_SYSTEM.ROLE_BOUND)
+	var skill_count := _count_owned_blessings(skill_levels, PLAYER_BLESSING_SYSTEM.SKILL_BOUND)
+	blessing_role_group_header.text = "团队共享 · 角色祝福（三角色生效） · %d 项" % role_count if role_count > 0 else ""
+	blessing_role_group_header.visible = role_count > 0
 	for blessing_id in PLAYER_BLESSING_SYSTEM.DEFINITIONS.keys():
 		var definition: Dictionary = PLAYER_BLESSING_SYSTEM.DEFINITIONS.get(str(blessing_id), {})
 		if str(definition.get("binding", PLAYER_BLESSING_SYSTEM.ROLE_BOUND)) != PLAYER_BLESSING_SYSTEM.ROLE_BOUND:
 			continue
-		if _add_blessing_row(str(blessing_id), definition, role_levels, role_id, false):
-			has_any = true
-	var skill_header_added := false
+		_update_blessing_row(str(blessing_id), definition, role_levels, PLAYER_BLESSING_SYSTEM.ROLE_BOUND)
+	blessing_skill_group_header.text = "技能绑定祝福 · 按技能类型生效 · %d 项" % skill_count if skill_count > 0 else ""
+	blessing_skill_group_header.visible = skill_count > 0
 	for blessing_id in PLAYER_BLESSING_SYSTEM.DEFINITIONS.keys():
 		var definition: Dictionary = PLAYER_BLESSING_SYSTEM.DEFINITIONS.get(str(blessing_id), {})
 		if str(definition.get("binding", PLAYER_BLESSING_SYSTEM.ROLE_BOUND)) != PLAYER_BLESSING_SYSTEM.SKILL_BOUND:
 			continue
-		if not _has_blessing_levels(skill_levels, str(blessing_id)):
-			continue
-		if not skill_header_added:
-			var header := Label.new()
-			header.text = "技能类祝福"
-			header.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_MUTED)
-			blessing_list.add_child(header)
-			skill_header_added = true
-		if _add_blessing_row(str(blessing_id), definition, skill_levels, "", true):
-			has_any = true
-	if not has_any:
-		var empty_label := Label.new()
-		empty_label.text = "暂无祝福"
-		empty_label.custom_minimum_size = Vector2(0.0, 34.0)
-		empty_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_MUTED)
-		blessing_list.add_child(empty_label)
+		_update_blessing_row(str(blessing_id), definition, skill_levels, PLAYER_BLESSING_SYSTEM.SKILL_BOUND)
+	var total_count := role_count + skill_count
+	blessing_empty_label.text = "暂无祝福。通用祝福会在升级奖励中出现。" if total_count <= 0 else ""
+	blessing_empty_label.visible = total_count <= 0
+	blessing_summary_label.text = "%d 项祝福 · 各阶独立持有，不提供合成" % total_count
+	blessing_tab_button.text = "祝福账本  %d" % total_count
 
-func _add_blessing_row(blessing_id: String, definition: Dictionary, levels: Dictionary, role_id: String, skill_bound: bool) -> bool:
-	if not _has_blessing_levels(levels, blessing_id):
+func _update_blessing_row(blessing_id: String, definition: Dictionary, levels: Dictionary, binding: String) -> bool:
+	var button := blessing_rows.get(blessing_id) as Button
+	var owned := _has_blessing_levels(levels, blessing_id)
+	button.visible = owned
+	if not owned:
+		button.text = ""
+		button.tooltip_text = ""
+		button.button_pressed = false
 		return false
-	var blessing_levels: Dictionary = levels.get(blessing_id, {})
-	var tier_one_level: int = int(blessing_levels.get(1, 0))
-	var tier_two_level: int = int(blessing_levels.get(2, 0))
-	var can_compose := false
-	if cached_player != null:
-		if skill_bound and cached_player.has_method("can_compose_skill_blessing"):
-			can_compose = bool(cached_player.can_compose_skill_blessing(blessing_id))
-		elif not skill_bound and cached_player.has_method("can_compose_role_blessing"):
-			can_compose = bool(cached_player.can_compose_role_blessing(role_id, blessing_id))
-	var button := Button.new()
-	button.text = "%s      I x%d      II x%d%s" % [
-		str(definition.get("title", blessing_id)),
-		tier_one_level,
-		tier_two_level,
-		"      右键合成" if can_compose else ""
-	]
-	button.tooltip_text = "%s\n祝福可无限重复选择；I x3 可手动合成 II x1；II 从角色 Lv.12 后独立出现，并随角色等级提高更常见。" % str(definition.get("description", ""))
-	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	button.custom_minimum_size = Vector2(0.0, 38.0)
-	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_apply_archive_button_style(button, false, can_compose, false)
-	button.gui_input.connect(_on_blessing_gui_input.bind(blessing_id, role_id, skill_bound))
-	blessing_list.add_child(button)
+	var expanded_key := "%s:%s" % [binding, blessing_id]
+	var expanded := expanded_blessing_key == expanded_key
+	button.text = _build_blessing_row_text(blessing_id, definition, levels, binding, expanded)
+	button.tooltip_text = _build_blessing_row_text(blessing_id, definition, levels, binding, true)
+	button.custom_minimum_size = Vector2(0.0, 146.0 if expanded else 68.0)
+	button.button_pressed = expanded
 	return true
 
+func _build_blessing_row_text(
+		blessing_id: String,
+		definition: Dictionary,
+		levels: Dictionary,
+		binding: String,
+		expanded: bool
+) -> String:
+	var title := str(definition.get("display_title", definition.get("title", blessing_id)))
+	var highest_tier := _get_highest_owned_blessing_tier(levels, blessing_id)
+	var lines: Array[String] = []
+	lines.append("%s    %s" % [title, _format_owned_blessing_tiers(levels, blessing_id)])
+	lines.append("%s · %s×%d 当前：%s" % [
+		_get_blessing_scope_text(blessing_id, definition, binding),
+		_get_tier_roman(highest_tier),
+		_get_blessing_tier_count(levels, blessing_id, highest_tier),
+		_get_blessing_description(definition, highest_tier, true)
+	])
+	if not expanded:
+		return "\n".join(lines)
+	lines.append("")
+	lines.append("已持有各阶效果")
+	for tier in range(1, PLAYER_BLESSING_SYSTEM.MAX_BLESSING_TIER + 1):
+		var count := _get_blessing_tier_count(levels, blessing_id, tier)
+		if count > 0:
+			lines.append("• %s ×%d：%s" % [_get_tier_roman(tier), count, _get_blessing_description(definition, tier)])
+	var recipe_tier := 2 if _get_blessing_tier_count(levels, blessing_id, 2) > 0 else (1 if _get_blessing_tier_count(levels, blessing_id, 1) > 0 else 0)
+	var relation_text := PLAYER_BLESSING_SKILL_STATE.get_blessing_unlock_detail(blessing_id, recipe_tier) if recipe_tier > 0 else ""
+	if relation_text != "":
+		lines.append("")
+		lines.append("技能关联：%s" % relation_text)
+	return "\n".join(lines)
+
+func _get_blessing_scope_text(blessing_id: String, definition: Dictionary, binding: String) -> String:
+	if binding == PLAYER_BLESSING_SYSTEM.ROLE_BOUND:
+		return "作用域：三角色共享"
+	match blessing_id:
+		"reprise":
+			return "技能范围：所有连段技能"
+		"tide_rain":
+			return "技能范围：所有持续技能"
+		"trick":
+			return "技能范围：所有数量技能"
+	var magic_stone_id := str(definition.get("magic_stone", ""))
+	match magic_stone_id:
+		PLAYER_BLESSING_SYSTEM.MAGIC_STONE_KINGDOM:
+			return "技能绑定：所有角色普攻"
+		PLAYER_BLESSING_SYSTEM.MAGIC_STONE_KING:
+			return "技能绑定：所有角色终结技"
+		PLAYER_BLESSING_SYSTEM.MAGIC_STONE_KEBIRU:
+			return "技能绑定：所有克比鲁魔法"
+		PLAYER_BLESSING_SYSTEM.MAGIC_STONE_INVOKER:
+			return "技能绑定：所有因沃克魔法"
+	return "技能绑定：未指定技能"
+
+func _make_blessing_group_header(title: String, count: int) -> Label:
+	var label := Label.new()
+	label.text = "%s · %d 项" % [title, count]
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.add_theme_font_size_override("font_size", 15)
+	label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_GOLD)
+	return label
+
+func _make_archive_empty_label(text_value: String) -> Label:
+	var label := Label.new()
+	label.text = text_value
+	label.custom_minimum_size = Vector2(0.0, 54.0)
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_MUTED)
+	return label
+
+func _count_owned_blessings(levels: Dictionary, binding: String) -> int:
+	var count := 0
+	for blessing_id in PLAYER_BLESSING_SYSTEM.DEFINITIONS.keys():
+		var definition: Dictionary = PLAYER_BLESSING_SYSTEM.DEFINITIONS.get(str(blessing_id), {})
+		if str(definition.get("binding", PLAYER_BLESSING_SYSTEM.ROLE_BOUND)) == binding and _has_blessing_levels(levels, str(blessing_id)):
+			count += 1
+	return count
+
 func _has_blessing_levels(levels: Dictionary, blessing_id: String) -> bool:
-	var blessing_levels: Dictionary = levels.get(blessing_id, {})
-	return int(blessing_levels.get(1, 0)) > 0 or int(blessing_levels.get(2, 0)) > 0
+	for tier in range(1, PLAYER_BLESSING_SYSTEM.MAX_BLESSING_TIER + 1):
+		if _get_blessing_tier_count(levels, blessing_id, tier) > 0:
+			return true
+	return false
 
-func _on_blessing_gui_input(event: InputEvent, blessing_id: String, role_id: String, skill_bound: bool) -> void:
-	if event is InputEventMouseButton:
-		var mouse_event := event as InputEventMouseButton
-		if mouse_event.pressed and mouse_event.button_index == MOUSE_BUTTON_RIGHT:
-			_show_blessing_compose_popup(blessing_id, role_id, skill_bound)
+func _get_blessing_tier_count(levels: Dictionary, blessing_id: String, tier: int) -> int:
+	var blessing_levels: Variant = levels.get(blessing_id, {})
+	if blessing_levels is not Dictionary:
+		return 0
+	return max(0, int((blessing_levels as Dictionary).get(tier, (blessing_levels as Dictionary).get(str(tier), 0))))
 
-func _show_blessing_compose_popup(blessing_id: String, role_id: String, skill_bound: bool) -> void:
-	pending_compose_blessing_id = blessing_id
-	pending_compose_role_id = role_id
-	pending_compose_is_skill_bound = skill_bound
-	blessing_popup.clear()
-	var can_compose := false
-	if cached_player != null:
-		if skill_bound and cached_player.has_method("can_compose_skill_blessing"):
-			can_compose = bool(cached_player.can_compose_skill_blessing(blessing_id))
-		elif not skill_bound and cached_player.has_method("can_compose_role_blessing"):
-			can_compose = bool(cached_player.can_compose_role_blessing(role_id, blessing_id))
-	blessing_popup.add_item("合成 II x1")
-	blessing_popup.set_item_disabled(0, not can_compose)
-	blessing_popup.position = Vector2i(get_viewport().get_mouse_position())
-	blessing_popup.popup()
+func _get_highest_owned_blessing_tier(levels: Dictionary, blessing_id: String) -> int:
+	for tier in range(PLAYER_BLESSING_SYSTEM.MAX_BLESSING_TIER, 0, -1):
+		if _get_blessing_tier_count(levels, blessing_id, tier) > 0:
+			return tier
+	return 1
 
-func _on_blessing_popup_index_pressed(index: int) -> void:
-	if cached_player == null or not is_instance_valid(cached_player) or index != 0:
-		return
-	if pending_compose_is_skill_bound:
-		if cached_player.has_method("compose_skill_blessing"):
-			cached_player.compose_skill_blessing(pending_compose_blessing_id)
-	else:
-		if cached_player.has_method("compose_role_blessing"):
-			cached_player.compose_role_blessing(pending_compose_role_id, pending_compose_blessing_id)
-	refresh()
+func _format_owned_blessing_tiers(levels: Dictionary, blessing_id: String) -> String:
+	var parts: Array[String] = []
+	for tier in range(1, PLAYER_BLESSING_SYSTEM.MAX_BLESSING_TIER + 1):
+		var count := _get_blessing_tier_count(levels, blessing_id, tier)
+		if count > 0:
+			parts.append("%s×%d" % [_get_tier_roman(tier), count])
+	return " · ".join(parts)
+
+func _get_blessing_description(definition: Dictionary, tier: int, compact: bool = false) -> String:
+	var keys := ["display_card_summaries", "card_summaries", "display_descriptions", "descriptions"] if compact else ["display_descriptions", "descriptions", "display_card_summaries", "card_summaries"]
+	for key in keys:
+		var values: Variant = definition.get(key, {})
+		if values is Dictionary:
+			var value := str((values as Dictionary).get(tier, (values as Dictionary).get(str(tier), "")))
+			if value != "":
+				return value
+	return str(definition.get("description", "提供对应祝福效果。"))
+
+func _get_tier_roman(tier: int) -> String:
+	return ["", "I", "II", "III", "IV"][clamp(tier, 0, PLAYER_BLESSING_SYSTEM.MAX_BLESSING_TIER)]
+
+func _toggle_blessing_row(expanded_key: String) -> void:
+	expanded_blessing_key = "" if expanded_blessing_key == expanded_key else expanded_key
+	_refresh_blessing_list(_get_viewed_role_id())
+
+func _get_viewed_role_id() -> String:
+	var roles := _get_roles()
+	if viewed_role_index >= 0 and viewed_role_index < roles.size() and roles[viewed_role_index] is Dictionary:
+		return str((roles[viewed_role_index] as Dictionary).get("id", ""))
+	return ""
 
 func _build_stats_text(role_data: Dictionary) -> String:
 	var role_id: String = str(role_data.get("id", ""))
@@ -870,33 +1465,6 @@ func _format_panel_attribute_level(level: float) -> String:
 	if is_equal_approx(level, roundf(level)):
 		return str(int(roundf(level)))
 	return "%.1f" % level
-
-func _build_card_text() -> String:
-	if cached_player != null and cached_player.has_method("get_skill_graph_text"):
-		var roles: Array = _get_roles()
-		var role_id := ""
-		if viewed_role_index >= 0 and viewed_role_index < roles.size():
-			role_id = str((roles[viewed_role_index] as Dictionary).get("id", ""))
-		return str(cached_player.get_skill_graph_text(role_id))
-	var lines: Array[String] = []
-	var skill_state: Dictionary = cached_player.get("blessing_skill_state")
-	var unlocked_skills: Dictionary = skill_state.get("unlocked_skills", {})
-	var skill_titles := {
-		"blade_storm": "剑刃风暴",
-		"infinite_reload": "无限装填",
-		"surging_wave": "波涛汹涌"
-	}
-	for skill_id in skill_titles.keys():
-		if not bool(unlocked_skills.get(skill_id, false)):
-			continue
-		var tier: int = 1
-		if cached_player.has_method("_get_blessing_skill_tier"):
-			tier = int(cached_player._get_blessing_skill_tier(str(skill_id)))
-		lines.append("%s%s" % [str(skill_titles.get(skill_id, skill_id)), "II" if tier >= 2 else "I"])
-	if lines.is_empty():
-		lines.append("暂无祝福技能")
-	return "\n".join(lines)
-
 
 func _apply_role_texture(target: TextureRect, role_id: String, highlighted: bool) -> void:
 	if target == null:

@@ -151,14 +151,14 @@ static func _spawn_gunner_rearguard_bullet_batch(owner, role_id: String, origin:
 	, GUNNER_REARGUARD_BULLET_BATCH_INTERVAL)
 
 
-static func try_switch_role(owner, new_role_index: int) -> void:
-	if owner.has_method("_is_player_action_locked") and owner._is_player_action_locked():
+static func try_switch_role(owner, new_role_index: int, ignore_restrictions: bool = false, force_entry: bool = false) -> void:
+	if not ignore_restrictions and owner.has_method("_is_player_action_locked") and owner._is_player_action_locked():
 		return
 	if new_role_index == owner.active_role_index:
 		return
 	if new_role_index < 0 or new_role_index >= owner.roles.size():
 		return
-	if owner.switch_cooldown_remaining > 0.0 and not DEVELOPER_MODE.should_ignore_cooldowns():
+	if not ignore_restrictions and owner.switch_cooldown_remaining > 0.0 and not DEVELOPER_MODE.should_ignore_cooldowns():
 		return
 
 	var previous_role_index: int = owner.active_role_index
@@ -169,7 +169,7 @@ static func try_switch_role(owner, new_role_index: int) -> void:
 			if owner.switch_invulnerability_remaining <= owner.swordsman_death_defiance_will_remaining + 0.001:
 				owner.switch_invulnerability_remaining = 0.0
 			owner.swordsman_death_defiance_will_remaining = 0.0
-	var should_trigger_entry: bool = owner.has_method("_consume_switch_energy_for_entry") and owner._consume_switch_energy_for_entry(previous_role_id)
+	var should_trigger_entry: bool = force_entry or (owner.has_method("_consume_switch_energy_for_entry") and owner._consume_switch_energy_for_entry(previous_role_id))
 	if owner.has_method("_save_active_role_health"):
 		owner._save_active_role_health()
 	if owner.has_method("_save_active_role_temporary_health"):
@@ -183,6 +183,8 @@ static func try_switch_role(owner, new_role_index: int) -> void:
 	var active_role_id: String = str(owner.roles[active_role_index]["id"])
 	if previous_role_id == "mage" and owner.has_method("_transfer_mage_arcane_charge_to_role_on_switch"):
 		owner._transfer_mage_arcane_charge_to_role_on_switch(active_role_id)
+	elif owner.has_method("_relay_mage_arcane_charge_on_switch"):
+		owner._relay_mage_arcane_charge_on_switch(previous_role_id, active_role_id)
 	if not should_trigger_entry and not DEVELOPER_MODE.should_ignore_cooldowns():
 		PLAYER_SKILL_COOLDOWN_FLOW.apply_switch_lock_to_role_skills(owner, active_role_id, owner.switch_cooldown_remaining)
 	owner.switch_invulnerability_remaining = SWITCH_INVULNERABILITY

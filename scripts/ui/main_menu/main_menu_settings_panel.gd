@@ -44,6 +44,7 @@ const KEYBIND_LABELS := {
 var settings_title_label: Label
 var volume_page: VBoxContainer
 var display_page: VBoxContainer
+var display_page_scroll: ScrollContainer
 var keybind_page: VBoxContainer
 var volume_slider: HSlider
 var volume_value_label: Label
@@ -189,9 +190,14 @@ func _build_panel() -> void:
 	volume_page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	page_root.add_child(volume_page)
 
+	display_page_scroll = ScrollContainer.new()
+	display_page_scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	display_page_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	page_root.add_child(display_page_scroll)
+
 	display_page = _build_display_page()
-	display_page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	page_root.add_child(display_page)
+	display_page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	display_page_scroll.add_child(display_page)
 
 	keybind_page = _build_keybind_page()
 	keybind_page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -259,7 +265,7 @@ func _build_volume_page() -> VBoxContainer:
 
 func _build_display_page() -> VBoxContainer:
 	var page := VBoxContainer.new()
-	page.add_theme_constant_override("separation", 16)
+	page.add_theme_constant_override("separation", 8)
 
 	var title := Label.new()
 	title.text = TEXT_DISPLAY_SETTINGS
@@ -376,7 +382,7 @@ func _show_volume_settings() -> void:
 	if volume_page != null:
 		volume_page.visible = true
 	if display_page != null:
-		display_page.visible = false
+		display_page_scroll.visible = false
 	if keybind_page != null:
 		keybind_page.visible = false
 
@@ -386,7 +392,7 @@ func _show_display_settings() -> void:
 	if volume_page != null:
 		volume_page.visible = false
 	if display_page != null:
-		display_page.visible = true
+		display_page_scroll.visible = true
 	if keybind_page != null:
 		keybind_page.visible = false
 	_refresh_display_controls()
@@ -397,7 +403,7 @@ func _show_keybind_settings() -> void:
 	if volume_page != null:
 		volume_page.visible = false
 	if display_page != null:
-		display_page.visible = false
+		display_page_scroll.visible = false
 	if keybind_page != null:
 		keybind_page.visible = true
 	_refresh_keybind_controls()

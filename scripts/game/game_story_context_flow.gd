@@ -3,6 +3,7 @@ extends RefCounted
 const SAVE_MANAGER := preload("res://scripts/save_manager.gd")
 const ENEMY_DIRECTOR := preload("res://scripts/enemy/enemy_director.gd")
 const DIFFICULTY_PROFILE := preload("res://scripts/game/difficulty_profile.gd")
+const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
 
 # Handoff note:
 # This flow owns the story/endless context consumed by battle spawning and stage
@@ -11,24 +12,34 @@ const DIFFICULTY_PROFILE := preload("res://scripts/game/difficulty_profile.gd")
 # ENEMY_DIRECTOR calls across the combat scene.
 
 static func load_story_stage_context(main: Node) -> void:
-	main.story_stage = SAVE_MANAGER.get_current_story_stage()
-	main.story_mode_active = not main.story_stage.is_empty()
-	main.endless_mode_active = not main.story_mode_active and SAVE_MANAGER.is_endless_mode_active()
+	var developer_mode := DEVELOPER_MODE.is_enabled()
+	main.endless_mode_active = not developer_mode and SAVE_MANAGER.is_endless_mode_active()
+	main.story_stage = {} if main.endless_mode_active else SAVE_MANAGER.get_current_story_stage()
+	main.story_mode_active = not developer_mode and not main.endless_mode_active and not main.story_stage.is_empty()
+	if developer_mode:
+		main.endless_tier = DEVELOPER_MODE.get_test_endless_tier()
+		main.endless_run_id = ""
+	elif main.endless_mode_active:
+		var profile := SAVE_MANAGER.get_current_endless_profile()
+		main.endless_tier = max(1, int(profile.get("selected_tier", 1)))
+		main.endless_run_id = SAVE_MANAGER.create_endless_run_id(main.endless_tier)
 	main.difficulty_profile = _load_difficulty_profile(main)
 	main.difficulty_id = str(main.difficulty_profile.get("id", DIFFICULTY_PROFILE.DEFAULT_DIFFICULTY_ID))
 
 static func apply_story_loadout(main: Node) -> void:
-	if not main.story_mode_active or main.player == null or not main.player.has_method("configure_story_loadout"):
+	if main.player == null:
 		return
-	var profile := SAVE_MANAGER.load_story_profile()
-	main.player.configure_story_loadout(profile.get("team_order", ["swordsman", "gunner", "mage"]))
+	if main.endless_mode_active and main.player.has_method("configure_ruan_stones"):
+		main.player.configure_ruan_stones(SAVE_MANAGER.get_current_endless_profile())
+	if main.story_mode_active and main.player.has_method("configure_story_loadout"):
+		var profile := SAVE_MANAGER.load_story_profile()
+		main.player.configure_story_loadout(profile.get("team_order", ["swordsman", "gunner", "mage"]))
 
 static func get_effective_boss_spawn_time(main: Node) -> float:
 	return ENEMY_DIRECTOR.get_effective_boss_spawn_time(
 		main.story_stage,
 		main.story_mode_active,
-		main.endless_mode_active,
-		main.defeated_boss_count
+		main.endless_mode_active
 	)
 
 static func get_effective_stage_curve_time(main: Node) -> float:
@@ -73,9 +84,11 @@ static func apply_difficulty_to_enemy_profile(main: Node, kind: String, enemy_pr
 	return DIFFICULTY_PROFILE.apply_to_enemy_profile(kind, enemy_profile, get_difficulty_profile(main))
 
 static func _load_difficulty_profile(main: Node) -> Dictionary:
+	if DEVELOPER_MODE.is_enabled():
+		return DIFFICULTY_PROFILE.get_endless_tier_profile(DEVELOPER_MODE.get_test_endless_tier())
 	if main != null and bool(main.get("story_mode_active")):
 		return DIFFICULTY_PROFILE.get_profile(DIFFICULTY_PROFILE.DEFAULT_DIFFICULTY_ID)
 	if SAVE_MANAGER.is_endless_mode_active():
 		var profile := SAVE_MANAGER.get_current_endless_profile()
-		return DIFFICULTY_PROFILE.get_profile(str(profile.get("difficulty", DIFFICULTY_PROFILE.DEFAULT_DIFFICULTY_ID)))
+		return DIFFICULTY_PROFILE.get_endless_tier_profile(int(profile.get("selected_tier", 1)))
 	return DIFFICULTY_PROFILE.get_profile(DIFFICULTY_PROFILE.DEFAULT_DIFFICULTY_ID)

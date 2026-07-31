@@ -42,6 +42,8 @@ static func refresh_hud(main: Node) -> void:
 	if main.hud.has_method("update_mana"):
 		main.hud.update_mana(main.player.current_mana, main.player.max_mana)
 	if main.hud.has_method("update_time"):
+		if main.hud.has_method("set_endless_tier"):
+			main.hud.set_endless_tier(main.endless_tier if main.endless_mode_active or main._is_developer_mode() else 0)
 		main.hud.update_time(main.survival_time)
 	if main.hud.has_method("set_developer_boss_options"):
 		main.hud.set_developer_boss_options(main._get_developer_boss_options())
@@ -53,6 +55,8 @@ static func refresh_hud(main: Node) -> void:
 		main.hud.set_developer_skill_options(main._get_developer_skill_options())
 	if main.hud.has_method("set_developer_blessing_options"):
 		main.hud.set_developer_blessing_options(main._get_developer_blessing_options())
+	if main.hud.has_method("set_developer_ruan_stone_options"):
+		main.hud.set_developer_ruan_stone_options(main._get_developer_ruan_stone_options())
 	update_boss_hud(main)
 
 static func update_boss_hud(main: Node) -> void:
@@ -78,6 +82,8 @@ static func update_boss_hud(main: Node) -> void:
 				hide_boss_ui(main)
 				return
 		if main.hud.has_method("show_boss_ui"):
+			if main.endless_mode_active or main._is_developer_mode():
+				boss_name = "N%d · %s" % [main.endless_tier, boss_name]
 			main.hud.show_boss_ui(boss_name, current_health, max_health, status_payload)
 	else:
 		hide_boss_ui(main)

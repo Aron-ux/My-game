@@ -122,6 +122,8 @@ static func spawn_batched_directional_bullet(owner, direction: Vector2, damage_a
 		"wave_amplitude": float(config.get("wave_amplitude", 0.0)),
 		"wave_frequency": float(config.get("wave_frequency", 0.0)),
 		"wave_phase": float(config.get("wave_phase", 0.0)),
+		"damage_event_id": str(config.get("damage_event_id", "")),
+		"entry_repulse_on_first_hit": bool(config.get("entry_repulse_on_first_hit", false)),
 		"wave_elapsed": 0.0,
 		"wave_travel_distance": 0.0,
 		"wave_origin": start_position,

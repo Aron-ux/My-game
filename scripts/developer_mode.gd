@@ -9,16 +9,19 @@ const FULL_XP_GEM_MAX_RADIUS := 128.0
 static var enabled: bool = false
 static var ignore_damage_enabled: bool = false
 static var no_cooldown_enabled: bool = false
+static var test_endless_tier: int = 1
 
 static func activate() -> void:
 	enabled = true
 	ignore_damage_enabled = true
 	no_cooldown_enabled = false
+	test_endless_tier = 1
 
 static func deactivate() -> void:
 	enabled = false
 	ignore_damage_enabled = false
 	no_cooldown_enabled = false
+	test_endless_tier = 1
 
 static func is_enabled() -> bool:
 	return enabled
@@ -46,6 +49,12 @@ static func is_no_cooldown_enabled() -> bool:
 
 static func should_disable_save() -> bool:
 	return enabled
+
+static func set_test_endless_tier(tier: int) -> void:
+	test_endless_tier = max(1, tier)
+
+static func get_test_endless_tier() -> int:
+	return max(1, test_endless_tier)
 
 static func should_unlock_ultimate_freely() -> bool:
 	return should_ignore_cooldowns()

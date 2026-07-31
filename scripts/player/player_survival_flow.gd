@@ -54,6 +54,7 @@ static func physics_process(owner, delta: float) -> void:
 		return
 
 	owner._update_timers(delta)
+	_tick_swordsman_talent_states(owner, delta)
 	_update_area_control_states(owner, delta)
 	owner._regenerate_energy(delta)
 	owner._apply_equipment_passives(delta)
@@ -88,7 +89,7 @@ static func physics_process(owner, delta: float) -> void:
 
 	direction = direction.normalized()
 	_update_moving_visual_facing(owner, direction)
-	owner.velocity = direction * owner._get_current_move_speed()
+	owner.velocity = direction * owner._get_current_move_speed() * _get_swordsman_talent_move_multiplier(owner)
 	owner.move_and_slide()
 	owner.gem_collection_elapsed += delta
 	if owner.gem_collection_elapsed >= owner.GEM_COLLECTION_INTERVAL:
@@ -261,6 +262,25 @@ static func collect_nearby_gems(owner) -> void:
 	if heart_count > 0:
 		owner.set_meta(HEART_SCAN_CURSOR_KEY, (heart_cursor + heart_scan_count) % heart_count)
 
+	var bones: Array = _get_runtime_pickups_near(owner, "bone_pickups", attract_center, max(attract_radius, absorb_radius))
+	for bone_pickup in bones:
+		if not is_instance_valid(bone_pickup):
+			continue
+		var bone_distance_squared: float = attract_center.distance_squared_to(bone_pickup.global_position)
+		if bone_distance_squared <= attract_radius_squared and bone_pickup.has_method("set_attraction_target"):
+			bone_pickup.set_attraction_target(owner)
+		if bone_distance_squared <= absorb_radius_squared and bone_pickup.has_method("collect"):
+			_collect_bones(owner, int(bone_pickup.collect()))
+
+
+static func _collect_bones(owner, amount: int) -> void:
+	if amount <= 0:
+		return
+	if owner == null or not owner.has_method("collect_ruan_bones"):
+		push_error("Player survival flow requires collect_ruan_bones().")
+		return
+	owner.collect_ruan_bones(amount)
+
 static func _get_runtime_pickups(owner, group_name: String) -> Array:
 	if owner != null and owner.get_tree() != null:
 		var scene: Node = owner.get_tree().current_scene
@@ -349,7 +369,7 @@ static func take_damage(owner, amount: float) -> void:
 		if nearby_enemy_count > 0:
 			amount *= max(0.84, 0.96 - min(nearby_enemy_count, 3) * 0.04)
 
-	var adjusted_damage: float = amount * owner._get_effective_damage_taken_multiplier()
+	var adjusted_damage: float = amount * owner._get_effective_damage_taken_multiplier() * _get_swordsman_talent_damage_taken_multiplier(owner)
 	var remaining_damage: float = adjusted_damage
 	if adjusted_damage > 0.0 and owner.current_temporary_health > 0.0:
 		var absorbed_damage: float = owner._consume_temporary_health(adjusted_damage) if owner.has_method("_consume_temporary_health") else min(owner.current_temporary_health, adjusted_damage)
@@ -359,8 +379,12 @@ static func take_damage(owner, amount: float) -> void:
 		if not owner.has_method("_consume_temporary_health") and owner.has_method("_save_active_role_temporary_health"):
 			owner._save_active_role_temporary_health()
 	owner.current_health = max(0.0, owner.current_health - remaining_damage)
+	if adjusted_damage > 0.0 and owner.get("gunner_role") != null and owner.gunner_role.has_method("handle_damage_taken"):
+		owner.gunner_role.handle_damage_taken(owner)
 	if adjusted_damage > 0.0 and owner.has_method("_break_gunner_flash_trait"):
 		owner._break_gunner_flash_trait()
+	if owner.current_health <= 0.0 and _try_trigger_swordsman_last_guard(owner):
+		return
 	if owner.current_health <= 0.0 and _try_trigger_swordsman_death_defiance(owner):
 		return
 	if owner.has_method("_save_active_role_health"):
@@ -381,6 +405,7 @@ static func _start_death_sequence(owner) -> void:
 	owner.is_dead = true
 	owner.level_up_active = false
 	owner.velocity = Vector2.ZERO
+	_clear_swordsman_talent_states(owner)
 	if owner.fire_timer != null:
 		owner.fire_timer.stop()
 	if owner.has_method("_update_player_health_bar"):
@@ -420,6 +445,38 @@ static func _try_trigger_swordsman_death_defiance(owner) -> bool:
 	return true
 
 
+static func _try_trigger_swordsman_last_guard(owner) -> bool:
+	var active_role_id: String = str(owner._get_active_role().get("id", ""))
+	if active_role_id == "" or active_role_id == "swordsman":
+		return false
+	if not owner.has_method("_has_skill_talent") or not owner._has_skill_talent("swordsman_trait_last_guard"):
+		return false
+	if owner.swordsman_death_defiance_cooldown_remaining > 0.0 or owner.swordsman_death_defiance_will_remaining > 0.0:
+		return false
+	if not owner.has_method("_has_full_switch_energy") or not owner._has_full_switch_energy(active_role_id):
+		return false
+	var swordsman_index: int = -1
+	for index in range(owner.roles.size()):
+		if str(owner.roles[index].get("id", "")) == "swordsman":
+			swordsman_index = index
+			break
+	if swordsman_index < 0 or owner._get_role_current_health("swordsman") <= 0.0:
+		return false
+
+	var rescue_health_ratio: float = min(1.0, 0.30 + PLAYER_BUILD_SYSTEM.get_swordsman_trait_heal_bonus(owner))
+	owner.current_health = owner._get_role_max_health(active_role_id) * rescue_health_ratio
+	owner._save_active_role_health()
+	owner._set_role_switch_energy(active_role_id, 0.0)
+	owner.swordsman_death_defiance_cooldown_remaining = owner.SWORDSMAN_DEATH_DEFIANCE_COOLDOWN
+	owner.swordsman_death_defiance_will_remaining = 0.0
+	owner._try_switch_role(swordsman_index, true, true)
+	owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, SWORDSMAN_DEATH_DEFIANCE_INVULNERABILITY + PLAYER_BUILD_SYSTEM.get_swordsman_knight_glory_duration_bonus(owner))
+	if owner.has_method("_spawn_forced_combat_tag"):
+		owner._spawn_forced_combat_tag(owner.global_position + Vector2(0.0, -42.0), "最后的换防", Color(1.0, 0.72, 0.32, 1.0))
+	owner._play_player_hurt_feedback()
+	return true
+
+
 static func _show_dodge_tag(owner) -> void:
 	var tag_position: Vector2 = owner.global_position + Vector2(0.0, -34.0)
 	var tag_color: Color = Color(0.38, 1.0, 0.48, 1.0)
@@ -434,3 +491,73 @@ static func apply_enemy_slow(owner, multiplier: float, duration: float) -> void:
 		return
 	owner.enemy_move_slow_multiplier = min(owner.enemy_move_slow_multiplier, clamp(multiplier, 0.15, 1.0))
 	owner.enemy_move_slow_remaining = max(owner.enemy_move_slow_remaining, duration)
+
+
+static func _tick_swordsman_talent_states(owner, delta: float) -> void:
+	if owner == null or owner.get("role_special_states") is not Dictionary:
+		return
+	var state: Dictionary = owner.role_special_states.get("swordsman", {})
+	for key in [
+		"blood_surge_remaining",
+		"guard_stance_remaining",
+		"head_high_remaining",
+		"unyielding_remaining",
+		"unyielding_cooldown_remaining",
+		"entry_move_speed_remaining",
+		"returning_gale_remaining",
+		"ultimate_triumph_remaining",
+		"basic_cooldown_cut_lock_remaining"
+	]:
+		state[key] = max(0.0, float(state.get(key, 0.0)) - delta)
+	owner.role_special_states["swordsman"] = state
+
+
+static func _get_swordsman_talent_move_multiplier(owner) -> float:
+	if owner == null or str(owner._get_active_role().get("id", "")) != "swordsman":
+		return 1.0
+	var state: Dictionary = owner.role_special_states.get("swordsman", {})
+	var bonus := 0.0
+	if float(state.get("head_high_remaining", 0.0)) > 0.0:
+		bonus += 0.25
+	if float(state.get("entry_move_speed_remaining", 0.0)) > 0.0:
+		bonus += 0.25
+	if float(state.get("ultimate_triumph_remaining", 0.0)) > 0.0:
+		bonus += 0.20
+	return 1.0 + min(0.50, bonus)
+
+
+static func _get_swordsman_talent_damage_taken_multiplier(owner) -> float:
+	if owner == null:
+		return 1.0
+	var state: Dictionary = owner.role_special_states.get("swordsman", {})
+	var reduction := 0.0
+	if str(owner._get_active_role().get("id", "")) == "swordsman":
+		if float(state.get("guard_stance_remaining", 0.0)) > 0.0:
+			reduction = max(reduction, 0.15)
+		if float(state.get("unyielding_remaining", 0.0)) > 0.0:
+			reduction = max(reduction, 0.40)
+		if float(state.get("ultimate_triumph_remaining", 0.0)) > 0.0:
+			reduction = max(reduction, 0.30)
+	if (
+		float(state.get("returning_gale_remaining", 0.0)) > 0.0
+		and str(state.get("returning_gale_role_id", "")) == str(owner._get_active_role().get("id", ""))
+	):
+		reduction = max(reduction, 0.30)
+	return 1.0 - reduction
+
+
+static func _clear_swordsman_talent_states(owner) -> void:
+	if owner == null or owner.get("role_special_states") is not Dictionary:
+		return
+	var state: Dictionary = owner.role_special_states.get("swordsman", {})
+	for key in [
+		"blood_surge_remaining",
+		"guard_stance_remaining",
+		"head_high_remaining",
+		"unyielding_remaining",
+		"entry_move_speed_remaining",
+		"returning_gale_remaining",
+		"ultimate_triumph_remaining"
+	]:
+		state[key] = 0.0
+	owner.role_special_states["swordsman"] = state

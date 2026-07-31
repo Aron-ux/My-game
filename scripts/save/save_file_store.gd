@@ -32,6 +32,20 @@ static func endless_run_path(slot_id: int) -> String:
 static func endless_run_backup_path(slot_id: int) -> String:
 	return endless_slot_dir(slot_id) + "/run_save_backup.json"
 
+static func archive_legacy_endless_run(slot_id: int, data: Dictionary) -> bool:
+	if data.is_empty():
+		return false
+	var archive_path: String = "%s/legacy_run_%d_%d.json" % [
+		endless_slot_dir(slot_id),
+		int(Time.get_unix_time_from_system()),
+		Time.get_ticks_usec()
+	]
+	if write_json(archive_path, data) <= 0:
+		return false
+	remove_if_exists(endless_run_path(slot_id))
+	remove_if_exists(endless_run_backup_path(slot_id))
+	return true
+
 static func read_json(path: String) -> Variant:
 	if not FileAccess.file_exists(path):
 		return null
@@ -49,11 +63,24 @@ static func read_json(path: String) -> Variant:
 static func write_json(path: String, data: Dictionary) -> int:
 	ensure_save_root()
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
-	var file := FileAccess.open(path, FileAccess.WRITE)
+	var temporary_path := path + ".tmp"
+	var file := FileAccess.open(temporary_path, FileAccess.WRITE)
 	if file == null:
 		return 0
 	var serialized := JSON.stringify(data)
 	file.store_string(serialized)
+	file.flush()
+	var write_error := file.get_error()
+	file.close()
+	if write_error != OK:
+		remove_if_exists(temporary_path)
+		return 0
+	if DirAccess.rename_absolute(
+		ProjectSettings.globalize_path(temporary_path),
+		ProjectSettings.globalize_path(path)
+	) != OK:
+		remove_if_exists(temporary_path)
+		return 0
 	return serialized.length()
 
 static func load_meta() -> Dictionary:

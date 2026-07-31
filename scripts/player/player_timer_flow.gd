@@ -57,7 +57,10 @@ static func update_timers(owner, delta: float) -> void:
 		owner.mage_arcane_surplus_remaining = max(0.0, owner.mage_arcane_surplus_remaining - delta)
 		var active_role_id: String = str(owner._get_active_role().get("id", "")) if owner.has_method("_get_active_role") else ""
 		if previous_arcane_surplus_remaining > 0.0 and owner.mage_arcane_surplus_remaining <= 0.0 and active_role_id == "mage" and owner.has_method("_add_mage_arcane_charge_stacks"):
-			owner._add_mage_arcane_charge_stacks(MAGE_ARCANE_SURPLUS_EXPIRE_CHARGE_STACKS)
+			var expire_stacks := MAGE_ARCANE_SURPLUS_EXPIRE_CHARGE_STACKS
+			if owner.get("mage_role") != null and owner.mage_role.has_method("get_arcane_surplus_expire_stacks"):
+				expire_stacks = int(owner.mage_role.get_arcane_surplus_expire_stacks(owner, expire_stacks))
+			owner._add_mage_arcane_charge_stacks(expire_stacks)
 		if owner.has_method("_sync_duration_status"):
 			owner._sync_duration_status("mage_arcane_surplus", "\u5965\u6CD5\u76C8\u4F59", owner.mage_arcane_surplus_remaining, 18, Color(0.34, 0.72, 1.0, 0.95))
 	if owner.mage_arcane_charge_transfer_remaining > 0.0:
@@ -68,6 +71,8 @@ static func update_timers(owner, delta: float) -> void:
 		owner.greed_heal_cooldown_remaining = max(0.0, owner.greed_heal_cooldown_remaining - delta)
 	if owner.has_method("_tick_gunner_flash_trait"):
 		owner._tick_gunner_flash_trait(delta)
+	if owner.get("gunner_role") != null and owner.gunner_role.has_method("update_talent_states"):
+		owner.gunner_role.update_talent_states(owner, delta)
 	var swordsman_special: Dictionary = owner._get_role_special_state("swordsman")
 	if float(swordsman_special.get("ultimate_lifesteal_multiplier_remaining", 0.0)) > 0.0:
 		swordsman_special["ultimate_lifesteal_multiplier_remaining"] = max(0.0, float(swordsman_special.get("ultimate_lifesteal_multiplier_remaining", 0.0)) - delta)

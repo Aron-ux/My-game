@@ -14,6 +14,25 @@ static var active_sketch_sprite_effects: Array[Dictionary] = []
 static var active_authored_cleanup_effects: Array[Dictionary] = []
 static var authored_effect_animation_frame: int = -1
 
+
+static func clear_runtime_state() -> void:
+	for pool_value in authored_scene_pools.values():
+		for effect in pool_value:
+			if is_instance_valid(effect) and effect is Node and not (effect as Node).is_queued_for_deletion():
+				(effect as Node).free()
+	for effect in sketch_sprite_effect_pool:
+		if is_instance_valid(effect) and not effect.is_queued_for_deletion():
+			effect.free()
+	authored_scene_pools.clear()
+	scene_animation_duration_cache.clear()
+	sketch_sprite_effect_pool.clear()
+	active_sketch_sprite_effects.clear()
+	active_authored_cleanup_effects.clear()
+	authored_scene_spawn_serial = 0
+	authored_effect_animation_frame = -1
+	PLAYER_GUNNER_INTERSECT_EFFECTS.clear_runtime_state()
+
+
 static func update_effect_animations(delta: float) -> void:
 	if delta <= 0.0:
 		return
