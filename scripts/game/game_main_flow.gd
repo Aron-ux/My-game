@@ -3,6 +3,7 @@ extends RefCounted
 const PERFORMANCE_RECORDER := preload("res://scripts/game/performance_recorder.gd")
 const PERFORMANCE_FEATURE_FLAGS := preload("res://scripts/game/performance_feature_flags.gd")
 const PERFORMANCE_TRACE_LOGGER := preload("res://scripts/game/performance_trace_logger.gd")
+const PLAYER_AUTHORED_EFFECTS := preload("res://scripts/player/player_authored_effects.gd")
 
 
 static func ready(main: Node) -> void:
@@ -55,6 +56,7 @@ static func exit_tree(main: Node) -> void:
 static func cleanup_runtime_nodes(main: Node) -> void:
 	main.ENEMY_HIT_FEEDBACK.clear_runtime_state()
 	main.PLAYER_BULLET.clear_runtime_state()
+	PLAYER_AUTHORED_EFFECTS.clear_runtime_state()
 	var game_bgm = main._get_game_bgm()
 	if game_bgm != null and game_bgm.has_method("stop"):
 		game_bgm.stop()

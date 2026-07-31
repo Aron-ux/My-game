@@ -1,6 +1,7 @@
 extends SceneTree
 
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
+const PLAYER_AUTHORED_EFFECTS := preload("res://scripts/player/player_authored_effects.gd")
 
 var failures: Array[String] = []
 
@@ -20,6 +21,7 @@ func _run() -> void:
 	_check_authored_effect_bridges(player)
 	await _check_primitive_effect_bridges(player)
 
+	PLAYER_AUTHORED_EFFECTS.clear_runtime_state()
 	scene.queue_free()
 	await process_frame
 	current_scene = null

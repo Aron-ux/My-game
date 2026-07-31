@@ -7,6 +7,17 @@ static var effect_part_pools: Dictionary = {}
 static var scene_animation_duration_cache: Dictionary = {}
 static var active_cleanup_jobs: Array[Dictionary] = []
 
+
+static func clear_runtime_state() -> void:
+	for pool_value in effect_part_pools.values():
+		for effect in pool_value:
+			if is_instance_valid(effect) and effect is Node and not (effect as Node).is_queued_for_deletion():
+				(effect as Node).free()
+	effect_part_pools.clear()
+	scene_animation_duration_cache.clear()
+	active_cleanup_jobs.clear()
+
+
 static func update_effect_animations(delta: float) -> void:
 	if delta <= 0.0:
 		return
