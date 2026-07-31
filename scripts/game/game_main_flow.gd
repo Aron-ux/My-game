@@ -56,7 +56,6 @@ static func exit_tree(main: Node) -> void:
 static func cleanup_runtime_nodes(main: Node) -> void:
 	main.ENEMY_HIT_FEEDBACK.clear_runtime_state()
 	main.PLAYER_BULLET.clear_runtime_state()
-	PLAYER_AUTHORED_EFFECTS.clear_runtime_state()
 	var game_bgm = main._get_game_bgm()
 	if game_bgm != null and game_bgm.has_method("stop"):
 		game_bgm.stop()
@@ -65,9 +64,10 @@ static func cleanup_runtime_nodes(main: Node) -> void:
 	var tree: SceneTree = main.get_tree()
 	if tree != null:
 		for effect in tree.get_nodes_in_group("temporary_effects"):
-			if effect != null and is_instance_valid(effect):
-				if effect is Node and not effect.is_queued_for_deletion():
-					effect.free()
+				if effect != null and is_instance_valid(effect):
+					if effect is Node and not effect.is_queued_for_deletion():
+						effect.free()
+	PLAYER_AUTHORED_EFFECTS.clear_runtime_state()
 
 
 static func unhandled_input(main: Node, event: InputEvent) -> void:

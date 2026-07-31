@@ -21,10 +21,10 @@ func _run() -> void:
 	_check_authored_effect_bridges(player)
 	await _check_primitive_effect_bridges(player)
 
-	PLAYER_AUTHORED_EFFECTS.clear_runtime_state()
 	scene.queue_free()
 	await process_frame
 	current_scene = null
+	PLAYER_AUTHORED_EFFECTS.clear_runtime_state()
 	if failures.is_empty():
 		print("PLAYER_EFFECT_BRIDGE_SMOKE_OK")
 		quit(0)
