@@ -5,6 +5,7 @@ static func build_empty_state() -> Dictionary:
 	return {
 		"unlocked": {},
 		"tiers": {},
+		"unlock_order": [],
 		"skill_blessing_bindings": {},
 		"skill_blessing_baselines": {},
 		"skill_blessing_bonus_credits": {},
@@ -28,6 +29,11 @@ static func normalize_state(value: Variant, known_skill_ids: Dictionary) -> Dict
 			var skill_id := str(skill_id_value)
 			if _is_known_skill_id(skill_id, known_skill_ids):
 				state["tiers"][skill_id] = clamp(int((source.get("tiers", {}) as Dictionary).get(skill_id_value, 0)), 0, 3)
+	if source.get("unlock_order", []) is Array:
+		for skill_id_value in source.get("unlock_order", []):
+			var skill_id := str(skill_id_value)
+			if _is_known_skill_id(skill_id, known_skill_ids) and not (state["unlock_order"] as Array).has(skill_id):
+				(state["unlock_order"] as Array).append(skill_id)
 	if source.get("skill_blessing_bindings", {}) is Dictionary:
 		for blessing_id_value in (source.get("skill_blessing_bindings", {}) as Dictionary).keys():
 			var blessing_id := str(blessing_id_value)

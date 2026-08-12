@@ -83,6 +83,8 @@ static func _make_ultimate_enhancement_description(_owner, _role_id: String) -> 
 static func can_use_ultimate(owner) -> bool:
 	if owner.has_method("_is_player_action_locked") and owner._is_player_action_locked():
 		return false
+	if owner.has_method("is_gunner_infinite_reload_blocking_actions") and owner.is_gunner_infinite_reload_blocking_actions():
+		return false
 	if DEVELOPER_MODE.should_unlock_ultimate_freely():
 		return true
 	if owner._has_elite_relic("elite_perpetual_motion"):
@@ -93,27 +95,31 @@ static func can_use_ultimate(owner) -> bool:
 static func build_ultimate_cast_payload(owner) -> Dictionary:
 	var duration_multiplier: float = 1.0
 	var damage_multiplier: float = get_ultimate_level_damage_multiplier(owner)
+	var role_id: String = owner._get_active_role_id()
+	var mage_arcane_ultimate_damage_multiplier := 1.0
+	if owner.has_method("_get_mage_arcane_charge_ultimate_damage_multiplier"):
+		mage_arcane_ultimate_damage_multiplier = float(owner._get_mage_arcane_charge_ultimate_damage_multiplier(role_id))
 	if DEVELOPER_MODE.should_unlock_ultimate_freely():
 		return {
-			"damage_multiplier": damage_multiplier,
+			"damage_multiplier": damage_multiplier * mage_arcane_ultimate_damage_multiplier,
 			"duration_multiplier": duration_multiplier,
 			"boost_units": 0
 		}
 	if owner._has_elite_relic("elite_perpetual_motion"):
-		var consumed_mana: float = owner._get_role_mana(owner._get_active_role_id())
-		owner._set_role_mana(owner._get_active_role_id(), 0.0, false)
+		var consumed_mana: float = owner._get_role_mana(role_id)
+		owner._set_role_mana(role_id, 0.0, false)
 		var boost_units: int = min(4, int(floor(min(consumed_mana, 60.0) / 15.0)))
 		damage_multiplier += 0.06 * boost_units
 		duration_multiplier += 0.04 * boost_units
 		owner.perpetual_motion_cooldown_remaining = 26.0 * owner._get_equipment_cooldown_multiplier()
 		owner._emit_active_mana_changed()
 		return {
-			"damage_multiplier": damage_multiplier,
+			"damage_multiplier": damage_multiplier * mage_arcane_ultimate_damage_multiplier,
 			"duration_multiplier": duration_multiplier,
 			"boost_units": boost_units
 		}
 	return {
-		"damage_multiplier": damage_multiplier,
+		"damage_multiplier": damage_multiplier * mage_arcane_ultimate_damage_multiplier,
 		"duration_multiplier": duration_multiplier,
 		"boost_units": 0
 	}

@@ -1,6 +1,9 @@
 extends RefCounted
 
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
+const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")
+const PLAYER_GUNNER_FLASH_TALENT_FLOW := preload("res://scripts/player/player_gunner_flash_talent_flow.gd")
+const PLAYER_GUNNER_ENTRY_TALENT_FLOW := preload("res://scripts/player/player_gunner_entry_talent_flow.gd")
 
 const GLOBAL_UNIT_MOVE_SPEED_SCALE := 0.7
 
@@ -99,6 +102,9 @@ static func get_role_move_speed(owner, role_id: String) -> float:
 	if owner.has_method("_get_role_blessing_stat_bonus"):
 		move_speed += float(owner._get_role_blessing_stat_bonus(role_id, "move_speed"))
 		move_speed *= max(0.01, 1.0 + float(owner._get_role_blessing_stat_bonus(role_id, "move_speed_percent")))
+	move_speed += PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW.get_move_speed_bonus(owner, role_id)
+	if role_id == "gunner" and owner.has_method("_get_gunner_hunt_move_speed_bonus"):
+		move_speed += float(owner._get_gunner_hunt_move_speed_bonus(role_id))
 	move_speed *= owner._get_role_attribute_move_speed_multiplier(role_id)
 	if active_role_id != role_id:
 		return move_speed
@@ -108,6 +114,8 @@ static func get_role_move_speed(owner, role_id: String) -> float:
 		move_speed *= float(owner._get_gunner_infinite_reload_move_speed_multiplier())
 	if role_id == "gunner" and owner.has_method("_get_gunner_flash_move_speed_multiplier"):
 		move_speed *= float(owner._get_gunner_flash_move_speed_multiplier())
+	if role_id == "gunner":
+		move_speed *= PLAYER_GUNNER_FLASH_TALENT_FLOW.get_move_speed_multiplier(owner, role_id)
 	if role_id == "gunner" and owner.get("gunner_role") != null:
 		move_speed *= float(owner.gunner_role.get_talent_move_speed_multiplier(owner))
 	if owner.ultimate_haste_remaining > 0.0:
@@ -331,10 +339,15 @@ static func get_role_damage(owner, role_id: String) -> float:
 			damage_amount *= 1.0 + 0.015 * owner.frenzy_stacks
 		if role_id == "gunner" and owner.has_method("_get_gunner_flash_damage_multiplier"):
 			damage_amount *= float(owner._get_gunner_flash_damage_multiplier())
+		if role_id == "gunner" and owner.has_method("_get_gunner_hunt_damage_multiplier"):
+			damage_amount *= float(owner._get_gunner_hunt_damage_multiplier(role_id))
+		if role_id == "gunner":
+			damage_amount *= PLAYER_GUNNER_ENTRY_TALENT_FLOW.get_gunner_damage_multiplier(owner, role_id)
 		if role_id == "mage" and owner.has_method("_get_mage_arcane_charge_damage_multiplier"):
 			damage_amount *= float(owner._get_mage_arcane_charge_damage_multiplier())
-		if role_id == "mage" and owner.has_method("_get_mage_arcane_surplus_damage_multiplier"):
-			damage_amount *= float(owner._get_mage_arcane_surplus_damage_multiplier())
+		if owner.has_method("_get_mage_arcane_surplus_damage_multiplier"):
+			damage_amount *= float(owner._get_mage_arcane_surplus_damage_multiplier(role_id))
+		damage_amount *= PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW.get_damage_multiplier(owner, role_id)
 		return damage_amount
 	return 0.0
 

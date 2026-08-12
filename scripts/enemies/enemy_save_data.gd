@@ -76,6 +76,12 @@ static func get_save_data(enemy) -> Dictionary:
 		"rebirth_slow_duration": enemy.rebirth_slow_duration,
 		"skulltomb_summon_timer": enemy.skulltomb_summon_timer,
 		"skulltomb_summon_windup_remaining": enemy.skulltomb_summon_windup_remaining,
+		"skulltomb_charge_timer": enemy.skulltomb_charge_timer,
+		"skulltomb_charge_decision_timer": enemy.skulltomb_charge_decision_timer,
+		"skulltomb_charge_active": enemy.skulltomb_charge_active,
+		"skulltomb_charge_windup_remaining": enemy.skulltomb_charge_windup_remaining,
+		"skulltomb_charge_target_position": [enemy.skulltomb_charge_target_position.x, enemy.skulltomb_charge_target_position.y],
+		"skulltomb_aging_aura_elapsed": enemy.skulltomb_aging_aura_elapsed,
 		"skull_soldier_speed_multiplier": enemy.skull_soldier_speed_multiplier,
 		"skull_soldier_speed_timer": enemy.skull_soldier_speed_timer,
 		"skull_damage_immune_timer": enemy.skull_damage_immune_timer,
@@ -106,6 +112,8 @@ static func get_save_data(enemy) -> Dictionary:
 		"boss_phase_three_elapsed": enemy.boss_phase_three_elapsed,
 		"boss_phase_three_intro_remaining": enemy.boss_phase_three_intro_remaining,
 		"boss_phase_transition_target": enemy.boss_phase_transition_target,
+		"boss_shield_break_intro_played": enemy.boss_shield_break_intro_played,
+		"boss_shield_break_visual_intro_active": enemy.boss_shield_break_visual_intro_active,
 		"boss_split_timer": enemy.boss_split_timer,
 		"boss_laser_timer": enemy.boss_laser_timer,
 		"boss_laser_remaining": enemy.boss_laser_remaining,
@@ -212,6 +220,16 @@ static func apply_save_data(enemy, data: Dictionary, target_node: Node2D) -> voi
 	enemy.rebirth_slow_duration = float(data.get("rebirth_slow_duration", enemy.rebirth_slow_duration))
 	enemy.skulltomb_summon_timer = float(data.get("skulltomb_summon_timer", enemy.skulltomb_summon_timer))
 	enemy.skulltomb_summon_windup_remaining = float(data.get("skulltomb_summon_windup_remaining", 0.0))
+	enemy.skulltomb_charge_timer = float(data.get("skulltomb_charge_timer", enemy.skulltomb_charge_timer))
+	enemy.skulltomb_charge_decision_timer = float(data.get("skulltomb_charge_decision_timer", 0.0))
+	enemy.skulltomb_charge_active = bool(data.get("skulltomb_charge_active", false))
+	enemy.skulltomb_charge_windup_remaining = float(data.get("skulltomb_charge_windup_remaining", 0.0))
+	var charge_target_data: Variant = data.get("skulltomb_charge_target_position", null)
+	if charge_target_data is Array and charge_target_data.size() >= 2:
+		enemy.skulltomb_charge_target_position = Vector2(float(charge_target_data[0]), float(charge_target_data[1]))
+	else:
+		enemy.skulltomb_charge_target_position = Vector2.ZERO
+	enemy.skulltomb_aging_aura_elapsed = float(data.get("skulltomb_aging_aura_elapsed", 0.0))
 	enemy.skull_soldier_speed_multiplier = float(data.get("skull_soldier_speed_multiplier", 1.0))
 	enemy.skull_soldier_speed_timer = float(data.get("skull_soldier_speed_timer", 0.0))
 	enemy.skull_damage_immune_timer = float(data.get("skull_damage_immune_timer", 0.0))
@@ -242,6 +260,8 @@ static func apply_save_data(enemy, data: Dictionary, target_node: Node2D) -> voi
 	enemy.boss_phase_three_elapsed = float(data.get("boss_phase_three_elapsed", 0.0))
 	enemy.boss_phase_three_intro_remaining = float(data.get("boss_phase_three_intro_remaining", 0.0))
 	enemy.boss_phase_transition_target = int(data.get("boss_phase_transition_target", 0))
+	enemy.boss_shield_break_intro_played = bool(data.get("boss_shield_break_intro_played", enemy.boss_phase >= 3 or enemy.boss_phase_transition_target > 0 or float(enemy.current_health) <= ENEMY_BOSS_STATE.get_phase_bar_max_health(enemy)))
+	enemy.boss_shield_break_visual_intro_active = bool(data.get("boss_shield_break_visual_intro_active", enemy.boss_phase_transition_target <= 0 and enemy.boss_phase_three_intro_remaining > 0.0 and enemy.boss_shield_break_intro_played))
 	enemy.boss_split_timer = float(data.get("boss_split_timer", enemy.boss_split_interval))
 	enemy.boss_laser_timer = float(data.get("boss_laser_timer", enemy.boss_laser_interval))
 	enemy.boss_laser_remaining = float(data.get("boss_laser_remaining", 0.0))

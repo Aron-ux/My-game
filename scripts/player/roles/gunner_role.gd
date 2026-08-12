@@ -2,6 +2,8 @@ extends RefCounted
 
 const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
+const PLAYER_GUNNER_FLASH_TALENT_FLOW := preload("res://scripts/player/player_gunner_flash_talent_flow.gd")
+const PLAYER_GUNNER_BASIC_TALENT_FLOW := preload("res://scripts/player/player_gunner_basic_talent_flow.gd")
 
 const ULTIMATE_BULLET_HIT_SCAN_INTERVAL := 0.035
 const BASIC_COMBO_INTERVAL := 0.12
@@ -50,6 +52,8 @@ const GUNNER_MOBILE_FIRE_SPEED_MULTIPLIER := 1.25
 const GUNNER_EXECUTION_COOLDOWN := 2.5
 const GUNNER_REPULSE_COOLDOWN := 1.2
 const GUNNER_DAMAGE_EVENT_TIMEOUT := 6.0
+const ULTIMATE_ROCKET_BARRAGE_1 := "gunner_level_talent_rocket_barrage_1"
+const ULTIMATE_ROCKET_BARRAGE_2 := "gunner_level_talent_rocket_barrage_2"
 
 var ultimate_attack_locked: bool = false
 var ultimate_attack_lock_id: int = 0
@@ -176,6 +180,8 @@ func _spawn_barrage_shotgun(owner, shot_direction: Vector2, main_damage: float, 
 
 func _spawn_primary_batched_bullet(owner, shot_direction: Vector2, damage_amount: float, bullet_color: Color, role_data: Dictionary, upgrade_data: Dictionary, focus_level: int, origin: Vector2, overrides: Dictionary = {}) -> bool:
 	damage_amount *= float(overrides.get("damage_multiplier", 1.0))
+	var base_damage_amount := damage_amount
+	damage_amount = PLAYER_GUNNER_BASIC_TALENT_FLOW.get_modified_basic_damage(owner, damage_amount)
 	var hit_radius: float = (14.0 + float(overrides.get("hit_radius_bonus", 0.0))) * float(overrides.get("hit_radius_multiplier", 1.0))
 	if _has_talent(owner, "gunner_basic_penetration"):
 		hit_radius *= 1.2
@@ -192,6 +198,20 @@ func _spawn_primary_batched_bullet(owner, shot_direction: Vector2, damage_amount
 	var vulnerability_duration: float = 1.0 if vulnerability_bonus > 0.0 else 0.0
 	var damage_event_id := str(overrides.get("damage_event_id", ""))
 	var damage_source_id := "gunner_basic:%s" % damage_event_id if damage_event_id != "" else str(role_data["id"])
+	var projectile_config := PLAYER_GUNNER_BASIC_TALENT_FLOW.build_projectile_config(owner, {
+		"speed": bullet_speed,
+		"lifetime": lifetime,
+		"hit_radius": hit_radius,
+		"visual_radius": _get_scaled_visual_radius(BASIC_BULLET_VISUAL_RADIUS),
+		"visual_min_diameter": GUNNER_BATCHED_BULLET_VISUAL_MIN_DIAMETER,
+		"enemy_hit_radius_scale": 0.42,
+		"enemy_hit_radius_min": 10.0,
+		"enemy_hit_radius_max": 28.0,
+		"vulnerability_bonus": max(vulnerability_bonus, 0.04 * focus_level if focus_level > 0 else 0.0),
+		"vulnerability_duration": max(vulnerability_duration, 1.0 + 0.2 * focus_level if focus_level > 0 else 0.0),
+		"pierce_count": pierce_count,
+		"damage_event_id": damage_event_id
+	}, base_damage_amount)
 	if owner.has_method("_spawn_batched_directional_bullet"):
 		return bool(owner._spawn_batched_directional_bullet(
 			shot_direction,
@@ -199,20 +219,7 @@ func _spawn_primary_batched_bullet(owner, shot_direction: Vector2, damage_amount
 			bullet_color,
 			damage_source_id,
 			origin,
-			{
-				"speed": bullet_speed,
-				"lifetime": lifetime,
-				"hit_radius": hit_radius,
-				"visual_radius": _get_scaled_visual_radius(BASIC_BULLET_VISUAL_RADIUS),
-				"visual_min_diameter": GUNNER_BATCHED_BULLET_VISUAL_MIN_DIAMETER,
-				"enemy_hit_radius_scale": 0.42,
-				"enemy_hit_radius_min": 10.0,
-				"enemy_hit_radius_max": 28.0,
-				"vulnerability_bonus": max(vulnerability_bonus, 0.04 * focus_level if focus_level > 0 else 0.0),
-				"vulnerability_duration": max(vulnerability_duration, 1.0 + 0.2 * focus_level if focus_level > 0 else 0.0),
-				"pierce_count": pierce_count,
-				"damage_event_id": damage_event_id
-			}
+			projectile_config
 		))
 	return owner._spawn_batched_directional_bullet_values(
 		shot_direction,
@@ -269,6 +276,7 @@ func _get_basic_attack_projectile_speed_multiplier(owner) -> float:
 
 func _get_basic_bullet_speed(owner, role_data: Dictionary, focus_level: int) -> float:
 	var speed := (BASIC_BULLET_BASE_SPEED + BASIC_BULLET_FOCUS_SPEED_BONUS * focus_level) * _get_basic_attack_projectile_speed_multiplier(owner)
+	speed += PLAYER_GUNNER_BASIC_TALENT_FLOW.get_basic_speed_bonus(owner)
 	if _has_talent(owner, "gunner_basic_mobile_fire") and _is_owner_moving(owner):
 		speed *= GUNNER_MOBILE_FIRE_SPEED_MULTIPLIER
 	return speed
@@ -355,12 +363,22 @@ func perform_ultimate(owner, cast_payload: Dictionary) -> void:
 		"gunner_ultimate_terminal_guidance"
 	]:
 		talent_snapshot[talent_id] = _has_talent(owner, talent_id)
+	var rocket_barrage_1 := _has_level_talent(owner, ULTIMATE_ROCKET_BARRAGE_1)
+	var rocket_barrage_2 := _has_level_talent(owner, ULTIMATE_ROCKET_BARRAGE_2)
+	talent_snapshot[ULTIMATE_ROCKET_BARRAGE_1] = rocket_barrage_1
+	talent_snapshot[ULTIMATE_ROCKET_BARRAGE_2] = rocket_barrage_2
+	if rocket_barrage_1:
+		talent_snapshot["rocket_barrage_locked_direction"] = _get_current_ultimate_direction(owner)
 	var ultimate_tier: int = _get_ultimate_skill_tier(owner)
 	var cone_degrees: float = _get_ultimate_cone_degrees(ultimate_tier)
 	if bool(talent_snapshot["gunner_ultimate_line"]):
 		cone_degrees *= 0.4
 	elif bool(talent_snapshot["gunner_ultimate_fan"]):
 		cone_degrees = min(140.0, cone_degrees * 2.4)
+	if rocket_barrage_1:
+		cone_degrees = 20.0
+	elif rocket_barrage_2:
+		cone_degrees = 60.0
 	var total_duration: float = ULTIMATE_DURATION
 	if owner.has_method("_get_blessing_skill_duration_multiplier"):
 		total_duration *= float(owner._get_blessing_skill_duration_multiplier(ULTIMATE_SKILL_ID))
@@ -376,6 +394,8 @@ func perform_ultimate(owner, cast_payload: Dictionary) -> void:
 	var old_tick_count: int = max(1, int(ceil(total_duration / old_tick_interval)))
 	var base_tick_count: int = _get_ultimate_damage_wave_count(total_duration, ultimate_tier)
 	var tick_count: int = max(1, base_tick_count + PLAYER_BUILD_SYSTEM.get_gunner_ultimate_wave_bonus(owner))
+	if rocket_barrage_1 or rocket_barrage_2:
+		tick_count += 2
 	var tick_interval: float = total_duration / float(max(1, tick_count))
 	var damage_wave_multiplier: float = float(old_tick_count) / float(max(1, base_tick_count))
 	var cast_damage_multiplier: float = float(cast_payload.get("damage_multiplier", 1.0)) * _get_ultimate_damage_multiplier(owner)
@@ -383,6 +403,10 @@ func perform_ultimate(owner, cast_payload: Dictionary) -> void:
 		cast_damage_multiplier *= 1.55
 	elif bool(talent_snapshot["gunner_ultimate_fan"]):
 		cast_damage_multiplier *= 0.70
+	if rocket_barrage_1:
+		cast_damage_multiplier *= 1.10
+	elif rocket_barrage_2:
+		cast_damage_multiplier *= 0.90
 	var visual_interval: float = _get_ultimate_visual_interval()
 	var visual_count: int = max(1, int(ceil(total_duration / visual_interval)))
 	owner._queue_camera_shake(17.5, 0.54)
@@ -427,10 +451,7 @@ func _apply_ultimate_cone_damage(owner, barrage_level: int, focus_level: int, co
 	if owner.is_dead:
 		return
 	var origin: Vector2 = owner.global_position
-	var direction: Vector2 = owner._get_live_mouse_aim_direction(owner.facing_direction)
-	if direction.length_squared() <= 0.001:
-		direction = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
-	direction = direction.normalized()
+	var direction: Vector2 = _get_ultimate_wave_direction(owner, talent_snapshot)
 	owner.facing_direction = direction
 	if _talent_enabled(owner, talent_snapshot, "gunner_ultimate_calibration"):
 		_update_ultimate_calibration(direction, max(0.0, tick_interval), calibration_state)
@@ -516,10 +537,7 @@ func _get_enemies_in_cone(owner, origin: Vector2, direction: Vector2, range_valu
 func _spawn_ultimate_cone_visuals(owner, barrage_level: int, focus_level: int, scatter_level: int, cone_degrees: float, visual_index: int, talent_snapshot: Dictionary = {}) -> void:
 	if owner.is_dead:
 		return
-	var direction: Vector2 = owner._get_live_mouse_aim_direction(owner.facing_direction)
-	if direction.length_squared() <= 0.001:
-		direction = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
-	direction = direction.normalized()
+	var direction: Vector2 = _get_ultimate_wave_direction(owner, talent_snapshot)
 	var range_value: float = _get_ultimate_cone_range(owner, talent_snapshot)
 	var bullet_speed: float = ULTIMATE_VISUAL_BULLET_SPEED + focus_level * ULTIMATE_VISUAL_FOCUS_SPEED_BONUS + barrage_level * ULTIMATE_VISUAL_BARRAGE_SPEED_BONUS
 	var bullet_lifetime: float = max(0.20, range_value / bullet_speed)
@@ -581,6 +599,22 @@ func _get_ultimate_cone_range(owner, talent_snapshot: Dictionary = {}) -> float:
 
 func _talent_enabled(owner, talent_snapshot: Dictionary, talent_id: String) -> bool:
 	return bool(talent_snapshot.get(talent_id, _has_talent(owner, talent_id)))
+
+func _has_level_talent(owner, talent_id: String) -> bool:
+	return owner != null and owner.has_method("_has_level_talent") and bool(owner._has_level_talent(talent_id))
+
+func _get_current_ultimate_direction(owner) -> Vector2:
+	var direction: Vector2 = owner._get_live_mouse_aim_direction(owner.facing_direction)
+	if direction.length_squared() <= 0.001:
+		direction = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
+	return direction.normalized()
+
+func _get_ultimate_wave_direction(owner, talent_snapshot: Dictionary) -> Vector2:
+	if bool(talent_snapshot.get(ULTIMATE_ROCKET_BARRAGE_1, false)):
+		var locked_direction: Vector2 = talent_snapshot.get("rocket_barrage_locked_direction", Vector2.ZERO)
+		if locked_direction.length_squared() > 0.001:
+			return locked_direction.normalized()
+	return _get_current_ultimate_direction(owner)
 
 func _has_talent(owner, talent_id: String) -> bool:
 	return owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id))
@@ -783,8 +817,9 @@ func consume_damage_event_multiplier(owner, source_role_id: String) -> float:
 	if owner == null or source_role_id != "gunner":
 		return 1.0
 	var state := _get_talent_state(owner)
-	if _has_talent(owner, "gunner_trait_execution") and int(owner.get("gunner_flash_stacks")) >= 10 and float(state.get("execution_cooldown_remaining", 0.0)) <= 0.0:
-		owner.set("gunner_flash_stacks", max(0, int(owner.get("gunner_flash_stacks")) - 5))
+	if _has_talent(owner, "gunner_trait_execution") and PLAYER_GUNNER_FLASH_TALENT_FLOW.get_active_flash_stacks(owner) >= 10 and float(state.get("execution_cooldown_remaining", 0.0)) <= 0.0:
+		if not PLAYER_GUNNER_FLASH_TALENT_FLOW.consume_flash_stacks(owner, 5):
+			return 1.0
 		state["execution_cooldown_remaining"] = GUNNER_EXECUTION_COOLDOWN
 		return 1.6
 	return 1.0

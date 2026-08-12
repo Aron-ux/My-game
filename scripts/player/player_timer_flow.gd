@@ -2,6 +2,11 @@ extends RefCounted
 
 const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
 const ROLE_RESOURCE_STATE := preload("res://scripts/player/roles/role_resource_state.gd")
+const PLAYER_SWORDSMAN_BATTLE_WILL_FLOW := preload("res://scripts/player/player_swordsman_battle_will_flow.gd")
+const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")
+const PLAYER_GUNNER_FLASH_TALENT_FLOW := preload("res://scripts/player/player_gunner_flash_talent_flow.gd")
+const PLAYER_GUNNER_ENTRY_TALENT_FLOW := preload("res://scripts/player/player_gunner_entry_talent_flow.gd")
+const PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW := preload("res://scripts/player/player_mage_arcane_surplus_talent_flow.gd")
 const MAGE_ARCANE_SURPLUS_EXPIRE_CHARGE_STACKS := 3
 
 
@@ -33,25 +38,9 @@ static func update_timers(owner, delta: float) -> void:
 		owner.lifesteal_proc_cooldown_remaining = max(0.0, owner.lifesteal_proc_cooldown_remaining - delta)
 	if owner.swordsman_trait_heal_cooldown_remaining > 0.0:
 		owner.swordsman_trait_heal_cooldown_remaining = max(0.0, owner.swordsman_trait_heal_cooldown_remaining - delta)
-	if owner.swordsman_death_defiance_will_remaining > 0.0:
-		owner.swordsman_death_defiance_will_remaining = max(0.0, owner.swordsman_death_defiance_will_remaining - delta)
-		if owner.swordsman_death_defiance_will_remaining <= 0.0:
-			owner.swordsman_death_defiance_cooldown_remaining = owner.SWORDSMAN_DEATH_DEFIANCE_COOLDOWN
-	if owner.swordsman_death_defiance_cooldown_remaining > 0.0:
-		owner.swordsman_death_defiance_cooldown_remaining = max(0.0, owner.swordsman_death_defiance_cooldown_remaining - delta)
-	if owner.swordsman_bloodthirst_cooldown_remaining > 0.0:
-		owner.swordsman_bloodthirst_cooldown_remaining = max(0.0, owner.swordsman_bloodthirst_cooldown_remaining - delta)
-	if owner.swordsman_entry_trait_share_remaining > 0.0:
-		var previous_bloodthirst_remaining: float = owner.swordsman_entry_trait_share_remaining
-		owner.swordsman_entry_trait_share_remaining = max(0.0, owner.swordsman_entry_trait_share_remaining - delta)
-		if owner.swordsman_entry_trait_share_remaining > 0.0:
-			owner.swordsman_bloodthirst_heal_multiplier = max(owner.swordsman_bloodthirst_heal_multiplier, 1.0)
-		else:
-			owner.swordsman_bloodthirst_heal_multiplier = 1.0
-			if previous_bloodthirst_remaining > 0.0:
-				owner.swordsman_bloodthirst_cooldown_remaining = max(owner.swordsman_bloodthirst_cooldown_remaining, owner.SWORDSMAN_BLOODTHIRST_INTERNAL_COOLDOWN)
-	else:
-		owner.swordsman_bloodthirst_heal_multiplier = 1.0
+	PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW.tick(owner, delta)
+	PLAYER_GUNNER_FLASH_TALENT_FLOW.tick(owner, delta)
+	PLAYER_GUNNER_ENTRY_TALENT_FLOW.tick(owner, delta)
 	if owner.mage_arcane_surplus_remaining > 0.0:
 		var previous_arcane_surplus_remaining: float = owner.mage_arcane_surplus_remaining
 		owner.mage_arcane_surplus_remaining = max(0.0, owner.mage_arcane_surplus_remaining - delta)
@@ -73,6 +62,7 @@ static func update_timers(owner, delta: float) -> void:
 		owner._tick_gunner_flash_trait(delta)
 	if owner.get("gunner_role") != null and owner.gunner_role.has_method("update_talent_states"):
 		owner.gunner_role.update_talent_states(owner, delta)
+	PLAYER_SWORDSMAN_BATTLE_WILL_FLOW.tick(owner, delta)
 	var swordsman_special: Dictionary = owner._get_role_special_state("swordsman")
 	if float(swordsman_special.get("ultimate_lifesteal_multiplier_remaining", 0.0)) > 0.0:
 		swordsman_special["ultimate_lifesteal_multiplier_remaining"] = max(0.0, float(swordsman_special.get("ultimate_lifesteal_multiplier_remaining", 0.0)) - delta)
@@ -82,16 +72,22 @@ static func update_timers(owner, delta: float) -> void:
 		if owner.enemy_move_slow_remaining <= 0.0:
 			owner.enemy_move_slow_multiplier = 1.0
 	if owner.gunner_infinite_reload_ability != null:
+		PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.apply_skill_cooldown_tick_bonus(owner, owner.gunner_infinite_reload_ability, "gunner", delta)
 		owner.gunner_infinite_reload_ability.update(owner, delta)
 	if owner.gunner_shrapnel_field_ability != null:
+		PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.apply_skill_cooldown_tick_bonus(owner, owner.gunner_shrapnel_field_ability, "gunner", delta)
 		owner.gunner_shrapnel_field_ability.update(owner, delta)
 	if owner.mage_tidal_surge_ability != null:
+		PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.apply_skill_cooldown_tick_bonus(owner, owner.mage_tidal_surge_ability, "mage", delta)
 		owner.mage_tidal_surge_ability.update(delta)
 	if owner.mage_meta_field_ability != null:
+		PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.apply_skill_cooldown_tick_bonus(owner, owner.mage_meta_field_ability, "mage", delta)
 		owner.mage_meta_field_ability.update(owner, delta)
 	if owner.swordsman_blade_storm_ability != null:
+		PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.apply_skill_cooldown_tick_bonus(owner, owner.swordsman_blade_storm_ability, "swordsman", delta)
 		owner.swordsman_blade_storm_ability.update(owner, delta)
 	if owner.swordsman_crescent_wave_ability != null:
+		PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.apply_skill_cooldown_tick_bonus(owner, owner.swordsman_crescent_wave_ability, "swordsman", delta)
 		owner.swordsman_crescent_wave_ability.update(delta)
 	owner._try_trigger_swordsman_blade_storm()
 	owner._try_trigger_swordsman_crescent_wave()

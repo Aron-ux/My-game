@@ -2,6 +2,7 @@ extends RefCounted
 
 const ROLE_ATTRIBUTE_RULES := preload("res://scripts/player/roles/role_attribute_rules.gd")
 const PLAYER_EQUIPMENT_FLOW := preload("res://scripts/player/player_equipment_flow.gd")
+const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")
 
 const DAMAGE_REDUCTION_RATE_SCALE := 0.75
 const DAMAGE_REDUCTION_VALUE_SCALE := 160.0
@@ -127,6 +128,7 @@ static func _get_active_temporary_damage_reduction_value(owner) -> float:
 		value += float(mage_field_ability.get_damage_reduction_value(owner))
 	elif mage_field_ability != null and mage_field_ability.has_method("get_damage_taken_multiplier"):
 		value += damage_reduction_value_from_multiplier(float(mage_field_ability.get_damage_taken_multiplier(owner)))
+	value += PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW.get_damage_reduction_value(owner, _get_active_role_id(owner))
 	return value
 
 

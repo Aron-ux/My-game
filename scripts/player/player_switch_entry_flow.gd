@@ -1,5 +1,7 @@
 extends RefCounted
 
+const PLAYER_GUNNER_ENTRY_TALENT_FLOW := preload("res://scripts/player/player_gunner_entry_talent_flow.gd")
+
 const GUNNER_ENTRY_WAVE_BULLET_COUNT := 8
 const GUNNER_ENTRY_WAVE_BATCH_SIZE := 4
 const GUNNER_ENTRY_WAVE_BATCH_INTERVAL := 0.012
@@ -8,6 +10,7 @@ const GUNNER_ENTRY_BULLET_SPEED := 1000.0
 const GUNNER_ENTRY_BULLET_LIFETIME := 0.9
 const GUNNER_ENTRY_BULLET_HIT_RADIUS := 18.0
 const GUNNER_ENTRY_BULLET_PIERCE_COUNT := 8
+const GUNNER_ENTRY_DAMAGE_SOURCE_ID := "gunner_entry"
 const MAGE_ATTACK_EFFECT_SCALE := 0.8
 const MAGE_ENTRY_EFFECT_RADIUS := 52.0 * MAGE_ATTACK_EFFECT_SCALE
 const MAGE_ENTRY_HIT_RADIUS := 104.0 * MAGE_ATTACK_EFFECT_SCALE
@@ -55,7 +58,7 @@ static func _spawn_gunner_entry_bullet(owner, role_id: String, direction: Vector
 			direction,
 			_get_gunner_entry_bullet_damage(owner, role_id, damage_scale),
 			Color(1.0, 0.55, 0.32, 1.0),
-			role_id,
+			GUNNER_ENTRY_DAMAGE_SOURCE_ID,
 			owner.global_position,
 			{
 				"speed": speed,
@@ -78,7 +81,7 @@ static func _spawn_gunner_entry_bullet(owner, role_id: String, direction: Vector
 		direction,
 		_get_gunner_entry_bullet_damage(owner, role_id, damage_scale),
 		Color(1.0, 0.55, 0.32, 1.0),
-		role_id,
+		GUNNER_ENTRY_DAMAGE_SOURCE_ID,
 		owner.global_position,
 		speed,
 		lifetime,
@@ -117,7 +120,7 @@ static func spawn_gunner_entry_wave_batch(owner, role_id: String, wave_index: in
 					direction,
 					_get_gunner_entry_bullet_damage(owner, role_id, damage_scale),
 					Color(1.0, 0.55, 0.32, 1.0),
-					role_id,
+					GUNNER_ENTRY_DAMAGE_SOURCE_ID,
 					owner.global_position,
 					{
 						"speed": GUNNER_ENTRY_BULLET_SPEED,
@@ -138,7 +141,7 @@ static func spawn_gunner_entry_wave_batch(owner, role_id: String, wave_index: in
 				direction,
 				_get_gunner_entry_bullet_damage(owner, role_id, damage_scale),
 				Color(1.0, 0.55, 0.32, 1.0),
-				role_id,
+				GUNNER_ENTRY_DAMAGE_SOURCE_ID,
 				owner.global_position,
 				GUNNER_ENTRY_BULLET_SPEED,
 				GUNNER_ENTRY_BULLET_LIFETIME,
@@ -157,7 +160,7 @@ static func spawn_gunner_entry_wave_batch(owner, role_id: String, wave_index: in
 				pierce_count
 			)
 		else:
-			var bullet = owner._spawn_directional_bullet(direction, _get_gunner_entry_bullet_damage(owner, role_id, damage_scale), Color(1.0, 0.55, 0.32, 1.0), role_id, owner.global_position)
+			var bullet = owner._spawn_directional_bullet(direction, _get_gunner_entry_bullet_damage(owner, role_id, damage_scale), Color(1.0, 0.55, 0.32, 1.0), GUNNER_ENTRY_DAMAGE_SOURCE_ID, owner.global_position)
 			if bullet != null:
 				bullet.speed = GUNNER_ENTRY_BULLET_SPEED
 				bullet.lifetime = GUNNER_ENTRY_BULLET_LIFETIME
@@ -182,7 +185,8 @@ static func spawn_gunner_entry_wave_batch(owner, role_id: String, wave_index: in
 static func _get_gunner_entry_bullet_damage(owner, role_id: String, damage_scale: float = 1.0) -> float:
 	if owner == null or not is_instance_valid(owner):
 		return 0.0
-	return owner._get_role_damage(role_id) * GUNNER_ENTRY_BULLET_DAMAGE_MULTIPLIER * max(0.0, damage_scale)
+	var entry_multiplier := PLAYER_GUNNER_ENTRY_TALENT_FLOW.get_entry_damage_multiplier(owner)
+	return owner._get_role_damage(role_id) * GUNNER_ENTRY_BULLET_DAMAGE_MULTIPLIER * max(0.0, damage_scale) * entry_multiplier
 
 
 static func _create_gunner_damage_event_id(owner, prefix: String) -> String:

@@ -9,7 +9,7 @@ const RUAN_STONE_SYSTEM := preload("res://scripts/player/ruan_stone_system.gd")
 const ALL_BLESSINGS_OPTION_ID := "__all_blessings__"
 const SKILL_TALENT_OPTION_PREFIX := "skill_talent:"
 const RUAN_STONE_OPTION_PREFIX := "ruan_stone:"
-const CLEAR_SKILL_TALENTS_OPTION_ID := "__clear_skill_talents__"
+const CLEAR_SKILL_TALENTS_OPTION_ID := "__clear_level_talents__"
 const CLEAR_SKILL_TALENT_STAGE_PREFIX := "__clear_skill_talent_stage__:"
 const SKILL_TALENT_PATH_PREFIX := "__skill_talent_path__:"
 
@@ -106,52 +106,29 @@ static func get_skill_options(player) -> Array:
 			})
 	options.append({
 		"id": SKILL_TALENT_OPTION_PREFIX + CLEAR_SKILL_TALENTS_OPTION_ID,
-		"title": "重置全部质变选择",
-		"description": "开发者模式：清空三名角色已选天赋并保留构筑等级；已达到 Lv.3 / Lv.6 / Lv.9 的技能会重新进入待选队列。",
+		"title": "重置全部等级天赋",
+		"description": "开发者模式：清空三名角色已选等级天赋；普通构筑等级不受影响。",
 		"enabled": true
 	})
 	for role_id in ["swordsman", "gunner", "mage"]:
-		for progress_id in PLAYER_SKILL_TALENT_SYSTEM.ROLE_PROGRESS_ORDER.get(role_id, []):
-			var level: int = PLAYER_SKILL_TALENT_SYSTEM.get_skill_progress_level(player, role_id, progress_id) if player != null else 0
-			var selected_ids: Array = PLAYER_SKILL_TALENT_SYSTEM.get_selected_talents(player, role_id, progress_id) if player != null else []
-			var skill_title := str(PLAYER_SKILL_TALENT_SYSTEM.PROGRESS_TITLES.get(progress_id, progress_id))
-			for stage in range(1, PLAYER_SKILL_TALENT_SYSTEM.TALENT_STAGE_COUNT + 1):
-				options.append({
-					"id": SKILL_TALENT_OPTION_PREFIX + CLEAR_SKILL_TALENT_STAGE_PREFIX + "%s:%s:%d" % [role_id, progress_id, stage],
-					"title": "%s · 清除阶段 %s 及以后" % [skill_title, _get_stage_roman(stage)],
-					"description": "保留构筑等级和更早阶段；删除阶段 %s 至 III 的选择与关联临时状态。" % _get_stage_roman(stage),
-					"enabled": selected_ids.size() >= stage
-				})
-			for talent_value in PLAYER_SKILL_TALENT_SYSTEM.TALENT_DEFINITIONS.get(progress_id, []):
-				var talent: Dictionary = talent_value
-				var talent_id := str(talent.get("id", ""))
-				var stage := int(talent.get("stage", 1))
-				var selected := selected_ids.size() >= stage and str(selected_ids[stage - 1]) == talent_id
-				options.append({
-					"id": SKILL_TALENT_OPTION_PREFIX + talent_id,
-					"title": "%s · 阶段 %s · %s%s" % [
-						skill_title,
-						_get_stage_roman(stage),
-						str(talent.get("title", talent_id)),
-						"（已选）" if selected else ""
-					],
-					"description": "自动解锁并补到构筑 Lv.%d；缺失前置阶段默认补左侧，替换本阶段时清除后续阶段。\n当前构筑：Lv.%d\n%s" % [
-						int(PLAYER_SKILL_TALENT_SYSTEM.TRIGGER_LEVELS[stage - 1]),
-						level,
-						str(talent.get("description", ""))
-					],
-					"enabled": true
-				})
-			for path_index in range(8):
-				var path := ""
-				for bit in range(3):
-					path += "2" if (path_index & (1 << (2 - bit))) != 0 else "1"
-				options.append({
-					"id": SKILL_TALENT_OPTION_PREFIX + SKILL_TALENT_PATH_PREFIX + "%s:%s:%s" % [role_id, progress_id, path],
-					"title": "%s · 直接构造路径 %s" % [skill_title, path],
-					"description": "自动解锁、补到构筑 Lv.9，并按固定左右顺序替换为路径 %s。" % path,
-					"enabled": true
-				})
+		var selected_ids: Array = PLAYER_SKILL_TALENT_SYSTEM.get_selected_level_talents(player, role_id) if player != null else []
+		var role_title := str(PLAYER_SKILL_TALENT_SYSTEM.LEVEL_TALENT_ROLE_TITLES.get(role_id, role_id))
+		for talent_value in PLAYER_SKILL_TALENT_SYSTEM.LEVEL_TALENT_DEFINITIONS.get(role_id, []):
+			var talent: Dictionary = talent_value
+			var talent_id := str(talent.get("id", ""))
+			if talent_id == "":
+				continue
+			var selected := selected_ids.has(talent_id)
+			options.append({
+				"id": SKILL_TALENT_OPTION_PREFIX + talent_id,
+				"title": "%s · %s%s" % [
+					role_title,
+					str(talent.get("title", talent_id)),
+					"（已选）" if selected else ""
+				],
+				"description": "开发者模式：直接添加该角色等级天赋。\n%s" % str(talent.get("summary", "")),
+				"enabled": not selected
+			})
 	return options
 
 

@@ -1,6 +1,8 @@
 extends RefCounted
 
 const ROLE_ATTRIBUTE_RULES := preload("res://scripts/player/roles/role_attribute_rules.gd")
+const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")
+const PLAYER_GUNNER_FLASH_TALENT_FLOW := preload("res://scripts/player/player_gunner_flash_talent_flow.gd")
 
 const EQUIPMENT_SLOT_LABEL := "\u88c5\u5907"
 const EQUIPMENT_OPTION_COUNT := 3
@@ -285,11 +287,12 @@ static func apply_passives(owner, delta: float) -> void:
 
 static func get_role_dodge_chance(owner, role_id: String) -> float:
 	var resolved_role_id: String = role_id if role_id != "" else _get_active_role_id(owner)
-	return calculate_dodge_chance(
+	var base_chance := calculate_dodge_chance(
 		get_role_base_dodge_chance(owner, resolved_role_id),
 		get_role_permanent_dodge_value(owner, resolved_role_id),
 		get_role_temporary_dodge_strength(owner, resolved_role_id)
 	)
+	return clamp(base_chance + PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW.get_flat_dodge_chance_bonus(owner, resolved_role_id) + PLAYER_GUNNER_FLASH_TALENT_FLOW.get_flat_dodge_chance_bonus(owner, resolved_role_id), 0.0, DODGE_FINAL_RATE_CAP)
 
 
 static func calculate_dodge_chance(base_dodge_chance: float, permanent_dodge_value: float, temporary_dodge_strength: float) -> float:
@@ -327,6 +330,10 @@ static func get_role_permanent_dodge_value(owner, role_id: String) -> float:
 		dodge_value += float(owner._get_role_attribute_dodge_value(role_id))
 	if owner.has_method("_get_gunner_flash_dodge_value"):
 		dodge_value += float(owner._get_gunner_flash_dodge_value(role_id))
+	if owner.has_method("_get_gunner_hunt_dodge_value"):
+		dodge_value += float(owner._get_gunner_hunt_dodge_value(role_id))
+	if owner.has_method("_get_gunner_infinite_reload_dodge_value"):
+		dodge_value += float(owner._get_gunner_infinite_reload_dodge_value(role_id))
 	return max(0.0, dodge_value)
 
 

@@ -5,6 +5,8 @@ const PLAYER_DAMAGE_RESOLVER := preload("res://scripts/player/player_damage_reso
 const PLAYER_BLESSING_SYSTEM := preload("res://scripts/player/player_blessing_system.gd")
 const ROLE_ATTRIBUTE_RULES := preload("res://scripts/player/roles/role_attribute_rules.gd")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
+const PLAYER_SWORDSMAN_BATTLE_WILL_FLOW := preload("res://scripts/player/player_swordsman_battle_will_flow.gd")
+const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")
 
 const ULTIMATE_ENERGY_GAIN_GLOBAL_MULTIPLIER := 0.9295
 const ULTIMATE_ENERGY_GAIN_OUTPUT_MULTIPLIER := 0.625
@@ -137,35 +139,47 @@ static func apply_theme_hit_returns(owner, role_id: String, hit_count: int, kill
 
 
 static func apply_swordsman_trait_heal_on_hit(owner, role_id: String, hit_count: int) -> void:
-	if role_id != "swordsman" or hit_count <= 0:
+	var context: Dictionary = PLAYER_SWORDSMAN_BATTLE_WILL_FLOW.build_heal_context(owner, role_id, hit_count)
+	if context.is_empty():
 		return
-	if owner.swordsman_trait_heal_cooldown_remaining > 0.0:
+	var forced_trigger: bool = bool(context.get("forced_trigger", false))
+	if owner.swordsman_trait_heal_cooldown_remaining > 0.0 and not forced_trigger:
 		return
-	var proc_chance: float = owner._get_swordsman_trait_heal_proc_chance() if owner.has_method("_get_swordsman_trait_heal_proc_chance") else 0.0
-	var heal_ratio: float = owner._get_swordsman_trait_heal_amount() if owner.has_method("_get_swordsman_trait_heal_amount") else 0.0
-	var missing_heal_ratio: float = ROLE_ATTRIBUTE_RULES.SWORDSMAN_TRAIT_MISSING_HEAL_RATIO + PLAYER_BUILD_SYSTEM.get_swordsman_trait_heal_bonus(owner)
-	if proc_chance <= 0.0 or (heal_ratio <= 0.0 and missing_heal_ratio <= 0.0):
+	var proc_chance: float = float(context.get("proc_chance", 0.0))
+	var heal_ratio: float = float(context.get("heal_ratio", 0.0))
+	var missing_heal_ratio: float = float(context.get("missing_heal_ratio", 0.0))
+	if proc_chance <= 0.0 and not forced_trigger:
 		return
+	if heal_ratio <= 0.0 and missing_heal_ratio <= 0.0:
+		return
+	var heal_role_id: String = str(context.get("heal_role_id", "swordsman"))
 	var max_trigger_count: int = min(hit_count, SWORDSMAN_TRAIT_MAX_ROLL_HITS + PLAYER_BUILD_SYSTEM.get_swordsman_trait_extra_rolls(owner))
 	var successful_triggers: int = 0
 	var actual_heal_total: float = 0.0
 	var lowest_health_ratio_before_heal: float = 1.0
 	for _index in range(max_trigger_count):
-		if randf() > clamp(proc_chance, 0.0, 1.0):
+		var should_trigger := false
+		if forced_trigger:
+			should_trigger = true
+			forced_trigger = false
+		elif randf() <= clamp(proc_chance, 0.0, 1.0):
+			should_trigger = true
+		if not should_trigger:
 			continue
-		var role_max_health: float = _get_role_max_health_value(owner, "swordsman")
-		var role_current_health: float = _get_role_current_health_value(owner, "swordsman")
+		var role_max_health: float = _get_role_max_health_value(owner, heal_role_id)
+		var role_current_health: float = _get_role_current_health_value(owner, heal_role_id)
 		var missing_health: float = max(0.0, role_max_health - role_current_health)
 		var heal_amount: float = role_max_health * heal_ratio + missing_health * missing_heal_ratio
 		if heal_amount <= 0.0:
 			continue
-		if owner.has_method("_get_swordsman_bloodthirst_ratio"):
-			heal_amount *= max(0.0, float(owner.swordsman_bloodthirst_heal_multiplier))
-		var health_before: float = _get_role_current_health_value(owner, "swordsman")
+		if heal_role_id == "swordsman" and owner.has_method("_get_swordsman_bloodthirst_ratio"):
+			heal_amount *= PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW.get_swordsman_trait_heal_multiplier(owner)
+		var health_before: float = _get_role_current_health_value(owner, heal_role_id)
 		lowest_health_ratio_before_heal = min(lowest_health_ratio_before_heal, health_before / max(1.0, role_max_health))
 		owner._heal(heal_amount)
-		actual_heal_total += max(0.0, _get_role_current_health_value(owner, "swordsman") - health_before)
-		_share_swordsman_entry_lifesteal(owner, heal_amount)
+		actual_heal_total += max(0.0, _get_role_current_health_value(owner, heal_role_id) - health_before)
+		if heal_role_id == "swordsman":
+			_share_swordsman_entry_lifesteal(owner, heal_amount)
 		successful_triggers += 1
 	if successful_triggers > 0:
 		owner.swordsman_trait_heal_cooldown_remaining = SWORDSMAN_TRAIT_HEAL_COOLDOWN

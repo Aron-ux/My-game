@@ -38,6 +38,7 @@ var current_endless_tier: int = 0
 var boss_panel: Control
 var boss_name_label: Label
 var boss_health_bar: ProgressBar
+var boss_shield_bar: ProgressBar
 var boss_health_label: Label
 var boss_status_label: Label
 var boss_status_bar: ProgressBar
@@ -109,7 +110,30 @@ func _ready() -> void:
 	boss_health_bar.offset_top = 32.0
 	boss_health_bar.offset_bottom = 56.0
 	boss_health_bar.show_percentage = false
+	var current_boss_fill: StyleBox = boss_health_bar.get_theme_stylebox("fill")
+	var boss_health_fill := StyleBoxFlat.new()
+	boss_health_fill.bg_color = Color(0.92, 0.08, 0.06, 0.96)
+	boss_health_fill.set_corner_radius_all(6)
+	boss_health_bar.add_theme_stylebox_override("fill", boss_health_fill)
 	boss_panel.add_child(boss_health_bar)
+
+	boss_shield_bar = ProgressBar.new()
+	boss_shield_bar.anchor_left = 0.0
+	boss_shield_bar.anchor_right = 1.0
+	boss_shield_bar.offset_left = 0.0
+	boss_shield_bar.offset_right = 0.0
+	boss_shield_bar.offset_top = 32.0
+	boss_shield_bar.offset_bottom = 44.0
+	boss_shield_bar.show_percentage = false
+	boss_shield_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if current_boss_fill != null:
+		boss_shield_bar.add_theme_stylebox_override("fill", current_boss_fill.duplicate() as StyleBox)
+	var boss_shield_background := StyleBoxFlat.new()
+	boss_shield_background.bg_color = Color(0.0, 0.0, 0.0, 0.0)
+	boss_shield_bar.add_theme_stylebox_override("background", boss_shield_background)
+	boss_shield_bar.modulate.a = 0.86
+	boss_shield_bar.visible = false
+	boss_panel.add_child(boss_shield_bar)
 
 	boss_health_label = Label.new()
 	boss_health_label.anchor_left = 0.0
@@ -677,25 +701,41 @@ func _set_label_modulate(label: Label, next_color: Color) -> void:
 		return
 	label.modulate = next_color
 
-func show_boss_ui(boss_name: String, current_health: float, max_health: float, status_payload: Dictionary = {}) -> void:
+func show_boss_ui(boss_name: String, current_health: float, max_health: float, status_payload: Dictionary = {}, boss_ui_payload: Dictionary = {}) -> void:
 	if boss_panel != null:
 		boss_panel.visible = true
 	if time_label != null:
 		time_label.visible = false
-	update_boss_ui(boss_name, current_health, max_health, status_payload)
+	update_boss_ui(boss_name, current_health, max_health, status_payload, boss_ui_payload)
 
-func update_boss_ui(boss_name: String, current_health: float, max_health: float, status_payload: Dictionary = {}) -> void:
+func update_boss_ui(boss_name: String, current_health: float, max_health: float, status_payload: Dictionary = {}, boss_ui_payload: Dictionary = {}) -> void:
 	if boss_panel == null:
 		return
 	boss_name_label.text = boss_name
-	boss_health_bar.max_value = max(max_health, 1.0)
-	boss_health_bar.value = clamp(current_health, 0.0, boss_health_bar.max_value)
-	boss_health_label.text = "%.0f / %.0f" % [max(current_health, 0.0), max_health]
+	var health_max_value: float = max(max_health, 1.0)
+	var display_health: float = clamp(current_health, 0.0, health_max_value)
+	var shield_max_health: float = max(0.0, float(boss_ui_payload.get("shield_max_health", 0.0)))
+	var shield_health: float = clamp(float(boss_ui_payload.get("shield_health", 0.0)), 0.0, shield_max_health)
+	var has_shield: bool = shield_max_health > 0.0 and shield_health > 0.0
+	boss_health_bar.max_value = health_max_value
+	boss_health_bar.value = display_health
+	boss_health_bar.offset_top = 44.0 if has_shield else 32.0
+	boss_health_bar.offset_bottom = 56.0
+	if boss_shield_bar != null:
+		boss_shield_bar.max_value = max(shield_max_health, 1.0)
+		boss_shield_bar.value = shield_health
+		boss_shield_bar.visible = has_shield
+	if has_shield:
+		boss_health_label.text = "%.0f / %.0f  护盾 %.0f" % [health_max_value, health_max_value, shield_health]
+	else:
+		boss_health_label.text = "%.0f / %.0f" % [display_health, health_max_value]
 	_update_boss_status_ui(status_payload)
 
 func hide_boss_ui() -> void:
 	if boss_panel != null:
 		boss_panel.visible = false
+	if boss_shield_bar != null:
+		boss_shield_bar.visible = false
 	if time_label != null:
 		time_label.visible = true
 

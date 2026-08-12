@@ -3,6 +3,7 @@ extends RefCounted
 const SWORD_TORNADO_EFFECT_SCENE := preload("res://effects/sword/tornado/tornado.tscn")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_COMBAT_RESULT_FLOW := preload("res://scripts/player/player_combat_result_flow.gd")
+const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")
 
 const COOLDOWN := 22.0
 const BASE_DURATION := 2.7
@@ -24,13 +25,15 @@ const BLADE_STORM_WIDTH_LEVEL := "trick"
 const EXTRA_STORM_OFFSET := 150.0
 const RING_VISUAL_EVERY_TICKS := 2
 const TORNADO_EFFECT_POOL_LIMIT := 6
+const LEVEL_TALENT_BLADE_STORM_1 := "swordsman_level_talent_blade_storm_1"
 const TALENT_IDS := [
 	"swordsman_blade_storm_stationary",
 	"swordsman_blade_storm_retain",
 	"swordsman_blade_storm_recall",
 	"swordsman_blade_storm_rending_spin",
 	"swordsman_blade_storm_after_howl",
-	"swordsman_blade_storm_returning_gale"
+	"swordsman_blade_storm_returning_gale",
+	LEVEL_TALENT_BLADE_STORM_1
 ]
 
 var cooldown_remaining: float = 0.0
@@ -122,6 +125,9 @@ func stop(owner = null) -> void:
 	recall_cooldowns.clear()
 	cast_talent_ids.clear()
 	cast_talent_snapshot_valid = false
+
+func is_active() -> bool:
+	return active_remaining > 0.0
 
 func _finish(owner) -> void:
 	var centers: Array[Vector2] = _get_storm_centers(owner).duplicate()
@@ -347,8 +353,8 @@ func _get_tick_interval(owner) -> float:
 		return TIER_TWO_TICK_INTERVAL
 	return BASE_TICK_INTERVAL
 
-func _get_size_multiplier(_owner) -> float:
-	return 1.0
+func _get_size_multiplier(owner) -> float:
+	return 1.20 if _has_talent(owner, LEVEL_TALENT_BLADE_STORM_1) else 1.0
 
 func _get_range_multiplier(owner) -> float:
 	var range_multiplier: float = 1.0
@@ -409,14 +415,19 @@ func _get_storm_centers(owner) -> Array[Vector2]:
 func _has_talent(owner, talent_id: String) -> bool:
 	if cast_talent_snapshot_valid:
 		return cast_talent_ids.has(talent_id)
-	return owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id))
+	return _owner_has_talent(owner, talent_id)
 
 func _capture_talents(owner) -> Array[String]:
 	var result: Array[String] = []
 	for talent_id in TALENT_IDS:
-		if owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id)):
+		if _owner_has_talent(owner, talent_id):
 			result.append(talent_id)
 	return result
+
+func _owner_has_talent(owner, talent_id: String) -> bool:
+	if talent_id == LEVEL_TALENT_BLADE_STORM_1:
+		return PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW.has_level_talent(owner, talent_id)
+	return owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id))
 
 func _normalize_talent_ids(value: Variant) -> Array[String]:
 	var result: Array[String] = []
@@ -438,6 +449,8 @@ func _get_cooldown(owner) -> float:
 	var cooldown_multiplier: float = PLAYER_BUILD_SYSTEM.get_blade_storm_cooldown_multiplier(owner)
 	if owner != null and is_instance_valid(owner) and owner.has_method("_get_equipment_cooldown_multiplier"):
 		cooldown_multiplier *= float(owner._get_equipment_cooldown_multiplier())
+	if owner != null and is_instance_valid(owner) and owner.has_method("_get_mage_arcane_charge_skill_cooldown_multiplier"):
+		cooldown_multiplier *= float(owner._get_mage_arcane_charge_skill_cooldown_multiplier("swordsman"))
 	return COOLDOWN * cooldown_multiplier
 
 func _get_tier(owner) -> int:

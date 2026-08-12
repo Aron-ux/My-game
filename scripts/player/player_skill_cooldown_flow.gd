@@ -1,6 +1,22 @@
 extends RefCounted
 
 const PLAYER_SKILL_COOLDOWN_SLOTS := preload("res://scripts/player/player_skill_cooldown_slots.gd")
+const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
+
+const ROLE_ACTIVE_SKILL_PROPERTIES := {
+	"swordsman": {
+		"blade_storm": "swordsman_blade_storm_ability",
+		"crescent_wave": "swordsman_crescent_wave_ability"
+	},
+	"gunner": {
+		"infinite_reload": "gunner_infinite_reload_ability",
+		"shrapnel_field": "gunner_shrapnel_field_ability"
+	},
+	"mage": {
+		"surging_wave": "mage_tidal_surge_ability",
+		"meta_field": "mage_meta_field_ability"
+	}
+}
 
 
 static func get_active_skill_cooldown_slots(owner, attack_interval: float, include_descriptions: bool = true) -> Array:
@@ -89,27 +105,32 @@ static func _get_ability_cooldown_duration(owner, ability) -> float:
 
 
 static func _append_blessing_active_skill_slot(owner, role_id: String, extra_slots: Array) -> void:
-	match role_id:
-		"swordsman":
-			_append_ability_slot_if_unlocked(owner, extra_slots, "blade_storm", "swordsman_blade_storm_ability")
-			_append_ability_slot_if_unlocked(owner, extra_slots, "crescent_wave", "swordsman_crescent_wave_ability")
-		"gunner":
-			_append_ability_slot_if_unlocked(owner, extra_slots, "infinite_reload", "gunner_infinite_reload_ability")
-			_append_ability_slot_if_unlocked(owner, extra_slots, "shrapnel_field", "gunner_shrapnel_field_ability")
-		"mage":
-			_append_ability_slot_if_unlocked(owner, extra_slots, "surging_wave", "mage_tidal_surge_ability")
-			_append_ability_slot_if_unlocked(owner, extra_slots, "meta_field", "mage_meta_field_ability")
+	for skill_id in get_role_active_skill_ids(owner, role_id):
+		var property_name := str((ROLE_ACTIVE_SKILL_PROPERTIES.get(role_id, {}) as Dictionary).get(skill_id, ""))
+		if property_name == "":
+			continue
+		_append_ability_slot_if_unlocked(owner, extra_slots, skill_id, property_name)
+
+
+static func get_role_active_skill_ids(owner, role_id: String) -> Array[String]:
+	var ordered_ids: Array[String] = PLAYER_BLESSING_SKILL_STATE.get_unlocked_active_skill_order(owner, role_id)
+	if not ordered_ids.is_empty():
+		return ordered_ids
+	var result: Array[String] = []
+	var role_properties: Dictionary = ROLE_ACTIVE_SKILL_PROPERTIES.get(role_id, {})
+	for skill_id_value in role_properties.keys():
+		var skill_id := str(skill_id_value)
+		if owner.has_method("_is_blessing_skill_unlocked") and bool(owner._is_blessing_skill_unlocked(skill_id)):
+			result.append(skill_id)
+	return result
 
 
 static func _get_role_skill_property_names(role_id: String) -> Array[String]:
-	match role_id:
-		"swordsman":
-			return ["swordsman_blade_storm_ability", "swordsman_crescent_wave_ability"]
-		"gunner":
-			return ["gunner_infinite_reload_ability", "gunner_shrapnel_field_ability"]
-		"mage":
-			return ["mage_tidal_surge_ability", "mage_meta_field_ability"]
-	return []
+	var result: Array[String] = []
+	var role_properties: Dictionary = ROLE_ACTIVE_SKILL_PROPERTIES.get(role_id, {})
+	for property_name in role_properties.values():
+		result.append(str(property_name))
+	return result
 
 
 static func _append_ability_slot_if_unlocked(owner, extra_slots: Array, skill_id: String, property_name: String) -> void:
@@ -123,6 +144,7 @@ static func _append_ability_slot_if_unlocked(owner, extra_slots: Array, skill_id
 		return
 	slot["skill_id"] = skill_id
 	slot["slot_label"] = str(slot.get("slot_label", "祝福技能"))
+	slot["manual_slot_index"] = extra_slots.size() + 1
 	extra_slots.append(slot)
 
 

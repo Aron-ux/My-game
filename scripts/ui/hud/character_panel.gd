@@ -461,7 +461,7 @@ func _build_build_detail_column(content_layout: HBoxContainer) -> void:
 	archive_body.add_child(skill_build_page)
 
 	skill_build_summary_label = Label.new()
-	skill_build_summary_label.text = "6 个技能树 · 已质变 0 个 · 指向技能查看路径"
+	skill_build_summary_label.text = "6 个技能构筑 · 查看普通构筑等级和强化"
 	skill_build_summary_label.add_theme_font_size_override("font_size", 14)
 	skill_build_summary_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_MUTED)
 	skill_build_page.add_child(skill_build_summary_label)
@@ -857,26 +857,22 @@ func _refresh_skill_build_list(role_id: String) -> void:
 	if progress_ids.is_empty():
 		return
 	selected_skill_tree_index = clamp(selected_skill_tree_index, 0, progress_ids.size() - 1)
-	var evolved_count := 0
 	for index in range(progress_ids.size()):
 		var progress_id_value: Variant = progress_ids[index]
 		var progress_id := str(progress_id_value)
 		var display := PLAYER_SKILL_TALENT_SYSTEM.get_display(cached_player, role_id, progress_id)
 		var level := PLAYER_SKILL_TALENT_SYSTEM.get_skill_progress_level(cached_player, role_id, progress_id)
-		var talent_ids: Array = display.get("talent_ids", [])
-		if not talent_ids.is_empty():
-			evolved_count += 1
 		var button := skill_tree_selector_list.get_child(index) as Button
 		button.name = "SkillTreeSelector_%s" % progress_id
 		button.text = "%s\n%s\n%s" % [
 			_get_skill_slot_label(progress_id, index),
 			str(display.get("name", PLAYER_SKILL_TALENT_SYSTEM.PROGRESS_TITLES.get(progress_id, progress_id))),
-			"尚未解锁" if level <= 0 else "Lv.%d · 路径 %s" % [level, str(display.get("path", "---"))]
+			"尚未解锁" if level <= 0 else "构筑 Lv.%d" % level
 		]
 		button.tooltip_text = button.text
 		button.button_pressed = index == selected_skill_tree_index
 		button.modulate = Color(0.70, 0.72, 0.78, 0.72) if level <= 0 else Color.WHITE
-	skill_build_summary_label.text = "%d 个技能树 · 已质变 %d 个 · 指向技能查看路径" % [progress_ids.size(), evolved_count]
+	skill_build_summary_label.text = "%d 个技能构筑 · 普通构筑等级与强化列表" % progress_ids.size()
 	skill_build_tab_button.text = "技能构筑  %d" % progress_ids.size()
 	_refresh_skill_tree_detail(role_id, str(progress_ids[selected_skill_tree_index]))
 
@@ -919,15 +915,6 @@ func _build_skill_tree_detail_shell() -> void:
 	state_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_MUTED)
 	header_box.add_child(state_label)
 
-	for stage_number in [3, 2, 1]:
-		if stage_number < 3:
-			var connector := Label.new()
-			connector.text = "│"
-			connector.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			connector.add_theme_color_override("font_color", Color(0.62, 0.50, 0.28, 0.76))
-			skill_tree_detail.add_child(connector)
-		skill_tree_detail.add_child(_make_skill_tree_stage_shell(stage_number))
-
 	var build_panel := PanelContainer.new()
 	build_panel.name = "SkillTreeBuildDetails"
 	build_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -963,8 +950,6 @@ func _build_skill_tree_detail_shell() -> void:
 func _refresh_skill_tree_detail(role_id: String, progress_id: String) -> void:
 	var display := PLAYER_SKILL_TALENT_SYSTEM.get_display(cached_player, role_id, progress_id)
 	var level := PLAYER_SKILL_TALENT_SYSTEM.get_skill_progress_level(cached_player, role_id, progress_id)
-	var talent_ids: Array = display.get("talent_ids", [])
-	var stage_data_list: Array = display.get("stages", [])
 	var build_entries := _get_projected_build_entries(role_id, progress_id)
 
 	var header := skill_tree_detail.get_node("SkillTreeHeader") as PanelContainer
@@ -975,68 +960,7 @@ func _refresh_skill_tree_detail(role_id: String, progress_id: String) -> void:
 		_get_skill_slot_label(progress_id, selected_skill_tree_index),
 		str(display.get("name", PLAYER_SKILL_TALENT_SYSTEM.PROGRESS_TITLES.get(progress_id, progress_id)))
 	]
-	var next_stage := talent_ids.size() + 1
-	var path_note := "三阶段已完成"
-	if level <= 0:
-		path_note = "第一阶段不可用"
-	elif next_stage <= PLAYER_SKILL_TALENT_SYSTEM.TALENT_STAGE_COUNT:
-		var next_level: int = int(PLAYER_SKILL_TALENT_SYSTEM.TRIGGER_LEVELS[next_stage - 1])
-		path_note = (
-			"阶段 %s 待选择" % _get_stage_roman(next_stage)
-			if level >= next_level
-			else "阶段 %s 于构筑 Lv.%d 解锁" % [_get_stage_roman(next_stage), next_level]
-		)
-	state_label.text = "%s · 当前路径：%s · %s" % [
-		"尚未解锁" if level <= 0 else "构筑 Lv.%d" % level,
-		str(display.get("path", "---")),
-		path_note
-	]
-
-	for stage_number in range(1, PLAYER_SKILL_TALENT_SYSTEM.TALENT_STAGE_COUNT + 1):
-		var stage_data: Dictionary = stage_data_list[stage_number - 1] if stage_data_list.size() >= stage_number else {}
-		var trigger_level := int(stage_data.get("trigger_level", PLAYER_SKILL_TALENT_SYSTEM.TRIGGER_LEVELS[stage_number - 1]))
-		var selected_id := str(stage_data.get("talent_id", ""))
-		var stage_options: Array = stage_data.get("options", [])
-		var stage_node := skill_tree_detail.get_node("SkillTreeStage%d" % stage_number) as VBoxContainer
-		var stage_label := stage_node.get_node("SkillTreeStage%dLabel" % stage_number) as Label
-		if level <= 0:
-			stage_label.text = "阶段 %s · 技能尚未解锁" % _get_stage_roman(stage_number)
-		elif selected_id != "":
-			stage_label.text = "阶段 %s · 已选择" % _get_stage_roman(stage_number)
-		elif level < trigger_level:
-			stage_label.text = "阶段 %s · 构筑 Lv.%d 解锁" % [_get_stage_roman(stage_number), trigger_level]
-		elif stage_number == next_stage:
-			stage_label.text = "阶段 %s · 待选择（升级奖励中二选一）" % _get_stage_roman(stage_number)
-		else:
-			stage_label.text = "阶段 %s · 等待前置阶段" % _get_stage_roman(stage_number)
-		for side in range(2):
-			var definition: Dictionary = stage_options[side] if side < stage_options.size() and stage_options[side] is Dictionary else {}
-			var selected := str(definition.get("id", "")) == selected_id and selected_id != ""
-			var available := level >= trigger_level and stage_number == next_stage
-			var dimmed := not available and not selected
-			var status := "技能锁定"
-			if level > 0:
-				if selected_id != "":
-					status = "已选择" if selected else "本局未选"
-				elif level < trigger_level:
-					status = "构筑 Lv.%d 解锁" % trigger_level
-				elif stage_number > next_stage:
-					status = "等待前置阶段"
-				else:
-					status = "可选择"
-			var side_name := "Left" if side == 0 else "Right"
-			var card := stage_node.get_node("Options/SkillTreeStage%d%s" % [stage_number, side_name]) as Button
-			var option_title := card.get_node("Content/Title") as Label
-			var option_status := card.get_node("Content/Status") as Label
-			var option_description := card.get_node("Content/Description") as Label
-			card.button_pressed = selected
-			card.modulate = Color(0.68, 0.72, 0.80, 0.72) if dimmed else Color.WHITE
-			option_title.text = "%s · %s" % ["左" if side == 0 else "右", str(definition.get("title", "选择"))]
-			option_title.modulate = SURVIVORS_THEME.COLOR_TEXT_GOOD if selected else Color.WHITE
-			option_status.text = status
-			option_status.modulate = SURVIVORS_THEME.COLOR_TEXT_GOOD if selected else SURVIVORS_THEME.COLOR_TEXT_GOLD
-			option_description.text = str(definition.get("description", ""))
-			option_description.visible = option_description.text != ""
+	state_label.text = "尚未解锁 · 普通构筑未生效" if level <= 0 else "构筑 Lv.%d · 普通构筑强化" % level
 
 	var build_panel := skill_tree_detail.get_node("SkillTreeBuildDetails") as PanelContainer
 	var requirement_label := build_panel.get_node("Content/Requirement") as Label
@@ -1057,82 +981,15 @@ func _refresh_skill_tree_detail(role_id: String, progress_id: String) -> void:
 				build_lines.append("  %s" % summary)
 	build_entries_label.text = "\n".join(build_lines)
 	build_entries_label.custom_minimum_size.y = 54.0 if build_entries.is_empty() else 0.0
-	if not talent_ids.is_empty():
-		upgrade_note.text = "质变后续升级：%s" % str(display.get("upgrade_note", "原构筑强化继续作用于当前形态。"))
-		upgrade_note.modulate = SURVIVORS_THEME.COLOR_TEXT_GOOD
-	elif level <= 0:
+	if level <= 0:
 		upgrade_note.text = "先解锁该技能；解锁后获得的普通构筑才会推进其构筑等级。"
 		upgrade_note.modulate = SURVIVORS_THEME.COLOR_TEXT_MUTED
-	elif level >= PLAYER_SKILL_TALENT_SYSTEM.TRIGGER_LEVEL:
-		upgrade_note.text = "阶段 I 待选择；请在升级奖励中完成二选一，本面板仅用于查看。"
-		upgrade_note.modulate = SURVIVORS_THEME.COLOR_TEXT_GOLD
-	else:
-		upgrade_note.text = "继续获得该技能的普通构筑，达到构筑 Lv.%d 后开放第一阶段二选一。" % PLAYER_SKILL_TALENT_SYSTEM.TRIGGER_LEVEL
+	elif build_entries.is_empty():
+		upgrade_note.text = "继续获得该技能的普通构筑会在这里累计显示。"
 		upgrade_note.modulate = SURVIVORS_THEME.COLOR_TEXT_MUTED
-
-func _make_skill_tree_stage_shell(stage_number: int) -> VBoxContainer:
-	var stage := VBoxContainer.new()
-	stage.name = "SkillTreeStage%d" % stage_number
-	stage.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	stage.add_theme_constant_override("separation", 4)
-	var stage_label := Label.new()
-	stage_label.name = "SkillTreeStage%dLabel" % stage_number
-	stage_label.text = "阶段 %s · 尚未开放" % ["", "I", "II", "III"][stage_number] if stage_number > 1 else "阶段 I"
-	stage_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	stage_label.add_theme_font_size_override("font_size", 14)
-	stage_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_GOLD)
-	stage.add_child(stage_label)
-	var option_row := HBoxContainer.new()
-	option_row.name = "Options"
-	option_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	option_row.add_theme_constant_override("separation", 6)
-	stage.add_child(option_row)
-	for side in range(2):
-		option_row.add_child(_make_skill_tree_option_shell(stage_number, side))
-	return stage
-
-func _make_skill_tree_option_shell(stage_number: int, side: int) -> Button:
-	var card := Button.new()
-	card.name = "SkillTreeStage%d%s" % [stage_number, "Left" if side == 0 else "Right"]
-	card.toggle_mode = true
-	card.focus_mode = Control.FOCUS_NONE
-	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	card.custom_minimum_size = Vector2(0.0, 104.0)
-	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_apply_archive_button_style(card)
-	card.add_theme_stylebox_override("pressed", _archive_card_style(false, true))
-	card.modulate = Color(0.68, 0.72, 0.80, 0.72)
-	var box := VBoxContainer.new()
-	box.name = "Content"
-	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	box.offset_left = 8.0
-	box.offset_top = 8.0
-	box.offset_right = -8.0
-	box.offset_bottom = -8.0
-	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_theme_constant_override("separation", 3)
-	card.add_child(box)
-	var title_label := Label.new()
-	title_label.name = "Title"
-	title_label.text = "%s · 选择" % ["左" if side == 0 else "右"]
-	title_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	title_label.add_theme_font_size_override("font_size", 15)
-	title_label.add_theme_color_override("font_color", Color.WHITE)
-	box.add_child(title_label)
-	var status_label := Label.new()
-	status_label.name = "Status"
-	status_label.text = "尚未开放" if stage_number > 1 else ""
-	status_label.add_theme_font_size_override("font_size", 12)
-	status_label.add_theme_color_override("font_color", Color.WHITE)
-	box.add_child(status_label)
-	var description_label := Label.new()
-	description_label.name = "Description"
-	description_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	description_label.add_theme_font_size_override("font_size", 12)
-	description_label.add_theme_color_override("font_color", Color.WHITE)
-	description_label.visible = false
-	box.add_child(description_label)
-	return card
+	else:
+		upgrade_note.text = "等级天赋已从旧技能路径迁移；这里仅显示普通构筑。"
+		upgrade_note.modulate = SURVIVORS_THEME.COLOR_TEXT_MUTED
 
 func _get_projected_build_entries(role_id: String, progress_id: String) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []

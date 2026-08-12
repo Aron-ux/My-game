@@ -26,6 +26,13 @@ const TRAIT_HEAD_SCENES := {
 	"level_trait_gunner": preload("res://assets/UI/facility/gunhead.tscn"),
 	"level_trait_mage": preload("res://assets/UI/facility/witchhead.tscn")
 }
+const LEVEL_TALENT_ROLE_SCENES := {
+	"swordsman": preload("res://assets/UI/facility/swordchange.tscn"),
+	"gunner": preload("res://assets/UI/facility/gunchange.tscn"),
+	"mage": preload("res://assets/UI/facility/witchchange.tscn")
+}
+const LEVEL_TALENT_ROLE_BUTTON_SCALE := 2.5
+const LEVEL_TALENT_ROLE_ORDER := ["swordsman", "gunner", "mage"]
 const BUILD_CARD_DISPLAY_SCALE := 1.0
 const BUILD_CARD_VISUAL_OFFSET := Vector2(52.0, 98.0)
 const TRAIT_BUTTON_SCALE := 2.0
@@ -96,11 +103,15 @@ var build_dimmer: ColorRect
 var build_card_layer: Control
 var trait_button_layer: Control
 var build_refresh_button: Button
+var level_talent_back_button: Button
 var opening_prompt_label: Label
 var build_detail_hide_timer: Timer
 var build_detail_hover_timer: Timer
 var build_card_entries: Array = []
 var trait_button_entries: Array = []
+var level_talent_role_button_entries: Array = []
+var level_talent_role_options: Array = []
+var level_talent_selected_role_id := ""
 var build_card_hover_tweens: Dictionary = {}
 var build_refresh_button_rotation_tween: Tween
 var active_build_detail_control: Control
@@ -183,6 +194,8 @@ func _on_viewport_size_changed() -> void:
 func _input(event: InputEvent) -> void:
 	if not visible:
 		return
+	if _handle_level_talent_back_input(event):
+		return
 	if GAME_SETTINGS.event_matches_action(event, GAME_SETTINGS.ACTION_CHARACTER_PANEL):
 		var main := get_tree().current_scene
 		if main != null and main.has_method("_toggle_character_panel"):
@@ -196,6 +209,10 @@ func show_options(options: Array, attribute_options: Array = [], offer_context: 
 	current_offer_context = offer_context.duplicate(true)
 	option_groups = _group_options(options, BLESSING_SLOT_ORDER)
 	_reset_pending_selection()
+	if _offer_has_level_talent_role_entries(options):
+		level_talent_role_options = _duplicate_option_array(options)
+		current_options = _duplicate_option_array(level_talent_role_options)
+		option_groups = _group_options(current_options, BLESSING_SLOT_ORDER)
 	build_selection_in_progress = false
 	visible = true
 	if modal != null:
@@ -215,7 +232,15 @@ func show_refreshed_build_options(options: Array, offer_context: Dictionary, ref
 		show_options(options, [], offer_context)
 		return
 	var refreshed_old_option_id := _get_current_build_option_id_at(refreshed_option_index)
-	current_options = _duplicate_option_array(options)
+	var refreshed_options := _duplicate_option_array(options)
+	if _is_level_talent_role_detail_active():
+		current_options = refreshed_options
+		_set_level_talent_role_detail_options(level_talent_selected_role_id, refreshed_options)
+	else:
+		current_options = refreshed_options
+		if _offer_has_level_talent_role_entries(current_options):
+			level_talent_role_options = _duplicate_option_array(current_options)
+			level_talent_selected_role_id = ""
 	current_offer_context = offer_context.duplicate(true)
 	option_groups = _group_options(current_options, BLESSING_SLOT_ORDER)
 	_remove_pending_build_selection(refreshed_old_option_id)
@@ -346,6 +371,20 @@ func _ensure_build_overlay() -> void:
 	build_root.add_child(build_refresh_button)
 	_apply_refresh_button_style()
 
+	level_talent_back_button = Button.new()
+	level_talent_back_button.name = "LevelTalentBackButton"
+	level_talent_back_button.text = "返回一级菜单"
+	level_talent_back_button.tooltip_text = "返回角色天赋选择"
+	level_talent_back_button.focus_mode = Control.FOCUS_NONE
+	level_talent_back_button.mouse_filter = Control.MOUSE_FILTER_STOP
+	level_talent_back_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	level_talent_back_button.z_index = 100
+	level_talent_back_button.visible = false
+	level_talent_back_button.gui_input.connect(_on_level_talent_back_gui_input)
+	level_talent_back_button.pressed.connect(_on_level_talent_back_pressed)
+	build_root.add_child(level_talent_back_button)
+	_apply_level_talent_back_button_style()
+
 	opening_prompt_label = Label.new()
 	opening_prompt_label.visible = false
 	opening_prompt_label.text = "请选择你倾向的角色特性作为开局，可在后续升级中进行切换"
@@ -381,29 +420,42 @@ func _rebuild_build_overlay() -> void:
 			child.queue_free()
 	build_card_entries = []
 	trait_button_entries = []
+	level_talent_role_button_entries = []
 
 	if build_card_layer != null:
 		build_card_layer.visible = current_mode != "opening_trait"
 	if current_mode != "opening_trait":
-		var displayed_options := current_options.slice(0, min(BUILD_CARD_OPTION_COUNT, current_options.size()))
-		for option_index in range(displayed_options.size()):
-			var raw_option = displayed_options[option_index]
-			if raw_option is not Dictionary:
-				continue
-			var option: Dictionary = raw_option
-			var button := _make_build_card_button(option)
-			build_card_layer.add_child(button)
-			var refresh_button: Button = null
-			if _should_show_build_card_refresh_buttons():
-				refresh_button = _make_build_card_refresh_button(option_index)
-				build_card_layer.add_child(refresh_button)
-			build_card_entries.append({
-				"button": button,
-				"refresh_button": refresh_button,
-				"option": option,
-				"option_index": option_index
-			})
-
+		if _is_level_talent_role_select_active() and level_talent_selected_role_id == "":
+			for raw_option in level_talent_role_options:
+				if raw_option is not Dictionary:
+					continue
+				var role_option: Dictionary = raw_option
+				var role_button := _make_level_talent_role_button(role_option)
+				build_card_layer.add_child(role_button)
+				level_talent_role_button_entries.append({
+					"button": role_button,
+					"option": role_option
+				})
+		else:
+			var display_count := _get_build_card_display_count()
+			var displayed_options := current_options.slice(0, min(display_count, current_options.size()))
+			for option_index in range(displayed_options.size()):
+				var raw_option = displayed_options[option_index]
+				if raw_option is not Dictionary:
+					continue
+				var option: Dictionary = raw_option
+				var button := _make_build_card_button(option)
+				build_card_layer.add_child(button)
+				var refresh_button: Button = null
+				if _should_show_build_card_refresh_buttons():
+					refresh_button = _make_build_card_refresh_button(option_index)
+					build_card_layer.add_child(refresh_button)
+				build_card_entries.append({
+					"button": button,
+					"refresh_button": refresh_button,
+					"option": option,
+					"option_index": option_index
+				})
 	for raw_trait_option in _get_trait_options():
 		var option: Dictionary = _with_trait_display_overrides(raw_trait_option)
 		var button := _make_trait_button(option)
@@ -416,6 +468,7 @@ func _rebuild_build_overlay() -> void:
 	_update_trait_button_styles()
 	_update_build_refresh_button()
 	_layout_build_overlay()
+	_set_build_overlay_input_enabled(not build_selection_in_progress and not build_refresh_animation_in_progress)
 	_refresh_build_card_selected_outlines()
 	if not build_refresh_expand_pending:
 		_play_pending_tier_four_card_intro_effects()
@@ -628,6 +681,29 @@ func _make_trait_button(option: Dictionary) -> Button:
 	button.pressed.connect(_on_trait_button_pressed.bind(button, option))
 	return button
 
+func _make_level_talent_role_button(option: Dictionary) -> Button:
+	var role_id := str(option.get("role_id", ""))
+	var button := Button.new()
+	button.name = "LevelTalentRoleButton_%s" % role_id
+	button.text = ""
+	button.tooltip_text = str(option.get("title", option.get("card_title", "??")))
+	button.focus_mode = Control.FOCUS_NONE
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.clip_contents = false
+	_apply_level_talent_role_button_style(button)
+	var role_scene: PackedScene = LEVEL_TALENT_ROLE_SCENES.get(role_id)
+	if role_scene != null:
+		var visual := role_scene.instantiate() as Node2D
+		if visual != null:
+			visual.name = "LevelTalentRoleVisual"
+			visual.set_meta("base_scale", visual.scale)
+			button.add_child(visual)
+	button.mouse_entered.connect(_on_level_talent_role_button_mouse_entered.bind(button))
+	button.mouse_exited.connect(_on_level_talent_role_button_mouse_exited.bind(button))
+	button.gui_input.connect(_on_build_item_gui_input.bind(button, option))
+	button.pressed.connect(_on_level_talent_role_button_pressed.bind(button, option))
+	return button
+
 func _layout_build_overlay() -> void:
 	if build_root == null:
 		return
@@ -674,6 +750,25 @@ func _layout_build_overlay() -> void:
 			var refresh_button := entry.get("refresh_button") as Button
 			_layout_build_card_refresh_button(refresh_button, button)
 			x += card_size.x + card_gap
+
+	var role_count := level_talent_role_button_entries.size()
+	if role_count > 0:
+		var role_size: float = clamp(viewport.y * 0.24, 150.0, 210.0)
+		var role_gap: float = clamp(viewport.x * 0.055, 34.0, 78.0)
+		var total_role_width: float = role_size * float(role_count) + role_gap * float(max(0, role_count - 1))
+		var role_x: float = (viewport.x - total_role_width) * 0.5
+		var role_y: float = viewport.y * 0.34
+		for entry in level_talent_role_button_entries:
+			var role_button := (entry as Dictionary).get("button") as Button
+			if role_button == null:
+				continue
+			role_button.size = Vector2(role_size, role_size)
+			role_button.custom_minimum_size = role_button.size
+			role_button.position = Vector2(role_x, role_y)
+			role_button.pivot_offset = role_button.size * 0.5
+			role_button.set_meta("level_talent_role_layout_position", role_button.position)
+			_layout_level_talent_role_visual(role_button)
+			role_x += role_size + role_gap
 
 	var trait_count := trait_button_entries.size()
 	var trait_scale: float = OPENING_TRAIT_BUTTON_SCALE if current_mode == "opening_trait" else TRAIT_BUTTON_SCALE
@@ -722,6 +817,17 @@ func _layout_build_overlay() -> void:
 			if index == int(trait_count / 2):
 				middle_trait_center_x = trait_button_layer.position.x + button.position.x + trait_size.x * 0.5
 			trait_x += trait_size.x + icon_gap
+
+	if level_talent_back_button != null:
+		level_talent_back_button.visible = _is_level_talent_role_detail_active()
+		if level_talent_back_button.visible:
+			level_talent_back_button.size = Vector2(144.0, 42.0)
+			level_talent_back_button.custom_minimum_size = level_talent_back_button.size
+			level_talent_back_button.position = Vector2(
+				max(16.0, viewport.x - level_talent_back_button.size.x - 24.0),
+				max(16.0, viewport.y * 0.04)
+			)
+			_raise_level_talent_back_button()
 
 	if build_refresh_button != null:
 		if current_mode == "opening_trait":
@@ -854,6 +960,35 @@ func _apply_refresh_button_style() -> void:
 	build_refresh_button.add_theme_color_override("font_pressed_color", Color(0.45, 0.86, 0.92, 1.0))
 	build_refresh_button.add_theme_color_override("font_disabled_color", Color(0.45, 0.52, 0.56, 0.76))
 
+func _apply_level_talent_back_button_style() -> void:
+	if level_talent_back_button == null:
+		return
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color(0.08, 0.12, 0.16, 0.82)
+	normal.border_color = Color(0.56, 0.72, 0.82, 0.62)
+	normal.set_border_width_all(1)
+	normal.set_corner_radius_all(6)
+	level_talent_back_button.add_theme_stylebox_override("normal", normal)
+	var hover := normal.duplicate() as StyleBoxFlat
+	hover.bg_color = Color(0.16, 0.28, 0.36, 0.94)
+	hover.border_color = Color(0.78, 0.90, 0.96, 0.82)
+	level_talent_back_button.add_theme_stylebox_override("hover", hover)
+	var pressed := hover.duplicate() as StyleBoxFlat
+	pressed.bg_color = Color(0.10, 0.22, 0.30, 0.98)
+	level_talent_back_button.add_theme_stylebox_override("pressed", pressed)
+	level_talent_back_button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	level_talent_back_button.add_theme_color_override("font_color", Color(0.86, 0.94, 0.98, 1.0))
+	level_talent_back_button.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0, 1.0))
+	level_talent_back_button.add_theme_color_override("font_pressed_color", Color(0.76, 0.88, 0.94, 1.0))
+	level_talent_back_button.add_theme_font_size_override("font_size", 18)
+
+func _raise_level_talent_back_button() -> void:
+	if build_root == null or level_talent_back_button == null:
+		return
+	if level_talent_back_button.get_parent() != build_root:
+		return
+	build_root.move_child(level_talent_back_button, build_root.get_child_count() - 1)
+
 func _apply_card_refresh_button_style(button: Button) -> void:
 	if button == null:
 		return
@@ -890,17 +1025,22 @@ func _can_refresh_current_offer() -> bool:
 	return false
 
 func _should_show_build_card_refresh_buttons() -> bool:
-	return _is_build_multi_select_offer()
+	return _is_build_multi_select_offer() or (_is_level_talent_offer() and not _is_level_talent_role_select_active())
+
+func _get_build_card_display_count() -> int:
+	return 3 if _is_level_talent_role_detail_active() else BUILD_CARD_OPTION_COUNT
 
 func _is_build_card_refresh_used(option_index: int) -> bool:
-	return bool(build_card_refresh_used_indices.get(option_index, false))
+	return bool(build_card_refresh_used_indices.get(_get_build_card_refresh_key(option_index), false))
 
 func _apply_build_card_refresh_button_state(button: Button, option_index: int) -> void:
 	if button == null:
 		return
 	var used := _is_build_card_refresh_used(option_index)
 	button.disabled = used or build_refresh_animation_in_progress or build_selection_in_progress
-	button.tooltip_text = "本次升级已刷新" if used else "刷新这张构筑"
+	var available_tip := "刷新这张天赋" if _is_level_talent_offer() else "刷新这张构筑"
+	var used_tip := "本次天赋已刷新" if _is_level_talent_offer() else "本次升级已刷新"
+	button.tooltip_text = used_tip if used else available_tip
 	var icon := button.get_node_or_null("RefreshIcon") as TextureRect
 	if icon != null:
 		icon.modulate = Color(0.78, 0.88, 0.92, 0.24) if used else Color(0.78, 0.88, 0.92, 0.62)
@@ -988,6 +1128,31 @@ func _layout_trait_head(button: Button, selected: bool) -> void:
 	head.position = button.size * 0.5
 	head.scale = base_scale * fit_scale
 
+func _layout_level_talent_role_visual(button: Button) -> void:
+	if button == null:
+		return
+	var visual := button.get_node_or_null("LevelTalentRoleVisual") as Node2D
+	if visual == null:
+		return
+	var base_scale := Vector2.ONE
+	var base_scale_value: Variant = visual.get_meta("base_scale", Vector2.ONE)
+	if base_scale_value is Vector2:
+		base_scale = base_scale_value
+	var target_size: float = min(button.size.x, button.size.y) * LEVEL_TALENT_ROLE_BUTTON_SCALE / 4.0
+	var visual_scale: float = target_size / 40.0
+	visual.scale = base_scale * visual_scale
+	visual.position = button.size * 0.5 - Vector2(20.0, 20.0) * visual.scale
+
+func _apply_level_talent_role_button_style(button: Button) -> void:
+	if button == null:
+		return
+	var empty := StyleBoxEmpty.new()
+	button.add_theme_stylebox_override("normal", empty)
+	button.add_theme_stylebox_override("hover", empty)
+	button.add_theme_stylebox_override("pressed", empty)
+	button.add_theme_stylebox_override("focus", empty)
+	button.add_theme_stylebox_override("disabled", empty)
+
 func _get_trait_button_visual_offset(option_id: String) -> Vector2:
 	if current_mode == "opening_trait":
 		return OPENING_TRAIT_BUTTON_VISUAL_OFFSETS.get(option_id, Vector2.ZERO)
@@ -1068,7 +1233,7 @@ func _on_build_card_refresh_pressed(option_index: int) -> void:
 		_refresh_build_card_selected_outlines()
 	build_refresh_animation_in_progress = true
 	_hide_build_item_detail()
-	build_card_refresh_used_indices[option_index] = true
+	build_card_refresh_used_indices[_get_build_card_refresh_key(option_index)] = true
 	_apply_build_card_refresh_button_state(_get_refresh_button_for_option_index(option_index), option_index)
 	_set_build_overlay_input_enabled(false)
 	var refresh_button := _get_refresh_button_for_option_index(option_index)
@@ -1096,6 +1261,74 @@ func _on_trait_button_mouse_exited(button: Button, item: Dictionary) -> void:
 	_animate_trait_button_hover(button, false)
 	_on_build_item_mouse_exited(button, item)
 
+func _on_level_talent_role_button_mouse_entered(button: Button) -> void:
+	if button == null or build_selection_in_progress or build_refresh_animation_in_progress:
+		return
+	button.modulate = Color(1.16, 1.16, 1.16, 1.0)
+
+func _on_level_talent_role_button_mouse_exited(button: Button) -> void:
+	if button == null:
+		return
+	button.modulate = Color(1.0, 1.0, 1.0, 1.0)
+
+func _on_level_talent_role_button_pressed(button: Button, option: Dictionary) -> void:
+	if button == null or build_selection_in_progress or build_refresh_animation_in_progress:
+		return
+	var role_id := str(option.get("role_id", ""))
+	var raw_options: Variant = option.get("level_talent_options", [])
+	if role_id == "" or raw_options is not Array:
+		return
+	var nested_options := _duplicate_option_array(raw_options as Array)
+	level_talent_selected_role_id = role_id
+	current_options = nested_options
+	option_groups = _group_options(current_options, BLESSING_SLOT_ORDER)
+	pending_blessing_option_id = ""
+	pending_blessing_title = ""
+	pending_blessing_option_ids.clear()
+	pending_blessing_titles.clear()
+	_hide_build_item_detail()
+	_rebuild_build_overlay()
+
+func _on_level_talent_back_pressed() -> void:
+	if build_selection_in_progress or build_refresh_animation_in_progress:
+		return
+	if not _is_level_talent_role_detail_active():
+		return
+	level_talent_selected_role_id = ""
+	current_options = _duplicate_option_array(level_talent_role_options)
+	option_groups = _group_options(current_options, BLESSING_SLOT_ORDER)
+	pending_blessing_option_id = ""
+	pending_blessing_title = ""
+	pending_blessing_option_ids.clear()
+	pending_blessing_titles.clear()
+	_hide_build_item_detail()
+	_rebuild_build_overlay()
+
+func _on_level_talent_back_gui_input(event: InputEvent) -> void:
+	if not (event is InputEventMouseButton):
+		return
+	var mouse_event := event as InputEventMouseButton
+	if mouse_event.button_index != MOUSE_BUTTON_LEFT or mouse_event.pressed:
+		return
+	_on_level_talent_back_pressed()
+	get_viewport().set_input_as_handled()
+
+func _handle_level_talent_back_input(event: InputEvent) -> bool:
+	if level_talent_back_button == null or not level_talent_back_button.visible or level_talent_back_button.disabled:
+		return false
+	if not _is_level_talent_role_detail_active():
+		return false
+	if not (event is InputEventMouseButton):
+		return false
+	var mouse_event := event as InputEventMouseButton
+	if mouse_event.button_index != MOUSE_BUTTON_LEFT or mouse_event.pressed:
+		return false
+	if not level_talent_back_button.get_global_rect().has_point(mouse_event.position):
+		return false
+	_on_level_talent_back_pressed()
+	get_viewport().set_input_as_handled()
+	return true
+
 func _on_build_card_mouse_entered(card: TextureButton, item: Dictionary) -> void:
 	_animate_build_card_hover(card, true)
 	_on_build_item_mouse_entered(card, item)
@@ -1106,6 +1339,38 @@ func _on_build_card_mouse_exited(card: TextureButton) -> void:
 
 func _is_build_multi_select_offer() -> bool:
 	return current_mode == "blessing" and bool(current_offer_context.get("role_build_offer", false))
+
+func _is_level_talent_offer() -> bool:
+	return current_mode == "blessing" and bool(current_offer_context.get("level_talent_offer", false))
+
+func _is_level_talent_role_select_active() -> bool:
+	return _is_level_talent_offer() and level_talent_selected_role_id == "" and not level_talent_role_options.is_empty()
+
+func _is_level_talent_role_detail_active() -> bool:
+	return _is_level_talent_offer() and level_talent_selected_role_id != ""
+
+func _offer_has_level_talent_role_entries(options: Array) -> bool:
+	for option_value in options:
+		if option_value is Dictionary and bool((option_value as Dictionary).get("level_talent_role_entry", false)):
+			return true
+	return false
+
+func _set_level_talent_role_detail_options(role_id: String, options: Array) -> void:
+	if role_id == "":
+		return
+	var nested_options := _duplicate_option_array(options)
+	for index in range(level_talent_role_options.size()):
+		var option_value: Variant = level_talent_role_options[index]
+		if option_value is not Dictionary:
+			continue
+		var option: Dictionary = option_value
+		if str(option.get("role_id", "")) == role_id:
+			option["level_talent_options"] = nested_options
+			level_talent_role_options[index] = option
+			return
+
+func get_level_talent_selected_role_id() -> String:
+	return level_talent_selected_role_id
 
 func _get_build_selection_count() -> int:
 	if not _is_build_multi_select_offer():
@@ -1119,6 +1384,12 @@ func _get_current_build_option_id_at(option_index: int) -> String:
 	if option is Dictionary:
 		return str((option as Dictionary).get("id", ""))
 	return ""
+
+func _get_build_card_refresh_key(option_index: int) -> String:
+	var scope := "build"
+	if _is_level_talent_role_detail_active():
+		scope = "level_talent:%s" % level_talent_selected_role_id
+	return "%s:%d" % [scope, option_index]
 
 func _get_refresh_button_for_option_index(option_index: int) -> Button:
 	for entry in build_card_entries:
@@ -1552,6 +1823,14 @@ func _hide_unselected_build_overlay_parts(selected_card: Control) -> void:
 		trait_button_layer.visible = false
 	if build_refresh_button != null:
 		build_refresh_button.visible = false
+	if level_talent_back_button != null:
+		level_talent_back_button.visible = false
+	for entry in level_talent_role_button_entries:
+		if entry is not Dictionary:
+			continue
+		var role_button := entry.get("button") as Control
+		if role_button != null:
+			role_button.visible = false
 	for entry in build_card_entries:
 		if entry is not Dictionary:
 			continue
@@ -1611,6 +1890,14 @@ func _set_build_overlay_input_enabled(enabled: bool, selected_card: BaseButton =
 		var button := entry.get("button") as BaseButton
 		if button != null:
 			button.disabled = not enabled
+	for entry in level_talent_role_button_entries:
+		if entry is not Dictionary:
+			continue
+		var role_button := entry.get("button") as BaseButton
+		if role_button != null:
+			role_button.disabled = not enabled
+	if level_talent_back_button != null:
+		level_talent_back_button.disabled = not enabled
 	if build_refresh_button != null:
 		build_refresh_button.disabled = not enabled or not _can_refresh_current_offer()
 
@@ -1993,4 +2280,7 @@ func _reset_pending_selection() -> void:
 	pending_equipment_option_id = ""
 	pending_equipment_title = ""
 	pending_card_option_id = ""
+	level_talent_role_button_entries.clear()
+	level_talent_role_options.clear()
+	level_talent_selected_role_id = ""
 	pending_card_title = ""

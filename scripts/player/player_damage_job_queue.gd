@@ -3,6 +3,10 @@ extends Node
 const PERFORMANCE_COUNTERS := preload("res://scripts/game/performance_counters.gd")
 const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
 const PLAYER_RUAN_STONE_FLOW := preload("res://scripts/player/player_ruan_stone_flow.gd")
+const PLAYER_GUNNER_BASIC_TALENT_FLOW := preload("res://scripts/player/player_gunner_basic_talent_flow.gd")
+const PLAYER_GUNNER_ENTRY_TALENT_FLOW := preload("res://scripts/player/player_gunner_entry_talent_flow.gd")
+const PLAYER_MAGE_ENTRY_TALENT_FLOW := preload("res://scripts/player/player_mage_entry_talent_flow.gd")
+const PLAYER_MAGE_ULTIMATE_TALENT_FLOW := preload("res://scripts/player/player_mage_ultimate_talent_flow.gd")
 
 const MAX_DAMAGE_APPLICATIONS_PER_RENDER_FRAME := 24
 const LARGE_QUEUE_DAMAGE_APPLICATIONS_PER_RENDER_FRAME := 56
@@ -236,6 +240,7 @@ func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_rol
 		return false
 	var final_damage := damage_amount
 	var resolved_source_role_id: String = _resolve_damage_source_role_id(source_role_id)
+	var source_ultimate_energy_bonus: float = PLAYER_MAGE_ULTIMATE_TALENT_FLOW.get_ultimate_energy_bonus_multiplier(source_player, source_role_id, resolved_source_role_id)
 	var was_critical := false
 	if resolved_source_role_id != "" and source_player.has_method("_roll_critical_hit") and source_player.has_method("_get_critical_damage_multiplier"):
 		was_critical = bool(source_player._roll_critical_hit(resolved_source_role_id))
@@ -263,14 +268,23 @@ func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_rol
 		killed = bool(enemy.take_damage(final_damage, was_critical))
 	if used_batched_damage and not killed and _did_enemy_health_decrease(enemy, health_before) and enemy.has_method("_play_light_hit_feedback"):
 		enemy._play_light_hit_feedback()
+	if damage_amount > 0.0:
+		PLAYER_GUNNER_BASIC_TALENT_FLOW.on_basic_attack_hit(source_player, enemy, source_role_id)
+		PLAYER_GUNNER_ENTRY_TALENT_FLOW.on_entry_attack_hit(source_player, enemy, source_role_id)
 	if source_player.has_method("_record_attack_result_instance"):
-		source_player._record_attack_result_instance(resolved_source_role_id, was_critical, killed)
+		source_player._record_attack_result_instance(resolved_source_role_id, was_critical, killed, target_position, source_role_id)
 	if source_player.has_method("_add_switch_energy_from_damage"):
 		source_player._add_switch_energy_from_damage(final_damage, resolved_source_role_id)
 	if source_player.has_method("_apply_role_damage_lifesteal"):
 		source_player._apply_role_damage_lifesteal(resolved_source_role_id, final_damage)
 	if str(enemy.get("enemy_kind")) in ["boss", "small_boss"] and source_player.has_method("_get_boss_damage_energy") and source_player.has_method("_add_boss_damage_energy"):
-		source_player._add_boss_damage_energy(source_player._get_boss_damage_energy(final_damage))
+		var boss_energy: float = source_player._get_boss_damage_energy(final_damage)
+		source_player._add_boss_damage_energy(boss_energy)
+		if source_ultimate_energy_bonus > 0.0:
+			source_player._add_boss_damage_energy(boss_energy * source_ultimate_energy_bonus)
+	if killed:
+		PLAYER_MAGE_ENTRY_TALENT_FLOW.on_entry_lightning_killed(source_player, source_role_id, resolved_source_role_id)
+		PLAYER_MAGE_ULTIMATE_TALENT_FLOW.on_ultimate_bombardment_killed(source_player, source_role_id, resolved_source_role_id)
 	if killed and source_player.has_method("_get_kill_energy_from_enemy"):
 		var kill_energy: float = source_player._get_kill_energy_from_enemy(enemy)
 		var bypass_lock_role_id: String = resolved_source_role_id if resolved_source_role_id == "mage" and kill_energy_bonus > 0.0 else ""
@@ -282,6 +296,8 @@ func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_rol
 			_queue_kill_energy(bonus_energy, bypass_lock_role_id, resolved_source_role_id)
 			if source_player.has_method("_try_apply_mage_kill_energy_proc"):
 				source_player._try_apply_mage_kill_energy_proc(resolved_source_role_id, bonus_energy, bypass_lock_role_id)
+		if source_ultimate_energy_bonus > 0.0:
+			_queue_kill_energy(kill_energy * source_ultimate_energy_bonus, "", resolved_source_role_id)
 	if applies_gunner_target_talents:
 		_apply_gunner_damage_target_talents(enemy as Node2D, resolved_source_role_id, source_position)
 	if vulnerability_bonus > 0.0 and enemy.has_method("apply_vulnerability"):
@@ -298,6 +314,12 @@ func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_rol
 func _resolve_damage_source_role_id(source_role_id: String) -> String:
 	if source_role_id == GUNNER_NO_HUNT_SOURCE_ROLE_ID:
 		return "gunner"
+	if PLAYER_GUNNER_ENTRY_TALENT_FLOW.is_entry_source(source_role_id):
+		return "gunner"
+	if PLAYER_MAGE_ENTRY_TALENT_FLOW.is_entry_lightning_source(source_role_id):
+		return "mage"
+	if PLAYER_MAGE_ULTIMATE_TALENT_FLOW.is_ultimate_source(source_role_id):
+		return "mage"
 	for role_id in ["swordsman", "gunner", "mage"]:
 		if source_role_id.begins_with("%s_basic:" % role_id):
 			return role_id

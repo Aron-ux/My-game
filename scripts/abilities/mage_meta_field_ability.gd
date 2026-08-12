@@ -2,6 +2,7 @@ extends RefCounted
 
 const FIELD_EFFECT_SCENE := preload("res://effects/wizard/field/field.tscn")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
+const PLAYER_MAGE_META_FIELD_TALENT_FLOW := preload("res://scripts/player/player_mage_meta_field_talent_flow.gd")
 
 const SKILL_ID := "meta_field"
 const COOLDOWN := 0.0
@@ -48,6 +49,8 @@ var expansion_tick_count: int = 0
 var inner_ring_enemy_ids: Dictionary = {}
 var cast_talent_ids: Array[String] = []
 var cast_talent_snapshot_valid: bool = false
+var projectile_slow_tick_remaining: float = 0.0
+var slowed_projectile_refs: Dictionary = {}
 
 
 func update(owner, delta: float) -> void:
@@ -66,6 +69,8 @@ func update(owner, delta: float) -> void:
 		elif transferred_role_id.is_empty() and _has_talent(owner, "mage_meta_collapse"):
 			_trigger_collapse(owner)
 			return
+		elif transferred_role_id.is_empty() and PLAYER_MAGE_META_FIELD_TALENT_FLOW.should_persist_in_background(owner):
+			pass
 		elif active_role_id != transferred_role_id:
 			stop(owner)
 			return
@@ -75,7 +80,9 @@ func update(owner, delta: float) -> void:
 	else:
 		active_remaining = max(0.0, active_remaining - delta)
 	tick_remaining -= delta
+	projectile_slow_tick_remaining -= delta
 	_update_effect(owner)
+	_update_enemy_projectile_speed_aura(owner)
 	_apply_inner_ring_pull(owner)
 	var catch_up_ticks: int = 0
 	while tick_remaining <= 0.0 and active_remaining > 0.0 and catch_up_ticks < MAX_CATCH_UP_TICKS:
@@ -109,6 +116,7 @@ func try_trigger(owner) -> bool:
 	transferred_role_id = ""
 	cooldown_remaining = _get_cooldown(owner)
 	tick_remaining = 0.0
+	projectile_slow_tick_remaining = 0.0
 	expansion_tick_count = 0
 	inner_ring_enemy_ids.clear()
 	_ensure_effect(owner)
@@ -121,9 +129,11 @@ func try_trigger(owner) -> bool:
 func stop(owner = null) -> void:
 	active_remaining = 0.0
 	tick_remaining = 0.0
+	projectile_slow_tick_remaining = 0.0
 	transferred_role_id = ""
 	expansion_tick_count = 0
 	inner_ring_enemy_ids.clear()
+	PLAYER_MAGE_META_FIELD_TALENT_FLOW.restore_projectile_speed_aura(slowed_projectile_refs)
 	cast_talent_ids.clear()
 	cast_talent_snapshot_valid = false
 	if effect != null and is_instance_valid(effect):
@@ -159,6 +169,7 @@ func apply_save_data(data: Dictionary) -> void:
 	transferred_role_id = str(data.get("transferred_role_id", ""))
 	active_remaining = clamp(float(data.get("active_remaining", 0.0)), 0.0, TRANSFER_DURATION) if not transferred_role_id.is_empty() else (PERMANENT_ACTIVE_REMAINING if float(data.get("active_remaining", 0.0)) > 0.0 else 0.0)
 	tick_remaining = clamp(float(data.get("tick_remaining", 0.0)), 0.0, TICK_INTERVAL)
+	projectile_slow_tick_remaining = 0.0
 	expansion_tick_count = clampi(int(data.get("expansion_tick_count", 0)), 0, 3)
 	cast_talent_ids = _normalize_talent_ids(data.get("talent_ids", []))
 	cast_talent_snapshot_valid = bool(data.get("talent_snapshot_valid", data.has("talent_ids")))
@@ -171,15 +182,23 @@ func restore_effect_if_active(owner) -> void:
 
 
 func get_damage_taken_multiplier(owner) -> float:
-	if active_remaining <= 0.0 or not transferred_role_id.is_empty():
+	if active_remaining <= 0.0:
 		return 1.0
-	return 1.0 - _get_damage_reduction(owner)
+	var active_role_id := str(owner._get_active_role().get("id", "")) if owner != null and owner.has_method("_get_active_role") else ""
+	if active_role_id != "mage" and not PLAYER_MAGE_META_FIELD_TALENT_FLOW.should_persist_in_background(owner):
+		return 1.0
+	var effect_ratio := 1.0 if active_role_id == "mage" else PLAYER_MAGE_META_FIELD_TALENT_FLOW.BACKGROUND_EFFECT_RATIO
+	return 1.0 - _get_damage_reduction(owner) * effect_ratio
 
 
 func get_damage_reduction_value(owner) -> float:
-	if active_remaining <= 0.0 or not transferred_role_id.is_empty():
+	if active_remaining <= 0.0:
 		return 0.0
-	return _get_damage_reduction_value(owner)
+	var active_role_id := str(owner._get_active_role().get("id", "")) if owner != null and owner.has_method("_get_active_role") else ""
+	if active_role_id != "mage" and not PLAYER_MAGE_META_FIELD_TALENT_FLOW.should_persist_in_background(owner):
+		return 0.0
+	var effect_ratio := 1.0 if active_role_id == "mage" else PLAYER_MAGE_META_FIELD_TALENT_FLOW.BACKGROUND_EFFECT_RATIO
+	return _get_damage_reduction_value(owner) * effect_ratio
 
 
 func _trigger_tick(owner) -> void:
@@ -352,6 +371,7 @@ func _get_radius(owner) -> float:
 		radius *= 0.75
 	if _has_talent(owner, "mage_meta_expansion"):
 		radius *= pow(1.12, float(clampi(expansion_tick_count, 0, 3)))
+	radius *= PLAYER_MAGE_META_FIELD_TALENT_FLOW.get_radius_multiplier(owner)
 	return radius
 
 
@@ -372,6 +392,8 @@ func _get_slow_multiplier(owner) -> float:
 		slow_effect = min(0.95, slow_effect + 0.12)
 	if not transferred_role_id.is_empty():
 		slow_effect *= 0.50
+	else:
+		slow_effect *= _get_level_talent_effect_ratio(owner)
 	return 1.0 - slow_effect
 
 
@@ -405,7 +427,23 @@ func _get_damage(owner) -> float:
 	ratio += PLAYER_BUILD_SYSTEM.get_meta_field_damage_ratio_bonus(owner)
 	if not transferred_role_id.is_empty():
 		ratio *= 0.50
+	else:
+		ratio *= _get_level_talent_effect_ratio(owner)
 	return float(owner._get_role_damage("mage")) * ratio
+
+func _get_level_talent_effect_ratio(owner) -> float:
+	var active_role_id := str(owner._get_active_role().get("id", "")) if owner != null and owner.has_method("_get_active_role") else ""
+	return PLAYER_MAGE_META_FIELD_TALENT_FLOW.get_level_talent_effect_ratio(owner, active_role_id, transferred_role_id)
+
+
+func _update_enemy_projectile_speed_aura(owner) -> void:
+	if projectile_slow_tick_remaining > 0.0:
+		return
+	projectile_slow_tick_remaining = PLAYER_MAGE_META_FIELD_TALENT_FLOW.PROJECTILE_AURA_SCAN_INTERVAL
+	var effect_ratio := _get_level_talent_effect_ratio(owner)
+	var speed_multiplier := PLAYER_MAGE_META_FIELD_TALENT_FLOW.get_enemy_projectile_speed_multiplier(owner, effect_ratio)
+	slowed_projectile_refs = PLAYER_MAGE_META_FIELD_TALENT_FLOW.apply_enemy_projectile_speed_aura(owner, owner.global_position, _get_radius(owner), speed_multiplier, slowed_projectile_refs)
+
 
 func _has_talent(owner, talent_id: String) -> bool:
 	if cast_talent_snapshot_valid:

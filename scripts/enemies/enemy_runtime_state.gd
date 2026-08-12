@@ -47,6 +47,8 @@ static func reset(enemy, randomize_timers: bool) -> void:
 	enemy.boss_phase_three_elapsed = 0.0
 	enemy.boss_phase_three_intro_remaining = 0.0
 	enemy.boss_phase_transition_target = 0
+	enemy.boss_shield_break_intro_played = false
+	enemy.boss_shield_break_visual_intro_active = false
 	if str(enemy.enemy_kind) == "boss":
 		enemy.current_health = max(1.0, float(enemy.max_health) / 3.0)
 	enemy.boss_laser_remaining = 0.0
@@ -66,8 +68,11 @@ static func reset(enemy, randomize_timers: bool) -> void:
 	enemy.skulltomb_summon_timer = enemy.skulltomb_summon_interval
 	enemy.skulltomb_summon_windup_remaining = 0.0
 	enemy.skulltomb_charge_timer = enemy.skulltomb_charge_interval
+	enemy.skulltomb_charge_decision_timer = 0.0
+	enemy.skulltomb_charge_active = false
 	enemy.skulltomb_charge_windup_remaining = 0.0
 	enemy.skulltomb_charge_target_position = Vector2.ZERO
+	enemy.skulltomb_aging_aura_elapsed = 0.0
 	enemy.skull_soldier_speed_multiplier = 1.0
 	enemy.skull_soldier_speed_timer = 0.0
 	enemy.skull_damage_immune_timer = 0.0

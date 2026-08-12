@@ -7,8 +7,30 @@ const DEFAULT_HIT_RADIUS := 16.0
 const ENEMY_PROJECTILE_POOL_GROUP := "enemy_projectile_pool"
 
 static func fire_shooter_pattern(enemy) -> void:
-	if enemy.target == null or not is_instance_valid(enemy.target):
+	var current_scene: Node = _get_enemy_current_scene(enemy)
+	var split_volley_id := 0
+	if _uses_split_volley_budget(enemy) and current_scene != null and current_scene.has_method("reserve_enemy_split_projectile_volley"):
+		split_volley_id = int(current_scene.reserve_enemy_split_projectile_volley(enemy))
+		if split_volley_id <= 0:
+			return
+	if not _fire_shooter_pattern_now(enemy, split_volley_id) and split_volley_id > 0:
+		_release_split_volley(current_scene, split_volley_id)
+
+static func fire_queued_split_shooter_pattern(request: Dictionary, current_scene: Node = null) -> void:
+	var enemy = request.get("enemy", null)
+	var split_volley_id: int = int(request.get("split_volley_id", 0))
+	if current_scene == null:
+		current_scene = _get_enemy_current_scene(enemy)
+	if split_volley_id <= 0:
 		return
+	if not _fire_shooter_pattern_now(enemy, split_volley_id):
+		_release_split_volley(current_scene, split_volley_id)
+
+static func _fire_shooter_pattern_now(enemy, split_volley_id: int = 0) -> bool:
+	if enemy == null or not is_instance_valid(enemy):
+		return false
+	if enemy.target == null or not is_instance_valid(enemy.target):
+		return false
 	var aim_direction: Vector2 = enemy._cached_direction_to_target
 	if aim_direction == Vector2.ZERO:
 		aim_direction = Vector2.RIGHT
@@ -16,11 +38,13 @@ static func fire_shooter_pattern(enemy) -> void:
 	var count: int = max(1, enemy.projectile_count)
 	var spread_step: float = enemy.projectile_spread
 	var offset_center: float = float(count - 1) * 0.5
+	var spawned_count := 0
 	for index in range(count):
 		var shot_direction: Vector2 = aim_direction.rotated((float(index) - offset_center) * spread_step)
 		var extra_config: Dictionary = {}
 		if enemy.projectile_split_count > 0 and enemy.projectile_split_after > 0.0:
 			extra_config = {
+				"split_volley_id": split_volley_id,
 				"split_count": enemy.projectile_split_count,
 				"split_after_time": enemy.projectile_split_after,
 				"split_pattern": enemy.projectile_split_pattern,
@@ -33,7 +57,7 @@ static func fire_shooter_pattern(enemy) -> void:
 				"split_hit_radius_scale": enemy.projectile_split_hit_radius_scale,
 				"split_visual_style": enemy.projectile_visual_style
 			}
-		spawn_projectile(
+		var projectile = spawn_projectile(
 			enemy,
 			start_position,
 			shot_direction,
@@ -44,8 +68,13 @@ static func fire_shooter_pattern(enemy) -> void:
 			"straight",
 			extra_config
 		)
+		if projectile != null:
+			spawned_count += 1
+	if spawned_count <= 0:
+		return false
 	var projectile_color := get_projectile_color(enemy)
 	enemy._spawn_status_burst(Color(projectile_color.r, projectile_color.g, projectile_color.b, 0.18), 16.0 + enemy.scale.x * 4.0)
+	return true
 
 static func spawn_projectile(enemy, origin: Vector2, shot_direction: Vector2, shot_speed: float, shot_damage: float, shot_lifetime: float, color: Color, mode: String, extra_config: Dictionary = {}) -> Node:
 	if enemy.projectile_scene == null:
@@ -78,11 +107,14 @@ static func spawn_projectile(enemy, origin: Vector2, shot_direction: Vector2, sh
 		"size_scale": 1.0,
 		"motion_mode": mode,
 		"split_on_return": false,
+		"split_volley_id": 0,
 		"split_count": 0,
 		"split_after_time": 0.0,
 		"split_pattern": "radial",
 		"split_visual_style": "",
-		"target": enemy.target
+		"target": enemy.target,
+		"source_enemy_instance_id": enemy.get_instance_id(),
+		"source_enemy_kind": str(enemy.enemy_kind)
 	}
 	for key in extra_config.keys():
 		if key in ["split_speed", "return_speed"]:
@@ -93,8 +125,49 @@ static func spawn_projectile(enemy, origin: Vector2, shot_direction: Vector2, sh
 		projectile.reset_projectile(config)
 	else:
 		for key in config.keys():
-			projectile.set(key, config[key])
+			if key == "source_enemy_instance_id" or key == "source_enemy_kind":
+				projectile.set_meta(key, config[key])
+			else:
+				projectile.set(key, config[key])
 	return projectile
+
+static func clear_projectiles_from_source(enemy) -> void:
+	if enemy == null or not is_instance_valid(enemy):
+		return
+	var current_scene: Node = _get_enemy_current_scene(enemy)
+	if current_scene == null and enemy is Node:
+		var tree: SceneTree = (enemy as Node).get_tree()
+		current_scene = tree.current_scene if tree != null else null
+	if current_scene == null:
+		return
+
+	var source_id: int = enemy.get_instance_id()
+	var source_kind: String = str(enemy.enemy_kind)
+	var projectiles: Array = []
+	if current_scene.has_method("get_runtime_enemy_projectiles"):
+		projectiles = current_scene.get_runtime_enemy_projectiles()
+	elif current_scene.is_inside_tree() and current_scene.get_tree() != null:
+		projectiles = current_scene.get_tree().get_nodes_in_group("enemy_projectiles")
+
+	for projectile in projectiles:
+		if projectile == null or not is_instance_valid(projectile) or projectile.is_queued_for_deletion():
+			continue
+		if not _is_projectile_from_source(projectile, source_id, source_kind):
+			continue
+		if projectile.has_method("recycle"):
+			projectile.recycle()
+		else:
+			projectile.queue_free()
+
+static func _is_projectile_from_source(projectile: Object, source_id: int, source_kind: String) -> bool:
+	var projectile_source_id := 0
+	if projectile.has_meta("source_enemy_instance_id"):
+		projectile_source_id = int(projectile.get_meta("source_enemy_instance_id"))
+	if source_id > 0 and projectile_source_id == source_id:
+		return true
+	if source_kind != "boss" or not projectile.has_meta("source_enemy_kind"):
+		return false
+	return str(projectile.get_meta("source_enemy_kind")) == "boss"
 
 static func _take_projectile_from_pool(current_scene: Node):
 	if current_scene == null or current_scene.get_tree() == null:
@@ -124,6 +197,17 @@ static func _can_spawn_enemy_projectile(current_scene: Node, enemy) -> bool:
 	if current_scene != null and current_scene.has_method("_can_spawn_runtime_group"):
 		return bool(current_scene._can_spawn_runtime_group("enemy_projectiles", limit))
 	return PERFORMANCE_GUARD.can_spawn_in_group(current_scene, "enemy_projectiles", limit)
+
+static func _uses_split_volley_budget(enemy) -> bool:
+	if enemy == null or not is_instance_valid(enemy):
+		return false
+	if str(enemy.enemy_kind) == "boss":
+		return false
+	return enemy.projectile_split_count > 0 and enemy.projectile_split_after > 0.0
+
+static func _release_split_volley(current_scene: Node, split_volley_id: int) -> void:
+	if current_scene != null and current_scene.has_method("release_enemy_split_projectile_volley"):
+		current_scene.release_enemy_split_projectile_volley(split_volley_id)
 
 static func _get_enemy_current_scene(enemy) -> Node:
 	if enemy == null or not is_instance_valid(enemy):

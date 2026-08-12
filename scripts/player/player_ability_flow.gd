@@ -1,8 +1,10 @@
 extends RefCounted
 
+const PLAYER_SKILL_COOLDOWN_FLOW := preload("res://scripts/player/player_skill_cooldown_flow.gd")
+
 
 static func try_trigger_swordsman_blade_storm(owner) -> void:
-	if owner.has_method("_is_player_action_locked") and owner._is_player_action_locked():
+	if _is_action_blocked_by_lock_or_manual_skill(owner):
 		return
 	var active_role_id := str(owner._get_active_role().get("id", ""))
 	if owner.swordsman_blade_storm_ability == null or not owner.swordsman_blade_storm_ability.can_trigger(owner, active_role_id):
@@ -11,7 +13,7 @@ static func try_trigger_swordsman_blade_storm(owner) -> void:
 
 
 static func try_trigger_swordsman_crescent_wave(owner) -> void:
-	if owner.is_dead or owner.level_up_active or (owner.has_method("_is_player_action_locked") and owner._is_player_action_locked()):
+	if owner.is_dead or owner.level_up_active or _is_action_blocked_by_lock_or_manual_skill(owner):
 		return
 	var active_role_id := str(owner._get_active_role().get("id", ""))
 	if owner.swordsman_crescent_wave_ability == null or not owner.swordsman_crescent_wave_ability.can_trigger(owner, active_role_id):
@@ -24,6 +26,8 @@ static func try_trigger_gunner_infinite_reload(owner) -> void:
 		return
 	if owner.gunner_infinite_reload_ability == null:
 		return
+	if owner.gunner_infinite_reload_ability.has_method("is_manual_toggle_enabled") and owner.gunner_infinite_reload_ability.is_manual_toggle_enabled(owner):
+		return
 	var active_role_id := str(owner._get_active_role().get("id", ""))
 	if not owner.gunner_infinite_reload_ability.can_trigger(owner, active_role_id):
 		return
@@ -31,7 +35,7 @@ static func try_trigger_gunner_infinite_reload(owner) -> void:
 
 
 static func try_trigger_gunner_shrapnel_field(owner) -> void:
-	if owner.is_dead or owner.level_up_active or (owner.has_method("_is_player_action_locked") and owner._is_player_action_locked()):
+	if owner.is_dead or owner.level_up_active or _is_action_blocked_by_lock_or_manual_skill(owner):
 		return
 	var active_role_id := str(owner._get_active_role().get("id", ""))
 	if owner.gunner_shrapnel_field_ability == null or not owner.gunner_shrapnel_field_ability.can_trigger(owner, active_role_id):
@@ -40,7 +44,7 @@ static func try_trigger_gunner_shrapnel_field(owner) -> void:
 
 
 static func try_trigger_mage_tidal_surge(owner) -> void:
-	if owner.is_dead or owner.level_up_active or (owner.has_method("_is_player_action_locked") and owner._is_player_action_locked()):
+	if owner.is_dead or owner.level_up_active or _is_action_blocked_by_lock_or_manual_skill(owner):
 		return
 	var active_role_id := str(owner._get_active_role().get("id", ""))
 	if owner.mage_tidal_surge_ability == null or not owner.mage_tidal_surge_ability.can_trigger(owner, active_role_id):
@@ -49,7 +53,7 @@ static func try_trigger_mage_tidal_surge(owner) -> void:
 
 
 static func try_trigger_mage_meta_field(owner) -> void:
-	if owner.is_dead or owner.level_up_active or (owner.has_method("_is_player_action_locked") and owner._is_player_action_locked()):
+	if owner.is_dead or owner.level_up_active or _is_action_blocked_by_lock_or_manual_skill(owner):
 		return
 	var active_role_id := str(owner._get_active_role().get("id", ""))
 	if owner.mage_meta_field_ability == null or not owner.mage_meta_field_ability.can_trigger(owner, active_role_id):
@@ -60,6 +64,10 @@ static func try_trigger_mage_meta_field(owner) -> void:
 static func start_swordsman_blade_storm(owner) -> void:
 	if owner.swordsman_blade_storm_ability != null:
 		owner.swordsman_blade_storm_ability.try_trigger(owner)
+
+
+static func is_swordsman_blade_storm_active(owner) -> bool:
+	return owner.swordsman_blade_storm_ability != null and owner.swordsman_blade_storm_ability.is_active()
 
 
 static func start_swordsman_crescent_wave(owner) -> void:
@@ -102,6 +110,23 @@ static func start_gunner_infinite_reload(owner) -> void:
 		owner.gunner_infinite_reload_ability.try_trigger(owner)
 
 
+static func try_handle_manual_skill_slot(owner, slot_index: int) -> bool:
+	if owner == null or slot_index < 1 or owner.is_dead or owner.level_up_active:
+		return false
+	var active_role_id := str(owner._get_active_role().get("id", ""))
+	var skill_ids := PLAYER_SKILL_COOLDOWN_FLOW.get_role_active_skill_ids(owner, active_role_id)
+	if slot_index > skill_ids.size():
+		return false
+	var skill_id := str(skill_ids[slot_index - 1])
+	if skill_id != "infinite_reload":
+		return false
+	if owner.gunner_infinite_reload_ability == null:
+		return false
+	if not owner.gunner_infinite_reload_ability.has_method("is_manual_toggle_enabled") or not owner.gunner_infinite_reload_ability.is_manual_toggle_enabled(owner):
+		return false
+	return owner.gunner_infinite_reload_ability.toggle_manual(owner)
+
+
 static func start_gunner_shrapnel_field(owner) -> void:
 	if owner.gunner_shrapnel_field_ability != null:
 		owner.gunner_shrapnel_field_ability.try_trigger(owner)
@@ -121,10 +146,42 @@ static func is_gunner_infinite_reload_active(owner) -> bool:
 	return owner.gunner_infinite_reload_ability != null and owner.gunner_infinite_reload_ability.is_active()
 
 
+static func is_gunner_infinite_reload_blocking_actions(owner) -> bool:
+	return (
+		owner.gunner_infinite_reload_ability != null
+		and owner.gunner_infinite_reload_ability.has_method("is_blocking_actions")
+		and owner.gunner_infinite_reload_ability.is_blocking_actions(owner)
+	)
+
+
+static func is_gunner_infinite_reload_movement_locked(owner) -> bool:
+	var ability = owner.get("gunner_infinite_reload_ability") if owner != null else null
+	return (
+		ability != null
+		and ability.has_method("is_movement_locked")
+		and ability.is_movement_locked(owner)
+	)
+
+
 static func get_gunner_infinite_reload_move_speed_multiplier(owner) -> float:
 	if owner.gunner_infinite_reload_ability != null and owner.gunner_infinite_reload_ability.has_method("get_move_speed_multiplier"):
 		return float(owner.gunner_infinite_reload_ability.get_move_speed_multiplier(owner))
 	return 1.0
+
+
+static func get_gunner_infinite_reload_dodge_value(owner, role_id: String = "") -> float:
+	var ability = owner.get("gunner_infinite_reload_ability") if owner != null else null
+	if ability != null and ability.has_method("get_dodge_value_bonus"):
+		return float(ability.get_dodge_value_bonus(owner, role_id))
+	return 0.0
+
+
+static func _is_action_blocked_by_lock_or_manual_skill(owner) -> bool:
+	if owner.has_method("_is_player_action_locked") and owner._is_player_action_locked():
+		return true
+	if owner.has_method("is_gunner_infinite_reload_blocking_actions") and owner.is_gunner_infinite_reload_blocking_actions():
+		return true
+	return false
 
 
 static func start_mage_tidal_surge(owner) -> void:

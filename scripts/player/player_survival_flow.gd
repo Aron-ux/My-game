@@ -6,6 +6,8 @@ const PLAYER_LEVEL_CURVE := preload("res://scripts/player/player_level_curve.gd"
 const PLAYER_LEVEL_FLOW := preload("res://scripts/player/player_level_flow.gd")
 const PLAYER_TARGETING := preload("res://scripts/player/player_targeting.gd")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
+const PLAYER_GUNNER_FLASH_TALENT_FLOW := preload("res://scripts/player/player_gunner_flash_talent_flow.gd")
+const PLAYER_ABILITY_FLOW := preload("res://scripts/player/player_ability_flow.gd")
 
 const EXPERIENCE_GAIN_MULTIPLIER := 2.43
 const EXPERIENCE_FRACTION_CARRY_KEY := "__experience_fraction_carry"
@@ -25,6 +27,11 @@ static func unhandled_input(owner, event: InputEvent) -> void:
 	if not event.pressed or event.echo:
 		return
 
+	var manual_skill_slot := _get_manual_skill_slot_index(event)
+	if manual_skill_slot > 0 and owner.has_method("_try_handle_manual_skill_slot") and owner._try_handle_manual_skill_slot(manual_skill_slot):
+		owner.get_viewport().set_input_as_handled()
+		return
+
 	if GAME_SETTINGS.event_matches_action(event, GAME_SETTINGS.ACTION_SWITCH_PREV):
 		owner._try_switch_role((owner.active_role_index - 1 + owner.roles.size()) % owner.roles.size())
 	elif GAME_SETTINGS.event_matches_action(event, GAME_SETTINGS.ACTION_SWITCH_NEXT):
@@ -35,6 +42,23 @@ static func unhandled_input(owner, event: InputEvent) -> void:
 		owner._toggle_attack_aim_mode()
 	elif GAME_SETTINGS.event_matches_action(event, GAME_SETTINGS.ACTION_TOGGLE_HURT_CORE):
 		owner._toggle_hurt_core_visual()
+
+
+static func _get_manual_skill_slot_index(event: InputEventKey) -> int:
+	match event.keycode:
+		KEY_1:
+			return 1
+		KEY_2:
+			return 2
+		KEY_3:
+			return 3
+		KEY_4:
+			return 4
+		KEY_5:
+			return 5
+		KEY_6:
+			return 6
+	return 0
 
 
 static func toggle_attack_aim_mode(owner) -> void:
@@ -64,7 +88,7 @@ static func physics_process(owner, delta: float) -> void:
 	owner._update_player_health_bar(owner._get_active_role())
 	owner._update_background_effects(delta)
 
-	if owner.has_method("_is_player_action_locked") and owner._is_player_action_locked():
+	if is_movement_locked(owner):
 		owner.velocity = Vector2.ZERO
 		owner.move_and_slide()
 		owner.gem_collection_elapsed += delta
@@ -101,6 +125,14 @@ static func physics_process(owner, delta: float) -> void:
 		owner._check_enemy_contact_damage()
 
 
+static func is_movement_locked(owner) -> bool:
+	if owner == null:
+		return false
+	if owner.has_method("_is_player_action_locked") and owner._is_player_action_locked():
+		return true
+	return PLAYER_ABILITY_FLOW.is_gunner_infinite_reload_movement_locked(owner)
+
+
 static func regenerate_energy(owner, delta: float) -> void:
 	if owner.ENERGY_PASSIVE_REGEN <= 0.0:
 		return
@@ -110,9 +142,7 @@ static func regenerate_energy(owner, delta: float) -> void:
 static func _update_area_control_states(owner, delta: float) -> void:
 	owner.healing_block_remaining = max(0.0, float(owner.healing_block_remaining) - delta)
 	owner.aging_remaining = max(0.0, float(owner.aging_remaining) - delta)
-	if owner.aging_remaining > 0.0:
-		_apply_aging_damage(owner, delta)
-	else:
+	if owner.aging_remaining <= 0.0:
 		owner.aging_damage_carry = 0.0
 	owner.confinement_remaining = max(0.0, float(owner.confinement_remaining) - delta)
 	if owner.confinement_remaining <= 0.0:
@@ -360,8 +390,14 @@ static func take_damage(owner, amount: float) -> void:
 		return
 
 	if owner._try_equipment_dodge():
+		PLAYER_GUNNER_FLASH_TALENT_FLOW.on_successful_dodge(owner)
 		owner.hurt_cooldown_remaining = owner.hurt_cooldown * 0.55
 		_show_dodge_tag(owner)
+		return
+
+	if PLAYER_GUNNER_FLASH_TALENT_FLOW.try_immunize_damage(owner):
+		owner.hurt_cooldown_remaining = owner.hurt_cooldown * 0.55
+		_show_gunner_flash_immunity_tag(owner)
 		return
 
 	if owner._get_active_role()["id"] == "swordsman":
@@ -484,6 +520,15 @@ static func _show_dodge_tag(owner) -> void:
 		owner._spawn_forced_combat_tag(tag_position, "闪避", tag_color)
 	else:
 		owner._spawn_combat_tag(tag_position, "闪避", tag_color)
+
+
+static func _show_gunner_flash_immunity_tag(owner) -> void:
+	var tag_position: Vector2 = owner.global_position + Vector2(0.0, -34.0)
+	var tag_color: Color = Color(0.28, 0.84, 1.0, 1.0)
+	if owner.has_method("_spawn_forced_combat_tag"):
+		owner._spawn_forced_combat_tag(tag_position, "瞬杀", tag_color)
+	else:
+		owner._spawn_combat_tag(tag_position, "瞬杀", tag_color)
 
 
 static func apply_enemy_slow(owner, multiplier: float, duration: float) -> void:

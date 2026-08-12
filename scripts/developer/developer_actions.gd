@@ -151,135 +151,40 @@ static func grant_skill_talent(main: Node, talent_id: String) -> void:
 	if main == null or main.player == null:
 		return
 	if talent_id == DEVELOPER_OPTION_PROVIDER.CLEAR_SKILL_TALENTS_OPTION_ID:
-		_clear_all_skill_talents(main.player)
+		_clear_all_level_talents(main.player)
 		_finish_player_change(main)
 		return
-	if talent_id.begins_with(DEVELOPER_OPTION_PROVIDER.CLEAR_SKILL_TALENT_STAGE_PREFIX):
-		var clear_parts := talent_id.trim_prefix(DEVELOPER_OPTION_PROVIDER.CLEAR_SKILL_TALENT_STAGE_PREFIX).split(":")
-		if clear_parts.size() != 3:
-			return
-		_clear_skill_talent(main.player, str(clear_parts[0]), str(clear_parts[1]), int(clear_parts[2]))
-		_finish_player_change(main)
+	var role_id := _find_level_talent_role(talent_id)
+	if role_id == "":
 		return
-	if talent_id.begins_with(DEVELOPER_OPTION_PROVIDER.SKILL_TALENT_PATH_PREFIX):
-		var path_parts := talent_id.trim_prefix(DEVELOPER_OPTION_PROVIDER.SKILL_TALENT_PATH_PREFIX).split(":")
-		if path_parts.size() != 3 or not _set_skill_talent_path(main.player, str(path_parts[0]), str(path_parts[1]), str(path_parts[2])):
-			return
-		_finish_player_change(main)
+	var states: Dictionary = main.player.role_special_states if main.player.role_special_states is Dictionary else {}
+	var role_state: Dictionary = states.get(role_id, {}) if states.get(role_id, {}) is Dictionary else {}
+	var selected := PLAYER_SKILL_TALENT_SYSTEM.get_selected_level_talents(main.player, role_id)
+	if selected.has(talent_id):
 		return
-	var location := _find_skill_talent(talent_id)
-	if location.is_empty():
-		return
-	var role_id := str(location.get("role_id", ""))
-	var progress_id := str(location.get("progress_id", ""))
-	var stage := int(location.get("stage", 1))
-	var required_skill := str(PLAYER_SKILL_TALENT_SYSTEM.UNLOCKABLE_PROGRESS.get(progress_id, ""))
-	if required_skill != "" and not PLAYER_BLESSING_SKILL_STATE.force_unlock_skill(main.player, required_skill, 1):
-		return
-	if not _raise_skill_progress_to(main.player, role_id, progress_id, int(PLAYER_SKILL_TALENT_SYSTEM.TRIGGER_LEVELS[stage - 1])):
-		return
-	_clear_skill_talent(main.player, role_id, progress_id, stage)
-	for previous_stage in range(1, stage):
-		if PLAYER_SKILL_TALENT_SYSTEM.get_selected_talents(main.player, role_id, progress_id).size() >= previous_stage:
-			continue
-		var fallback_id := _get_stage_talent_id(progress_id, previous_stage, "left")
-		if not _apply_skill_talent_stage(main.player, role_id, progress_id, previous_stage, fallback_id):
-			return
-	if not _apply_skill_talent_stage(main.player, role_id, progress_id, stage, talent_id):
-		return
+	selected.append(talent_id)
+	role_state[PLAYER_SKILL_TALENT_SYSTEM.LEVEL_TALENTS_KEY] = selected
+	role_state[PLAYER_SKILL_TALENT_SYSTEM.TALENTS_KEY] = {}
+	states[role_id] = role_state
+	main.player.role_special_states = states
 	_finish_player_change(main)
 
 
-static func _apply_skill_talent_stage(player, role_id: String, progress_id: String, stage: int, talent_id: String) -> bool:
-	var offer := PLAYER_SKILL_TALENT_SYSTEM.build_choice_offer(player, {
-		"role_id": role_id,
-		"progress_id": progress_id,
-		"talent_stage": stage
-	})
-	return not PLAYER_SKILL_TALENT_SYSTEM.apply_option_with_result(player, PLAYER_SKILL_TALENT_SYSTEM.OPTION_PREFIX + talent_id, offer).is_empty()
-
-
-static func _find_skill_talent(talent_id: String) -> Dictionary:
+static func _find_level_talent_role(talent_id: String) -> String:
 	for role_id in ["swordsman", "gunner", "mage"]:
-		for progress_id in PLAYER_SKILL_TALENT_SYSTEM.ROLE_PROGRESS_ORDER.get(role_id, []):
-			for talent_value in PLAYER_SKILL_TALENT_SYSTEM.TALENT_DEFINITIONS.get(progress_id, []):
-				if str((talent_value as Dictionary).get("id", "")) == talent_id:
-					return {
-						"role_id": role_id,
-						"progress_id": progress_id,
-						"stage": int((talent_value as Dictionary).get("stage", 1))
-					}
-	return {}
-
-
-static func _get_progress_build_id(role_id: String, progress_id: String) -> String:
-	for definition_value in PLAYER_BUILD_SYSTEM.BUILD_DEFINITIONS.get(role_id, []):
-		var definition: Dictionary = definition_value
-		if str(definition.get("skill_progress_id", "")) == progress_id and str(definition.get("unlock_skill", "")) == "":
-			return str(definition.get("id", ""))
+		for talent_value in PLAYER_SKILL_TALENT_SYSTEM.LEVEL_TALENT_DEFINITIONS.get(role_id, []):
+			if talent_value is Dictionary and str((talent_value as Dictionary).get("id", "")) == talent_id:
+				return role_id
 	return ""
 
 
-static func _raise_skill_progress_to(player, role_id: String, progress_id: String, target_level: int) -> bool:
-	var build_id := _get_progress_build_id(role_id, progress_id)
-	while PLAYER_SKILL_TALENT_SYSTEM.get_skill_progress_level(player, role_id, progress_id) < target_level:
-		if build_id == "" or not PLAYER_BUILD_SYSTEM.apply_option(player, "%s%s:%s" % [PLAYER_BUILD_SYSTEM.OPTION_PREFIX, role_id, build_id]):
-			return false
-	return true
-
-
-static func _get_stage_talent_id(progress_id: String, stage: int, side: String) -> String:
-	for talent_value in PLAYER_SKILL_TALENT_SYSTEM.TALENT_DEFINITIONS.get(progress_id, []):
-		var talent: Dictionary = talent_value
-		if int(talent.get("stage", 0)) == stage and str(talent.get("side", "")) == side:
-			return str(talent.get("id", ""))
-	return ""
-
-
-static func _set_skill_talent_path(player, role_id: String, progress_id: String, path: String) -> bool:
-	if path.length() != PLAYER_SKILL_TALENT_SYSTEM.TALENT_STAGE_COUNT or not PLAYER_SKILL_TALENT_SYSTEM.ROLE_PROGRESS_ORDER.get(role_id, []).has(progress_id):
-		return false
-	var required_skill := str(PLAYER_SKILL_TALENT_SYSTEM.UNLOCKABLE_PROGRESS.get(progress_id, ""))
-	if required_skill != "" and not PLAYER_BLESSING_SKILL_STATE.force_unlock_skill(player, required_skill, 1):
-		return false
-	if not _raise_skill_progress_to(player, role_id, progress_id, int(PLAYER_SKILL_TALENT_SYSTEM.TRIGGER_LEVELS[-1])):
-		return false
-	_clear_skill_talent(player, role_id, progress_id, 1)
-	for stage_index in range(PLAYER_SKILL_TALENT_SYSTEM.TALENT_STAGE_COUNT):
-		var side := "left" if path[stage_index] == "1" else ("right" if path[stage_index] == "2" else "")
-		var talent_id := _get_stage_talent_id(progress_id, stage_index + 1, side)
-		if talent_id == "" or not _apply_skill_talent_stage(player, role_id, progress_id, stage_index + 1, talent_id):
-			return false
-	return true
-
-
-static func _clear_skill_talent(player, role_id: String, progress_id: String, stage: int = 1) -> void:
-	var role_state: Dictionary = player.role_special_states.get(role_id, {})
-	var talents: Dictionary = role_state.get(PLAYER_SKILL_TALENT_SYSTEM.TALENTS_KEY, {})
-	var selected := PLAYER_SKILL_TALENT_SYSTEM.get_selected_talents(player, role_id, progress_id)
-	var removed: Array = selected.slice(maxi(0, stage - 1))
-	selected.resize(mini(selected.size(), maxi(0, stage - 1)))
-	if selected.is_empty():
-		talents.erase(progress_id)
-	else:
-		talents[progress_id] = selected
-	role_state[PLAYER_SKILL_TALENT_SYSTEM.TALENTS_KEY] = talents
-	player.role_special_states[role_id] = role_state
-	if player.has_method("_clear_skill_talent_runtime_state"):
-		player._clear_skill_talent_runtime_state(removed)
-
-
-static func _clear_all_skill_talents(player) -> void:
-	var removed: Array = []
+static func _clear_all_level_talents(player) -> void:
 	for role_id in ["swordsman", "gunner", "mage"]:
 		var role_state: Dictionary = player.role_special_states.get(role_id, {})
-		var talents: Dictionary = role_state.get(PLAYER_SKILL_TALENT_SYSTEM.TALENTS_KEY, {})
-		for progress_id in talents:
-			removed.append_array(PLAYER_SKILL_TALENT_SYSTEM.get_selected_talents(player, role_id, str(progress_id)))
+		role_state[PLAYER_SKILL_TALENT_SYSTEM.LEVEL_TALENTS_KEY] = []
+		role_state[PLAYER_SKILL_TALENT_SYSTEM.LEVEL_TALENT_GROUP_LOCKS_KEY] = {}
 		role_state[PLAYER_SKILL_TALENT_SYSTEM.TALENTS_KEY] = {}
 		player.role_special_states[role_id] = role_state
-	if player.has_method("_clear_skill_talent_runtime_state"):
-		player._clear_skill_talent_runtime_state(removed)
 
 
 static func _finish_player_change(main: Node) -> void:

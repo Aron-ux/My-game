@@ -2,6 +2,7 @@ extends RefCounted
 
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_COMBAT_RESULT_FLOW := preload("res://scripts/player/player_combat_result_flow.gd")
+const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")
 
 const BASIC_COMBO_INTERVAL := 0.14
 const ULTIMATE_SKILL_ID := "swordsman_ultimate"
@@ -20,6 +21,9 @@ const ULTIMATE_TIER_THREE_VISUAL_HIT_SCALE := 1.38
 const ULTIMATE_TIER_THREE_DAMAGE_MULTIPLIER := 1.0
 const ENTRY_INVULNERABILITY_DURATION := 3.0
 const POST_ULTIMATE_BLOODTHIRST_DURATION := 4.5
+const LEVEL_TALENT_BASIC_ATTACK_1 := "swordsman_level_talent_basic_attack_1"
+const LEVEL_TALENT_BASIC_ATTACK_2 := "swordsman_level_talent_basic_attack_2"
+const LEVEL_TALENT_BLADE_STORM_2 := "swordsman_level_talent_blade_storm_2"
 var ultimate_pursuit_target: WeakRef = null
 var ultimate_pursuit_hits: int = 0
 var ultimate_pursuit_armed: bool = false
@@ -41,6 +45,8 @@ func _try_start_bloodthirst(owner, duration: float, heal_multiplier: float) -> b
 	return true
 
 func perform_attack(owner) -> void:
+	if owner != null and owner.has_method("is_swordsman_blade_storm_active") and owner.is_swordsman_blade_storm_active() and not _can_basic_attack_during_blade_storm(owner):
+		return
 	var base_direction: Vector2 = owner._get_attack_aim_direction(owner.facing_direction)
 	var blood_surge_multiplier := PLAYER_COMBAT_RESULT_FLOW.get_swordsman_blood_surge_multiplier(owner)
 	var basic_source_id := _create_basic_source_id(owner)
@@ -48,6 +54,7 @@ func perform_attack(owner) -> void:
 	total_hits += _apply_basic_talent_followup(owner, base_direction, blood_surge_multiplier, basic_source_id)
 	if total_hits > 0 and blood_surge_multiplier > 1.0:
 		PLAYER_COMBAT_RESULT_FLOW.consume_swordsman_blood_surge(owner)
+	_schedule_level_basic_rehit(owner, base_direction, basic_source_id)
 	_schedule_reprise_segments(owner, base_direction, basic_source_id)
 
 func _create_basic_source_id(owner) -> String:
@@ -77,6 +84,8 @@ func _perform_combo_segment(owner, base_direction: Vector2, combo_scale: float, 
 	if owner.has_method("_push_attack_result_context_tag"):
 		owner._push_attack_result_context_tag("swordsman_basic_attack")
 	total_hits += _perform_attack_variant(owner, base_direction, combo_scale, true, true, allow_followthrough, blood_surge_multiplier, basic_source_id)
+	if _has_level_talent(owner, LEVEL_TALENT_BASIC_ATTACK_2):
+		total_hits += _perform_attack_variant(owner, base_direction.rotated(deg_to_rad(30.0)), combo_scale, false, true, allow_followthrough, blood_surge_multiplier, basic_source_id)
 	if allow_trick_variants:
 		total_hits += _apply_trick_variants(owner, base_direction, blood_surge_multiplier, basic_source_id)
 	if total_hits > 0 and not _uses_batched_basic_attack_damage(owner):
@@ -157,7 +166,19 @@ func _schedule_reprise_segments(owner, base_direction: Vector2, basic_source_id:
 func _perform_combo_segment_if_valid(owner, base_direction: Vector2, combo_scale: float, basic_source_id: String) -> void:
 	if owner == null or not is_instance_valid(owner) or bool(owner.get("is_dead")):
 		return
+	if owner.has_method("is_swordsman_blade_storm_active") and owner.is_swordsman_blade_storm_active() and not _can_basic_attack_during_blade_storm(owner):
+		return
 	_perform_combo_segment(owner, base_direction, combo_scale, false, false, -1.0, basic_source_id)
+
+func _schedule_level_basic_rehit(owner, base_direction: Vector2, basic_source_id: String) -> void:
+	if not _has_level_talent(owner, LEVEL_TALENT_BASIC_ATTACK_1):
+		return
+	var callback := func(_index: int) -> void:
+		_perform_combo_segment_if_valid(owner, base_direction, 0.60, basic_source_id)
+	if owner.has_method("_schedule_repeating_sequence"):
+		owner._schedule_repeating_sequence(0.10, 1, callback, 0.10)
+	else:
+		callback.call(0)
 
 func _apply_trick_variants(owner, base_direction: Vector2, blood_surge_multiplier: float, basic_source_id: String) -> int:
 	var total_hits := 0
@@ -180,6 +201,8 @@ func _get_basic_attack_range_multiplier(owner) -> float:
 	if owner != null and owner.has_method("_get_basic_attack_range_multiplier"):
 		multiplier *= float(owner._get_basic_attack_range_multiplier("swordsman_basic_attack"))
 	multiplier *= PLAYER_BUILD_SYSTEM.get_basic_attack_range_multiplier(owner, "swordsman")
+	if _has_level_talent(owner, LEVEL_TALENT_BASIC_ATTACK_2):
+		multiplier *= 1.25
 	return multiplier
 
 func _uses_batched_basic_attack_damage(owner) -> bool:
@@ -230,6 +253,7 @@ func perform_enter(owner, role_id: String, _assault_level: int, assault_multipli
 	var scar_length: float = previous_position.distance_to(scar_end)
 	owner._spawn_sword_omnislash_scene_effect(scar_center, travel_direction, scar_length, scar_width * 1.08)
 	_try_start_bloodthirst(owner, ENTRY_INVULNERABILITY_DURATION, 1.0)
+	PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW.activate_charge_talents(owner)
 	owner._push_attack_result_context_tag("suppress_swordsman_trait_heal")
 	owner._push_attack_result_context_tag("suppress_greed_heal")
 	var blood_surge_multiplier := PLAYER_COMBAT_RESULT_FLOW.get_swordsman_blood_surge_multiplier(owner)
@@ -552,6 +576,12 @@ func _snapshot_ultimate_talents(owner) -> Dictionary:
 
 func _has_talent(owner, talent_id: String) -> bool:
 	return owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id))
+
+func _has_level_talent(owner, talent_id: String) -> bool:
+	return PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW.has_level_talent(owner, talent_id)
+
+func _can_basic_attack_during_blade_storm(owner) -> bool:
+	return _has_level_talent(owner, LEVEL_TALENT_BLADE_STORM_2)
 
 func _get_ultimate_target_position(owner, target_enemy: Node2D, origin: Vector2) -> Vector2:
 	if target_enemy == null or not is_instance_valid(target_enemy):

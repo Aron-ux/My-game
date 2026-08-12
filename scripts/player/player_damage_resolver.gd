@@ -7,6 +7,11 @@ const PLAYER_DAMAGE_SHAPE_FLOW := preload("res://scripts/player/player_damage_sh
 const PLAYER_RUAN_STONE_FLOW := preload("res://scripts/player/player_ruan_stone_flow.gd")
 const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
 const ENEMY_SPATIAL_GRID := preload("res://scripts/enemies/enemy_spatial_grid.gd")
+const PLAYER_GUNNER_BASIC_TALENT_FLOW := preload("res://scripts/player/player_gunner_basic_talent_flow.gd")
+const PLAYER_GUNNER_ENTRY_TALENT_FLOW := preload("res://scripts/player/player_gunner_entry_talent_flow.gd")
+const PLAYER_MAGE_BASIC_TALENT_FLOW := preload("res://scripts/player/player_mage_basic_talent_flow.gd")
+const PLAYER_MAGE_ENTRY_TALENT_FLOW := preload("res://scripts/player/player_mage_entry_talent_flow.gd")
+const PLAYER_MAGE_ULTIMATE_TALENT_FLOW := preload("res://scripts/player/player_mage_ultimate_talent_flow.gd")
 
 const DAMAGE_JOB_QUEUE_NAME := "PlayerDamageJobQueue"
 const QUEUED_HIT_THRESHOLD := 16
@@ -37,6 +42,8 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 		return false
 	var final_damage := damage_amount
 	var resolved_source_role_id: String = _resolve_damage_source_role_id(source_role_id)
+	var source_kill_energy_bonus: float = max(kill_energy_bonus, PLAYER_MAGE_BASIC_TALENT_FLOW.get_kill_energy_bonus(owner, source_role_id, resolved_source_role_id))
+	var source_ultimate_energy_bonus: float = PLAYER_MAGE_ULTIMATE_TALENT_FLOW.get_ultimate_energy_bonus_multiplier(owner, source_role_id, resolved_source_role_id)
 	var applies_gunner_target_talents := damage_amount > 0.0 and owner != null and _should_apply_gunner_hunt_multiplier(source_role_id, resolved_source_role_id) and enemy is Node2D
 	if applies_gunner_target_talents:
 		if not gunner_event_prepared:
@@ -56,25 +63,36 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 	var killed := false
 	if damage_amount > 0.0 and enemy.has_method("take_damage"):
 		killed = _call_enemy_take_damage(enemy, final_damage, was_critical)
+		PLAYER_GUNNER_BASIC_TALENT_FLOW.on_basic_attack_hit(owner, enemy, source_role_id)
+		PLAYER_GUNNER_ENTRY_TALENT_FLOW.on_entry_attack_hit(owner, enemy, source_role_id)
 		if owner != null and owner.has_method("_record_attack_result_instance"):
-			owner._record_attack_result_instance(resolved_source_role_id, was_critical, killed)
+			owner._record_attack_result_instance(resolved_source_role_id, was_critical, killed, target_position, source_role_id)
 		if owner != null and owner.has_method("_add_switch_energy_from_damage"):
 			owner._add_switch_energy_from_damage(final_damage, resolved_source_role_id)
 		if owner != null and owner.has_method("_apply_role_damage_lifesteal"):
 			owner._apply_role_damage_lifesteal(resolved_source_role_id, final_damage)
 		if owner != null and enemy.get("enemy_kind") != null and str(enemy.get("enemy_kind")) in ["boss", "small_boss"] and owner.has_method("_add_boss_damage_energy") and owner.has_method("_get_boss_damage_energy"):
-			owner._add_boss_damage_energy(owner._get_boss_damage_energy(final_damage))
+			var boss_energy: float = owner._get_boss_damage_energy(final_damage)
+			owner._add_boss_damage_energy(boss_energy)
+			if source_ultimate_energy_bonus > 0.0:
+				owner._add_boss_damage_energy(boss_energy * source_ultimate_energy_bonus)
+		if killed:
+			PLAYER_MAGE_BASIC_TALENT_FLOW.on_basic_attack_killed(owner, source_role_id, resolved_source_role_id, final_damage)
+			PLAYER_MAGE_ENTRY_TALENT_FLOW.on_entry_lightning_killed(owner, source_role_id, resolved_source_role_id)
+			PLAYER_MAGE_ULTIMATE_TALENT_FLOW.on_ultimate_bombardment_killed(owner, source_role_id, resolved_source_role_id)
 		if killed and owner != null and owner.has_method("_add_kill_energy") and owner.has_method("_get_kill_energy_from_enemy"):
 			var kill_energy: float = owner._get_kill_energy_from_enemy(enemy)
-			var bypass_lock_role_id: String = resolved_source_role_id if resolved_source_role_id == "mage" and kill_energy_bonus > 0.0 else ""
+			var bypass_lock_role_id: String = resolved_source_role_id if resolved_source_role_id == "mage" and source_kill_energy_bonus > 0.0 else ""
 			owner._add_kill_energy(kill_energy, bypass_lock_role_id, resolved_source_role_id)
 			if owner.has_method("_try_apply_mage_kill_energy_proc"):
 				owner._try_apply_mage_kill_energy_proc(resolved_source_role_id, kill_energy, bypass_lock_role_id)
-			if kill_energy_bonus > 0.0:
-				var bonus_energy: float = kill_energy * kill_energy_bonus
+			if source_kill_energy_bonus > 0.0:
+				var bonus_energy: float = kill_energy * source_kill_energy_bonus
 				owner._add_kill_energy(bonus_energy, bypass_lock_role_id, resolved_source_role_id)
 				if owner.has_method("_try_apply_mage_kill_energy_proc"):
 					owner._try_apply_mage_kill_energy_proc(resolved_source_role_id, bonus_energy, bypass_lock_role_id)
+			if source_ultimate_energy_bonus > 0.0:
+				owner._add_kill_energy(kill_energy * source_ultimate_energy_bonus, "", resolved_source_role_id)
 	if applies_gunner_target_talents:
 		_apply_gunner_damage_target_talents(owner, enemy as Node2D, resolved_source_role_id, source_position)
 	if vulnerability_bonus > 0.0 and enemy.has_method("apply_vulnerability"):
@@ -260,7 +278,8 @@ static func damage_enemies_in_shapes_batched(owner, shapes: Array[Dictionary]) -
 static func damage_enemies_in_radius_count_kills(owner, center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "") -> Dictionary:
 	var hit_count := 0
 	var kill_count := 0
-	var resolved_role_id: String = _resolve_role_id(owner, source_role_id)
+	var damage_source_role_id: String = _resolve_role_id(owner, source_role_id)
+	var resolved_role_id: String = _resolve_damage_source_role_id(damage_source_role_id)
 	var candidates: Array = _get_candidate_enemies_for_circle(owner, center, radius)
 	_record_damage_query(candidates.size())
 	var matched_enemies: Array = []
@@ -270,14 +289,14 @@ static func damage_enemies_in_radius_count_kills(owner, center: Vector2, radius:
 		if enemy is Node2D and _enemy_hit_shape_hits_circle(owner, enemy as Node2D, center, radius):
 			matched_enemies.append(enemy)
 	hit_count = matched_enemies.size()
-	var gunner_event_prepared := _should_apply_gunner_hunt_multiplier(resolved_role_id, _resolve_damage_source_role_id(resolved_role_id))
-	var prepared_damage := damage_amount * snapshot_gunner_damage_event_multiplier(owner, resolved_role_id, hit_count > 0 and damage_amount > 0.0)
+	var gunner_event_prepared := _should_apply_gunner_hunt_multiplier(damage_source_role_id, resolved_role_id)
+	var prepared_damage := damage_amount * snapshot_gunner_damage_event_multiplier(owner, damage_source_role_id, hit_count > 0 and damage_amount > 0.0)
 	if _should_queue_hits(hit_count):
 		for enemy in matched_enemies:
-			queue_damage_to_enemy(owner, enemy, prepared_damage, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center, false, false, gunner_event_prepared)
+			queue_damage_to_enemy(owner, enemy, prepared_damage, damage_source_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center, false, false, gunner_event_prepared)
 	else:
 		for enemy in matched_enemies:
-			if deal_damage_to_enemy(owner, enemy, prepared_damage, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center, false, 0.0, gunner_event_prepared):
+			if deal_damage_to_enemy(owner, enemy, prepared_damage, damage_source_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center, false, 0.0, gunner_event_prepared):
 				kill_count += 1
 	PERFORMANCE_COUNTERS.add("damage_hits", hit_count)
 	return {"hits": hit_count, "kills": kill_count}
@@ -860,6 +879,12 @@ static func _resolve_role_id(owner, source_role_id: String) -> String:
 static func _resolve_damage_source_role_id(source_role_id: String) -> String:
 	if source_role_id == GUNNER_NO_HUNT_SOURCE_ROLE_ID:
 		return "gunner"
+	if PLAYER_GUNNER_ENTRY_TALENT_FLOW.is_entry_source(source_role_id):
+		return "gunner"
+	if PLAYER_MAGE_ENTRY_TALENT_FLOW.is_entry_lightning_source(source_role_id):
+		return "mage"
+	if PLAYER_MAGE_ULTIMATE_TALENT_FLOW.is_ultimate_source(source_role_id):
+		return "mage"
 	for role_id in ["swordsman", "gunner", "mage"]:
 		if source_role_id.begins_with("%s_basic:" % role_id):
 			return role_id

@@ -16,10 +16,25 @@ static func get_boss_phase(enemy) -> int:
 static func get_phase_bar_max_health(enemy) -> float:
 	return max(1.0, float(enemy.max_health) / 3.0)
 
+static func has_boss_shield(enemy) -> bool:
+	if str(enemy.enemy_kind) != "boss" or bool(enemy.boss_shield_break_intro_played):
+		return false
+	return float(enemy.current_health) > get_phase_bar_max_health(enemy)
+
 static func start_phase_transition(enemy, next_phase: int) -> void:
 	enemy.boss_phase_transition_target = clamp(next_phase, 2, 3)
+	if int(enemy.boss_phase_transition_target) >= 3:
+		enemy.boss_shield_break_intro_played = true
 	enemy.boss_phase_three_intro_remaining = BOSS_PHASE_THREE_CHARGE_DURATION
 	enemy.current_health = 0.0
+	_prepare_transition_state(enemy)
+	enemy._spawn_status_burst(Color(1.0, 0.84, 0.42, 0.24), 54.0 + enemy.scale.x * 12.0)
+
+static func start_shield_break_intro(enemy) -> void:
+	enemy.boss_shield_break_intro_played = true
+	enemy.boss_shield_break_visual_intro_active = true
+	enemy.boss_phase_three_intro_remaining = BOSS_PHASE_THREE_CHARGE_DURATION
+	enemy.current_health = get_phase_bar_max_health(enemy)
 	_prepare_transition_state(enemy)
 	enemy._spawn_status_burst(Color(1.0, 0.84, 0.42, 0.24), 54.0 + enemy.scale.x * 12.0)
 
@@ -32,14 +47,31 @@ static func _prepare_transition_state(enemy) -> void:
 	enemy._clear_boss_peacock_markers()
 	ENEMY_BOSS_ATTACKS.update_lasers(enemy, 0.0)
 
+static func _clear_shield_gated_attacks(enemy) -> void:
+	enemy.boss_orbit_bomb_remaining = 0.0
+	enemy.boss_orbit_pull_remaining = 0.0
+	enemy.boss_peacock_charge_remaining = 0.0
+	enemy._clear_boss_orbit_ball()
+	enemy._clear_boss_peacock_markers()
+	if enemy.target != null and is_instance_valid(enemy.target) and enemy.target.has_method("_sync_orbit_pull_status"):
+		enemy.target._sync_orbit_pull_status(0.0, enemy.global_position)
+
 static func update_boss_trait(enemy, delta: float) -> void:
 	enemy._ensure_boss_helpers()
 	enemy.boss_battle_elapsed += delta
-	ENEMY_BOSS_ATTACKS.apply_passive_boss_pull(enemy, delta)
 
 	if enemy.boss_phase_transition_target > 0:
 		update_boss_phase_transition(enemy, delta)
 		return
+	if bool(enemy.boss_shield_break_visual_intro_active):
+		update_boss_shield_break_intro(enemy, delta)
+		return
+
+	var boss_shield_active := has_boss_shield(enemy)
+	if boss_shield_active:
+		_clear_shield_gated_attacks(enemy)
+	else:
+		ENEMY_BOSS_ATTACKS.apply_passive_boss_pull(enemy, delta)
 
 	if enemy.boss_phase >= 3:
 		enemy.boss_phase_three_elapsed += delta
@@ -113,7 +145,7 @@ static func update_boss_trait(enemy, delta: float) -> void:
 
 	ENEMY_BOSS_ATTACKS.update_lasers(enemy, delta)
 
-	if enemy.boss_phase >= 3:
+	if enemy.boss_phase >= 3 and not boss_shield_active:
 		if enemy.boss_orbit_pull_remaining > 0.0:
 			enemy.boss_orbit_bomb_timer = BOSS_ORBIT_PULL_COOLDOWN
 		else:
@@ -127,8 +159,21 @@ static func update_boss_trait(enemy, delta: float) -> void:
 			enemy.boss_peacock_timer += 8.2 * BOSS_ATTACK_INTERVAL_SCALE * phase_three_interval_multiplier * interval_pressure_multiplier
 			ENEMY_BOSS_ATTACKS.start_peacock_attack(enemy)
 
-	ENEMY_BOSS_ATTACKS.update_orbit_bomb(enemy, delta)
-	ENEMY_BOSS_ATTACKS.update_peacock_attack(enemy, delta)
+	if not boss_shield_active:
+		ENEMY_BOSS_ATTACKS.update_orbit_bomb(enemy, delta)
+		ENEMY_BOSS_ATTACKS.update_peacock_attack(enemy, delta)
+
+static func update_boss_shield_break_intro(enemy, delta: float) -> void:
+	enemy.boss_phase_three_intro_remaining = max(0.0, enemy.boss_phase_three_intro_remaining - delta)
+	ENEMY_BOSS_VISUALS.update_boss_phase_three_charge_visuals(enemy)
+	if enemy.boss_phase_three_intro_remaining > 0.0:
+		return
+	enemy.boss_shield_break_visual_intro_active = false
+	ENEMY_BOSS_VISUALS.clear_boss_phase_three_charge_visuals(enemy)
+	enemy.current_health = get_phase_bar_max_health(enemy)
+	enemy._spawn_status_burst(Color(0.2, 0.42, 1.0, 0.34), 84.0 + enemy.scale.x * 12.0)
+	if enemy.target != null and is_instance_valid(enemy.target) and enemy.target.has_method("queue_external_camera_shake"):
+		enemy.target.queue_external_camera_shake(BOSS_PHASE_THREE_SHAKE_STRENGTH, BOSS_PHASE_THREE_SHAKE_DURATION)
 
 static func update_boss_phase_transition(enemy, delta: float) -> void:
 	enemy.boss_phase_three_intro_remaining = max(0.0, enemy.boss_phase_three_intro_remaining - delta)

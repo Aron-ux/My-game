@@ -278,8 +278,17 @@ func _seed_run_state(player: Node) -> void:
 	}
 	player.equipment_levels = (player.role_equipment_levels["gunner"] as Dictionary).duplicate(true)
 	player.elite_relics_unlocked = {"stability_relic": true}
-	player.role_special_states["swordsman"] = {"ultimate_lifesteal_multiplier_remaining": 3.0}
-	player.role_special_states["gunner"] = {"lock_bonus_stacks": 2}
+	player.role_special_states["swordsman"] = {
+		"ultimate_lifesteal_multiplier_remaining": 3.0,
+		"level_knight_glory_damage_reduction_remaining": 2.5,
+		"level_knight_glory_surge_remaining": 1.5,
+		"level_charge_damage_reduction_remaining": 2.0,
+		"level_talents": [
+			"swordsman_level_talent_knight_glory_1",
+			"swordsman_level_talent_charge_2"
+		]
+	}
+	player.role_special_states["gunner"] = {"lock_bonus_stacks": 2, "level_execution_dodge_persistent_stacks": 4, "level_execution_immunity_buff_remaining": 1.8, "level_talents": ["gunner_level_talent_execution_1", "gunner_level_talent_execution_2"]}
 
 	PLAYER_BLESSING_SYSTEM.apply_blessing(player, "divine_grace", 1)
 	PLAYER_BLESSING_SYSTEM.apply_blessing(player, "blazing_sun", 2)

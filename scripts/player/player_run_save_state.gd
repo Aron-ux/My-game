@@ -22,6 +22,9 @@ static func get_save_data(player) -> Dictionary:
 		active_offer_context = player.current_blessing_offer.get("context", {})
 	var active_skill_talent: bool = str(player.active_upgrade_kind) == "skill_talent" or bool(active_offer_context.get("skill_talent_offer", false))
 	var active_skill_talent_context := _normalize_active_skill_talent_context(active_offer_context) if active_skill_talent else {}
+	var pending_level_talent_choices: int = max(0, int(player.get("pending_level_talent_choices")))
+	if player.level_up_active and active_skill_talent and pending_level_talent_choices <= 0:
+		pending_level_talent_choices = 1
 	if player.level_up_active and not active_skill_talent:
 		pending_upgrade_count += 1
 	if player.has_method("_save_active_role_health"):
@@ -35,6 +38,7 @@ static func get_save_data(player) -> Dictionary:
 		"experience": player.experience,
 		"experience_to_next_level": player.experience_to_next_level,
 		"pending_level_ups": pending_upgrade_count,
+		"pending_level_talent_choices": pending_level_talent_choices,
 		"active_upgrade_kind": "skill_talent" if player.level_up_active and str(player.active_upgrade_kind) == "skill_talent" else "",
 		"active_skill_talent_context": active_skill_talent_context,
 		"max_health": player.max_health,
@@ -181,7 +185,10 @@ static func apply_save_data(player, data: Dictionary) -> void:
 		int(data.get("experience_to_next_level", player.experience_to_next_level))
 	)
 	player.pending_level_ups = max(0, int(data.get("pending_level_ups", player.pending_level_ups)))
+	player.pending_level_talent_choices = max(0, int(data.get("pending_level_talent_choices", player.pending_level_talent_choices)))
 	player.active_upgrade_kind = "skill_talent" if str(data.get("active_upgrade_kind", "")) == "skill_talent" else ""
+	if player.active_upgrade_kind == "skill_talent" and player.pending_level_talent_choices <= 0:
+		player.pending_level_talent_choices = 1
 	var saved_skill_talent_context := _normalize_active_skill_talent_context(data.get("active_skill_talent_context", {}))
 	player.current_blessing_offer = {
 		"context": saved_skill_talent_context
@@ -324,21 +331,19 @@ static func _normalize_owned_magic_stones(value: Variant) -> Array:
 static func _normalize_active_skill_talent_context(value: Variant) -> Dictionary:
 	if value is not Dictionary:
 		return {}
-	var role_id := str((value as Dictionary).get("role_id", ""))
-	var progress_id := str((value as Dictionary).get("skill_progress_id", ""))
-	var stage := int((value as Dictionary).get("talent_stage", 1))
-	if role_id == "" or not PLAYER_SKILL_TALENT_SYSTEM.ROLE_PROGRESS_ORDER.get(role_id, []).has(progress_id):
-		return {}
-	if stage < 1 or stage > PLAYER_SKILL_TALENT_SYSTEM.TALENT_STAGE_COUNT:
+	if not bool((value as Dictionary).get("skill_talent_offer", false)) and not bool((value as Dictionary).get("level_talent_offer", false)):
 		return {}
 	return {
 		"offer_mode": PLAYER_SKILL_TALENT_SYSTEM.CATEGORY_SKILL_TALENT,
 		"skill_talent_offer": true,
-		"role_id": role_id,
-		"skill_progress_id": progress_id,
-		"talent_stage": stage
+		"level_talent_offer": true,
+		"role_build_offer": false,
+		"selection_count": 1,
+		"refresh_limit": 0,
+		"refresh_remaining": 0,
+		"refresh_unlimited": false,
+		"refresh_button_label": ""
 	}
-
 
 static func _apply_saved_role_health_data(player, saved_role_health_values: Variant, saved_current_health: float, saved_active_role_index: int) -> void:
 	player.role_health_values = player._build_role_health_state()

@@ -53,18 +53,28 @@ static func compute_velocity(enemy, delta: float) -> Vector2:
 	return move_direction * move_speed * GLOBAL_UNIT_MOVE_SPEED_SCALE
 
 static func compute_boss_velocity(enemy, direction_to_target: Vector2, distance_to_target: float, delta: float) -> Vector2:
-	if enemy.boss_phase_transition_target > 0:
+	if enemy.boss_phase_transition_target > 0 or bool(enemy.boss_shield_break_visual_intro_active):
 		return Vector2.ZERO
 	var radial := Vector2.ZERO
+	var radial_weight := 1.0
+	var tangential_weight := 0.12
+	var movement_scale := 1.0
 	if distance_to_target > enemy.preferred_distance + 42.0:
 		radial = direction_to_target
 	elif distance_to_target < enemy.preferred_distance - 36.0:
-		radial = -direction_to_target * 0.88
+		radial = -direction_to_target
+		tangential_weight = 0.14
 	else:
-		radial = direction_to_target * 0.18
+		radial = direction_to_target * 0.08
+		radial_weight = 0.42
+		tangential_weight = 0.24
+		movement_scale = 0.45
 
 	var tangential: Vector2 = direction_to_target.orthogonal() * enemy.boss_orbit_sign
-	enemy.boss_pattern_rotation = wrapf(enemy.boss_pattern_rotation + delta * 0.45, 0.0, TAU)
-	var drift := Vector2.RIGHT.rotated(enemy.boss_pattern_rotation) * 0.16
-	var move_direction := (tangential * 0.92 + radial * 0.58 + drift).normalized()
-	return move_direction * enemy.speed * enemy.slow_multiplier * BOSS_MOVE_SPEED_SCALE * GLOBAL_UNIT_MOVE_SPEED_SCALE
+	enemy.boss_pattern_rotation = wrapf(enemy.boss_pattern_rotation + delta * 0.3, 0.0, TAU)
+	var drift := Vector2.RIGHT.rotated(enemy.boss_pattern_rotation) * 0.08
+	var blended_direction := tangential * tangential_weight + radial * radial_weight + drift
+	if blended_direction.length_squared() <= 0.001:
+		return Vector2.ZERO
+	var move_direction := blended_direction.normalized()
+	return move_direction * enemy.speed * enemy.slow_multiplier * BOSS_MOVE_SPEED_SCALE * GLOBAL_UNIT_MOVE_SPEED_SCALE * movement_scale

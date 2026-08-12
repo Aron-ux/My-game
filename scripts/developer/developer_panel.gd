@@ -170,7 +170,7 @@ func _build_scroll_content(parent: Control) -> void:
 	_populate_glutton_skill_list()
 	ruan_stone_list = _add_menu_section(menu_content, "阮狗石头调试")
 	blessing_list = _add_menu_section(menu_content, "添加祝福")
-	skill_list = _add_menu_section(menu_content, "添加技能 / 技能质变")
+	skill_list = _add_menu_section(menu_content, "添加技能 / 等级天赋")
 
 	performance_label = Label.new()
 	performance_label.text = "Performance: collecting..."

@@ -58,6 +58,7 @@ var turn_delay_remaining: float = 0.0
 var turn_tick_remaining: float = 0.0
 var return_started: bool = false
 var split_performed: bool = false
+var split_volley_id: int = 0
 var pooled: bool = false
 var batch_simulation_enabled: bool = false
 var chain_head: Node2D
@@ -75,9 +76,30 @@ func _ready() -> void:
 	_initialize_runtime_state()
 
 func _exit_tree() -> void:
+	_release_split_volley_membership()
 	_unregister_runtime_projectile()
 
+func _sync_source_enemy_meta(source_id: int, source_kind: String) -> void:
+	if source_id > 0:
+		set_meta("source_enemy_instance_id", source_id)
+	elif has_meta("source_enemy_instance_id"):
+		remove_meta("source_enemy_instance_id")
+	if source_kind != "":
+		set_meta("source_enemy_kind", source_kind)
+	elif has_meta("source_enemy_kind"):
+		remove_meta("source_enemy_kind")
+
+func _clear_source_enemy_meta() -> void:
+	_sync_source_enemy_meta(0, "")
+
+func _get_source_enemy_instance_id() -> int:
+	return int(get_meta("source_enemy_instance_id")) if has_meta("source_enemy_instance_id") else 0
+
+func _get_source_enemy_kind() -> String:
+	return str(get_meta("source_enemy_kind")) if has_meta("source_enemy_kind") else ""
+
 func reset_projectile(config: Dictionary) -> void:
+	_release_split_volley_membership()
 	pooled = false
 	batch_simulation_enabled = false
 	show()
@@ -108,6 +130,7 @@ func reset_projectile(config: Dictionary) -> void:
 	return_target_x = float(config.get("return_target_x", return_target_x))
 	return_target_y = float(config.get("return_target_y", return_target_y))
 	split_on_return = bool(config.get("split_on_return", split_on_return))
+	split_volley_id = int(config.get("split_volley_id", 0))
 	split_count = int(config.get("split_count", split_count))
 	split_speed = float(config.get("split_speed", split_speed))
 	split_damage_scale = float(config.get("split_damage_scale", split_damage_scale))
@@ -125,11 +148,13 @@ func reset_projectile(config: Dictionary) -> void:
 	chain_trail = config.get("chain_trail", {})
 	chain_follow_spacing = float(config.get("chain_follow_spacing", chain_follow_spacing))
 	chain_follow_index = int(config.get("chain_follow_index", chain_follow_index))
+	_sync_source_enemy_meta(int(config.get("source_enemy_instance_id", 0)), str(config.get("source_enemy_kind", "")))
 	_initialize_runtime_state()
 
 func recycle() -> void:
 	if motion_mode == "chain_head":
 		_seal_chain_trail()
+	_release_split_volley_membership()
 	if _get_runtime_pool_count() >= POOL_SOFT_LIMIT:
 		queue_free()
 		return
@@ -145,6 +170,7 @@ func recycle() -> void:
 	chain_head = null
 	chain_history.clear()
 	chain_trail = {}
+	_clear_source_enemy_meta()
 
 func _initialize_runtime_state() -> void:
 	direction = direction.normalized()
@@ -169,6 +195,7 @@ func _initialize_runtime_state() -> void:
 	remove_from_group(POOL_GROUP)
 	add_to_group("enemy_projectiles")
 	_register_runtime_projectile(false)
+	_register_split_volley_membership()
 	z_index = PROJECTILE_Z_INDEX
 	_apply_visuals()
 
@@ -474,6 +501,7 @@ func _spawn_split_bullets() -> void:
 				"visual_color": visual_color,
 				"motion_mode": split_motion_mode,
 				"split_on_return": false,
+				"split_volley_id": split_volley_id,
 				"split_count": 0,
 				"split_after_time": 0.0,
 				"sine_amplitude": max(18.0, sine_amplitude * 0.55),
@@ -482,7 +510,9 @@ func _spawn_split_bullets() -> void:
 				"quarter_sine_side": -1.0 if index % 2 == 0 else 1.0,
 				"size_scale": max(0.1, size_scale * split_size_scale),
 				"visual_style": split_visual_style if split_visual_style != "" else visual_style,
-				"target": target
+				"target": target,
+				"source_enemy_instance_id": _get_source_enemy_instance_id(),
+				"source_enemy_kind": _get_source_enemy_kind()
 			})
 
 func _get_relative_cross_split_direction(index: int) -> Vector2:
@@ -750,6 +780,7 @@ func get_save_data() -> Dictionary:
 		"return_target_x": return_target_x,
 		"return_target_y": return_target_y,
 		"split_on_return": split_on_return,
+		"split_volley_id": split_volley_id,
 		"split_count": split_count,
 		"split_speed": split_speed,
 		"split_damage_scale": split_damage_scale,
@@ -772,7 +803,9 @@ func get_save_data() -> Dictionary:
 		"turn_delay_remaining": turn_delay_remaining,
 		"turn_tick_remaining": turn_tick_remaining,
 		"return_started": return_started,
-		"split_performed": split_performed
+		"split_performed": split_performed,
+		"source_enemy_instance_id": _get_source_enemy_instance_id(),
+		"source_enemy_kind": _get_source_enemy_kind()
 	}
 
 func apply_save_data(data: Dictionary, target_node: Node2D) -> void:
@@ -808,6 +841,7 @@ func apply_save_data(data: Dictionary, target_node: Node2D) -> void:
 	return_target_x = float(data.get("return_target_x", return_target_x))
 	return_target_y = float(data.get("return_target_y", return_target_y))
 	split_on_return = bool(data.get("split_on_return", split_on_return))
+	split_volley_id = int(data.get("split_volley_id", 0))
 	split_count = int(data.get("split_count", split_count))
 	split_speed = float(data.get("split_speed", split_speed))
 	split_damage_scale = float(data.get("split_damage_scale", split_damage_scale))
@@ -843,6 +877,7 @@ func apply_save_data(data: Dictionary, target_node: Node2D) -> void:
 	turn_tick_remaining = float(data.get("turn_tick_remaining", turn_interval))
 	return_started = bool(data.get("return_started", false))
 	split_performed = bool(data.get("split_performed", false))
+	_sync_source_enemy_meta(int(data.get("source_enemy_instance_id", 0)), str(data.get("source_enemy_kind", "")))
 
 	var color_data = data.get("visual_color", [visual_color.r, visual_color.g, visual_color.b, visual_color.a])
 	if color_data.size() >= 4:
@@ -851,6 +886,7 @@ func apply_save_data(data: Dictionary, target_node: Node2D) -> void:
 	target = target_node
 	add_to_group("enemy_projectiles")
 	_register_runtime_projectile(false)
+	_register_split_volley_membership()
 	_apply_visuals()
 
 func _get_enemy_projectile_limit(current_scene: Node) -> int:
@@ -867,6 +903,22 @@ func _unregister_runtime_projectile() -> void:
 	var scene: Node = get_tree().current_scene if get_tree() != null else null
 	if scene != null and scene.has_method("unregister_runtime_enemy_projectile"):
 		scene.unregister_runtime_enemy_projectile(self)
+
+func _register_split_volley_membership() -> void:
+	if split_volley_id <= 0:
+		return
+	var scene: Node = get_tree().current_scene if get_tree() != null else null
+	if scene != null and scene.has_method("register_enemy_split_projectile_volley_projectile"):
+		scene.register_enemy_split_projectile_volley_projectile(split_volley_id)
+
+func _release_split_volley_membership() -> void:
+	if split_volley_id <= 0:
+		return
+	var releasing_volley_id := split_volley_id
+	split_volley_id = 0
+	var scene: Node = get_tree().current_scene if get_tree() != null else null
+	if scene != null and scene.has_method("release_enemy_split_projectile_volley_projectile"):
+		scene.release_enemy_split_projectile_volley_projectile(releasing_volley_id)
 
 func _get_runtime_pool_count() -> int:
 	var scene: Node = get_tree().current_scene if get_tree() != null else null

@@ -13,6 +13,7 @@ func _init() -> void:
 	_check_trait_states(owner)
 	_check_crescent_branches(owner)
 	_check_blade_storm_recall(owner)
+	_check_blade_storm_blocks_basic_attack(owner)
 	_check_ultimate_pursuit()
 	_check_ultimate_talent_snapshot(owner)
 	print("SWORDSMAN_ADVANCED_TALENTS_SMOKE_OK")
@@ -66,6 +67,16 @@ func _check_blade_storm_recall(owner: TalentOwner) -> void:
 	enemy.queue_free()
 
 
+func _check_blade_storm_blocks_basic_attack(_owner: TalentOwner) -> void:
+	var role = SwordsmanRole.new()
+	var attack_owner := BasicAttackOwner.new()
+	root.add_child(attack_owner)
+	role.perform_attack(attack_owner)
+	role._perform_combo_segment_if_valid(attack_owner, Vector2.RIGHT, 1.0, "test_basic_attack")
+	assert(attack_owner.active_checks == 2)
+	attack_owner.queue_free()
+
+
 func _check_ultimate_pursuit() -> void:
 	var role = SwordsmanRole.new()
 	var enemy := Node2D.new()
@@ -87,6 +98,17 @@ func _check_ultimate_talent_snapshot(owner: TalentOwner) -> void:
 	owner.talents = {"swordsman_ultimate_triumph": true}
 	role._activate_ultimate_triumph(owner, false)
 	assert(not owner.role_special_states["swordsman"].has("ultimate_triumph_remaining"))
+
+
+class BasicAttackOwner:
+	extends Node2D
+
+	var is_dead: bool = false
+	var active_checks: int = 0
+
+	func is_swordsman_blade_storm_active() -> bool:
+		active_checks += 1
+		return true
 
 
 class TalentOwner:

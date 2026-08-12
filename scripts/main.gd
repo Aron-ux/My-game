@@ -27,6 +27,8 @@ const RUNTIME_REGISTRY_FLOW := preload("res://scripts/game/runtime_registry_flow
 const RUNTIME_PICKUP_REGISTRY_FLOW := preload("res://scripts/game/runtime_pickup_registry_flow.gd")
 const RUNTIME_ENEMY_REGISTRY_FLOW := preload("res://scripts/game/runtime_enemy_registry_flow.gd")
 const RUNTIME_PROJECTILE_REGISTRY_FLOW := preload("res://scripts/game/runtime_projectile_registry_flow.gd")
+const ENEMY_PROJECTILE_BUDGET_FLOW := preload("res://scripts/game/enemy_projectile_budget_flow.gd")
+const ENEMY_PROJECTILES := preload("res://scripts/enemies/enemy_projectiles.gd")
 const ENEMY_HIT_FEEDBACK := preload("res://scripts/enemies/enemy_hit_feedback.gd")
 const PLAYER_BULLET := preload("res://scripts/bullet.gd")
 
@@ -108,6 +110,10 @@ var runtime_enemy_projectile_cache_dirty: bool = true
 var runtime_enemy_projectile_pool_nodes: Dictionary = {}
 var runtime_enemy_projectile_pool_cache: Array = []
 var runtime_enemy_projectile_pool_cache_dirty: bool = true
+var active_enemy_split_projectile_volleys: Dictionary = {}
+var pending_enemy_split_projectile_requests: Array[Dictionary] = []
+var pending_enemy_split_projectile_by_enemy: Dictionary = {}
+var enemy_split_projectile_next_volley_id: int = 1
 var runtime_player_projectile_nodes: Dictionary = {}
 var runtime_player_projectile_cache: Array = []
 var runtime_player_projectile_cache_dirty: bool = true
@@ -486,6 +492,31 @@ func get_runtime_enemy_projectile_pool() -> Array:
 
 func take_runtime_enemy_projectile_from_pool() -> Node:
 	return RUNTIME_PROJECTILE_REGISTRY_FLOW.take_runtime_enemy_projectile_from_pool(self)
+
+func reserve_enemy_split_projectile_volley(enemy: Node) -> int:
+	return ENEMY_PROJECTILE_BUDGET_FLOW.reserve_enemy_split_projectile_volley(self, enemy)
+
+func register_enemy_split_projectile_volley_projectile(volley_id: int) -> void:
+	ENEMY_PROJECTILE_BUDGET_FLOW.register_enemy_split_projectile_volley_projectile(self, volley_id)
+
+func release_enemy_split_projectile_volley_projectile(volley_id: int) -> void:
+	_fire_queued_enemy_split_projectile_requests(ENEMY_PROJECTILE_BUDGET_FLOW.release_enemy_split_projectile_volley_projectile(self, volley_id))
+
+func release_enemy_split_projectile_volley(volley_id: int) -> void:
+	_fire_queued_enemy_split_projectile_requests(ENEMY_PROJECTILE_BUDGET_FLOW.release_enemy_split_projectile_volley(self, volley_id))
+
+func get_active_enemy_split_projectile_volley_count() -> int:
+	return ENEMY_PROJECTILE_BUDGET_FLOW.get_active_enemy_split_projectile_volley_count(self)
+
+func get_pending_enemy_split_projectile_request_count() -> int:
+	return ENEMY_PROJECTILE_BUDGET_FLOW.get_pending_enemy_split_projectile_request_count(self)
+
+func get_enemy_split_projectile_volley_limit() -> int:
+	return ENEMY_PROJECTILE_BUDGET_FLOW.get_enemy_split_projectile_volley_limit(self)
+
+func _fire_queued_enemy_split_projectile_requests(requests: Array[Dictionary]) -> void:
+	for request in requests:
+		ENEMY_PROJECTILES.fire_queued_split_shooter_pattern(request, self)
 
 func register_runtime_player_projectile(projectile: Node) -> void:
 	RUNTIME_PROJECTILE_REGISTRY_FLOW.register_runtime_player_projectile(self, projectile)

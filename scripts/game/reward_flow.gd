@@ -38,19 +38,27 @@ static func handle_upgrade_refresh_requested(main: Node) -> void:
 	main.level_up_ui.show_options(options, [], _get_current_blessing_offer_context(main))
 
 static func handle_upgrade_card_refresh_requested(main: Node, option_index: int) -> void:
-	if main.game_over or main.reward_context != "level_up":
+	if main.game_over or not ["level_up", SKILL_TALENT_CONTEXT].has(main.reward_context):
 		return
 	if main.player == null or main.level_up_ui == null:
 		return
-	if not main.player.has_method("refresh_upgrade_card"):
-		return
-	var options: Array = main.player.refresh_upgrade_card(option_index)
+	var options: Array = []
+	if main.reward_context == SKILL_TALENT_CONTEXT:
+		if not main.player.has_method("refresh_skill_talent_card"):
+			return
+		var role_id := ""
+		if main.level_up_ui.has_method("get_level_talent_selected_role_id"):
+			role_id = str(main.level_up_ui.get_level_talent_selected_role_id())
+		options = main.player.refresh_skill_talent_card(option_index, role_id)
+	else:
+		if not main.player.has_method("refresh_upgrade_card"):
+			return
+		options = main.player.refresh_upgrade_card(option_index)
 	var offer_context := _get_current_blessing_offer_context(main)
 	if main.level_up_ui.has_method("show_refreshed_build_options"):
 		main.level_up_ui.show_refreshed_build_options(options, offer_context, option_index)
 	elif main.level_up_ui.has_method("show_options"):
 		main.level_up_ui.show_options(options, [], offer_context)
-
 static func show_final_core(main: Node) -> void:
 	if main.game_over or main.player == null or main.level_up_ui == null:
 		return
@@ -120,7 +128,9 @@ static func handle_upgrade_selected(main: Node, option_id: String, attribute_opt
 	if main.reward_context == SKILL_TALENT_CONTEXT:
 		var progress_id := ""
 		if main.player != null and main.player.has_method("get_current_blessing_offer_context"):
-			progress_id = str(main.player.get_current_blessing_offer_context().get("skill_progress_id", ""))
+			var offer_context: Dictionary = main.player.get_current_blessing_offer_context()
+			if not bool(offer_context.get("level_talent_offer", false)):
+				progress_id = str(offer_context.get("skill_progress_id", ""))
 		var applied: bool = (
 			main.player != null
 			and main.player.has_method("apply_skill_talent_choice")
@@ -334,7 +344,8 @@ static func _show_pending_skill_talent_choice(main: Node) -> bool:
 	var offer: Dictionary = main.player.build_next_skill_talent_offer()
 	var options: Array = offer.get("options", []) if offer.get("options", []) is Array else []
 	var context: Dictionary = offer.get("context", {}) if offer.get("context", {}) is Dictionary else {}
-	if options.size() != 2 or not bool(context.get("skill_talent_offer", false)):
+	var expected_option_count := 3 if bool(context.get("level_talent_offer", false)) else 2
+	if options.size() != expected_option_count or not bool(context.get("skill_talent_offer", false)):
 		if str(main.player.get("active_upgrade_kind")) == "skill_talent":
 			main.player.active_upgrade_kind = ""
 			main.player.level_up_active = false

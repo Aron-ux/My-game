@@ -2,12 +2,16 @@ extends RefCounted
 
 const PLAYER_AUTHORED_EFFECTS := preload("res://scripts/player/player_authored_effects.gd")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
+const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_talent_system.gd")
 const COOLDOWN := 20.0
+const MANUAL_STOP_COOLDOWN := 0.5
+const MANUAL_ACTIVE_REMAINING := 1.0
 const BASE_DURATION := 3.0
 const TIER_TWO_DURATION := 3.0
 const TIER_THREE_DURATION := 3.0
 const TICK_INTERVAL := 0.1
 const MAX_CATCH_UP_TICKS := 6
+const MAX_PENDING_BEAM_HIT_RESOLVES_PER_FRAME := 8
 const MAX_VISUALS := 7
 const EXTRA_VISUALS_PER_WIDTH_LEVEL := 3
 const BEAM_LENGTH := 400.0
@@ -17,6 +21,7 @@ const DIELANG_RANGE_BONUS := 0.42
 const DIELANG_DURATION_BONUS := 0.67
 const HUICHAO_WIDTH_BONUS := 0.36
 const VISUAL_WIDTH_SPREAD_SCALE := 0.92
+const BEAM_DAMAGE_SYNC_DELAY_FALLBACK := 0.2
 const INFINITE_RELOAD_SKILL_ID := "infinite_reload"
 const TIER_TWO_RANGE_MULTIPLIER := 2.0
 const TIER_ONE_MOVE_SPEED_MULTIPLIER := 1.05
@@ -36,8 +41,15 @@ const TALENT_IDS := [
 	"gunner_infinite_sweep",
 	"gunner_infinite_sear",
 	"gunner_infinite_overload",
-	"gunner_infinite_recycle"
+	"gunner_infinite_recycle",
+	"gunner_level_talent_infinite_reload_1",
+	"gunner_level_talent_infinite_reload_2"
 ]
+const LEVEL_TALENT_INFINITE_RELOAD_1 := "gunner_level_talent_infinite_reload_1"
+const LEVEL_TALENT_INFINITE_RELOAD_2 := "gunner_level_talent_infinite_reload_2"
+const LEVEL_TALENT_INFINITE_RELOAD_1_RANGE_BONUS := 20.0
+const LEVEL_TALENT_INFINITE_RELOAD_2_RANGE_BONUS := 30.0
+const LEVEL_TALENT_INFINITE_RELOAD_1_DODGE_VALUE_BONUS := 100.0
 
 var cooldown_remaining: float = 0.0
 var active_remaining: float = 0.0
@@ -49,20 +61,32 @@ var hit_during_cast: bool = false
 var last_tick_data: Dictionary = {}
 var cast_talent_ids: Array[String] = []
 var cast_talent_snapshot_valid: bool = false
+var pending_beam_hits: Array[Dictionary] = []
+var finish_pending: bool = false
+var finish_effects_applied: bool = false
 
 func update(owner, delta: float) -> void:
 	if cooldown_remaining > 0.0:
 		cooldown_remaining = max(0.0, cooldown_remaining - delta)
-	if active_remaining <= 0.0:
-		return
 	if owner == null or not is_instance_valid(owner):
 		stop()
 		return
-	if str(owner._get_active_role().get("id", "")) != "gunner":
-		stop(owner)
+	if active_remaining > 0.0 and str(owner._get_active_role().get("id", "")) != "gunner":
+		if _is_manual_cast(owner):
+			_finish_manual_cast(owner)
+		else:
+			stop(owner)
+		return
+	_update_pending_beam_hits(owner, delta)
+	if active_remaining <= 0.0:
+		if finish_pending and pending_beam_hits.is_empty():
+			_finish_cast(owner)
 		return
 
-	active_remaining = max(0.0, active_remaining - delta)
+	if _is_manual_cast(owner):
+		active_remaining = MANUAL_ACTIVE_REMAINING
+	else:
+		active_remaining = max(0.0, active_remaining - delta)
 	if active_remaining > 0.0:
 		_queue_active_camera_shake(owner)
 	tick_remaining -= delta
@@ -85,15 +109,49 @@ func can_trigger(owner, role_id: String) -> bool:
 		return false
 	if not _has_required_unlock(owner):
 		return false
-	return active_remaining <= 0.0 and cooldown_remaining <= 0.0
+	return active_remaining <= 0.0 and cooldown_remaining <= 0.0 and not finish_pending
 
 func try_trigger(owner) -> bool:
+	if is_manual_toggle_enabled(owner):
+		return false
 	if not can_trigger(owner, str(owner._get_active_role().get("id", ""))):
 		return false
+	return _start_cast(owner, false)
+
+func toggle_manual(owner) -> bool:
+	if not is_manual_toggle_enabled(owner):
+		return false
+	if active_remaining > 0.0 and _is_manual_cast(owner):
+		_finish_manual_cast(owner)
+		return true
+	if not can_trigger(owner, str(owner._get_active_role().get("id", ""))):
+		return false
+	return _start_cast(owner, true)
+
+func is_manual_toggle_enabled(owner) -> bool:
+	return _owner_has_talent(owner, LEVEL_TALENT_INFINITE_RELOAD_1)
+
+func is_blocking_actions(owner) -> bool:
+	return active_remaining > 0.0 and _is_manual_cast(owner)
+
+func is_movement_locked(owner) -> bool:
+	return active_remaining > 0.0 and _is_manual_cast(owner)
+
+func get_dodge_value_bonus(owner, role_id: String) -> float:
+	if role_id != "gunner":
+		return 0.0
+	return LEVEL_TALENT_INFINITE_RELOAD_1_DODGE_VALUE_BONUS if active_remaining > 0.0 and _is_manual_cast(owner) else 0.0
+
+func _start_cast(owner, manual_cast: bool) -> bool:
 	cast_talent_ids = _capture_talents(owner)
+	if manual_cast and not cast_talent_ids.has(LEVEL_TALENT_INFINITE_RELOAD_1):
+		cast_talent_ids.append(LEVEL_TALENT_INFINITE_RELOAD_1)
 	cast_talent_snapshot_valid = true
-	active_remaining = _get_duration(owner)
-	cooldown_remaining = _get_cooldown(owner)
+	pending_beam_hits.clear()
+	finish_pending = false
+	finish_effects_applied = false
+	active_remaining = MANUAL_ACTIVE_REMAINING if manual_cast else _get_duration(owner)
+	cooldown_remaining = 0.0 if manual_cast else _get_cooldown(owner)
 	tick_remaining = 0.0
 	locked_aim_direction = owner._get_live_mouse_aim_direction(owner.facing_direction)
 	if locked_aim_direction.length_squared() <= 0.001:
@@ -109,6 +167,15 @@ func try_trigger(owner) -> bool:
 	owner._spawn_burst_effect(owner.global_position, 92.0, Color(1.0, 0.54, 0.28, 0.16), 0.18)
 	return true
 
+func _finish_manual_cast(owner) -> void:
+	active_remaining = 0.0
+	tick_remaining = 0.0
+	finish_pending = true
+	finish_effects_applied = true
+	cooldown_remaining = max(cooldown_remaining, MANUAL_STOP_COOLDOWN)
+	if pending_beam_hits.is_empty():
+		stop(owner)
+
 func stop(owner = null) -> void:
 	active_remaining = 0.0
 	tick_remaining = 0.0
@@ -118,6 +185,9 @@ func stop(owner = null) -> void:
 	last_tick_data.clear()
 	cast_talent_ids.clear()
 	cast_talent_snapshot_valid = false
+	pending_beam_hits.clear()
+	finish_pending = false
+	finish_effects_applied = false
 	for effect in effects:
 		if effect != null and is_instance_valid(effect):
 			_release_visual_effect(effect)
@@ -213,18 +283,19 @@ func _deserialize_last_tick_data(value: Variant) -> Dictionary:
 	}
 
 func _trigger_tick(owner) -> void:
+	var manual_cast := _is_manual_cast(owner)
 	var axis_talent: bool = _has_talent(owner, "gunner_infinite_axis")
-	var dual_talent: bool = _has_talent(owner, "gunner_infinite_dual")
-	var aim_direction: Vector2 = locked_aim_direction if axis_talent else owner._get_live_mouse_aim_direction(locked_aim_direction)
+	var dual_talent: bool = _has_talent(owner, "gunner_infinite_dual") or _has_talent(owner, LEVEL_TALENT_INFINITE_RELOAD_2)
+	var aim_direction: Vector2 = locked_aim_direction if axis_talent or manual_cast else owner._get_live_mouse_aim_direction(locked_aim_direction)
 	if aim_direction.length_squared() <= 0.001:
 		aim_direction = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
 	aim_direction = aim_direction.normalized()
-	if _has_talent(owner, "gunner_infinite_sweep"):
+	if _has_talent(owner, "gunner_infinite_sweep") and not manual_cast:
 		sweep_elapsed += _get_tick_interval(owner)
 		aim_direction = aim_direction.rotated(deg_to_rad(14.0) * sin(TAU * sweep_elapsed / 0.7))
 	owner.facing_direction = aim_direction
 	var range_multiplier: float = _get_range_multiplier(owner) * float(owner._get_role_attribute_range_multiplier("gunner")) * owner._get_equipment_skill_range_multiplier()
-	var beam_length: float = (BEAM_LENGTH + PLAYER_BUILD_SYSTEM.get_infinite_reload_range_bonus(owner)) * range_multiplier
+	var beam_length: float = (BEAM_LENGTH + PLAYER_BUILD_SYSTEM.get_infinite_reload_range_bonus(owner) + _get_level_talent_range_bonus(owner)) * range_multiplier
 	var hit_width: float = BEAM_THICKNESS * BASE_WIDTH_MULTIPLIER * _get_width_multiplier(owner)
 	var base_origin: Vector2 = owner.global_position + aim_direction * 20.0
 	var damage_amount: float = float(owner._get_role_damage("gunner")) * BASE_DAMAGE_RATIO * _get_damage_multiplier(owner)
@@ -241,27 +312,32 @@ func _trigger_tick(owner) -> void:
 		"width": hit_width * 2.0,
 		"damage": damage_amount * damage_scale
 	}
-	var hit_count: int = 0
 	if dual_talent:
-		hit_count = _trigger_dual_beams(owner, base_origin, aim_direction, beam_length, hit_width, damage_amount * damage_scale)
+		_trigger_dual_beams(owner, base_origin, aim_direction, beam_length, hit_width, damage_amount * damage_scale)
 	else:
 		_spawn_visuals(owner, base_origin, aim_direction, beam_length, hit_width)
 		for combo_scale in combo_scales:
 			var offset_origin: Vector2 = _get_random_origin_in_hit_width(owner, base_origin, aim_direction, hit_width)
 			_spawn_visuals(owner, offset_origin, aim_direction, beam_length, hit_width)
-		hit_count = _apply_piercing_beam_damage(owner, base_origin, aim_direction, beam_length, hit_width * 2.0, damage_amount * damage_scale)
-	if hit_count > 0 and not _uses_batched_damage(owner):
-		owner._register_attack_result("gunner", hit_count, false)
-	hit_during_cast = hit_during_cast or hit_count > 0
+		var beam_shapes := _build_piercing_beam_shapes(owner, base_origin, aim_direction, beam_length, hit_width * 2.0, damage_amount * damage_scale)
+		_queue_piercing_beam_shapes(owner, beam_shapes)
 
 func _finish_cast(owner) -> void:
-	if owner != null and is_instance_valid(owner):
-		if _has_talent(owner, "gunner_infinite_overload"):
-			_trigger_terminal_overload(owner)
-		if _has_talent(owner, "gunner_infinite_recycle") and hit_during_cast:
-			var reduction: float = min(3.0, cooldown_remaining * 0.15)
-			cooldown_remaining = max(0.0, cooldown_remaining - reduction)
-	stop(owner)
+	active_remaining = 0.0
+	tick_remaining = 0.0
+	finish_pending = true
+	if not pending_beam_hits.is_empty():
+		return
+	if not finish_effects_applied:
+		finish_effects_applied = true
+		if owner != null and is_instance_valid(owner):
+			if _has_talent(owner, "gunner_infinite_overload"):
+				_trigger_terminal_overload(owner)
+			if _has_talent(owner, "gunner_infinite_recycle") and hit_during_cast:
+				var reduction: float = min(3.0, cooldown_remaining * 0.15)
+				cooldown_remaining = max(0.0, cooldown_remaining - reduction)
+	if pending_beam_hits.is_empty():
+		stop(owner)
 
 func _trigger_terminal_overload(owner) -> void:
 	if last_tick_data.is_empty():
@@ -272,12 +348,11 @@ func _trigger_terminal_overload(owner) -> void:
 	var hit_width := float(last_tick_data.get("width", BEAM_THICKNESS)) * 0.6
 	var damage_amount := float(last_tick_data.get("damage", 0.0)) * 6.0
 	_spawn_visuals(owner, origin, direction, beam_length, hit_width)
-	var hit_count := _apply_piercing_beam_damage(owner, origin, direction, beam_length, hit_width, damage_amount)
-	if hit_count > 0 and not _uses_batched_damage(owner):
-		owner._register_attack_result("gunner", hit_count, false)
+	var beam_shapes := _build_piercing_beam_shapes(owner, origin, direction, beam_length, hit_width, damage_amount)
+	_queue_piercing_beam_shapes(owner, beam_shapes, true, false)
 
 
-func _trigger_dual_beams(owner, base_origin: Vector2, aim_direction: Vector2, beam_length: float, hit_width: float, damage_amount: float) -> int:
+func _trigger_dual_beams(owner, base_origin: Vector2, aim_direction: Vector2, beam_length: float, hit_width: float, damage_amount: float) -> void:
 	var perpendicular := aim_direction.orthogonal().normalized()
 	var original_damage_width: float = hit_width * 2.0
 	var lane_offset: float = original_damage_width * 0.35
@@ -299,9 +374,12 @@ func _trigger_dual_beams(owner, base_origin: Vector2, aim_direction: Vector2, be
 			"source_position": lane_origin,
 			"source_role_id": "gunner"
 		})
-	return _apply_piercing_beam_shapes(owner, shapes)
+	_queue_piercing_beam_shapes(owner, shapes)
 
 func _apply_piercing_beam_damage(owner, base_origin: Vector2, aim_direction: Vector2, beam_length: float, hit_width: float, damage_amount: float) -> int:
+	return _apply_piercing_beam_shapes(owner, _build_piercing_beam_shapes(owner, base_origin, aim_direction, beam_length, hit_width, damage_amount))
+
+func _build_piercing_beam_shapes(owner, base_origin: Vector2, aim_direction: Vector2, beam_length: float, hit_width: float, damage_amount: float) -> Array[Dictionary]:
 	var hit_center: Vector2 = base_origin + aim_direction * (beam_length * 0.5)
 	var beam_shapes: Array[Dictionary] = [{
 		"type": "oriented_rect",
@@ -317,7 +395,73 @@ func _apply_piercing_beam_damage(owner, base_origin: Vector2, aim_direction: Vec
 		"source_position": hit_center,
 		"source_role_id": "gunner"
 	}]
-	return _apply_piercing_beam_shapes(owner, beam_shapes)
+	return beam_shapes
+
+func _queue_piercing_beam_shapes(owner, beam_shapes: Array[Dictionary], register_attack_result: bool = true, counts_for_recycle: bool = true) -> void:
+	if beam_shapes.is_empty():
+		return
+	var delay := _get_beam_damage_sync_delay(owner)
+	if delay <= 0.0:
+		_handle_beam_hit_result(owner, _apply_piercing_beam_shapes(owner, beam_shapes), register_attack_result, counts_for_recycle)
+		return
+	pending_beam_hits.append({
+		"remaining": delay,
+		"shapes": _duplicate_beam_shapes(beam_shapes),
+		"register_attack_result": register_attack_result,
+		"counts_for_recycle": counts_for_recycle
+	})
+
+func _update_pending_beam_hits(owner, delta: float) -> void:
+	if pending_beam_hits.is_empty():
+		return
+	var ready_hits: Array[Dictionary] = []
+	var waiting_hits: Array[Dictionary] = []
+	for hit_data in pending_beam_hits:
+		var remaining: float = float(hit_data.get("remaining", 0.0)) - max(0.0, delta)
+		hit_data["remaining"] = remaining
+		if remaining <= 0.0 and ready_hits.size() < MAX_PENDING_BEAM_HIT_RESOLVES_PER_FRAME:
+			ready_hits.append(hit_data)
+		else:
+			waiting_hits.append(hit_data)
+	pending_beam_hits = waiting_hits
+	for hit_data in ready_hits:
+		_resolve_pending_beam_hit(owner, hit_data)
+
+func _resolve_pending_beam_hit(owner, hit_data: Dictionary) -> void:
+	if owner == null or not is_instance_valid(owner):
+		return
+	var shapes: Array[Dictionary] = []
+	var shape_values: Variant = hit_data.get("shapes", [])
+	if shape_values is Array:
+		for shape_value in shape_values:
+			if shape_value is Dictionary:
+				shapes.append((shape_value as Dictionary).duplicate(true) as Dictionary)
+	var hit_count := _apply_piercing_beam_shapes(owner, shapes)
+	_handle_beam_hit_result(
+		owner,
+		hit_count,
+		bool(hit_data.get("register_attack_result", true)),
+		bool(hit_data.get("counts_for_recycle", true))
+	)
+
+func _handle_beam_hit_result(owner, hit_count: int, register_attack_result: bool, counts_for_recycle: bool) -> void:
+	if hit_count <= 0:
+		return
+	if register_attack_result and owner != null and is_instance_valid(owner) and not _uses_batched_damage(owner):
+		owner._register_attack_result("gunner", hit_count, false)
+	if counts_for_recycle:
+		hit_during_cast = true
+
+func _duplicate_beam_shapes(beam_shapes: Array[Dictionary]) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for shape in beam_shapes:
+		result.append(shape.duplicate(true) as Dictionary)
+	return result
+
+func _get_beam_damage_sync_delay(owner) -> float:
+	if owner != null and is_instance_valid(owner) and owner.has_method("_get_gunner_intersect_gather_duration"):
+		return max(0.0, float(owner._get_gunner_intersect_gather_duration()))
+	return BEAM_DAMAGE_SYNC_DELAY_FALLBACK
 
 func _apply_piercing_beam_shapes(owner, beam_shapes: Array[Dictionary]) -> int:
 	if beam_shapes.is_empty():
@@ -426,6 +570,8 @@ func _get_cooldown(owner) -> float:
 	var cooldown_multiplier: float = PLAYER_BUILD_SYSTEM.get_infinite_reload_cooldown_multiplier(owner)
 	if owner != null and is_instance_valid(owner) and owner.has_method("_get_equipment_cooldown_multiplier"):
 		cooldown_multiplier *= float(owner._get_equipment_cooldown_multiplier())
+	if owner != null and is_instance_valid(owner) and owner.has_method("_get_mage_arcane_charge_skill_cooldown_multiplier"):
+		cooldown_multiplier *= float(owner._get_mage_arcane_charge_skill_cooldown_multiplier("gunner"))
 	return COOLDOWN * cooldown_multiplier
 
 func _get_tier(owner) -> int:
@@ -462,9 +608,12 @@ func _get_damage_multiplier(owner) -> float:
 	return multiplier + PLAYER_BUILD_SYSTEM.get_infinite_reload_damage_multiplier_bonus(owner)
 
 func _get_combo_scales(owner) -> Array[float]:
+	var result: Array[float] = []
 	if owner == null or not owner.has_method("_get_blessing_skill_combo_scales"):
-		return []
-	return owner._get_blessing_skill_combo_scales(INFINITE_RELOAD_SKILL_ID) as Array[float]
+		return result
+	for scale in owner._get_blessing_skill_combo_scales(INFINITE_RELOAD_SKILL_ID) as Array:
+		result.append(float(scale))
+	return result
 
 func _get_combined_damage_scale(combo_scales: Array[float]) -> float:
 	var damage_scale: float = 1.0
@@ -472,18 +621,39 @@ func _get_combined_damage_scale(combo_scales: Array[float]) -> float:
 		damage_scale += max(0.0, float(combo_scale))
 	return damage_scale
 
+func _get_level_talent_range_bonus(owner) -> float:
+	var bonus := 0.0
+	if _has_talent(owner, LEVEL_TALENT_INFINITE_RELOAD_1):
+		bonus += LEVEL_TALENT_INFINITE_RELOAD_1_RANGE_BONUS
+	if _has_talent(owner, LEVEL_TALENT_INFINITE_RELOAD_2):
+		bonus += LEVEL_TALENT_INFINITE_RELOAD_2_RANGE_BONUS
+	return bonus
+
+func _is_manual_cast(owner) -> bool:
+	if cast_talent_snapshot_valid:
+		return cast_talent_ids.has(LEVEL_TALENT_INFINITE_RELOAD_1)
+	return active_remaining > 0.0 and is_manual_toggle_enabled(owner)
 
 func _has_talent(owner, talent_id: String) -> bool:
 	if cast_talent_snapshot_valid:
 		return cast_talent_ids.has(talent_id)
-	return owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id))
+	return _owner_has_talent(owner, talent_id)
 
 func _capture_talents(owner) -> Array[String]:
 	var result: Array[String] = []
 	for talent_id in TALENT_IDS:
-		if owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id)):
+		if _owner_has_talent(owner, talent_id):
 			result.append(talent_id)
 	return result
+
+func _owner_has_talent(owner, talent_id: String) -> bool:
+	if owner == null or talent_id == "":
+		return false
+	if talent_id.begins_with("gunner_level_talent_"):
+		if owner.has_method("_has_level_talent"):
+			return bool(owner._has_level_talent(talent_id))
+		return PLAYER_SKILL_TALENT_SYSTEM.has_level_talent(owner, talent_id)
+	return owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id))
 
 func _normalize_talent_ids(value: Variant) -> Array[String]:
 	var result: Array[String] = []

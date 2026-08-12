@@ -2,6 +2,7 @@ extends RefCounted
 
 const SHRAPNEL_SCENE := preload("res://effects/gun/shrapnel/shrapnel.tscn")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
+const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_talent_system.gd")
 const FIELD_TEXTURE := preload("res://effects/gun/shrapnel/散弹圈.png")
 const SHRAPNEL_TEXTURES := [
 	preload("res://effects/gun/shrapnel/1.png"),
@@ -37,7 +38,17 @@ const TIER_THREE_DAMAGE_RATIO := 0.60
 const TIER_TWO_RADIUS := 200.0
 const TIER_THREE_RADIUS := 220.0
 const DEFAULT_FIELD_COUNT := 2
+const LEVEL_TALENT_SHRAPNEL_1 := "gunner_level_talent_shrapnel_1"
+const LEVEL_TALENT_SHRAPNEL_2 := "gunner_level_talent_shrapnel_2"
+const LEVEL_TALENT_SHRAPNEL_1_FIELD_COUNT := 4
+const LEVEL_TALENT_SHRAPNEL_1_AREA_MULTIPLIER := 1.20
+const LEVEL_TALENT_SHRAPNEL_2_DAMAGE_MULTIPLIER := 1.05
+const LEVEL_TALENT_SHRAPNEL_2_DURATION := 1.0
+const LEVEL_TALENT_SHRAPNEL_2_SLOW_DURATION := 3.0
 const MIN_FIELD_CENTER_DISTANCE := 150.0
+const FIELD_CENTER_ENEMY_ATTEMPT_MULTIPLIER := 28
+const FIELD_CENTER_ENEMY_OFFSET_RATIO := 0.72
+const FIELD_CENTER_ENEMY_OFFSET_MAX := 120.0
 const MAX_ACTIVE_VISUALS := 7
 const VISUAL_SPAWN_INTERVAL := 0.1
 const FIELD_CIRCLE_VISUAL_SCALE := 1.0
@@ -54,7 +65,9 @@ const TALENT_IDS := [
 	"gunner_shrapnel_quick_throw",
 	"gunner_shrapnel_rend",
 	"gunner_shrapnel_afterfield",
-	"gunner_shrapnel_snare"
+	"gunner_shrapnel_snare",
+	LEVEL_TALENT_SHRAPNEL_1,
+	LEVEL_TALENT_SHRAPNEL_2
 ]
 
 var cooldown_remaining: float = 0.0
@@ -101,9 +114,10 @@ func try_trigger(owner) -> bool:
 	var duration: float = _get_duration(owner)
 	var extra_field_count: int = _get_trick_extra_field_count(owner)
 	var mobile: bool = _has_talent(owner, "gunner_shrapnel_mobile")
-	var base_field_count: int = 1 if mobile else DEFAULT_FIELD_COUNT
+	var mobile_field_mode: bool = mobile and not _has_level_talent(owner, LEVEL_TALENT_SHRAPNEL_1)
+	var base_field_count: int = _get_base_field_count(owner, mobile)
 	var centers: Array = _get_field_centers(owner, base_field_count + extra_field_count)
-	if mobile and not centers.is_empty():
+	if mobile_field_mode and not centers.is_empty():
 		centers[0] = owner.global_position
 	for index in range(centers.size()):
 		var center_value: Variant = centers[index]
@@ -112,12 +126,12 @@ func try_trigger(owner) -> bool:
 		_create_field(
 			owner,
 			center,
-			1.5 if mobile and is_primary else 1.0,
+			1.5 if mobile_field_mode and is_primary else 1.0,
 			true,
 			duration,
-			mobile and is_primary,
+			mobile_field_mode and is_primary,
 			is_primary and _has_talent(owner, "gunner_shrapnel_delayed"),
-			1.2 if mobile and is_primary else 1.0,
+			1.2 if mobile_field_mode and is_primary else 1.0,
 			"",
 			is_primary
 		)
@@ -128,41 +142,99 @@ func try_trigger(owner) -> bool:
 
 func _get_field_centers(owner, field_count: int) -> Array:
 	var result: Array = []
-	var requested_count: int = max(field_count * 4, field_count)
-	var candidates: Array = owner._get_random_enemy_cluster_centers(requested_count)
+	var target_count: int = max(0, field_count)
+	if target_count <= 0:
+		return result
+
+	var live_enemies: Array = _get_live_enemy_nodes(owner)
+	_append_enemy_anchored_field_centers(owner, result, live_enemies, target_count)
+	if result.size() >= target_count:
+		return result
+
+	var requested_count: int = max(target_count * 5, target_count)
+	var candidates: Array = owner._get_random_enemy_cluster_centers(requested_count) if owner != null and owner.has_method("_get_random_enemy_cluster_centers") else []
+	candidates.shuffle()
 	for center_value in candidates:
 		if center_value is not Vector2:
 			continue
-		var candidate: Vector2 = center_value
+		var candidate: Vector2 = center_value + _random_field_center_offset(owner)
 		if _is_field_center_far_enough(result, candidate):
 			result.append(candidate)
-			if result.size() >= field_count:
+			if result.size() >= target_count:
 				return result
 
 	var fallback_center: Vector2 = owner.global_position
 	if not result.is_empty():
 		fallback_center = result[0]
+	elif not live_enemies.is_empty() and live_enemies[0] is Node2D:
+		fallback_center = (live_enemies[0] as Node2D).global_position
 	elif not candidates.is_empty() and candidates[0] is Vector2:
 		fallback_center = candidates[0]
 
 	var attempts: int = 0
-	while result.size() < field_count and attempts < field_count * 12:
-		var distance: float = MIN_FIELD_CENTER_DISTANCE + 24.0 + randf() * 80.0
-		var candidate := fallback_center + Vector2.RIGHT.rotated(randf() * TAU) * distance
+	var fallback_spread: float = max(MIN_FIELD_CENTER_DISTANCE * 1.75, _get_radius(owner) * 1.2)
+	while result.size() < target_count and attempts < target_count * 18:
+		var candidate := fallback_center + _random_field_center_offset(owner, fallback_spread)
 		if _is_field_center_far_enough(result, candidate):
 			result.append(candidate)
 		attempts += 1
 
 	var fallback_attempts: int = 0
-	while result.size() < field_count:
-		var directions: int = max(1, field_count * 4)
-		var angle: float = TAU * float(fallback_attempts % directions) / float(directions)
+	var angle_offset: float = randf() * TAU
+	while result.size() < target_count:
+		var directions: int = max(1, target_count * 4)
+		var angle: float = angle_offset + TAU * float(fallback_attempts % directions) / float(directions)
 		var ring: float = floor(float(fallback_attempts) / float(directions)) + 1.0
 		var candidate := fallback_center + Vector2.RIGHT.rotated(angle) * (MIN_FIELD_CENTER_DISTANCE + 24.0) * ring
 		if _is_field_center_far_enough(result, candidate):
 			result.append(candidate)
 		fallback_attempts += 1
 	return result
+
+
+func _get_live_enemy_nodes(owner) -> Array:
+	var result: Array = []
+	if owner == null or not is_instance_valid(owner) or not owner.has_method("_get_live_enemies"):
+		return result
+	for enemy_value in owner._get_live_enemies():
+		if enemy_value is Node2D and is_instance_valid(enemy_value):
+			result.append(enemy_value)
+	return result
+
+
+func _append_enemy_anchored_field_centers(owner, result: Array, enemies: Array, target_count: int) -> void:
+	if enemies.is_empty():
+		return
+	var shuffled_enemies: Array = enemies.duplicate()
+	shuffled_enemies.shuffle()
+	for enemy_value in shuffled_enemies:
+		if result.size() >= target_count:
+			return
+		if enemy_value is not Node2D or not is_instance_valid(enemy_value):
+			continue
+		var enemy := enemy_value as Node2D
+		var candidate: Vector2 = enemy.global_position + _random_field_center_offset(owner)
+		if _is_field_center_far_enough(result, candidate):
+			result.append(candidate)
+
+	var attempts: int = 0
+	var max_attempts: int = max(target_count * FIELD_CENTER_ENEMY_ATTEMPT_MULTIPLIER, enemies.size() * 4)
+	while result.size() < target_count and attempts < max_attempts:
+		var enemy_value = enemies[randi() % enemies.size()]
+		if enemy_value is Node2D and is_instance_valid(enemy_value):
+			var enemy := enemy_value as Node2D
+			var candidate: Vector2 = enemy.global_position + _random_field_center_offset(owner)
+			if _is_field_center_far_enough(result, candidate):
+				result.append(candidate)
+		attempts += 1
+
+
+func _random_field_center_offset(owner, max_offset_override: float = -1.0) -> Vector2:
+	var max_offset: float = max_offset_override
+	if max_offset < 0.0:
+		max_offset = min(FIELD_CENTER_ENEMY_OFFSET_MAX, max(1.0, _get_radius(owner) * FIELD_CENTER_ENEMY_OFFSET_RATIO))
+	var distance: float = sqrt(randf()) * max(0.0, max_offset)
+	return Vector2.RIGHT.rotated(randf() * TAU) * distance
 
 
 func _is_field_center_far_enough(existing_centers: Array, candidate: Vector2) -> bool:
@@ -293,6 +365,7 @@ func _create_field(owner, center: Vector2, effect_scale: float = 1.0, spawn_repr
 	var radius: float = _get_radius(owner) * max(0.05, radius_scale)
 	var safe_scale: float = max(0.05, effect_scale)
 	var snapshot_talents := talent_ids if talent_snapshot_valid else _capture_talents(owner)
+	var field_duration: float = duration_override if duration_override > 0.0 else _get_duration(owner)
 	var root: Node2D = null
 	root = Node2D.new()
 	root.name = "GunnerShrapnelField"
@@ -313,9 +386,9 @@ func _create_field(owner, center: Vector2, effect_scale: float = 1.0, spawn_repr
 	var field_data: Dictionary = {
 		"root": root,
 		"center": center,
-		"remaining": duration_override if duration_override > 0.0 else _get_duration(owner),
+		"remaining": field_duration,
 		"tick_remaining": 0.0,
-		"tick_interval": 0.5 if field_kind == "afterfield" else _get_tick_interval(owner),
+		"tick_interval": 0.5 if field_kind == "afterfield" else _get_field_tick_interval(owner),
 		"visual_remaining": 0.0,
 		"visuals": [],
 		"radius": radius,
@@ -340,7 +413,7 @@ func _damage_field(owner, field_data: Dictionary) -> int:
 	var effect_scale: float = max(0.0, float(field_data.get("effect_scale", 1.0)))
 	var vulnerability_bonus := 0.05 if _field_has_talent(owner, field_data, "gunner_shrapnel_rend") else 0.0
 	var slow_multiplier := 0.8 if str(field_data.get("field_kind", "")) == "afterfield" else float(field_data.get("slow_multiplier", 1.0))
-	var slow_duration := 1.2
+	var slow_duration := LEVEL_TALENT_SHRAPNEL_2_SLOW_DURATION if _field_has_talent(owner, field_data, LEVEL_TALENT_SHRAPNEL_2) else 1.2
 	return owner._damage_enemies_in_radius(center, radius, float(field_data.get("damage", 0.0)) * effect_scale, vulnerability_bonus, slow_multiplier, slow_duration, SHRAPNEL_DAMAGE_SOURCE_ROLE_ID)
 
 
@@ -413,7 +486,17 @@ func _apply_snare_tail(owner, enemy: Node) -> void:
 
 
 func _has_talent(owner, talent_id: String) -> bool:
+	if talent_id.begins_with("gunner_level_talent_"):
+		return _has_level_talent(owner, talent_id)
 	return owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id))
+
+
+func _has_level_talent(owner, talent_id: String) -> bool:
+	if owner == null or talent_id == "":
+		return false
+	if owner.has_method("_has_level_talent"):
+		return bool(owner._has_level_talent(talent_id))
+	return PLAYER_SKILL_TALENT_SYSTEM.has_level_talent(owner, talent_id)
 
 
 func _field_has_talent(owner, field_data: Dictionary, talent_id: String) -> bool:
@@ -634,15 +717,28 @@ func _get_trick_extra_field_count(owner) -> int:
 
 
 func _get_reprise_field_scales(owner) -> Array[float]:
+	var result: Array[float] = []
 	if owner == null or not owner.has_method("_get_blessing_skill_combo_scales"):
-		return []
-	return owner._get_blessing_skill_combo_scales(SKILL_ID) as Array[float]
+		return result
+	for scale in owner._get_blessing_skill_combo_scales(SKILL_ID) as Array:
+		result.append(float(scale))
+	return result
+
+
+func _get_base_field_count(owner, mobile: bool) -> int:
+	if _has_level_talent(owner, LEVEL_TALENT_SHRAPNEL_1):
+		return LEVEL_TALENT_SHRAPNEL_1_FIELD_COUNT
+	if mobile:
+		return 1
+	return DEFAULT_FIELD_COUNT
 
 
 func _get_cooldown(owner) -> float:
 	var cooldown_multiplier: float = PLAYER_BUILD_SYSTEM.get_shrapnel_cooldown_multiplier(owner)
 	if owner != null and is_instance_valid(owner) and owner.has_method("_get_equipment_cooldown_multiplier"):
 		cooldown_multiplier *= float(owner._get_equipment_cooldown_multiplier())
+	if owner != null and is_instance_valid(owner) and owner.has_method("_get_mage_arcane_charge_skill_cooldown_multiplier"):
+		cooldown_multiplier *= float(owner._get_mage_arcane_charge_skill_cooldown_multiplier("gunner"))
 	if owner != null and is_instance_valid(owner) and owner.has_method("_get_kebiru_magic_cooldown_multiplier"):
 		cooldown_multiplier *= float(owner._get_kebiru_magic_cooldown_multiplier(SKILL_ID))
 	var talent_multiplier := 0.78 if _has_talent(owner, "gunner_shrapnel_quick_throw") else 1.0
@@ -661,7 +757,10 @@ func _get_radius(owner) -> float:
 		base_radius = TIER_THREE_RADIUS
 	elif tier >= 2:
 		base_radius = TIER_TWO_RADIUS
-	return (base_radius + PLAYER_BUILD_SYSTEM.get_shrapnel_radius_bonus(owner)) * range_multiplier
+	var radius: float = (base_radius + PLAYER_BUILD_SYSTEM.get_shrapnel_radius_bonus(owner)) * range_multiplier
+	if _has_level_talent(owner, LEVEL_TALENT_SHRAPNEL_1):
+		radius *= sqrt(LEVEL_TALENT_SHRAPNEL_1_AREA_MULTIPLIER)
+	return radius
 
 
 func _get_tick_interval(owner) -> float:
@@ -671,6 +770,13 @@ func _get_tick_interval(owner) -> float:
 	if tier >= 2:
 		return TIER_TWO_TICK_INTERVAL
 	return TIER_ONE_TICK_INTERVAL
+
+
+func _get_field_tick_interval(owner) -> float:
+	var tick_interval: float = _get_tick_interval(owner)
+	if _has_level_talent(owner, LEVEL_TALENT_SHRAPNEL_2):
+		tick_interval *= LEVEL_TALENT_SHRAPNEL_2_DURATION / max(0.001, _get_uncompressed_duration(owner))
+	return max(0.01, tick_interval)
 
 
 func _get_slow_multiplier(owner) -> float:
@@ -689,10 +795,13 @@ func _get_damage(owner) -> float:
 		ratio = TIER_THREE_DAMAGE_RATIO
 	elif tier >= 2:
 		ratio = TIER_TWO_DAMAGE_RATIO
-	return float(owner._get_role_damage("gunner")) * (ratio + PLAYER_BUILD_SYSTEM.get_shrapnel_damage_ratio_bonus(owner))
+	var damage: float = float(owner._get_role_damage("gunner")) * (ratio + PLAYER_BUILD_SYSTEM.get_shrapnel_damage_ratio_bonus(owner))
+	if _has_level_talent(owner, LEVEL_TALENT_SHRAPNEL_2):
+		damage *= LEVEL_TALENT_SHRAPNEL_2_DAMAGE_MULTIPLIER
+	return damage
 
 
-func _get_duration(owner) -> float:
+func _get_uncompressed_duration(owner) -> float:
 	var duration: float = DURATION
 	if owner != null and owner.has_method("_get_blessing_skill_duration_multiplier"):
 		duration *= float(owner._get_blessing_skill_duration_multiplier(SKILL_ID))
@@ -700,6 +809,13 @@ func _get_duration(owner) -> float:
 		duration += float(owner._get_blessing_skill_duration_flat_bonus(SKILL_ID))
 	if _has_talent(owner, "gunner_shrapnel_quick_throw"):
 		duration = max(2.4, duration * 0.80)
+	return duration
+
+
+func _get_duration(owner) -> float:
+	var duration: float = _get_uncompressed_duration(owner)
+	if _has_level_talent(owner, LEVEL_TALENT_SHRAPNEL_2):
+		return min(duration, LEVEL_TALENT_SHRAPNEL_2_DURATION)
 	return duration
 
 func _uses_batched_damage(owner) -> bool:

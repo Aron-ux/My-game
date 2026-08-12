@@ -6,6 +6,75 @@ const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessi
 const OPTION_PREFIX := "skill_talent:"
 const CATEGORY_SKILL_TALENT := "skill_talent"
 const TALENTS_KEY := "skill_talents"
+const LEVEL_TALENTS_KEY := "level_talents"
+const LEVEL_TALENT_GROUP_LOCKS_KEY := "level_talent_group_locks"
+const LEVEL_TALENT_ROLE_ORDER := ["swordsman", "gunner", "mage"]
+const LEVEL_TALENT_ROLE_OPTION_PREFIX := "level_talent_role:"
+const LEVEL_TALENT_ROLE_OPTION_COUNT := 3
+const LEVEL_TALENT_ROLE_TITLES := {
+	"swordsman": "剑士",
+	"gunner": "枪手",
+	"mage": "法师"
+}
+const LEVEL_TALENT_DEFINITIONS := {
+	"swordsman": [
+		{"id": "swordsman_level_talent_frontline", "title": "剑士天赋·锋线", "summary": "预留剑士天赋效果接口。当前只记录选择，不附加旧天赋效果。", "placeholder": true},
+		{"id": "swordsman_level_talent_guard", "title": "剑士天赋·守势", "summary": "预留剑士天赋效果接口。当前只记录选择，不附加旧天赋效果。", "placeholder": true},
+		{"id": "swordsman_level_talent_blade_focus", "title": "剑士天赋·剑意", "summary": "预留剑士天赋效果接口。当前只记录选择，不附加旧天赋效果。", "placeholder": true},
+		{"id": "swordsman_level_talent_battle_will_1", "title": "剑士天赋·战意 I", "summary": "剑士在后台时，站场角色也可以触发战意；触发概率为剑士当前战意概率的 50%，回复效果为 20%。"},
+		{"id": "swordsman_level_talent_battle_will_2", "title": "剑士天赋·战意 II", "summary": "剑士生命低于 10% 后，战意触发概率和回复效果变为 1.5 倍，持续 5 秒；首次造成伤害必定触发战意。"},
+		{"id": "swordsman_level_talent_knight_glory_1", "title": "剑士天赋·骑士荣耀 I", "summary": "骑士荣耀持续时间结束后回复自身 25% 最大生命值，获得 100 点减伤值 3 秒，并驱散自身所有负面效果。"},
+		{"id": "swordsman_level_talent_knight_glory_2", "title": "剑士天赋·骑士荣耀 II", "summary": "骑士荣耀持续时间结束后获得 50% 闪避概率、20% 增伤和 10% 战意触发概率，持续 2 秒。"},
+		{"id": "swordsman_level_talent_bloodthirst_1", "title": "剑士天赋·嗜血 I", "summary": "嗜血状态下，剑士获得 10% 增伤。"},
+		{"id": "swordsman_level_talent_bloodthirst_2", "title": "剑士天赋·嗜血 II", "summary": "嗜血状态下，所有回复效果变为 1.5 倍。"},
+		{"id": "swordsman_level_talent_basic_attack_1", "title": "剑士天赋·普通攻击 I", "summary": "普通攻击造成 2 段连击，第二段造成 60% 伤害，并在第一段 0.1 秒后打出。"},
+		{"id": "swordsman_level_talent_basic_attack_2", "title": "剑士天赋·普通攻击 II", "summary": "普通攻击范围扩大 25%，并变为两道斩击；第二道与第一道夹角 30°，同一目标可同时承受两道斩击伤害。"},
+		{"id": "swordsman_level_talent_crescent_wave_1", "title": "剑士天赋·月牙剑气 I", "summary": "月牙剑气的斩击效果造成 2 段连击，第二段造成 60% 伤害，并在第一段 0.1 秒后打出。"},
+		{"id": "swordsman_level_talent_crescent_wave_2", "title": "剑士天赋·月牙剑气 II", "summary": "月牙剑气的斩击后释放 2 段剑气，第二段造成 60% 伤害，并在第一段剑气 0.2 秒后出现。"},
+		{"id": "swordsman_level_talent_blade_storm_1", "title": "剑士天赋·剑刃风暴 I", "summary": "剑刃风暴范围扩大 20%；期间剑士移动速度增加 20 点，并获得 100 点减伤值。"},
+		{"id": "swordsman_level_talent_blade_storm_2", "title": "剑士天赋·剑刃风暴 II", "summary": "剑刃风暴期间可以进行普通攻击。"},
+		{"id": "swordsman_level_talent_charge_1", "title": "剑士天赋·冲锋 I", "summary": "剑士释放冲锋后获得 150 点减伤值，持续 3 秒。"},
+		{"id": "swordsman_level_talent_charge_2", "title": "剑士天赋·冲锋 II", "summary": "剑士释放冲锋后，为所有角色回复其已损失生命值的 20%。"}
+	],
+	"gunner": [
+		{"id": "gunner_level_talent_fireline", "title": "枪手天赋·火线", "summary": "预留枪手天赋效果接口。当前只记录选择，不附加旧天赋效果。", "placeholder": true},
+		{"id": "gunner_level_talent_reload", "title": "枪手天赋·装填", "summary": "预留枪手天赋效果接口。当前只记录选择，不附加旧天赋效果。", "placeholder": true},
+		{"id": "gunner_level_talent_mark", "title": "枪手天赋·标记", "summary": "预留枪手天赋效果接口。当前只记录选择，不附加旧天赋效果。", "placeholder": true},
+		{"id": "gunner_level_talent_execution_1", "title": "枪手天赋·瞬杀 I", "summary": "受到伤害时，如果枪手瞬杀层数达到 10 层及以上，消耗 5 层免疫此次伤害，并在 3 秒内获得 20% 闪避概率与 20% 移速；瞬杀进入冷却，但层数不归零，冷却结束后从当前层数继续积累。"},
+		{"id": "gunner_level_talent_execution_2", "title": "枪手天赋·瞬杀 II", "summary": "枪手每次成功闪避后积攒 1 层永久瞬杀；这些层数不会因为受伤或切人消失，只在枪手登场时生效，最多 5 层。"},
+		{"id": "gunner_level_talent_hunt_1", "title": "枪手天赋·猎杀 I", "summary": "枪手在猎杀圈范围外每击杀 1 个单位，获得 2 闪避值与 1 移动速度；最多获得 100 闪避值与 50 移速，切人后清空。"},
+		{"id": "gunner_level_talent_hunt_2", "title": "枪手天赋·猎杀 II", "summary": "枪手在猎杀圈范围外每击杀 1 个单位，获得 0.5% 增伤；最多获得 50% 增伤，切人后清空。"},
+		{"id": "gunner_level_talent_basic_attack_1", "title": "枪手天赋·普通攻击 I", "summary": "枪手普通攻击弹道飞行速度增加 50，伤害增加 20%；普通攻击每次命中同一个单位，都会使该单位减伤值降低 1 点。"},
+		{"id": "gunner_level_talent_basic_attack_2", "title": "枪手天赋·普通攻击 II", "summary": "枪手普通攻击变为分裂弹；分裂前造成 80% 伤害，命中首个敌人后向子弹移动后方 60° 分裂出 3 颗子弹，每颗分裂弹造成 50% 伤害。"},
+		{"id": "gunner_level_talent_shrapnel_1", "title": "枪手天赋·散弹 I", "summary": "散弹圈数量变成 4 个，范围变大 20%（圆形面积）。"},
+		{"id": "gunner_level_talent_shrapnel_2", "title": "枪手天赋·散弹 II", "summary": "散弹每波伤害增加 5%；散弹在 1 秒内造成原来的所有伤害，并且对造成伤害的敌人造成持续 3 秒的减速。"},
+		{"id": "gunner_level_talent_infinite_reload_1", "title": "枪手天赋·无限装填 I", "summary": "无限装填变为快捷键开关技能，攻击距离提升 20；开启后无法普通攻击、释放其他技能或大招，方向锁定为开启时方向，关闭后进入 0.5 秒冷却。"},
+		{"id": "gunner_level_talent_infinite_reload_2", "title": "枪手天赋·无限装填 II", "summary": "无限装填额外平行释放，形成双轨效果，攻击距离提升 30。"},
+		{"id": "gunner_level_talent_rocket_barrage_1", "title": "枪手天赋·火箭弹幕 I", "summary": "火箭弹幕以 20° 角固定方向释放，波次增加 2 波，每波伤害增加 10%。"},
+		{"id": "gunner_level_talent_rocket_barrage_2", "title": "枪手天赋·火箭弹幕 II", "summary": "火箭弹幕以 60° 角释放，波次增加 2 波，每波伤害减少 10%。"},
+		{"id": "gunner_level_talent_gunfire_ceremony_1", "title": "枪手天赋·枪火典礼 I", "summary": "枪火典礼伤害增加 50%；枪火典礼每击杀 1 个单位，使枪手伤害增加 1%，持续 5 秒。"},
+		{"id": "gunner_level_talent_gunfire_ceremony_2", "title": "枪手天赋·枪火典礼 II", "summary": "枪火典礼子弹命中的单位减少 50 点减伤值，持续 10 秒。"}
+	],
+	"mage": [
+		{"id": "mage_level_talent_arcane", "title": "法师天赋·奥术", "summary": "预留法师天赋效果接口。当前只记录选择，不附加旧天赋效果。", "placeholder": true},
+		{"id": "mage_level_talent_field", "title": "法师天赋·领域", "summary": "预留法师天赋效果接口。当前只记录选择，不附加旧天赋效果。", "placeholder": true},
+		{"id": "mage_level_talent_surge", "title": "法师天赋·潮涌", "summary": "预留法师天赋效果接口。当前只记录选择，不附加旧天赋效果。", "placeholder": true},
+		{"id": "mage_level_talent_arcane_charge_1", "title": "奥数充能 I", "summary": "术师获得奥数充能概率增加 5%；每层奥数充能提供 1% 主动技能冷却减免，切人继承的奥数充能也会生效。"},
+		{"id": "mage_level_talent_arcane_charge_2", "title": "奥数充能 II", "summary": "术师获得奥数充能概率增加 5%；每层奥数充能提供 2% 大招伤害，切人继承的奥数充能也会生效。"},
+		{"id": "mage_level_talent_arcane_surplus_1", "title": "奥法盈余 I", "summary": "奥法盈余状态下，当前处于该状态的角色获得 10% 增伤。"},
+		{"id": "mage_level_talent_arcane_surplus_2", "title": "奥法盈余 II", "summary": "奥法盈余状态下，当前处于该状态的角色技能冷却计数加快 10%，10s 冷却约 9s 走完。"},
+		{"id": "mage_level_talent_basic_attack_1", "title": "普通攻击 I", "summary": "普通攻击造成 2 段雷击；第二段 0.2 秒后造成 50% 伤害。普攻击杀每个单位减少 0.1 秒普攻冷却。"},
+		{"id": "mage_level_talent_basic_attack_2", "title": "普通攻击 II", "summary": "普通攻击变为 2 道雷击；第二道随机生成在怪物密集处。普攻击杀的大招能量和换人能量为 1.5 倍。"},
+		{"id": "mage_level_talent_surging_wave_1", "title": "波涛汹涌 I", "summary": "波涛汹涌范围增大 20%，变成 2 道冲击波，两道之间呈 30° 角。"},
+		{"id": "mage_level_talent_surging_wave_2", "title": "波涛汹涌 II", "summary": "波涛汹涌持续时间延长 2 秒；冲击波路径留下痕迹，造成每秒 30% 波涛汹涌伤害并施加 70% 减速，冲击波消失后痕迹消失。"},
+		{"id": "mage_level_talent_meta_field_1", "title": "\u6885\u5854\u9886\u57DF I", "summary": "\u6885\u5854\u9886\u57DF\u8303\u56F4\u589E\u52A0 25%\uFF08\u9762\u79EF\uFF09\uFF1B\u9886\u57DF\u5185\u654C\u65B9\u5B50\u5F39\u98DE\u884C\u901F\u5EA6\u51CF\u5C11 30%\u3002"},
+		{"id": "mage_level_talent_meta_field_2", "title": "\u6885\u5854\u9886\u57DF II", "summary": "\u6885\u5854\u9886\u57DF\u8303\u56F4\u589E\u52A0 25%\uFF1B\u73B0\u5728\u6CD5\u5E08\u5728\u540E\u53F0\u65F6\u6885\u5854\u9886\u57DF\u4F9D\u65E7\u5B58\u5728\uFF0C\u7AD9\u573A\u89D2\u8272\u4EAB\u53D7 40% \u9886\u57DF\u6548\u679C\u3002"},
+		{"id": "mage_level_talent_arcane_bombardment_1", "title": "\u5965\u6570\u8F70\u70B8 I", "summary": "\u5965\u6570\u8F70\u70B8\u8F6E\u6B21 +3\uFF1B\u5965\u6570\u8F70\u70B8\u51FB\u6740\u5355\u4F4D\u6216\u5BF9 Boss \u9020\u6210\u4F24\u5BB3\u65F6\uFF0C\u6240\u6709\u89D2\u8272\u56DE\u590D\u7684\u5927\u62DB\u80FD\u91CF\u6309 2 \u500D\u7ED3\u7B97\u3002"},
+		{"id": "mage_level_talent_arcane_bombardment_2", "title": "\u5965\u6570\u8F70\u70B8 II", "summary": "\u5965\u6570\u8F70\u70B8\u6BCF\u6CE2\u4F24\u5BB3\u500D\u7387 +5%\uFF1B\u5965\u6570\u8F70\u70B8\u6BCF\u51FB\u6740 1 \u4E2A\u5355\u4F4D\uFF0C\u6C38\u4E45\u63D0\u5347 0.05% \u6BCF\u8F6E\u4F24\u5BB3\u500D\u7387\u3002"},
+		{"id": "mage_level_talent_dense_lightning_1", "title": "\u5BC6\u96C6\u96F7\u7FA4 I", "summary": "\u5BC6\u96C6\u96F7\u7FA4 5 \u4E2A\u65B9\u5411\u989D\u5916\u589E\u52A0 1 \u5708\u96F7\u51FB\uFF1B\u6BCF\u51FB\u6740 1 \u4E2A\u5355\u4F4D\uFF0C\u4E3A\u6CD5\u5E08\u6240\u6709\u6B63\u5728\u51B7\u5374\u7684\u975E\u5927\u62DB\u6280\u80FD\u6216\u666E\u901A\u653B\u51FB\u51CF\u5C11 0.2 \u79D2\u51B7\u5374\u3002"},
+		{"id": "mage_level_talent_dense_lightning_2", "title": "\u5BC6\u96C6\u96F7\u7FA4 II", "summary": "\u5BC6\u96C6\u96F7\u7FA4 5 \u4E2A\u65B9\u5411\u989D\u5916\u589E\u52A0 1 \u5708\u96F7\u51FB\uFF1B\u6BCF\u51FB\u6740 1 \u4E2A\u5355\u4F4D\uFF0C\u4E3A\u5965\u6CD5\u76C8\u4F59\u63D0\u4F9B 0.2 \u79D2\u6301\u7EED\u65F6\u95F4\u3002"}
+	]
+}
 const TRIGGER_LEVEL := 3
 const TRIGGER_LEVELS := [3, 6, 9]
 const TALENT_STAGE_COUNT := 3
@@ -60,6 +129,19 @@ const SKILL_PROGRESS_BY_SKILL_ID := {
 	"gunner_ultimate": "gunner_ultimate",
 	"mage_ultimate": "mage_ultimate"
 }
+
+const LEVEL_TALENT_REQUIRED_SKILL_RULES := [
+	{"prefix": "swordsman_level_talent_blade_storm", "skill_id": "blade_storm"},
+	{"prefix": "swordsman_level_talent_crescent_wave", "skill_id": "crescent_wave"},
+	{"prefix": "gunner_level_talent_shrapnel", "skill_id": "shrapnel_field"},
+	{"prefix": "gunner_level_talent_infinite_reload", "skill_id": "infinite_reload"},
+	{"prefix": "gunner_level_talent_rocket_barrage", "skill_id": "gunner_ultimate"},
+	{"prefix": "mage_level_talent_meta_field", "skill_id": "meta_field"},
+	{"prefix": "mage_level_talent_arcane_bombardment", "skill_id": "mage_ultimate"},
+	{"prefix": "mage_level_talent_dense_lightning", "skill_id": "hero_entry"},
+	{"prefix": "mage_level_talent_surging_wave", "skill_id": "surging_wave"},
+	{"prefix": "mage_level_talent_surge", "skill_id": "surging_wave"}
+]
 
 const TALENT_DEFINITIONS := {
 	"swordsman_trait": [
@@ -859,147 +941,120 @@ static func get_skill_progress_level(owner, role_id: String, progress_id: String
 
 static func get_pending_choices(owner) -> Array:
 	var result: Array = []
-	for role_id in _get_team_role_ids(owner):
-		for progress_id in ROLE_PROGRESS_ORDER.get(role_id, []):
-			var level := get_skill_progress_level(owner, role_id, progress_id)
-			var selected_count := get_selected_talents(owner, role_id, progress_id).size()
-			var stage := selected_count + 1
-			if stage <= TALENT_STAGE_COUNT and level >= int(TRIGGER_LEVELS[stage - 1]):
-				result.append({"role_id": role_id, "progress_id": progress_id, "talent_stage": stage})
+	var pending_count := _get_pending_level_talent_count(owner)
+	var acquired_count := _get_acquired_level_talent_count(owner)
+	for index in range(pending_count):
+		var pick_index := acquired_count + index + 1
+		result.append({
+			"level_talent_offer": true,
+			"talent_stage": pick_index,
+			"trigger_level": pick_index * TRIGGER_LEVEL
+		})
 	return result
 
 
 static func build_choice_offer(owner, choice: Dictionary = {}) -> Dictionary:
-	if choice.is_empty():
-		return build_next_offer(owner)
-	return _build_offer_for_choice(owner, choice)
+	if not choice.is_empty():
+		if bool(choice.get("level_talent_offer", false)):
+			return _build_level_talent_offer(owner) if _get_pending_level_talent_count(owner) > 0 else {}
+		return {}
+	return build_next_offer(owner)
 
 
 static func get_next_pending(owner) -> Dictionary:
-	var preserved := _get_preserved_offer_choice(owner)
-	if not preserved.is_empty() and _is_choice_pending(owner, preserved):
-		return preserved
-	for role_id in _get_team_role_ids(owner):
-		for progress_id in ROLE_PROGRESS_ORDER.get(role_id, []):
-			var stage := get_selected_talents(owner, role_id, progress_id).size() + 1
-			if stage <= TALENT_STAGE_COUNT and get_skill_progress_level(owner, role_id, progress_id) >= int(TRIGGER_LEVELS[stage - 1]):
-				return {"role_id": role_id, "progress_id": progress_id, "talent_stage": stage}
+	if _get_pending_level_talent_count(owner) > 0:
+		var level_pending := get_pending_choices(owner)
+		return level_pending[0] if not level_pending.is_empty() else {}
 	return {}
 
 
 static func has_pending(owner) -> bool:
-	return not get_next_pending(owner).is_empty()
+	return _get_pending_level_talent_count(owner) > 0
 
 
 static func build_next_offer(owner) -> Dictionary:
-	return _build_offer_for_choice(owner, get_next_pending(owner))
+	if _get_pending_level_talent_count(owner) > 0:
+		var preserved := _get_preserved_level_talent_offer(owner)
+		if not preserved.is_empty():
+			return preserved
+		return _build_level_talent_offer(owner)
+	return {}
 
 
 static func _build_offer_for_choice(owner, pending: Dictionary) -> Dictionary:
-	if pending.is_empty():
-		return {}
-	var role_id := str(pending.get("role_id", ""))
-	var progress_id := str(pending.get("progress_id", ""))
-	var stage := int(pending.get("talent_stage", get_selected_talents(owner, role_id, progress_id).size() + 1))
-	if not _is_choice_pending(owner, {"role_id": role_id, "progress_id": progress_id, "talent_stage": stage}):
-		return {}
-	var options: Array = []
-	for definition_value in _get_stage_definitions(progress_id, stage):
-		var definition: Dictionary = (definition_value as Dictionary).duplicate(true)
-		var talent_id := str(definition.get("id", ""))
-		var description := str(definition.get("description", ""))
-		var talent_title := str(definition.get("title", talent_id))
-		options.append({
-			"id": OPTION_PREFIX + talent_id,
-			"offer_key": talent_id,
-			"option_category": CATEGORY_SKILL_TALENT,
-			"slot": "skill_talent",
-			"slot_label": "技能质变",
-			"role_id": role_id,
-			"skill_progress_id": progress_id,
-			"talent_id": talent_id,
-			"talent_stage": stage,
-			"talent_side": str(definition.get("side", "")),
-			"title": "%s · 阶段 %s · %s" % [str(PROGRESS_TITLES.get(progress_id, progress_id)), _get_stage_roman(stage), talent_title],
-			"summary": description,
-			"short_description": description,
-			"description": description,
-			"preview_description": description,
-			"detail_description": description,
-			"exact_description": description,
-			"hide_card_title": false,
-			"blessing_tier": 1
-		})
-	return {
-		"options": options,
-		"context": {
-			"offer_mode": CATEGORY_SKILL_TALENT,
-			"skill_talent_offer": true,
-			"role_build_offer": false,
-			"selection_count": 1,
-			"refresh_limit": 0,
-			"refresh_remaining": 0,
-			"refresh_unlimited": false,
-			"refresh_button_label": "",
-			"role_id": role_id,
-			"skill_progress_id": progress_id,
-			"talent_stage": stage,
-			"trigger_level": int(TRIGGER_LEVELS[stage - 1]),
-			"summary": "%s达到构筑 Lv.%d：选择阶段 %s 天赋（另一项本局不可选）。" % [str(PROGRESS_TITLES.get(progress_id, progress_id)), int(TRIGGER_LEVELS[stage - 1]), _get_stage_roman(stage)]
-		}
-	}
+	return {}
+
+
+static func refresh_offer_card(owner, option_index: int, role_id: String = "") -> Array:
+	if owner == null:
+		return []
+	var current_offer: Dictionary = owner.get("current_blessing_offer") if owner.get("current_blessing_offer") is Dictionary else {}
+	var context: Dictionary = current_offer.get("context", {}) if current_offer.get("context", {}) is Dictionary else {}
+	if not _is_level_talent_context(context):
+		return _duplicate_option_array(current_offer.get("options", []))
+	var options := _duplicate_option_array(current_offer.get("options", []))
+	if _has_level_talent_role_entries(options):
+		return _refresh_level_talent_role_card(owner, options, context, option_index, role_id)
+	if option_index < 0 or option_index >= options.size():
+		return options
+	var old_option: Dictionary = options[option_index] if options[option_index] is Dictionary else {}
+	var target_role_id := str(old_option.get("role_id", LEVEL_TALENT_ROLE_ORDER[clampi(option_index, 0, LEVEL_TALENT_ROLE_ORDER.size() - 1)]))
+	var old_talent_id := str(old_option.get("talent_id", old_option.get("level_talent_id", "")))
+	var replacement := _make_level_talent_option(owner, target_role_id, option_index, [old_talent_id])
+	if not replacement.is_empty():
+		options[option_index] = replacement
+	owner.set("current_blessing_offer", {"options": options, "context": context.duplicate(true)})
+	return options
 
 
 static func apply_option_with_result(owner, option_id: String, current_offer: Dictionary) -> Dictionary:
 	if owner == null or not is_talent_option_id(option_id):
 		return {}
 	var context: Dictionary = current_offer.get("context", {}) if current_offer.get("context", {}) is Dictionary else {}
-	if not bool(context.get("skill_talent_offer", false)):
-		return {}
 	var talent_id := option_id.trim_prefix(OPTION_PREFIX)
-	var progress_id := str(context.get("skill_progress_id", ""))
-	var role_id := str(context.get("role_id", ""))
-	var stage := int(context.get("talent_stage", 1))
-	var offered := false
-	for option_value in current_offer.get("options", []):
-		if option_value is Dictionary and str((option_value as Dictionary).get("id", "")) == option_id:
-			offered = str((option_value as Dictionary).get("skill_progress_id", "")) == progress_id
-			break
-	if not offered or not _is_choice_pending(owner, {"role_id": role_id, "progress_id": progress_id, "talent_stage": stage}):
+	if not _is_level_talent_context(context):
 		return {}
-	var valid := false
-	for definition_value in _get_stage_definitions(progress_id, stage):
-		if str((definition_value as Dictionary).get("id", "")) == talent_id:
-			valid = true
-			break
-	if not valid:
+	if _get_pending_level_talent_count(owner) <= 0:
+		return {}
+	var offered_option := _find_offered_level_talent_option(current_offer, option_id)
+	if offered_option.is_empty():
+		return {}
+	var role_id := str(offered_option.get("role_id", ""))
+	if not _is_valid_level_talent_id(role_id, talent_id):
+		return {}
+	var definition := _get_level_talent_definition_for_role(role_id, talent_id)
+	if definition.is_empty() or not _is_level_talent_skill_requirement_met(owner, definition):
 		return {}
 	var states: Dictionary = owner.get("role_special_states") if owner.get("role_special_states") is Dictionary else {}
 	var role_state: Dictionary = states.get(role_id, {}) if states.get(role_id, {}) is Dictionary else {}
-	var talents: Dictionary = role_state.get(TALENTS_KEY, {}) if role_state.get(TALENTS_KEY, {}) is Dictionary else {}
-	var selected := _normalize_selected_talents(progress_id, talents.get(progress_id, []))
-	selected.append(talent_id)
-	talents[progress_id] = selected
-	role_state[TALENTS_KEY] = talents
+	var level_talents := _normalize_level_talent_ids(role_id, role_state.get(LEVEL_TALENTS_KEY, []))
+	if level_talents.has(talent_id) or _is_level_talent_group_locked(owner, role_id, definition):
+		return {}
+	level_talents.append(talent_id)
+	role_state[LEVEL_TALENTS_KEY] = level_talents
+	role_state[LEVEL_TALENT_GROUP_LOCKS_KEY] = _record_level_talent_group_lock(owner, role_id, role_state, definition, level_talents)
 	states[role_id] = role_state
 	owner.set("role_special_states", states)
-	return {"type": CATEGORY_SKILL_TALENT, "role_id": role_id, "skill_progress_id": progress_id, "talent_stage": stage, "talent_id": talent_id}
+	_set_pending_level_talent_count(owner, _get_pending_level_talent_count(owner) - 1)
+	return {
+		"type": CATEGORY_SKILL_TALENT,
+		"level_talent_offer": true,
+		"role_id": role_id,
+		"talent_id": talent_id,
+		"talent_stage": int(context.get("talent_stage", _get_acquired_level_talent_count(owner))),
+		"trigger_level": int(context.get("trigger_level", 0))
+	}
 
 
 static func apply_choice(owner, option_id: String, expected_progress_id: String = "") -> bool:
 	var offer: Dictionary = owner.get("current_blessing_offer") if owner != null and owner.get("current_blessing_offer") is Dictionary else {}
 	var context: Dictionary = offer.get("context", {}) if offer.get("context", {}) is Dictionary else {}
-	if expected_progress_id != "" and str(context.get("skill_progress_id", "")) != expected_progress_id:
+	if expected_progress_id != "" and not _is_level_talent_context(context) and str(context.get("skill_progress_id", "")) != expected_progress_id:
 		return false
 	return not apply_option_with_result(owner, option_id, offer).is_empty()
 
 
-static func get_selected_talent(owner, role_id: String, progress_id: String) -> String:
-	var selected := get_selected_talents(owner, role_id, progress_id)
-	return str(selected[0]) if not selected.is_empty() else ""
-
-
-static func get_selected_talents(owner, role_id: String, progress_id: String) -> Array:
+static func get_selected_level_talents(owner, role_id: String) -> Array:
 	if owner == null:
 		return []
 	var states: Variant = owner.get("role_special_states")
@@ -1008,49 +1063,501 @@ static func get_selected_talents(owner, role_id: String, progress_id: String) ->
 	var role_state: Variant = (states as Dictionary).get(role_id, {})
 	if role_state is not Dictionary:
 		return []
-	var talents: Variant = (role_state as Dictionary).get(TALENTS_KEY, {})
-	return _normalize_selected_talents(progress_id, (talents as Dictionary).get(progress_id, [])) if talents is Dictionary else []
+	return _normalize_level_talent_ids(role_id, (role_state as Dictionary).get(LEVEL_TALENTS_KEY, []))
+
+
+static func has_level_talent(owner, talent_id: String) -> bool:
+	if owner == null or talent_id == "":
+		return false
+	for role_id in LEVEL_TALENT_ROLE_ORDER:
+		if get_selected_level_talents(owner, str(role_id)).has(talent_id):
+			return true
+	return false
+
+
+static func _build_level_talent_offer(owner) -> Dictionary:
+	var options: Array = []
+	for role_index in range(LEVEL_TALENT_ROLE_ORDER.size()):
+		var role_id := str(LEVEL_TALENT_ROLE_ORDER[role_index])
+		var option := _make_level_talent_role_option(owner, role_id, role_index)
+		if not option.is_empty():
+			options.append(option)
+	if options.size() != LEVEL_TALENT_ROLE_ORDER.size():
+		return {}
+	return {"options": options, "context": _build_level_talent_context(owner)}
+
+
+static func _build_level_talent_context(owner) -> Dictionary:
+	var pick_index := _get_next_level_talent_pick_index(owner)
+	var owner_level := _get_owner_level(owner)
+	var trigger_level := owner_level if owner_level > 0 and owner_level % TRIGGER_LEVEL == 0 else pick_index * TRIGGER_LEVEL
+	return {
+		"offer_mode": CATEGORY_SKILL_TALENT,
+		"skill_talent_offer": true,
+		"level_talent_offer": true,
+		"role_build_offer": false,
+		"selection_count": 1,
+		"refresh_limit": 0,
+		"refresh_remaining": 0,
+		"refresh_unlimited": false,
+		"refresh_button_label": "",
+		"level_talent_role_select": true,
+		"talent_stage": pick_index,
+		"trigger_level": trigger_level,
+		"summary": "Lv.%d 天赋强化：先选择剑士、枪手或法师，再从该角色 3 张候选天赋中选择 1 项。" % trigger_level
+	}
+
+
+static func _make_level_talent_role_option(owner, role_id: String, role_index: int) -> Dictionary:
+	var role_title := str(LEVEL_TALENT_ROLE_TITLES.get(role_id, role_id))
+	var talent_options := _build_level_talent_role_options(owner, role_id)
+	return {
+		"id": LEVEL_TALENT_ROLE_OPTION_PREFIX + role_id,
+		"offer_key": "%s:%s" % [role_id, LEVEL_TALENT_ROLE_OPTION_PREFIX.trim_suffix(":")],
+		"option_category": CATEGORY_SKILL_TALENT,
+		"slot": "skill",
+		"slot_label": "天赋强化",
+		"role_id": role_id,
+		"level_talent_role_index": role_index,
+		"level_talent_role_entry": true,
+		"title": "角色%d：%s" % [role_index + 1, role_title],
+		"card_title": role_title,
+		"summary": "进入%s天赋选择后，从 3 张天赋卡中选择 1 项。" % role_title,
+		"short_description": "进入%s天赋选择。" % role_title,
+		"description": "进入%s天赋选择后，从 3 张天赋卡中选择 1 项。" % role_title,
+		"preview_description": "进入%s天赋选择。" % role_title,
+		"detail_description": "进入%s天赋选择后，从 3 张天赋卡中选择 1 项。" % role_title,
+		"exact_description": "一级角色入口，不会直接消耗本次天赋选择。",
+		"hide_card_title": false,
+		"blessing_tier": 1,
+		"level_talent_options": talent_options
+	}
+
+
+static func _build_level_talent_role_options(owner, role_id: String) -> Array:
+	var options: Array = []
+	var excluded_ids: Array = []
+	var excluded_group_ids: Array = []
+	for option_index in range(LEVEL_TALENT_ROLE_OPTION_COUNT):
+		var option := _make_level_talent_option(owner, role_id, option_index, excluded_ids, excluded_group_ids)
+		if option.is_empty():
+			break
+		option["level_talent_option_index"] = option_index
+		options.append(option)
+		var talent_id := str(option.get("talent_id", option.get("level_talent_id", "")))
+		if talent_id != "" and not excluded_ids.has(talent_id):
+			excluded_ids.append(talent_id)
+		var definition := _get_level_talent_definition_for_role(role_id, talent_id)
+		var group_id := _get_level_talent_group_id(definition)
+		if group_id != "" and not excluded_group_ids.has(group_id):
+			excluded_group_ids.append(group_id)
+	return options
+
+
+static func _make_level_talent_option(owner, role_id: String, option_index: int, excluded_ids: Array = [], excluded_group_ids: Variant = null) -> Dictionary:
+	var definition := _pick_level_talent_definition(owner, role_id, excluded_ids, excluded_group_ids)
+	if definition.is_empty():
+		return {}
+	var talent_id := str(definition.get("id", ""))
+	var role_title := str(LEVEL_TALENT_ROLE_TITLES.get(role_id, role_id))
+	var title := str(definition.get("title", "%s天赋强化" % role_title))
+	var summary := str(definition.get("summary", definition.get("description", "预留天赋效果接口。")))
+	return {
+		"id": OPTION_PREFIX + talent_id,
+		"offer_key": "%s:%s" % [role_id, talent_id],
+		"option_category": CATEGORY_SKILL_TALENT,
+		"slot": "skill",
+		"slot_label": "天赋强化",
+		"role_id": role_id,
+		"level_talent_id": talent_id,
+		"talent_id": talent_id,
+		"talent_stage": int(option_index) + 1,
+		"title": title,
+		"card_title": title,
+		"summary": summary,
+		"short_description": summary,
+		"description": summary,
+		"preview_description": summary,
+		"detail_description": summary,
+		"exact_description": summary,
+		"hide_card_title": false,
+		"blessing_tier": 1
+	}
+
+
+static func _pick_level_talent_definition(owner, role_id: String, excluded_ids: Array = [], excluded_group_ids: Variant = null) -> Dictionary:
+	var definitions: Array = LEVEL_TALENT_DEFINITIONS.get(role_id, [])
+	if definitions.is_empty():
+		return {}
+	var excluded_lookup := {}
+	for talent_value in get_selected_level_talents(owner, role_id):
+		excluded_lookup[str(talent_value)] = true
+	for talent_value in excluded_ids:
+		excluded_lookup[str(talent_value)] = true
+	var excluded_group_lookup := _get_level_talent_group_lookup_for_ids(definitions, excluded_ids)
+	if excluded_group_ids is Array:
+		excluded_group_lookup = _get_level_talent_group_lookup_for_ids(definitions, excluded_group_ids)
+	var candidates: Array = _collect_level_talent_candidates(owner, definitions, excluded_lookup, false, excluded_group_lookup)
+	if candidates.is_empty():
+		var refresh_excluded_lookup := {}
+		for talent_value in excluded_ids:
+			refresh_excluded_lookup[str(talent_value)] = true
+		candidates = _collect_level_talent_candidates(owner, definitions, refresh_excluded_lookup, false, excluded_group_lookup)
+	if candidates.is_empty():
+		return {}
+	return (candidates[int(randi() % candidates.size())] as Dictionary).duplicate(true)
+
+
+static func _collect_level_talent_candidates(owner, definitions: Array, excluded_lookup: Dictionary, allow_placeholders: bool, excluded_group_lookup: Dictionary = {}) -> Array:
+	var candidates: Array = []
+	for definition_value in definitions:
+		if definition_value is not Dictionary:
+			continue
+		var definition := definition_value as Dictionary
+		var talent_id := str(definition.get("id", ""))
+		if talent_id == "" or excluded_lookup.has(talent_id):
+			continue
+		var group_id := _get_level_talent_group_id(definition)
+		if group_id != "" and excluded_group_lookup.has(group_id):
+			continue
+		if bool(definition.get("placeholder", false)) and not allow_placeholders:
+			continue
+		if not _is_level_talent_skill_requirement_met(owner, definition):
+			continue
+		var role_id := _get_level_talent_role_id_from_definition(definition)
+		if role_id != "" and _is_level_talent_group_locked(owner, role_id, definition):
+			continue
+		candidates.append(definition.duplicate(true))
+	return candidates
+
+
+static func _is_level_talent_skill_requirement_met(owner, definition: Dictionary) -> bool:
+	var skill_id := _get_level_talent_required_skill_id(definition)
+	if skill_id == "":
+		return true
+	if PLAYER_BLESSING_SKILL_STATE.INHERENT_SKILL_IDS.has(skill_id) or PLAYER_BLESSING_SKILL_STATE.SHARED_ENTRY_SKILL_IDS.has(skill_id):
+		return true
+	return PLAYER_BLESSING_SKILL_STATE.is_skill_unlocked(owner, skill_id)
+
+
+static func _get_level_talent_required_skill_id(definition: Dictionary) -> String:
+	var explicit_skill_id := str(definition.get("required_skill_id", definition.get("skill_id", "")))
+	if explicit_skill_id != "":
+		return explicit_skill_id
+	var talent_id := str(definition.get("id", ""))
+	for rule_value in LEVEL_TALENT_REQUIRED_SKILL_RULES:
+		var rule: Dictionary = rule_value
+		var prefix := str(rule.get("prefix", ""))
+		if prefix != "" and talent_id.begins_with(prefix):
+			return str(rule.get("skill_id", ""))
+	return ""
+
+
+static func _get_level_talent_definition_for_role(role_id: String, talent_id: String) -> Dictionary:
+	for definition_value in LEVEL_TALENT_DEFINITIONS.get(role_id, []):
+		if definition_value is Dictionary and str((definition_value as Dictionary).get("id", "")) == talent_id:
+			return (definition_value as Dictionary).duplicate(true)
+	return {}
+
+
+static func _refresh_level_talent_role_card(owner, options: Array, context: Dictionary, option_index: int, role_id: String) -> Array:
+	if role_id == "":
+		return []
+	var role_option_index := _find_level_talent_role_option_index(options, role_id)
+	if role_option_index < 0:
+		return []
+	var role_option: Dictionary = options[role_option_index] if options[role_option_index] is Dictionary else {}
+	var talent_options := _duplicate_option_array(role_option.get("level_talent_options", []))
+	if option_index < 0 or option_index >= talent_options.size():
+		return talent_options
+	var excluded_ids: Array = []
+	var sibling_ids: Array = []
+	for nested_index in range(talent_options.size()):
+		var nested_value: Variant = talent_options[nested_index]
+		var nested_option: Dictionary = nested_value if nested_value is Dictionary else {}
+		var talent_id := str(nested_option.get("talent_id", nested_option.get("level_talent_id", "")))
+		if talent_id == "":
+			continue
+		if not excluded_ids.has(talent_id):
+			excluded_ids.append(talent_id)
+		if nested_index != option_index and not sibling_ids.has(talent_id):
+			sibling_ids.append(talent_id)
+	var sibling_group_ids: Array = _get_level_talent_group_lookup_for_ids(LEVEL_TALENT_DEFINITIONS.get(role_id, []), sibling_ids).keys()
+	var replacement := _make_level_talent_option(owner, role_id, option_index, excluded_ids, sibling_group_ids)
+	if replacement.is_empty():
+		replacement = _make_level_talent_option(owner, role_id, option_index, excluded_ids, [])
+	if replacement.is_empty():
+		return talent_options
+	replacement["level_talent_option_index"] = option_index
+	talent_options[option_index] = replacement
+	role_option["level_talent_options"] = talent_options
+	options[role_option_index] = role_option
+	owner.set("current_blessing_offer", {"options": options, "context": context.duplicate(true)})
+	return talent_options
+
+
+static func _find_level_talent_role_option_index(options: Array, role_id: String) -> int:
+	for option_index in range(options.size()):
+		var option: Dictionary = options[option_index] if options[option_index] is Dictionary else {}
+		if bool(option.get("level_talent_role_entry", false)) and str(option.get("role_id", "")) == role_id:
+			return option_index
+	return -1
+
+
+static func _has_level_talent_role_entries(options: Array) -> bool:
+	for option_value in options:
+		if option_value is Dictionary and bool((option_value as Dictionary).get("level_talent_role_entry", false)):
+			return true
+	return false
+
+
+static func _find_offered_level_talent_option(current_offer: Dictionary, option_id: String) -> Dictionary:
+	for option_value in current_offer.get("options", []):
+		if option_value is not Dictionary:
+			continue
+		var option: Dictionary = option_value
+		if str(option.get("id", "")) == option_id:
+			return option.duplicate(true)
+		var nested_options: Array = option.get("level_talent_options", []) if option.get("level_talent_options", []) is Array else []
+		for nested_value in nested_options:
+			if nested_value is Dictionary and str((nested_value as Dictionary).get("id", "")) == option_id:
+				return (nested_value as Dictionary).duplicate(true)
+	return {}
+
+
+static func _duplicate_option_array(value: Variant) -> Array:
+	var result: Array = []
+	if value is not Array:
+		return result
+	for option_value in value:
+		if option_value is Dictionary:
+			result.append((option_value as Dictionary).duplicate(true))
+	return result
+
+
+static func _is_level_talent_context(context: Dictionary) -> bool:
+	return bool(context.get("skill_talent_offer", false)) and bool(context.get("level_talent_offer", false))
+
+
+static func _get_preserved_level_talent_offer(owner) -> Dictionary:
+	if owner == null or str(owner.get("active_upgrade_kind")) != CATEGORY_SKILL_TALENT:
+		return {}
+	var offer: Variant = owner.get("current_blessing_offer")
+	if offer is not Dictionary:
+		return {}
+	var context: Dictionary = (offer as Dictionary).get("context", {}) if (offer as Dictionary).get("context", {}) is Dictionary else {}
+	if not _is_level_talent_context(context):
+		return {}
+	var options := _duplicate_option_array((offer as Dictionary).get("options", []))
+	if options.size() != LEVEL_TALENT_ROLE_ORDER.size():
+		return {}
+	return {"options": options, "context": context.duplicate(true)}
+
+
+static func _get_pending_level_talent_count(owner) -> int:
+	if owner == null:
+		return 0
+	var value: Variant = owner.get("pending_level_talent_choices")
+	return max(0, int(value)) if value != null else 0
+
+
+static func _set_pending_level_talent_count(owner, count: int) -> void:
+	if owner != null:
+		owner.set("pending_level_talent_choices", max(0, count))
+
+
+static func _get_acquired_level_talent_count(owner) -> int:
+	var result := 0
+	for role_id in LEVEL_TALENT_ROLE_ORDER:
+		result += get_selected_level_talents(owner, str(role_id)).size()
+	return result
+
+
+static func _get_next_level_talent_pick_index(owner) -> int:
+	return _get_acquired_level_talent_count(owner) + 1
+
+
+static func _get_owner_level(owner) -> int:
+	if owner == null:
+		return 0
+	var value: Variant = owner.get("level")
+	return max(0, int(value)) if value != null else 0
+
+
+static func _is_valid_level_talent_id(role_id: String, talent_id: String) -> bool:
+	for definition_value in LEVEL_TALENT_DEFINITIONS.get(role_id, []):
+		if definition_value is Dictionary and str((definition_value as Dictionary).get("id", "")) == talent_id:
+			return true
+	return false
+
+
+static func _get_level_talent_role_id_from_definition(definition: Dictionary) -> String:
+	var talent_id := str(definition.get("id", ""))
+	for role_id in LEVEL_TALENT_ROLE_ORDER:
+		if _is_valid_level_talent_id(str(role_id), talent_id):
+			return str(role_id)
+	return ""
+
+
+static func _get_level_talent_group_lookup_for_ids(definitions: Array, talent_ids: Array) -> Dictionary:
+	var id_lookup: Dictionary = {}
+	for talent_value in talent_ids:
+		var talent_id := str(talent_value)
+		if talent_id != "":
+			id_lookup[talent_id] = true
+	var result: Dictionary = {}
+	if id_lookup.is_empty():
+		return result
+	for definition_value in definitions:
+		if definition_value is not Dictionary:
+			continue
+		var definition := definition_value as Dictionary
+		var talent_id := str(definition.get("id", ""))
+		if not id_lookup.has(talent_id):
+			continue
+		var group_id := _get_level_talent_group_id(definition)
+		if group_id != "":
+			result[group_id] = true
+	return result
+
+
+static func _normalize_level_talent_ids(role_id: String, value: Variant) -> Array:
+	var raw: Array = []
+	if value is Array:
+		raw = value
+	elif value is Dictionary:
+		raw = [value]
+	elif str(value) != "":
+		raw = [str(value)]
+	var result: Array = []
+	for talent_value in raw:
+		var talent_id := ""
+		if talent_value is Dictionary:
+			talent_id = str((talent_value as Dictionary).get("id", (talent_value as Dictionary).get("talent_id", "")))
+		else:
+			talent_id = str(talent_value)
+		if _is_valid_level_talent_id(role_id, talent_id):
+			result.append(talent_id)
+	return result
+
+
+static func _get_level_talent_group_id(definition: Dictionary) -> String:
+	var explicit_group := str(definition.get("level_talent_group_id", definition.get("talent_group_id", "")))
+	if explicit_group != "":
+		return explicit_group
+	var talent_id := str(definition.get("id", ""))
+	var suffix_index := talent_id.rfind("_")
+	if suffix_index <= 0:
+		return ""
+	var suffix := talent_id.substr(suffix_index + 1)
+	if not suffix.is_valid_int():
+		return ""
+	return talent_id.substr(0, suffix_index)
+
+
+static func _get_level_talent_group_scope(owner, role_id: String, definition: Dictionary) -> String:
+	var explicit_scope := str(definition.get("level_talent_group_scope", definition.get("talent_group_scope", "")))
+	if explicit_scope != "":
+		return explicit_scope
+	if owner != null and owner.get("role_special_states") is Dictionary:
+		var states: Dictionary = owner.get("role_special_states")
+		var role_state: Dictionary = states.get(role_id, {}) if states.get(role_id, {}) is Dictionary else {}
+		var state_scope := str(role_state.get("level_talent_group_scope", ""))
+		if state_scope != "":
+			return state_scope
+	return "default"
+
+
+static func _get_level_talent_group_locks(owner, role_id: String) -> Dictionary:
+	if owner == null or owner.get("role_special_states") is not Dictionary:
+		return {}
+	var states: Dictionary = owner.get("role_special_states")
+	var role_state: Dictionary = states.get(role_id, {}) if states.get(role_id, {}) is Dictionary else {}
+	var selected := _normalize_level_talent_ids(role_id, role_state.get(LEVEL_TALENTS_KEY, []))
+	return _normalize_level_talent_group_locks(role_id, role_state.get(LEVEL_TALENT_GROUP_LOCKS_KEY, {}), selected)
+
+
+static func _is_level_talent_group_locked(owner, role_id: String, definition: Dictionary) -> bool:
+	var group_id := _get_level_talent_group_id(definition)
+	if group_id == "":
+		return false
+	var locks := _get_level_talent_group_locks(owner, role_id)
+	var scope := _get_level_talent_group_scope(owner, role_id, definition)
+	var scope_locks: Dictionary = locks.get(scope, {}) if locks.get(scope, {}) is Dictionary else {}
+	return str(scope_locks.get(group_id, "")) != ""
+
+
+static func _record_level_talent_group_lock(owner, role_id: String, role_state: Dictionary, definition: Dictionary, selected_level_talents: Array) -> Dictionary:
+	var locks := _normalize_level_talent_group_locks(role_id, role_state.get(LEVEL_TALENT_GROUP_LOCKS_KEY, {}), selected_level_talents)
+	var group_id := _get_level_talent_group_id(definition)
+	if group_id == "":
+		return locks
+	var scope := _get_level_talent_group_scope(owner, role_id, definition)
+	var scope_locks: Dictionary = locks.get(scope, {}) if locks.get(scope, {}) is Dictionary else {}
+	scope_locks[group_id] = str(definition.get("id", ""))
+	locks[scope] = scope_locks
+	return locks
+
+
+static func _normalize_level_talent_group_locks(role_id: String, value: Variant, selected_level_talents: Array) -> Dictionary:
+	var result: Dictionary = {}
+	var selected_lookup: Dictionary = {}
+	for talent_value in selected_level_talents:
+		selected_lookup[str(talent_value)] = true
+	if value is Dictionary:
+		for scope_value in (value as Dictionary).keys():
+			var scope := str(scope_value)
+			if scope == "":
+				continue
+			var raw_scope_locks: Variant = (value as Dictionary).get(scope_value, {})
+			if raw_scope_locks is not Dictionary:
+				continue
+			var scope_locks: Dictionary = {}
+			for group_value in (raw_scope_locks as Dictionary).keys():
+				var group_id := str(group_value)
+				var talent_id := str((raw_scope_locks as Dictionary).get(group_value, ""))
+				var definition := _get_level_talent_definition_for_role(role_id, talent_id)
+				if group_id == "" or not selected_lookup.has(talent_id) or definition.is_empty() or _get_level_talent_group_id(definition) != group_id:
+					continue
+				scope_locks[group_id] = talent_id
+			if not scope_locks.is_empty():
+				result[scope] = scope_locks
+	for talent_value in selected_level_talents:
+		var talent_id := str(talent_value)
+		var definition := _get_level_talent_definition_for_role(role_id, talent_id)
+		var group_id := _get_level_talent_group_id(definition)
+		if group_id == "":
+			continue
+		var scope := _get_level_talent_group_scope(null, role_id, definition)
+		var scope_locks: Dictionary = result.get(scope, {}) if result.get(scope, {}) is Dictionary else {}
+		if not scope_locks.has(group_id):
+			scope_locks[group_id] = talent_id
+		result[scope] = scope_locks
+	return result
+
+
+static func get_selected_talent(owner, role_id: String, progress_id: String) -> String:
+	return ""
+
+
+static func get_selected_talents(owner, role_id: String, progress_id: String) -> Array:
+	return []
 
 
 static func has_talent(owner, talent_id: String) -> bool:
-	if owner == null or talent_id == "":
-		return false
-	for role_id in _get_team_role_ids(owner):
-		var states: Variant = owner.get("role_special_states")
-		if states is not Dictionary:
-			return false
-		var role_state: Variant = (states as Dictionary).get(role_id, {})
-		if role_state is not Dictionary:
-			continue
-		var talents: Variant = (role_state as Dictionary).get(TALENTS_KEY, {})
-		if talents is Dictionary:
-			for progress_id in (talents as Dictionary):
-				if _normalize_selected_talents(str(progress_id), (talents as Dictionary)[progress_id]).has(talent_id):
-					return true
 	return false
 
 
 static func get_progress_text(owner, role_id: String) -> String:
-	var lines: Array[String] = []
-	for progress_id in ROLE_PROGRESS_ORDER.get(role_id, []):
-		var level: int = get_skill_progress_level(owner, role_id, progress_id)
-		var selected: Array = get_selected_talents(owner, role_id, progress_id)
-		var status := "未解锁" if level <= 0 else ("Lv.%d" % level)
-		if not selected.is_empty():
-			var titles: Array[String] = []
-			for talent_id in selected:
-				titles.append(_get_talent_title(progress_id, str(talent_id)))
-			status += " · %s · 路径 %s" % ["·".join(titles), _get_path(selected)]
-		var next_stage := selected.size() + 1
-		if next_stage <= TALENT_STAGE_COUNT and level >= int(TRIGGER_LEVELS[next_stage - 1]):
-			status += " · 待选择阶段%s" % _get_stage_roman(next_stage)
-		elif next_stage <= TALENT_STAGE_COUNT:
-			status += " · Lv.%d开放阶段%s" % [int(TRIGGER_LEVELS[next_stage - 1]), _get_stage_roman(next_stage)]
-		else:
-			status += " · 已完成"
-		lines.append("%s  %s" % [str(PROGRESS_TITLES.get(progress_id, progress_id)), status])
-	return "\n".join(lines)
-
+	var role_title := str(LEVEL_TALENT_ROLE_TITLES.get(role_id, role_id))
+	var selected := get_selected_level_talents(owner, role_id)
+	var pending_count := _get_pending_level_talent_count(owner)
+	var status := "%s等级天赋：已记录 %d 项" % [role_title, selected.size()]
+	if pending_count > 0:
+		status += " · 待选择 %d 次" % pending_count
+	if not selected.is_empty():
+		status += " · %s" % ", ".join(selected)
+	return status
 
 static func _get_talent_title(progress_id: String, talent_id: String) -> String:
 	return str(get_talent_definition(progress_id, talent_id).get("title", talent_id))
@@ -1060,16 +1567,12 @@ static func normalize_role_special_states(value: Variant) -> Dictionary:
 	var states: Dictionary = value.duplicate(true) if value is Dictionary else {}
 	for role_id in ROLE_PROGRESS_ORDER:
 		var role_state: Dictionary = states.get(role_id, {}) if states.get(role_id, {}) is Dictionary else {}
-		var talents: Dictionary = role_state.get(TALENTS_KEY, {}) if role_state.get(TALENTS_KEY, {}) is Dictionary else {}
-		var normalized: Dictionary = {}
-		for progress_id in ROLE_PROGRESS_ORDER[role_id]:
-			var selected := _normalize_selected_talents(progress_id, talents.get(progress_id, []))
-			if not selected.is_empty():
-				normalized[progress_id] = selected
-		role_state[TALENTS_KEY] = normalized
+		role_state[TALENTS_KEY] = {}
+		var level_talents := _normalize_level_talent_ids(role_id, role_state.get(LEVEL_TALENTS_KEY, []))
+		role_state[LEVEL_TALENTS_KEY] = level_talents
+		role_state[LEVEL_TALENT_GROUP_LOCKS_KEY] = _normalize_level_talent_group_locks(role_id, role_state.get(LEVEL_TALENT_GROUP_LOCKS_KEY, {}), level_talents)
 		states[role_id] = role_state
 	return states
-
 
 static func _normalize_selected_talents(progress_id: String, value: Variant) -> Array:
 	var raw: Array = value if value is Array else ([str(value)] if str(value) != "" else [])

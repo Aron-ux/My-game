@@ -24,6 +24,8 @@ static func perform_active_attack(owner) -> void:
 		return
 	if owner.has_method("_is_player_action_locked") and owner._is_player_action_locked():
 		return
+	if owner.has_method("is_gunner_infinite_reload_blocking_actions") and owner.is_gunner_infinite_reload_blocking_actions():
+		return
 
 	var role_id: String = owner._get_active_role()["id"]
 	match role_id:

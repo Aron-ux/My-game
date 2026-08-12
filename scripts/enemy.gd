@@ -157,6 +157,7 @@ var skulltomb_death_ring: Line2D
 var skulltomb_area_instance: Node2D
 var skulltomb_area_remaining: float = 0.0
 var skulltomb_area_damage_elapsed: float = 0.0
+var skulltomb_aging_aura_elapsed: float = 0.0
 var skulltomb_area_center: Vector2 = Vector2.ZERO
 var skulltomb_summon_target_center: Vector2 = Vector2.ZERO
 var skulltomb_area_radius: float = 0.0
@@ -165,6 +166,8 @@ var skulltomb_spawn_elapsed: float = 0.0
 var skulltomb_spawn_vertex_index: int = 0
 var skulltomb_charge_interval: float = 9.0
 var skulltomb_charge_timer: float = 0.0
+var skulltomb_charge_decision_timer: float = 0.0
+var skulltomb_charge_active: bool = false
 var skulltomb_charge_windup_duration: float = 2.0
 var skulltomb_charge_windup_remaining: float = 0.0
 var skulltomb_charge_distance: float = 0.0
@@ -217,6 +220,8 @@ var boss_phase: int = 1
 var boss_phase_three_elapsed: float = 0.0
 var boss_phase_three_intro_remaining: float = 0.0
 var boss_phase_transition_target: int = 0
+var boss_shield_break_intro_played: bool = false
+var boss_shield_break_visual_intro_active: bool = false
 var boss_split_interval: float = 5.8
 var boss_split_timer: float = 0.0
 var boss_laser_interval: float = 8.5
@@ -267,6 +272,7 @@ func _ready() -> void:
 	ENEMY_RUNTIME_PROCESS.ready(self)
 
 func _exit_tree() -> void:
+	clear_runtime_effects_after_defeat()
 	ENEMY_RUNTIME_PROCESS.exit_tree(self)
 
 func _physics_process(delta: float) -> void:
@@ -298,12 +304,18 @@ func _reset_runtime_state(randomize_timers: bool) -> void:
 
 func get_boss_ui_payload() -> Dictionary:
 	var boss_bar_max_health: float = max_health
+	var shield_max_health: float = 0.0
 	if enemy_kind == "boss":
 		boss_bar_max_health = max(1.0, max_health / 3.0)
+		shield_max_health = max(0.0, max_health - boss_bar_max_health)
+	var shield_health: float = clamp(current_health - boss_bar_max_health, 0.0, shield_max_health)
 	var payload: Dictionary = {
 		"name": boss_display_name,
+		"enemy_kind": enemy_kind,
 		"current_health": current_health,
 		"max_health": boss_bar_max_health,
+		"shield_health": shield_health,
+		"shield_max_health": shield_max_health,
 		"phase": boss_phase,
 		"hide_health": enemy_kind == "boss" and boss_phase_transition_target > 0
 	}
@@ -335,6 +347,34 @@ func _ensure_boss_peacock_markers(count: int) -> void:
 
 func _clear_boss_peacock_markers() -> void:
 	ENEMY_BOSS_VISUALS.clear_boss_peacock_markers(self)
+
+func clear_runtime_effects_after_defeat() -> void:
+	if enemy_kind == "boss":
+		_clear_boss_runtime_effects()
+
+func _clear_boss_runtime_effects() -> void:
+	boss_laser_remaining = 0.0
+	boss_laser_hit_timer = 0.0
+	boss_orbit_bomb_remaining = 0.0
+	boss_orbit_pull_remaining = 0.0
+	boss_peacock_charge_remaining = 0.0
+	boss_phase_three_intro_remaining = 0.0
+	boss_phase_transition_target = 0
+	boss_shield_break_visual_intro_active = false
+
+	for laser in boss_laser_lines:
+		if laser != null and is_instance_valid(laser):
+			laser.visible = false
+	for laser_core in boss_laser_core_lines:
+		if laser_core != null and is_instance_valid(laser_core):
+			laser_core.visible = false
+
+	_clear_boss_orbit_ball()
+	_clear_boss_peacock_markers()
+	ENEMY_BOSS_VISUALS.clear_boss_phase_three_charge_visuals(self)
+	ENEMY_PROJECTILES.clear_projectiles_from_source(self)
+	if target != null and is_instance_valid(target) and target.has_method("_sync_orbit_pull_status"):
+		target._sync_orbit_pull_status(0.0, global_position)
 
 func _compute_velocity(delta: float) -> Vector2:
 	return ENEMY_MOVEMENT.compute_velocity(self, delta)

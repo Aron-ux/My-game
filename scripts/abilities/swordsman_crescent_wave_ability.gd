@@ -3,6 +3,7 @@ extends RefCounted
 const CRESCENT_SCENE := preload("res://effects/sword/fan/fan.tscn")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_COMBAT_RESULT_FLOW := preload("res://scripts/player/player_combat_result_flow.gd")
+const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")
 
 const SKILL_ID := "crescent_wave"
 const COOLDOWN := 6.0
@@ -29,6 +30,8 @@ const SLASH_DAMAGE_RATIO := 1.3
 const WAVE_DAMAGE_RATIO := 1.3
 const WAVE_DAMAGE_SAMPLE_INTERVAL := 0.08
 const CRESCENT_PROJECTILE_POOL_LIMIT := 16
+const LEVEL_TALENT_CRESCENT_WAVE_1 := "swordsman_level_talent_crescent_wave_1"
+const LEVEL_TALENT_CRESCENT_WAVE_2 := "swordsman_level_talent_crescent_wave_2"
 const TALENT_IDS := [
 	"swordsman_crescent_afterimage",
 	"swordsman_crescent_twin_moons",
@@ -182,18 +185,71 @@ func _cast_once(owner, direction: Vector2, damage_scale: float, include_slash: b
 	var wave_width: float = (FULL_MOON_WAVE_WIDTH if full_moon else WAVE_WIDTH) * visual_hit_multiplier
 	var wave_length: float = (FULL_MOON_WAVE_LENGTH if full_moon else WAVE_LENGTH) * _get_range_multiplier(owner)
 	var slash_center: Vector2 = owner.global_position + direction * (slash_length * 0.42)
-	if include_slash:
-		owner._spawn_sword_fan_scene_effect(slash_center, direction, visual_hit_multiplier)
 	var damage_ratio_bonus: float = PLAYER_BUILD_SYSTEM.get_crescent_wave_damage_ratio_bonus(owner)
 	var blood_surge_multiplier := PLAYER_COMBAT_RESULT_FLOW.get_swordsman_blood_surge_multiplier(owner)
 	var base_damage: float = _get_damage(owner) * blood_surge_multiplier
-	var slash_hits: int = owner._damage_enemies_in_oriented_rect(slash_center, direction, slash_length, slash_width, base_damage * (SLASH_DAMAGE_RATIO + damage_ratio_bonus) * damage_scale, 0.0, 1.0, 0.0, "swordsman") if include_slash else 0
+	var slash_damage: float = base_damage * (SLASH_DAMAGE_RATIO + damage_ratio_bonus) * damage_scale
+	var slash_hits: int = _perform_slash_hit(owner, direction, slash_center, slash_length, slash_width, visual_hit_multiplier, slash_damage) if include_slash else 0
 	if slash_hits > 0 and blood_surge_multiplier > 1.0:
 		PLAYER_COMBAT_RESULT_FLOW.consume_swordsman_blood_surge(owner)
 	var wave_origin: Vector2 = owner.global_position + direction * max(24.0, slash_length * 0.72)
-	_spawn_crescent_projectile(owner, wave_origin, direction, wave_length, wave_width, visual_hit_multiplier, base_damage * (WAVE_DAMAGE_RATIO + damage_ratio_bonus) * damage_scale)
+	var wave_damage: float = base_damage * (WAVE_DAMAGE_RATIO + damage_ratio_bonus) * damage_scale
+	_spawn_crescent_projectile(owner, wave_origin, direction, wave_length, wave_width, visual_hit_multiplier, wave_damage)
+	if include_slash:
+		_schedule_level_slash_rehit(owner, direction, damage_scale * 0.60)
+	_schedule_level_second_wave(owner, direction, wave_length, wave_width, visual_hit_multiplier, wave_damage * 0.60)
 	if slash_hits > 0 and not _uses_batched_damage(owner):
 		owner._register_attack_result("swordsman", slash_hits, false)
+
+
+func _perform_slash_hit(owner, direction: Vector2, slash_center: Vector2, slash_length: float, slash_width: float, visual_hit_multiplier: float, damage_amount: float) -> int:
+	owner._spawn_sword_fan_scene_effect(slash_center, direction, visual_hit_multiplier)
+	return owner._damage_enemies_in_oriented_rect(slash_center, direction, slash_length, slash_width, damage_amount, 0.0, 1.0, 0.0, "swordsman")
+
+
+func _schedule_level_slash_rehit(owner, direction: Vector2, damage_scale: float) -> void:
+	if not _has_level_talent(owner, LEVEL_TALENT_CRESCENT_WAVE_1):
+		return
+	var cast_direction := direction.normalized()
+	var callback := func(_index: int) -> void:
+		if owner == null or not is_instance_valid(owner) or bool(owner.get("is_dead")):
+			return
+		_cast_slash_only(owner, cast_direction, damage_scale)
+	if owner.has_method("_schedule_repeating_sequence"):
+		owner._schedule_repeating_sequence(0.10, 1, callback, 0.10)
+	else:
+		callback.call(0)
+
+
+func _cast_slash_only(owner, direction: Vector2, damage_scale: float) -> void:
+	var width_multiplier: float = _get_width_multiplier(owner)
+	var visual_hit_multiplier: float = width_multiplier * VISUAL_AND_HIT_SCALE
+	var slash_width: float = SLASH_WIDTH * visual_hit_multiplier
+	var slash_length: float = SLASH_LENGTH * visual_hit_multiplier
+	var slash_center: Vector2 = owner.global_position + direction * (slash_length * 0.42)
+	var damage_ratio_bonus: float = PLAYER_BUILD_SYSTEM.get_crescent_wave_damage_ratio_bonus(owner)
+	var blood_surge_multiplier := PLAYER_COMBAT_RESULT_FLOW.get_swordsman_blood_surge_multiplier(owner)
+	var slash_damage: float = _get_damage(owner) * blood_surge_multiplier * (SLASH_DAMAGE_RATIO + damage_ratio_bonus) * damage_scale
+	var slash_hits := _perform_slash_hit(owner, direction, slash_center, slash_length, slash_width, visual_hit_multiplier, slash_damage)
+	if slash_hits > 0 and blood_surge_multiplier > 1.0:
+		PLAYER_COMBAT_RESULT_FLOW.consume_swordsman_blood_surge(owner)
+	if slash_hits > 0 and not _uses_batched_damage(owner):
+		owner._register_attack_result("swordsman", slash_hits, false)
+
+
+func _schedule_level_second_wave(owner, direction: Vector2, wave_length: float, wave_width: float, visual_hit_multiplier: float, damage_amount: float) -> void:
+	if not _has_level_talent(owner, LEVEL_TALENT_CRESCENT_WAVE_2):
+		return
+	var cast_direction := direction.normalized()
+	var callback := func(_index: int) -> void:
+		if owner == null or not is_instance_valid(owner) or bool(owner.get("is_dead")):
+			return
+		var origin: Vector2 = owner.global_position + cast_direction * 24.0
+		_spawn_crescent_projectile(owner, origin, cast_direction, wave_length, wave_width, visual_hit_multiplier, damage_amount)
+	if owner.has_method("_schedule_repeating_sequence"):
+		owner._schedule_repeating_sequence(0.20, 1, callback, 0.20)
+	else:
+		callback.call(0)
 
 
 func _cast_afterimage(owner, direction: Vector2) -> void:
@@ -429,9 +485,12 @@ func _get_cast_directions(owner, base_direction: Vector2) -> Array[Vector2]:
 
 
 func _get_combo_scales(owner) -> Array[float]:
+	var result: Array[float] = []
 	if owner == null or not owner.has_method("_get_blessing_skill_combo_scales"):
-		return []
-	return owner._get_blessing_skill_combo_scales(SKILL_ID) as Array[float]
+		return result
+	for scale in owner._get_blessing_skill_combo_scales(SKILL_ID) as Array:
+		result.append(float(scale))
+	return result
 
 
 func _has_required_unlock(owner) -> bool:
@@ -448,6 +507,8 @@ func _get_cooldown(owner) -> float:
 	var cooldown_multiplier: float = PLAYER_BUILD_SYSTEM.get_crescent_wave_cooldown_multiplier(owner)
 	if owner != null and is_instance_valid(owner) and owner.has_method("_get_equipment_cooldown_multiplier"):
 		cooldown_multiplier *= float(owner._get_equipment_cooldown_multiplier())
+	if owner != null and is_instance_valid(owner) and owner.has_method("_get_mage_arcane_charge_skill_cooldown_multiplier"):
+		cooldown_multiplier *= float(owner._get_mage_arcane_charge_skill_cooldown_multiplier("swordsman"))
 	if owner != null and is_instance_valid(owner) and owner.has_method("_get_kebiru_magic_cooldown_multiplier"):
 		cooldown_multiplier *= float(owner._get_kebiru_magic_cooldown_multiplier(SKILL_ID))
 	return COOLDOWN * cooldown_multiplier
@@ -491,6 +552,10 @@ func _has_talent(owner, talent_id: String) -> bool:
 	if cast_talent_snapshot_valid:
 		return cast_talent_ids.has(talent_id)
 	return owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id))
+
+
+func _has_level_talent(owner, talent_id: String) -> bool:
+	return PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW.has_level_talent(owner, talent_id)
 
 
 func _has_cast_talent(owner, talent_ids: Array, talent_id: String) -> bool:

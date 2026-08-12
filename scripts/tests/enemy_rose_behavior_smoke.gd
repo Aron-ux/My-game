@@ -23,6 +23,12 @@ func _run() -> void:
 	var velocity := ENEMY_MOVEMENT.compute_velocity(enemy, 0.016)
 	if velocity != Vector2.ZERO:
 		failures.append("rose enemy should never move")
+	var boss := BossEnemyStub.new()
+	var boss_velocity := ENEMY_MOVEMENT.compute_velocity(boss, 0.016)
+	if boss_velocity.length() >= 30.0:
+		failures.append("boss should slow orbit movement near preferred distance")
+	if boss_velocity.y >= 25.0:
+		failures.append("boss preferred-distance orbit should not keep moving downward at full speed")
 	if failures.is_empty():
 		print("ENEMY_ROSE_BEHAVIOR_SMOKE_OK")
 		quit(0)
@@ -58,4 +64,28 @@ class RoseEnemyStub:
 	var glutton_bonus_speed := 0.0
 	var _cached_to_target := Vector2.RIGHT * 100.0
 	var _cached_distance_to_target := 100.0
+	var _cached_direction_to_target := Vector2.RIGHT
+
+
+class BossEnemyStub:
+	extends RefCounted
+
+	var behavior_id := "boss"
+	var secondary_behavior_id := ""
+	var rebirth_timer := 0.0
+	var speed := 100.0
+	var slow_multiplier := 1.0
+	var _is_boss := true
+	var _is_turret := false
+	var _is_shooter := false
+	var _is_dasher := false
+	var _is_accelerator := false
+	var _is_glutton := false
+	var _is_swarm := false
+	var preferred_distance := 230.0
+	var boss_phase_transition_target := 0
+	var boss_orbit_sign := 1.0
+	var boss_pattern_rotation := 0.0
+	var _cached_to_target := Vector2.RIGHT * 230.0
+	var _cached_distance_to_target := 230.0
 	var _cached_direction_to_target := Vector2.RIGHT

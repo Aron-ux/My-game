@@ -3,6 +3,7 @@ extends RefCounted
 const MAGE_GATHERING_EFFECT_SCENE := preload("res://effects/wizard/wave/gathering/gatering.tscn")
 const MAGE_WAVE_EFFECT_SCENE := preload("res://effects/wizard/wave/wave.tscn")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
+const PLAYER_MAGE_SURGING_WAVE_TALENT_FLOW := preload("res://scripts/player/player_mage_surging_wave_talent_flow.gd")
 
 const TIER_ONE_COOLDOWN := 20.0
 const TIER_TWO_COOLDOWN := 16.0
@@ -123,7 +124,9 @@ func apply_save_data(data: Dictionary) -> void:
 func _fire_direction_group(owner, origin: Vector2, damage_amount: float, directions: Array, effect_scale: float, lifetime_scale: float = 1.0, is_base_wave: bool = false, wake_budget: Dictionary = {}) -> void:
 	if owner == null or not is_instance_valid(owner):
 		return
-	var wake_counts: Array[int] = _allocate_wake_points(directions.size(), int(wake_budget.get("remaining", 0))) if is_base_wave and _has_talent(owner, "mage_surge_wake") else []
+	var wake_counts: Array[int] = []
+	if is_base_wave and _has_talent(owner, "mage_surge_wake"):
+		wake_counts = _allocate_wake_points(directions.size(), int(wake_budget.get("remaining", 0)))
 	for index in range(directions.size()):
 		var wake_points := wake_counts[index] if index < wake_counts.size() else 0
 		_spawn_wave(owner, origin, directions[index], damage_amount, effect_scale, lifetime_scale, wake_points)
@@ -174,6 +177,7 @@ func _spawn_wave(owner, origin: Vector2, fire_direction: Vector2, damage_amount:
 		_schedule_heavy_wave_stage(owner, wave, wave_token)
 	if wake_points > 0:
 		_start_wake_trail(owner, wave, wave_token, wake_points, damage_amount, wave.hit_radius)
+	PLAYER_MAGE_SURGING_WAVE_TALENT_FLOW.start_path_trail(owner, wave, wave_token, wave.global_position, "mage")
 	return wave
 
 func _allocate_wake_points(wave_count: int, remaining_budget: int) -> Array[int]:
@@ -250,6 +254,7 @@ func _get_visual_range_multiplier(owner) -> float:
 	var range_multiplier: float = 1.0
 	if owner != null and is_instance_valid(owner) and owner.has_method("_get_kebiru_magic_range_multiplier"):
 		range_multiplier *= float(owner._get_kebiru_magic_range_multiplier(SURGE_SKILL_ID))
+	range_multiplier *= PLAYER_MAGE_SURGING_WAVE_TALENT_FLOW.get_range_multiplier(owner)
 	return _get_scale_multiplier(owner) * TIDAL_SURGE_RANGE_MULTIPLIER * range_multiplier
 
 func _get_cardinal_directions() -> Array[Vector2]:
@@ -277,8 +282,10 @@ func _get_wave_directions(owner, effect_scale: float = 1.0, is_base_wave: bool =
 		for index in range(total_count):
 			result.append(base_direction.normalized().rotated(TAU * float(index) / float(total_count)))
 		return result
+	var direction: Vector2 = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
+	if PLAYER_MAGE_SURGING_WAVE_TALENT_FLOW.has_level_talent(owner, PLAYER_MAGE_SURGING_WAVE_TALENT_FLOW.TALENT_SURGING_WAVE_1):
+		return PLAYER_MAGE_SURGING_WAVE_TALENT_FLOW.get_twin_wave_directions(owner, direction)
 	if quantity_count <= 0 or effect_scale < 0.99:
-		var direction: Vector2 = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
 		return [direction.normalized()]
 	var directions: Array[Vector2] = []
 	var total_count: int = min(8, 1 + quantity_count)
@@ -296,6 +303,8 @@ func _get_cooldown(owner) -> float:
 	var cooldown_multiplier: float = PLAYER_BUILD_SYSTEM.get_surging_wave_cooldown_multiplier(owner)
 	if owner != null and is_instance_valid(owner) and owner.has_method("_get_equipment_cooldown_multiplier"):
 		cooldown_multiplier *= float(owner._get_equipment_cooldown_multiplier())
+	if owner != null and is_instance_valid(owner) and owner.has_method("_get_mage_arcane_charge_skill_cooldown_multiplier"):
+		cooldown_multiplier *= float(owner._get_mage_arcane_charge_skill_cooldown_multiplier("mage"))
 	if owner != null and is_instance_valid(owner) and owner.has_method("_get_kebiru_magic_cooldown_multiplier"):
 		cooldown_multiplier *= float(owner._get_kebiru_magic_cooldown_multiplier(SURGE_SKILL_ID))
 	return base_cooldown * cooldown_multiplier
@@ -339,6 +348,7 @@ func _get_lifetime(owner) -> float:
 	if owner != null and owner.has_method("_get_blessing_skill_duration_flat_bonus"):
 		lifetime += float(owner._get_blessing_skill_duration_flat_bonus(SURGE_SKILL_ID))
 	lifetime += PLAYER_BUILD_SYSTEM.get_surging_wave_duration_bonus(owner)
+	lifetime += PLAYER_MAGE_SURGING_WAVE_TALENT_FLOW.get_lifetime_bonus(owner)
 	return lifetime
 
 func _get_damage_multiplier(owner) -> float:

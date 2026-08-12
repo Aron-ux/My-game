@@ -1,4 +1,4 @@
-﻿extends CharacterBody2D
+extends CharacterBody2D
 
 const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
 const GAME_SETTINGS := preload("res://scripts/game_settings.gd")
@@ -28,6 +28,12 @@ const PLAYER_DAMAGE_RESOLVER := preload("res://scripts/player/player_damage_reso
 const PLAYER_COMBAT_RESULT_FLOW := preload("res://scripts/player/player_combat_result_flow.gd")
 const PLAYER_COMBAT_MODIFIERS := preload("res://scripts/player/player_combat_modifiers.gd")
 const PLAYER_EQUIPMENT_FLOW := preload("res://scripts/player/player_equipment_flow.gd")
+const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")
+const PLAYER_GUNNER_FLASH_TALENT_FLOW := preload("res://scripts/player/player_gunner_flash_talent_flow.gd")
+const PLAYER_GUNNER_HUNT_TALENT_FLOW := preload("res://scripts/player/player_gunner_hunt_talent_flow.gd")
+const PLAYER_GUNNER_ENTRY_TALENT_FLOW := preload("res://scripts/player/player_gunner_entry_talent_flow.gd")
+const PLAYER_MAGE_ARCANE_CHARGE_TALENT_FLOW := preload("res://scripts/player/player_mage_arcane_charge_talent_flow.gd")
+const PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW := preload("res://scripts/player/player_mage_arcane_surplus_talent_flow.gd")
 const RUAN_STONE_SYSTEM := preload("res://scripts/player/ruan_stone_system.gd")
 const PLAYER_HEALTH_VISUALS := preload("res://scripts/player/player_health_visuals.gd")
 const PLAYER_TIMER_FLOW := preload("res://scripts/player/player_timer_flow.gd")
@@ -222,6 +228,7 @@ var fire_timer: Timer
 var level: int = 1
 var experience: int = 0
 var pending_level_ups: int = 0
+var pending_level_talent_choices: int = 0
 var level_up_active: bool = false
 var active_upgrade_kind: String = ""
 var current_health: float = 0.0
@@ -479,6 +486,9 @@ func _get_infinite_reload_range_multiplier() -> float:
 func _get_gunner_intersect_combo_duration() -> float:
 	return PLAYER_AUTHORED_EFFECTS.get_owner_gunner_intersect_combo_duration(self)
 
+func _get_gunner_intersect_gather_duration() -> float:
+	return PLAYER_AUTHORED_EFFECTS.get_scene_animation_duration(GUNNER_INTERSECT_GATHER_EFFECT_SCENE, 0.18) / max(GUNNER_INTERSECT_EFFECT_SPEED_SCALE, 0.001)
+
 func _spawn_mage_gathering_scene_effect(center: Vector2, direction: Vector2, scale_multiplier: float = 1.0) -> Node2D:
 	return PLAYER_AUTHORED_EFFECTS.spawn_mage_gathering_scene_effect(self, center, direction, scale_multiplier)
 
@@ -645,7 +655,7 @@ func _roll_critical_hit(role_id: String) -> bool:
 	var critical_chance: float = _get_role_critical_chance(role_id)
 	return critical_chance > 0.0 and randf() <= critical_chance
 
-func _record_attack_result_instance(role_id: String, was_critical: bool, killed: bool) -> void:
+func _record_attack_result_instance(role_id: String, was_critical: bool, killed: bool, target_position: Variant = null, raw_source_role_id: String = "") -> void:
 	if role_id == "":
 		return
 	pending_attack_result_hit_count_by_role[role_id] = int(pending_attack_result_hit_count_by_role.get(role_id, 0)) + 1
@@ -653,6 +663,8 @@ func _record_attack_result_instance(role_id: String, was_critical: bool, killed:
 		pending_attack_result_critical_hit_count_by_role[role_id] = int(pending_attack_result_critical_hit_count_by_role.get(role_id, 0)) + 1
 	if killed:
 		pending_attack_result_kill_count_by_role[role_id] = int(pending_attack_result_kill_count_by_role.get(role_id, 0)) + 1
+		PLAYER_GUNNER_HUNT_TALENT_FLOW.on_enemy_killed(self, role_id, target_position, raw_source_role_id)
+		PLAYER_GUNNER_ENTRY_TALENT_FLOW.on_enemy_killed(self, role_id, raw_source_role_id)
 
 func _consume_pending_attack_result_hit_count(role_id: String, fallback_hit_count: int) -> int:
 	var pending_hit_count: int = int(pending_attack_result_hit_count_by_role.get(role_id, 0))
@@ -676,6 +688,9 @@ func _get_mage_kill_energy_proc_chance() -> float:
 
 func _get_mage_kill_energy_proc_multiplier() -> float:
 	return PLAYER_ATTRIBUTE_FLOW.get_mage_kill_energy_proc_multiplier(self)
+
+func _get_mage_arcane_charge_level_talent_proc_chance_bonus() -> float:
+	return PLAYER_MAGE_ARCANE_CHARGE_TALENT_FLOW.get_proc_chance_bonus(self)
 
 func _get_role_trait_level(role_id: String) -> float:
 	return PLAYER_ATTRIBUTE_FLOW.get_role_trait_level(self, role_id)
@@ -864,8 +879,14 @@ func get_pending_skill_talent_choices() -> Array:
 func build_next_skill_talent_offer() -> Dictionary:
 	return PLAYER_SKILL_TALENT_SYSTEM.build_next_offer(self)
 
+func refresh_skill_talent_card(option_index: int, role_id: String = "") -> Array:
+	return PLAYER_SKILL_TALENT_SYSTEM.refresh_offer_card(self, option_index, role_id)
+
 func apply_skill_talent_choice(option_id: String, expected_progress_id: String = "") -> bool:
 	return PLAYER_SKILL_TALENT_SYSTEM.apply_choice(self, option_id, expected_progress_id)
+
+func queue_level_talent_choice(_reached_level: int) -> void:
+	pending_level_talent_choices += 1
 
 func _clear_skill_talent_runtime_state(removed_ids: Array) -> void:
 	var swordsman_keys := {
@@ -1098,7 +1119,7 @@ func _get_gunner_flash_dodge_value(role_id: String = "") -> float:
 	if resolved_role_id != "gunner" or str(_get_active_role().get("id", "")) != "gunner":
 		return 0.0
 	var value_per_stack := GUNNER_FLASH_DODGE_VALUE_PER_STACK + PLAYER_BUILD_SYSTEM.get_gunner_flash_dodge_bonus_per_stack(self)
-	return float(max(gunner_flash_stacks, 0)) * value_per_stack
+	return float(PLAYER_GUNNER_FLASH_TALENT_FLOW.get_active_flash_stacks(self)) * value_per_stack
 
 func _lock_player_actions(duration: float) -> void:
 	player_action_lock_remaining = max(player_action_lock_remaining, max(0.0, duration))
@@ -1170,6 +1191,7 @@ func _update_timers(delta: float) -> void:
 func _tick_gunner_flash_trait(delta: float) -> void:
 	if delta <= 0.0:
 		return
+	PLAYER_GUNNER_FLASH_TALENT_FLOW.clamp_base_flash_stacks(self)
 	if gunner_flash_cooldown_remaining > 0.0:
 		gunner_flash_cooldown_remaining = max(0.0, gunner_flash_cooldown_remaining - delta)
 		if gunner_flash_cooldown_remaining <= 0.0:
@@ -1187,15 +1209,16 @@ func _tick_gunner_flash_trait(delta: float) -> void:
 			gunner_hunt_has_enemy = _count_enemies_in_radius(global_position, _get_gunner_safe_zone_radius()) > 0
 		if (clear_hunt and gunner_hunt_has_enemy) or (invade_hunt and not gunner_hunt_has_enemy):
 			return
-	if gunner_flash_stacks >= GUNNER_FLASH_MAX_STACKS:
-		gunner_flash_stacks = GUNNER_FLASH_MAX_STACKS
+	var base_capacity := PLAYER_GUNNER_FLASH_TALENT_FLOW.get_base_flash_stack_capacity(self)
+	if gunner_flash_stacks >= base_capacity:
+		gunner_flash_stacks = base_capacity
 		gunner_flash_stack_elapsed = 0.0
 		return
 	gunner_flash_stack_elapsed += delta
 	var stack_interval: float = GUNNER_HUNT_STACK_INTERVAL if clear_hunt or invade_hunt else GUNNER_FLASH_STACK_INTERVAL
-	while gunner_flash_stack_elapsed >= stack_interval:
+	while gunner_flash_stack_elapsed >= stack_interval and gunner_flash_stacks < base_capacity:
 		gunner_flash_stack_elapsed -= stack_interval
-		gunner_flash_stacks = min(GUNNER_FLASH_MAX_STACKS, gunner_flash_stacks + 1)
+		gunner_flash_stacks = min(base_capacity, gunner_flash_stacks + 1)
 
 func _break_gunner_flash_trait() -> void:
 	if str(_get_active_role().get("id", "")) != "gunner":
@@ -1209,14 +1232,37 @@ func _clear_gunner_flash_trait_on_switch() -> void:
 	gunner_flash_stack_elapsed = 0.0
 	gunner_hunt_presence_check_remaining = 0.0
 	gunner_hunt_has_enemy = false
+	PLAYER_GUNNER_HUNT_TALENT_FLOW.clear_switch_limited_state(self)
 
 func _get_gunner_flash_damage_multiplier() -> float:
+	if str(_get_active_role().get("id", "")) != "gunner":
+		return 1.0
 	var bonus_per_stack := GUNNER_FLASH_DAMAGE_PER_STACK + PLAYER_BUILD_SYSTEM.get_gunner_flash_damage_bonus_per_stack(self)
-	return 1.0 + float(max(gunner_flash_stacks, 0)) * bonus_per_stack
+	return 1.0 + float(PLAYER_GUNNER_FLASH_TALENT_FLOW.get_active_flash_stacks(self)) * bonus_per_stack
 
 func _get_gunner_flash_move_speed_multiplier() -> float:
 	var bonus_per_stack := GUNNER_FLASH_SPEED_PER_STACK + PLAYER_BUILD_SYSTEM.get_gunner_flash_speed_bonus_per_stack(self)
-	return 1.0 + float(max(gunner_flash_stacks, 0)) * bonus_per_stack
+	return 1.0 + float(PLAYER_GUNNER_FLASH_TALENT_FLOW.get_active_flash_stacks(self)) * bonus_per_stack
+
+func _get_gunner_hunt_dodge_value(role_id: String = "") -> float:
+	var resolved_role_id: String = role_id if role_id != "" else str(_get_active_role().get("id", ""))
+	return PLAYER_GUNNER_HUNT_TALENT_FLOW.get_dodge_value(self, resolved_role_id)
+
+func _get_gunner_hunt_move_speed_bonus(role_id: String = "") -> float:
+	var resolved_role_id: String = role_id if role_id != "" else str(_get_active_role().get("id", ""))
+	return PLAYER_GUNNER_HUNT_TALENT_FLOW.get_move_speed_bonus(self, resolved_role_id)
+
+func _get_gunner_hunt_damage_multiplier(role_id: String = "") -> float:
+	var resolved_role_id: String = role_id if role_id != "" else str(_get_active_role().get("id", ""))
+	return PLAYER_GUNNER_HUNT_TALENT_FLOW.get_damage_multiplier(self, resolved_role_id)
+
+func _get_mage_arcane_charge_skill_cooldown_multiplier(role_id: String = "") -> float:
+	var resolved_role_id: String = role_id if role_id != "" else str(_get_active_role().get("id", ""))
+	return PLAYER_MAGE_ARCANE_CHARGE_TALENT_FLOW.get_skill_cooldown_multiplier(self, resolved_role_id)
+
+func _get_mage_arcane_charge_ultimate_damage_multiplier(role_id: String = "") -> float:
+	var resolved_role_id: String = role_id if role_id != "" else str(_get_active_role().get("id", ""))
+	return PLAYER_MAGE_ARCANE_CHARGE_TALENT_FLOW.get_ultimate_damage_multiplier(self, resolved_role_id)
 
 func _get_gunner_safe_zone_radius() -> float:
 	return max(0.0, GUNNER_SAFE_ZONE_RADIUS + PLAYER_BUILD_SYSTEM.get_gunner_hunt_safe_radius_bonus(self))
@@ -1224,26 +1270,29 @@ func _get_gunner_safe_zone_radius() -> float:
 func _get_gunner_flash_buff_slot() -> Dictionary:
 	if str(_get_active_role().get("id", "")) != "gunner":
 		return {}
+	var total_flash_stacks := PLAYER_GUNNER_FLASH_TALENT_FLOW.get_active_flash_stacks(self)
 	if gunner_flash_cooldown_remaining > 0.0:
 		return {
 			"name": "\u77AC\u6740\u51B7\u5374",
-			"description": "\u53D7\u4F24\u540E\u77AC\u6740\u8FDB\u516515\u79D2\u51B7\u5374",
+			"description": "\u77AC\u6740\u51B7\u5374\u4E2D\uFF0C\u51B7\u5374\u7ED3\u675F\u540E\u4ECE\u5F53\u524D\u5C42\u6570\u7EE7\u7EED\u79EF\u7D2F",
 			"text": "\u77AC",
-			"stacks": 0,
+			"stacks": total_flash_stacks,
 			"remaining": gunner_flash_cooldown_remaining,
 			"duration": GUNNER_FLASH_COOLDOWN,
 			"color": Color(0.28, 0.58, 1.0, 0.88),
 			"cooldown": true
 		}
-	if gunner_flash_stacks <= 0:
+	if total_flash_stacks <= 0:
 		return {}
 	var stack_interval: float = GUNNER_HUNT_STACK_INTERVAL if _has_skill_talent("gunner_trait_clear_hunt") or _has_skill_talent("gunner_trait_invade_hunt") else GUNNER_FLASH_STACK_INTERVAL
 	var interval_label := "1.25" if stack_interval == GUNNER_HUNT_STACK_INTERVAL else "2"
+	var has_execution_2 := PLAYER_GUNNER_FLASH_TALENT_FLOW.has_level_talent(self, "gunner_level_talent_execution_2")
+	var stack_limit_text := "15层，其中闪避永久层最多5层" if has_execution_2 else "10层"
 	return {
 		"name": "\u77AC\u6740",
-		"description": "\u6BCF%s\u79D2\u83B7\u5F971\u5C42\uff0c\u6BCF\u5C42\u63D0\u4F9B3%%\u4F24\u5BB3\u30013%%\u79FB\u901F\u548C4\u95EA\u907F\u503C\uff0C\u6700\u591A10\u5C42" % interval_label,
+		"description": "\u6BCF%s\u79D2\u83B7\u5F971\u5C42\uff0c\u6BCF\u5C42\u63D0\u4F9B3%%\u4F24\u5BB3\u30013%%\u79FB\u901F\u548C4\u95EA\u907F\u503C\uff0C\u6700\u591A%s" % [interval_label, stack_limit_text],
 		"text": "\u77AC",
-		"stacks": gunner_flash_stacks,
+		"stacks": total_flash_stacks,
 		"remaining": max(0.0, stack_interval - gunner_flash_stack_elapsed),
 		"duration": stack_interval,
 		"color": Color(0.25, 0.74, 1.0, 0.95),
@@ -1360,10 +1409,13 @@ func _get_mage_arcane_charge_damage_multiplier() -> float:
 func _is_mage_arcane_surplus_active() -> bool:
 	return mage_arcane_surplus_remaining > 0.0
 
-func _get_mage_arcane_surplus_damage_multiplier() -> float:
-	if not _is_mage_arcane_surplus_active():
-		return 1.0
-	return 1.0 + MAGE_ARCANE_SURPLUS_DAMAGE_BONUS
+func _get_mage_arcane_surplus_damage_multiplier(role_id: String = "") -> float:
+	var resolved_role_id: String = role_id if role_id != "" else str(_get_active_role().get("id", ""))
+	return PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.get_damage_multiplier(self, resolved_role_id)
+
+func _get_mage_arcane_surplus_skill_cooldown_tick_multiplier(role_id: String = "") -> float:
+	var resolved_role_id: String = role_id if role_id != "" else str(_get_active_role().get("id", ""))
+	return PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.get_skill_cooldown_tick_multiplier(self, resolved_role_id)
 
 func _get_mage_arcane_surplus_team_ultimate_energy_bonus() -> float:
 	if not _is_mage_arcane_surplus_active():
@@ -1381,7 +1433,16 @@ func _get_mage_arcane_charge_buff_slot() -> Dictionary:
 	if active_role_id != "mage" and mage_arcane_surplus_remaining <= 0.0 and not transfer_active:
 		return {}
 	var name := "奥法盈余" if mage_arcane_surplus_remaining > 0.0 else "奥数充能"
-	var description := "持续5秒：全员大招回能效率+20%，切人回能效率+20%，伤害+10%" if mage_arcane_surplus_remaining > 0.0 else "每层提升法师自身2%大招回能效率，并将法师自身获得的大招能量的10%同步给另外两名角色；切人后会按当前层数完整继承给下一个角色，并持续同等秒数"
+	var description := ""
+	if mage_arcane_surplus_remaining > 0.0:
+		var surplus_descriptions: Array[String] = ["持续5秒：全员大招回能效率+20%，切人回能效率+20%"]
+		if PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.has_level_talent(self, PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.TALENT_ARCANE_SURPLUS_1):
+			surplus_descriptions.append("当前角色伤害+10%")
+		if PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.has_level_talent(self, PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.TALENT_ARCANE_SURPLUS_2):
+			surplus_descriptions.append("当前角色技能冷却计数加快，10s约9s走完")
+		description = "；".join(surplus_descriptions)
+	else:
+		description = "每层提升法师自身2%大招回能效率，并将法师自身获得的大招能量的10%同步给另外两名角色；切人后会按当前层数完整继承给下一个角色，并持续同等秒数"
 	var display_stacks: int = _get_mage_arcane_charge_effective_stacks_for_role(active_role_id)
 	if mage_arcane_surplus_remaining <= 0.0 and display_stacks <= 0:
 		return {}
@@ -1481,11 +1542,17 @@ func _try_trigger_swordsman_crescent_wave() -> void:
 func _try_trigger_gunner_infinite_reload() -> void:
 	PLAYER_ABILITY_FLOW.try_trigger_gunner_infinite_reload(self)
 
+func _try_handle_manual_skill_slot(slot_index: int) -> bool:
+	return PLAYER_ABILITY_FLOW.try_handle_manual_skill_slot(self, slot_index)
+
 func _try_trigger_gunner_shrapnel_field() -> void:
 	PLAYER_ABILITY_FLOW.try_trigger_gunner_shrapnel_field(self)
 
 func _start_swordsman_blade_storm() -> void:
 	PLAYER_ABILITY_FLOW.start_swordsman_blade_storm(self)
+
+func is_swordsman_blade_storm_active() -> bool:
+	return PLAYER_ABILITY_FLOW.is_swordsman_blade_storm_active(self)
 
 func _start_swordsman_crescent_wave() -> void:
 	PLAYER_ABILITY_FLOW.start_swordsman_crescent_wave(self)
@@ -1523,8 +1590,18 @@ func _stop_gunner_infinite_reload() -> void:
 func is_gunner_infinite_reload_active() -> bool:
 	return PLAYER_ABILITY_FLOW.is_gunner_infinite_reload_active(self)
 
+func is_gunner_infinite_reload_blocking_actions() -> bool:
+	return PLAYER_ABILITY_FLOW.is_gunner_infinite_reload_blocking_actions(self)
+
+func is_gunner_infinite_reload_movement_locked() -> bool:
+	return PLAYER_ABILITY_FLOW.is_gunner_infinite_reload_movement_locked(self)
+
 func _get_gunner_infinite_reload_move_speed_multiplier() -> float:
 	return PLAYER_ABILITY_FLOW.get_gunner_infinite_reload_move_speed_multiplier(self)
+
+func _get_gunner_infinite_reload_dodge_value(role_id: String = "") -> float:
+	var resolved_role_id: String = role_id if role_id != "" else str(_get_active_role().get("id", ""))
+	return PLAYER_ABILITY_FLOW.get_gunner_infinite_reload_dodge_value(self, resolved_role_id)
 
 func _try_trigger_mage_tidal_surge() -> void:
 	PLAYER_ABILITY_FLOW.try_trigger_mage_tidal_surge(self)
@@ -1947,6 +2024,9 @@ func _heal_role(role_id: String, amount: float) -> void:
 		return
 	if has_method("is_healing_blocked") and is_healing_blocked():
 		return
+	amount = PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW.apply_healing_multiplier(self, amount)
+	if amount <= 0.0:
+		return
 	if role_health_values is not Dictionary or role_health_values.is_empty():
 		role_health_values = _build_role_health_state()
 	var role_max_health: float = _get_role_max_health(role_id)
@@ -2074,6 +2154,9 @@ func _try_apply_mage_kill_energy_proc(source_role_id: String, base_energy: float
 func _get_boss_damage_energy(damage_amount: float) -> float:
 	return PLAYER_COMBAT_RESULT_FLOW.get_boss_damage_energy(damage_amount)
 
+func _add_boss_damage_energy(amount: float) -> void:
+	PLAYER_COMBAT_RESULT_FLOW.add_boss_damage_energy(self, amount)
+
 func _get_ultimate_energy_cost() -> float:
 	return PLAYER_ULTIMATE_FLOW.get_ultimate_energy_cost(self)
 
@@ -2147,6 +2230,12 @@ func refresh_upgrade_options() -> Array:
 
 func refresh_upgrade_card(option_index: int) -> Array:
 	return PLAYER_LEVEL_FLOW.refresh_upgrade_card(self, option_index)
+
+func get_selected_level_talents(role_id: String) -> Array:
+	return PLAYER_SKILL_TALENT_SYSTEM.get_selected_level_talents(self, role_id)
+
+func _has_level_talent(talent_id: String) -> bool:
+	return PLAYER_SKILL_TALENT_SYSTEM.has_level_talent(self, talent_id)
 
 func build_direct_blessing_options() -> Array:
 	return PLAYER_LEVEL_FLOW.build_all_blessing_options(self)

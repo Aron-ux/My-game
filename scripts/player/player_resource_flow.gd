@@ -1,6 +1,7 @@
 extends RefCounted
 
 const ROLE_RESOURCE_STATE := preload("res://scripts/player/roles/role_resource_state.gd")
+const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")
 
 const ULTIMATE_ENERGY_GAIN_OUTPUT_MULTIPLIER := 0.625
 const TEMPORARY_HEALTH_DURATION := 30.0
@@ -130,6 +131,9 @@ static func heal(owner, amount: float) -> void:
 	if amount <= 0.0 or owner.is_dead:
 		return
 	if owner.has_method("is_healing_blocked") and owner.is_healing_blocked():
+		return
+	amount = PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW.apply_healing_multiplier(owner, amount)
+	if amount <= 0.0:
 		return
 	var previous_health: float = owner.current_health
 	owner.current_health = min(owner.max_health, owner.current_health + amount)

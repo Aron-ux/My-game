@@ -40,6 +40,11 @@ func _init() -> void:
 	var surge := MageSurge.new()
 	assert(surge._allocate_wake_points(4, 24) == [6, 6, 6, 6])
 	assert(surge._allocate_wake_points(1, 24) == [8])
+	owner.talents = {"mage_surge_wake": true}
+	var wake_budget := {"remaining": 4}
+	surge._fire_direction_group(owner, Vector2.ZERO, 10.0, [Vector2.RIGHT, Vector2.DOWN], 1.0, 1.0, true, wake_budget)
+	assert(owner.spawned_waves == 2)
+	owner.talents.clear()
 	var wake_hits := {}
 	assert(surge._try_apply_wake_hit(owner, inner_enemy, wake_hits, 20.0))
 	assert(not surge._try_apply_wake_hit(owner, inner_enemy, wake_hits, 20.0))
@@ -61,6 +66,7 @@ class TalentOwner:
 	var radius_candidates: Array = []
 	var radius_query_count := 0
 	var damage_calls: Dictionary = {}
+	var spawned_waves := 0
 
 	func _has_skill_talent(talent_id: String) -> bool:
 		return bool(talents.get(talent_id, false))
@@ -81,11 +87,42 @@ class TalentOwner:
 		radius_query_count += 1
 		return radius_candidates
 
+	func _spawn_directional_bullet_from_scene(_projectile_scene: PackedScene, _direction: Vector2, damage_amount: float, _color: Color, _role_id: String = "", _origin: Variant = null):
+		var projectile := ProjectileStub.new()
+		projectile.damage = damage_amount
+		spawned_waves += 1
+		add_child(projectile)
+		return projectile
+
+	func _get_role_attribute_range_multiplier(_role_id: String) -> float:
+		return 1.0
+
+	func _get_role_equipment_skill_range_multiplier(_role_id: String = "") -> float:
+		return 1.0
+
+	func _get_kebiru_magic_range_multiplier(_skill_id: String) -> float:
+		return 1.0
+
 	func _deal_damage_to_enemy(enemy: Node, _damage_amount: float, _source_role_id: String) -> bool:
 		var enemy_id := enemy.get_instance_id()
 		damage_calls[enemy_id] = int(damage_calls.get(enemy_id, 0)) + 1
 		return false
 
+
+class ProjectileStub:
+	extends Node2D
+
+	var damage := 0.0
+	var speed := 0.0
+	var lifetime := 0.0
+	var hit_radius := 0.0
+	var pierce_count := 0
+	var visual_scale_multiplier := 1.0
+	var enemy_hit_radius_scale := 0.0
+	var enemy_hit_radius_min := 0.0
+	var enemy_hit_radius_max := 0.0
+	var slow_multiplier := 1.0
+	var slow_duration := 0.0
 
 class EnemyStub:
 	extends Node2D

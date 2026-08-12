@@ -34,6 +34,14 @@ const ACTIVE_SKILL_IDS := [
 	SKILL_GUNNER_ULTIMATE,
 	SKILL_MAGE_ULTIMATE
 ]
+const ACTIVE_SLOT_SKILL_IDS := [
+	SKILL_BLADE_STORM,
+	SKILL_CRESCENT_WAVE,
+	SKILL_INFINITE_RELOAD,
+	SKILL_SHRAPNEL_FIELD,
+	SKILL_SURGING_WAVE,
+	SKILL_META_FIELD
+]
 const BASIC_ATTACK_SKILL_IDS := {
 	SKILL_SWORDSMAN_BASIC_ATTACK: true,
 	SKILL_GUNNER_BASIC_ATTACK: true,
@@ -556,6 +564,31 @@ static func get_skill_title(skill_id: String) -> String:
 static func get_skill_role_id(skill_id: String) -> String:
 	return str(SKILL_ROLE_IDS.get(skill_id, ""))
 
+
+static func get_unlocked_active_skill_order(owner, role_id: String = "") -> Array[String]:
+	var result: Array[String] = []
+	var raw_state: Variant = owner.get("blessing_skill_state") if owner != null else {}
+	var state: Dictionary = normalize_state(raw_state)
+	var unlocked: Dictionary = state.get("unlocked", {})
+	var ordered_values: Array = state.get("unlock_order", [])
+	for skill_id_value in ordered_values:
+		var skill_id := str(skill_id_value)
+		if _should_include_active_slot_skill(skill_id, role_id, unlocked) and not result.has(skill_id):
+			result.append(skill_id)
+	for skill_id_value in ACTIVE_SLOT_SKILL_IDS:
+		var skill_id := str(skill_id_value)
+		if _should_include_active_slot_skill(skill_id, role_id, unlocked) and not result.has(skill_id):
+			result.append(skill_id)
+	return result
+
+
+static func _should_include_active_slot_skill(skill_id: String, role_id: String, unlocked: Dictionary) -> bool:
+	if not ACTIVE_SLOT_SKILL_IDS.has(skill_id):
+		return false
+	if role_id != "" and get_skill_role_id(skill_id) != role_id:
+		return false
+	return bool(unlocked.get(skill_id, false))
+
 static func get_skill_graph_entries(owner, role_context: String = "") -> Array[Dictionary]:
 	if owner != null:
 		refresh_unlocks(owner, "", 0, "", role_context)
@@ -1034,6 +1067,8 @@ static func _unlock_skill(owner, skill_id: String, tier: int) -> void:
 	var state: Dictionary = normalize_state(owner.blessing_skill_state)
 	(state["unlocked"] as Dictionary)[skill_id] = true
 	(state["tiers"] as Dictionary)[skill_id] = max(int((state["tiers"] as Dictionary).get(skill_id, 0)), tier)
+	if ACTIVE_SLOT_SKILL_IDS.has(skill_id) and not (state["unlock_order"] as Array).has(skill_id):
+		(state["unlock_order"] as Array).append(skill_id)
 	owner.blessing_skill_state = state
 
 static func _ensure_always_unlocked(owner) -> void:
