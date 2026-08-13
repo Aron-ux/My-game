@@ -74,6 +74,8 @@ func _force_rebirth(enemy: Node2D, expected_lives_remaining: int, message: Strin
 class TargetStub:
 	extends Node2D
 
+	var is_dead: bool = false
+
 	func apply_enemy_slow(_multiplier: float, _duration: float) -> void:
 		pass
 
