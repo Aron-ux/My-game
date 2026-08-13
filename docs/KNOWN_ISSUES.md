@@ -38,8 +38,6 @@
 
 - Local graphify support for Godot/GDScript depends on local tooling availability.
 - Godot MCP is development tooling only. Current handoff should not rely on MCP being available; CLI Godot checks are the safer baseline.
-- At baseline `323c687`, the clean committed snapshot reaches the GDScript smoke suite but the release gate is red: `enemy_rebirth_smoke.gd` and `enemy_rose_behavior_smoke.gd` use stale test doubles that omit fields required by current enemy behavior. A printed `OK` is not sufficient because `check_project.sh` correctly rejects logged `SCRIPT ERROR` output.
-- `player_blessing_system_smoke.gd` still asserts old 108-node card-title/projection behavior even though the formal selected-talent queries are disabled; it currently fails and should be isolated as an explicitly named legacy migration test or removed from the current progression gate.
 
 ## Known Design Quirks
 
