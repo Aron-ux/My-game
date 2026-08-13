@@ -37,7 +37,7 @@ Use this before any public build, demo handoff, or store upload.
 - [ ] Verify Q/E switching without full energy changes role but does not fire an entry skill; full **departing-role** energy is consumed and fires only the incoming entry skill. Exit-skill copy/tutorial must not claim an effect while `EXIT_SKILLS_ENABLED=false`.
 - [ ] If Gunner has Infinite Reload I, verify the matching `1`–`6` slot key toggles it; do not assume other slots are manual abilities.
 - [ ] In endless camp, stand in front of `阮狗`, verify the interact prompt, advance every dialogue line, and close with `Esc`.
-- [ ] Defeat the 12:00 endless final Boss: verify fixed/first-clear bones, N+1 unlock, run-save removal, and return to camp with no same-run skill reward or “continue deeper” choice.
+- [ ] Defeat the endless final Boss that spawns at 12:00: verify fixed/first-clear bones, N+1 unlock, run-save removal, and return to camp with no same-run skill reward or “continue deeper” choice.
 
 
 ## Performance sanity
