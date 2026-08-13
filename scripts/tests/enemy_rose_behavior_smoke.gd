@@ -84,6 +84,7 @@ class BossEnemyStub:
 	var _is_swarm := false
 	var preferred_distance := 230.0
 	var boss_phase_transition_target := 0
+	var boss_shield_break_visual_intro_active: bool = false
 	var boss_orbit_sign := 1.0
 	var boss_pattern_rotation := 0.0
 	var _cached_to_target := Vector2.RIGHT * 230.0
