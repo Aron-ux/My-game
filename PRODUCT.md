@@ -10,11 +10,14 @@ Players who pause combat to compare the swordsman, gunner, and mage, then inspec
 
 ## Purpose
 
-The interface must answer three questions quickly:
+The interface must answer four questions quickly:
 
 1. What are this role's live combat stats and equipment?
 2. Which blessings are currently owned and what do they do?
-3. Which upgrades and skill mutation are active on each of the role's six skills?
+3. Which ordinary upgrades are active on each of the role's six skill records?
+4. Which player-level role talents are active and which alternatives did they lock?
+
+The current panel does not yet answer question four. Until that ledger is implemented, talent ownership is visible only in the selection flow and runtime/save state.
 
 ## Personality
 
