@@ -46,9 +46,9 @@ Level-up progression currently uses a four-card build offer:
 - Role-build cards cover role traits, basic attacks, entry skills, ultimates, direct skill unlocks, and upgrades for unlocked skills.
 - At player levels 3, 6, 9, and every later multiple of three, one additional talent choice is queued after the ordinary reward flow. The player first chooses a role, then one of up to three eligible talents for that role; each displayed talent card can be refreshed once.
 - Current player-facing talents come from 42 active definitions arranged as 21 mutually exclusive pairs. A picked `_1`/`_2` talent locks its sibling for the current scope; these suffixes are alternatives, not sequential tiers.
-- General blessings remain shared progression and keep independent tiers, binding, and recipe data. Blessing composition has been removed.
+- The formal general-blessing pool currently contains seven entries: Divine Grace, Support, Greed, Tailwind, Blazing Sun, Burst, and Unyielding. They remain shared progression with independent tiers; blessing composition has been removed.
 - Character panel displays ordinary skill-build stacks, owned blessings, stats, and equipment. It does not currently display the active player-level talent ledger.
-- Direct role-build unlock cards and the existing blessing-recipe unlock/evolution path currently coexist; future unlock/build changes follow upstream rather than a separate local progression model.
+- Direct role-build cards are the formal player route for unlocking active skills. Blessing-recipe unlock/evolution code and legacy material definitions remain in source, but those materials are excluded from the formal reward generators, so a clean formal run cannot currently use that path.
 - The older 18-tree/108-node Lv.3/Lv.6/Lv.9 skill-build design remains in source and historical specifications, but its player reward/apply/save path is disabled and legacy `skill_talents` are cleared during normalization.
 
 ## Run

@@ -17,6 +17,7 @@ This roadmap tracks project direction, not a promise of release dates.
 - Keep formal player progression on one route: ordinary four-card/select-two rewards, followed by queued player-level talents at level multiples of three.
 - Verify `level_talents`, pair locks, pending choices, and active talent context survive continue-save roundtrips while legacy `skill_talents` remain empty.
 - Resolve naming that makes `_1`/`_2` alternatives look like sequential ranks, and define behavior once all 21 current talent groups are exhausted.
+- Keep direct role-build cards as the only formal active-skill unlock route unless a separate review explicitly restores legacy blessing materials, binding, recipe locks, and evolution balance as one complete feature.
 - Align the character-panel hint, tutorial copy, current docs, and tests with the chosen source of truth.
 - Treat `docs/13_会议目标与三层技能天赋规划.md` and `docs/14_三角色完整三层技能天赋设计.md` as historical input until a new review explicitly reactivates that design.
 

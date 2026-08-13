@@ -18,11 +18,12 @@
 - Elite reward design is not final.
 - Blessing text, blessing values, character panel display, and actual combat effects must stay synchronized.
 - Common-prosperity applies a multiplicative switch-cooldown factor through player attribute data; changing switch cooldown formulas needs regression testing.
-- Current talent definitions contain 42 player-facing options in 21 mutually exclusive `_1` / `_2` groups, while a choice is queued every three player levels. The all-groups-exhausted case has no finished product contract and can leave later pending choices without useful candidates.
+- Current talent definitions contain 42 player-facing options in 21 mutually exclusive `_1` / `_2` groups, while a choice is queued every three player levels. Exhaustion is reproducible: the offer still exposes three role-entry cards whose nested candidate arrays are empty, so the paused reward flow cannot complete. With active-skill groups unavailable this can occur after 15 picks (next trigger Lv.48); full 21-group exhaustion reaches the same state at Lv.66.
 - `_1` / `_2` talent names are alternatives, not sequential tiers; current I/II titles can mislead players.
 - Current documentation uses the canonical player-facing role name `法师`, but two live Mage talent summaries in `LEVEL_TALENT_DEFINITIONS` and the camp's placeholder Mage interaction still say `术师`; synchronize that source copy before claiming player-facing labels are fully unified.
-- Direct role-build skill unlock cards and blessing-recipe unlock/evolution coexist. Their intended precedence and long-term ownership are not settled.
+- Direct role-build skill unlock cards are the only formal player-reachable active-skill unlock route. Blessing-recipe unlock/evolution, binding, and material-lock code remains, but required legacy materials are excluded from ordinary, Boss-choice, and random formal blessing generators.
 - `EXIT_SKILLS_ENABLED=false` disables exit skills, but the movement tutorial still says a full-energy switch triggers both exit and entry skills.
+- `difficulty_profile.gd` still describes the goal as defeating the final Boss “within 12 minutes”, while the Boss only spawns at `12:00`; current rules treat `12:00` as arrival and settlement as post-kill.
 - Old 108-node runtime helpers and tests remain beside the current system. `get_selected_talents()` / `has_talent()` are disabled and `skill_talents` is cleared, so restoring only a UI or developer entry would create a half-working second progression route.
 
 ## UI Risks
@@ -37,11 +38,13 @@
 
 - Local graphify support for Godot/GDScript depends on local tooling availability.
 - Godot MCP is development tooling only. Current handoff should not rely on MCP being available; CLI Godot checks are the safer baseline.
+- At baseline `323c687`, the clean committed snapshot reaches the GDScript smoke suite but the release gate is red: `enemy_rebirth_smoke.gd` and `enemy_rose_behavior_smoke.gd` use stale test doubles that omit fields required by current enemy behavior. A printed `OK` is not sufficient because `check_project.sh` correctly rejects logged `SCRIPT ERROR` output.
+- `player_blessing_system_smoke.gd` still asserts old 108-node card-title/projection behavior even though the formal selected-talent queries are disabled; it currently fails and should be isolated as an explicitly named legacy migration test or removed from the current progression gate.
 
 ## Known Design Quirks
 
 ### Blessing Skill Unlock Lock Sharing
 - `player_blessing_skill_state.gd` uses a global `role_recipe_locks` dictionary to track consumed blessings per skill unlock.
 - These locks are NOT per-role — a blessing consumed to unlock a swordsman skill (e.g., `formation_break` for Blade Storm) is also subtracted when checking mage skill requirements (e.g., Surging Wave).
-- Result: two roles that both meet the same blessing requirements may not both unlock their skills, because the first unlock's lock is subtracted from all roles.
-- This may be intentional (shared resource pool) or a bug — confirmed with upstream before changing.
+- Result when legacy materials are injected or restored: two roles that both meet the same blessing requirements may not both unlock their skills, because the first unlock's lock is subtracted from all roles.
+- This is dormant in a clean formal run because the required materials are not generated. If recipes are restored, decide whether the shared resource pool is intentional before changing it.
