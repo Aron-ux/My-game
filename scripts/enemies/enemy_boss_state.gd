@@ -16,6 +16,12 @@ static func get_boss_phase(enemy) -> int:
 static func get_phase_bar_max_health(enemy) -> float:
 	return max(1.0, float(enemy.max_health) / 3.0)
 
+static func get_boss_shield_max_health(enemy) -> float:
+	return max(0.0, float(enemy.boss_shield_max_health))
+
+static func get_boss_spawn_health(enemy) -> float:
+	return get_phase_bar_max_health(enemy) + get_boss_shield_max_health(enemy)
+
 static func has_boss_shield(enemy) -> bool:
 	if str(enemy.enemy_kind) != "boss" or bool(enemy.boss_shield_break_intro_played):
 		return false

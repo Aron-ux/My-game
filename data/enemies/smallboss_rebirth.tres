@@ -30,6 +30,8 @@ extra = {
 "skulltomb_charge_push_distance": 128.0,
 "skulltomb_charge_windup_duration": 2.0,
 "skulltomb_buff_duration": 5.0,
+"skulltomb_aging_aura_radius": 500.0,
+"skulltomb_aging_aura_current_health_drain_ratio": 0.08,
 "skulltomb_death_player_slow_duration": 5.0,
 "skulltomb_death_player_slow_multiplier": 0.5,
 "skulltomb_death_shot_frequency_multiplier": 1.3,

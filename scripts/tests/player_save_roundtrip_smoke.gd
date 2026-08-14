@@ -236,6 +236,7 @@ func _seed_run_state(player: Node) -> void:
 	player.gunner_infinite_reload_ability.apply_save_data({
 		"cooldown_remaining": 4.5,
 		"active_remaining": 1.5,
+		"manual_active_elapsed": 1.2,
 		"tick_remaining": 0.2,
 		"locked_aim_direction": [0.3, 0.7],
 		"sweep_elapsed": 0.6,

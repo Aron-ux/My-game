@@ -61,14 +61,14 @@ func _test_aging_aura_passive() -> void:
 	if not is_equal_approx(target.current_health, 100.0):
 		failures.append("aging aura should wait for one full second before draining health")
 	SKULLTOMB_BEHAVIOR._update_aging_aura(enemy, 0.5)
-	if not is_equal_approx(target.current_health, 95.0):
-		failures.append("aging aura should drain 5 percent of current health each second inside radius")
+	if not is_equal_approx(target.current_health, 92.0):
+		failures.append("aging aura should drain 8 percent of current health each second inside radius")
 	if not target.aging_applied:
 		failures.append("aging aura should apply the player aging status for buff display")
 
-	target.global_position = Vector2(360.0, 0.0)
+	target.global_position = Vector2(520.0, 0.0)
 	SKULLTOMB_BEHAVIOR._update_aging_aura(enemy, 1.0)
-	if not is_equal_approx(target.current_health, 95.0):
+	if not is_equal_approx(target.current_health, 92.0):
 		failures.append("aging aura should not drain outside the passive radius")
 
 	target.free()
@@ -173,6 +173,8 @@ class SkulltombStub:
 	var speed: float = 80.0
 	var contact_radius: float = 36.0
 	var skulltomb_summon_windup_remaining: float = 0.0
+	var skulltomb_aging_aura_radius: float = 500.0
+	var skulltomb_aging_aura_current_health_drain_ratio: float = 0.08
 	var skulltomb_charge_active: bool = false
 	var skulltomb_charge_interval: float = 9.0
 	var skulltomb_charge_timer: float = 0.0

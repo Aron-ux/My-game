@@ -143,6 +143,8 @@ var skulltomb_summon_interval: float = 20.0
 var skulltomb_summon_timer: float = 0.0
 var skulltomb_summon_windup: float = 1.2
 var skulltomb_summon_windup_remaining: float = 0.0
+var skulltomb_aging_aura_radius: float = 300.0
+var skulltomb_aging_aura_current_health_drain_ratio: float = 0.05
 var skulltomb_min_soldiers: int = 10
 var skulltomb_buff_duration: float = 5.0
 var skulltomb_death_player_slow_multiplier: float = 0.5
@@ -215,6 +217,7 @@ var _cached_direction_to_target: Vector2 = Vector2.RIGHT
 var boss_orbit_sign: float = 1.0
 var boss_pattern_rotation: float = 0.0
 var boss_display_name: String = "祸月星核"
+var boss_shield_max_health: float = 0.0
 var boss_battle_elapsed: float = 0.0
 var boss_phase: int = 1
 var boss_phase_three_elapsed: float = 0.0
@@ -306,8 +309,8 @@ func get_boss_ui_payload() -> Dictionary:
 	var boss_bar_max_health: float = max_health
 	var shield_max_health: float = 0.0
 	if enemy_kind == "boss":
-		boss_bar_max_health = max(1.0, max_health / 3.0)
-		shield_max_health = max(0.0, max_health - boss_bar_max_health)
+		boss_bar_max_health = ENEMY_BOSS_STATE.get_phase_bar_max_health(self)
+		shield_max_health = ENEMY_BOSS_STATE.get_boss_shield_max_health(self)
 	var shield_health: float = clamp(current_health - boss_bar_max_health, 0.0, shield_max_health)
 	var payload: Dictionary = {
 		"name": boss_display_name,

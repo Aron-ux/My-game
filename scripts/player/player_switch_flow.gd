@@ -154,6 +154,8 @@ static func _spawn_gunner_rearguard_bullet_batch(owner, role_id: String, origin:
 static func try_switch_role(owner, new_role_index: int, ignore_restrictions: bool = false, force_entry: bool = false) -> void:
 	if not ignore_restrictions and owner.has_method("_is_player_action_locked") and owner._is_player_action_locked():
 		return
+	if not ignore_restrictions and owner.has_method("is_gunner_infinite_reload_preventing_switch") and owner.is_gunner_infinite_reload_preventing_switch():
+		return
 	if new_role_index == owner.active_role_index:
 		return
 	if new_role_index < 0 or new_role_index >= owner.roles.size():

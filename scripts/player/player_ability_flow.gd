@@ -163,6 +163,15 @@ static func is_gunner_infinite_reload_movement_locked(owner) -> bool:
 	)
 
 
+static func is_gunner_infinite_reload_preventing_switch(owner) -> bool:
+	var ability = owner.get("gunner_infinite_reload_ability") if owner != null else null
+	return (
+		ability != null
+		and ability.has_method("is_preventing_switch")
+		and ability.is_preventing_switch(owner)
+	)
+
+
 static func get_gunner_infinite_reload_move_speed_multiplier(owner) -> float:
 	if owner.gunner_infinite_reload_ability != null and owner.gunner_infinite_reload_ability.has_method("get_move_speed_multiplier"):
 		return float(owner.gunner_infinite_reload_ability.get_move_speed_multiplier(owner))

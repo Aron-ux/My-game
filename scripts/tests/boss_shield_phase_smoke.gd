@@ -22,6 +22,10 @@ func _run() -> void:
     scene.add_child(enemy)
     enemy.target = target
     enemy.apply_enemy_profile("boss", ENEMY_ARCHETYPE_DATABASE.get_profile("boss", "boss_spellcore"))
+    if not is_equal_approx(enemy.boss_shield_max_health, 10000.0):
+        failures.append("boss spellcore shield should use its configured 10000 health")
+    if not is_equal_approx(enemy.current_health, ENEMY_BOSS_STATE.get_phase_bar_max_health(enemy) + 10000.0):
+        failures.append("boss spellcore spawn health should include its configured shield")
     enemy.max_health = 300.0
     enemy.current_health = 300.0
     enemy.boss_phase = 3

@@ -9,9 +9,9 @@ const DEATH_SPACE_WARNING_FILL_COLOR := Color(1.0, 0.14, 0.08, 0.22)
 const SUMMON_RING_START_RADIUS := 230.0
 const SUMMON_AREA_RADIUS := 583.2
 const SUMMON_AREA_DURATION := 7.0
-const AGING_AURA_RADIUS := 300.0
+const DEFAULT_AGING_AURA_RADIUS := 300.0
 const AGING_AURA_TICK_INTERVAL := 1.0
-const AGING_AURA_CURRENT_HEALTH_DRAIN_RATIO := 0.05
+const DEFAULT_AGING_AURA_CURRENT_HEALTH_DRAIN_RATIO := 0.05
 const SUMMON_AREA_VERTEX_VISUAL_SCALE := 1.0
 const SUMMON_AREA_LINE_COLOR := Color(0.08, 0.42, 0.38, 0.92)
 const SUMMON_AREA_COLLISION_LAYER := 1 << 6
@@ -62,7 +62,8 @@ static func _update_aging_aura(enemy, delta: float) -> void:
 		enemy.skulltomb_aging_aura_elapsed = 0.0
 		return
 	var target_node := enemy.target as Node2D
-	if enemy.global_position.distance_squared_to(target_node.global_position) > AGING_AURA_RADIUS * AGING_AURA_RADIUS:
+	var aura_radius: float = max(0.0, float(enemy.skulltomb_aging_aura_radius))
+	if enemy.global_position.distance_squared_to(target_node.global_position) > aura_radius * aura_radius:
 		enemy.skulltomb_aging_aura_elapsed = 0.0
 		return
 	if enemy.target.has_method("apply_aging"):
@@ -79,7 +80,8 @@ static func _apply_aging_aura_tick(enemy) -> void:
 	var current_health: float = max(0.0, float(enemy.target.get("current_health")))
 	if current_health <= 1.0:
 		return
-	var next_health: float = max(1.0, current_health * (1.0 - AGING_AURA_CURRENT_HEALTH_DRAIN_RATIO))
+	var drain_ratio: float = clamp(float(enemy.skulltomb_aging_aura_current_health_drain_ratio), 0.0, 1.0)
+	var next_health: float = max(1.0, current_health * (1.0 - drain_ratio))
 	if is_equal_approx(next_health, current_health):
 		return
 	enemy.target.set("current_health", next_health)

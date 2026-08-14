@@ -7,6 +7,7 @@ const PlayerCooldownFlow := preload("res://scripts/player/player_skill_cooldown_
 const PlayerEquipmentFlow := preload("res://scripts/player/player_equipment_flow.gd")
 const PlayerSurvivalFlow := preload("res://scripts/player/player_survival_flow.gd")
 const PlayerUltimateFlow := preload("res://scripts/player/player_ultimate_flow.gd")
+const PlayerSwitchFlow := preload("res://scripts/player/player_switch_flow.gd")
 
 var failures: Array[String] = []
 
@@ -41,6 +42,9 @@ func _run() -> void:
 	owner.mouse_aim_direction = Vector2.RIGHT
 	_expect(PlayerAbilityFlow.try_handle_manual_skill_slot(owner, 2), "slot 2 should toggle infinite reload on")
 	_expect(owner.gunner_infinite_reload_ability.is_active(), "manual infinite reload should become active")
+	var initial_manual_slot := owner.gunner_infinite_reload_ability.get_cooldown_slot(owner)
+	_expect(is_equal_approx(float(initial_manual_slot.get("remaining", 0.0)), 1.5), "manual infinite reload should show a 1.5s cooldown at activation")
+	_expect(is_equal_approx(float(initial_manual_slot.get("duration", 0.0)), 1.5), "manual infinite reload lock cooldown should have 1.5s duration")
 	_expect(PlayerAbilityFlow.is_gunner_infinite_reload_blocking_actions(owner), "manual infinite reload should block other actions")
 	_expect(is_equal_approx(PlayerEquipmentFlow.get_role_permanent_dodge_value(owner, "gunner"), 100.0), "manual infinite reload should add 100 dodge value for gunner")
 	_expect(is_equal_approx(PlayerEquipmentFlow.get_role_permanent_dodge_value(owner, "swordsman"), 0.0), "manual infinite reload dodge value should not apply to other roles")
@@ -51,13 +55,26 @@ func _run() -> void:
 	owner.last_shapes.clear()
 	owner.gunner_infinite_reload_ability._trigger_tick(owner)
 	_expect(owner.last_shapes.size() == 2, "infinite reload II should fire dual parallel beams")
+	_expect(is_equal_approx(float(owner.last_shapes[0].get("length", 0.0)), 500.0), "infinite reload I and II should each add 50 range")
 	_expect(owner.facing_direction.is_equal_approx(Vector2.RIGHT), "manual infinite reload should keep first aim direction")
 
 	owner.attack_count = 0
 	PlayerAttackLoopFlow.perform_active_attack(owner)
 	_expect(owner.attack_count == 0, "manual infinite reload should block basic attack")
 
-	_expect(PlayerAbilityFlow.try_handle_manual_skill_slot(owner, 2), "slot 2 should toggle infinite reload off")
+	_expect(not PlayerAbilityFlow.try_handle_manual_skill_slot(owner, 2), "manual infinite reload should not close before 1.5s")
+	_expect(owner.gunner_infinite_reload_ability.is_active(), "manual infinite reload should remain active before 1.5s")
+	PlayerSwitchFlow.try_switch_role(owner, 0)
+	_expect(owner.active_role_index == 1, "manual infinite reload should block role switch before 1.5s")
+	owner.gunner_infinite_reload_ability.update(owner, 1.4)
+	var almost_ready_manual_slot := owner.gunner_infinite_reload_ability.get_cooldown_slot(owner)
+	_expect(is_equal_approx(float(almost_ready_manual_slot.get("remaining", 0.0)), 0.1), "manual infinite reload lock cooldown should count down to 0.1s")
+	_expect(is_equal_approx(float(almost_ready_manual_slot.get("duration", 0.0)), 1.5), "manual infinite reload lock cooldown should remain a 1.5s display")
+	_expect(not PlayerAbilityFlow.try_handle_manual_skill_slot(owner, 2), "manual infinite reload should still not close at 1.4s")
+	owner.gunner_infinite_reload_ability.update(owner, 0.1)
+	var ready_manual_slot := owner.gunner_infinite_reload_ability.get_cooldown_slot(owner)
+	_expect(is_equal_approx(float(ready_manual_slot.get("remaining", 0.0)), 0.0), "manual infinite reload lock cooldown should finish at 1.5s")
+	_expect(PlayerAbilityFlow.try_handle_manual_skill_slot(owner, 2), "slot 2 should toggle infinite reload off after 1.5s")
 	_expect(not owner.gunner_infinite_reload_ability.is_active(), "manual infinite reload should stop after closing")
 	_expect(is_equal_approx(owner.gunner_infinite_reload_ability.cooldown_remaining, 0.5), "manual close should apply 0.5s cooldown")
 	_expect(not PlayerAbilityFlow.is_gunner_infinite_reload_blocking_actions(owner), "manual infinite reload should stop blocking after closing")
@@ -96,7 +113,13 @@ class ManualOwner:
 	var gunner_infinite_reload_ability = InfiniteReload.new()
 	var is_dead := false
 	var level_up_active := false
+	var active_role_index := 1
 	var active_role_id := "gunner"
+	var switch_cooldown_remaining := 0.0
+	var hidden_invulnerability_status_remaining := 0.0
+	var switch_invulnerability_remaining := 0.0
+	var role_switch_cooldown_bonus := 0.0
+	var swordsman_death_defiance_will_remaining := 0.0
 	var facing_direction := Vector2.RIGHT
 	var mouse_aim_direction := Vector2.RIGHT
 	var gunner_attack_chain := 0
@@ -105,10 +128,10 @@ class ManualOwner:
 	const GUNNER_INTERSECT_VISUAL_SCALE := 1.0
 
 	func _get_active_role() -> Dictionary:
-		return {"id": active_role_id}
+		return roles[active_role_index]
 
 	func _get_active_role_id() -> String:
-		return active_role_id
+		return str(_get_active_role().get("id", ""))
 
 	func _has_skill_talent(talent_id: String) -> bool:
 		return bool(talents.get(talent_id, false))
@@ -167,6 +190,9 @@ class ManualOwner:
 	func _get_gunner_intersect_gather_duration() -> float:
 		return 0.0
 
+	func _queue_camera_shake(_strength: float, _duration: float) -> void:
+		pass
+
 	func _damage_enemies_in_shapes_batched(shapes: Array[Dictionary]) -> int:
 		last_shapes.clear()
 		for shape in shapes:
@@ -178,6 +204,33 @@ class ManualOwner:
 
 	func is_gunner_infinite_reload_blocking_actions() -> bool:
 		return PlayerAbilityFlow.is_gunner_infinite_reload_blocking_actions(self)
+
+	func is_gunner_infinite_reload_preventing_switch() -> bool:
+		return PlayerAbilityFlow.is_gunner_infinite_reload_preventing_switch(self)
+
+	func _is_player_action_locked() -> bool:
+		return false
+
+	func _get_common_prosperity_switch_cooldown_multiplier() -> float:
+		return 1.0
+
+	func _save_active_role_health() -> void:
+		pass
+
+	func _save_active_role_temporary_health() -> void:
+		pass
+
+	func _clear_gunner_flash_trait_on_switch() -> void:
+		pass
+
+	func _update_active_role_state() -> void:
+		active_role_id = str(_get_active_role().get("id", ""))
+
+	func _initialize_existing_role_shares() -> void:
+		pass
+
+	func _consume_switch_energy_for_entry(_role_id: String = "") -> bool:
+		return false
 
 	func _has_elite_relic(_relic_id: String) -> bool:
 		return false

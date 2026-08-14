@@ -47,12 +47,16 @@ const TALENT_IDS := [
 ]
 const LEVEL_TALENT_INFINITE_RELOAD_1 := "gunner_level_talent_infinite_reload_1"
 const LEVEL_TALENT_INFINITE_RELOAD_2 := "gunner_level_talent_infinite_reload_2"
-const LEVEL_TALENT_INFINITE_RELOAD_1_RANGE_BONUS := 20.0
-const LEVEL_TALENT_INFINITE_RELOAD_2_RANGE_BONUS := 30.0
+const LEVEL_TALENT_INFINITE_RELOAD_1_RANGE_BONUS := 50.0
+const LEVEL_TALENT_INFINITE_RELOAD_2_RANGE_BONUS := 50.0
 const LEVEL_TALENT_INFINITE_RELOAD_1_DODGE_VALUE_BONUS := 100.0
+const LEVEL_TALENT_INFINITE_RELOAD_1_MIN_MANUAL_ACTIVE_TIME := 1.5
+const LEVEL_TALENT_INFINITE_RELOAD_2_COOLDOWN_BONUS := 1.0
+const LEVEL_TALENT_INFINITE_RELOAD_2_DURATION_BONUS := 1.0
 
 var cooldown_remaining: float = 0.0
 var active_remaining: float = 0.0
+var manual_active_elapsed: float = 0.0
 var tick_remaining: float = 0.0
 var locked_aim_direction: Vector2 = Vector2.RIGHT
 var effects: Array[Node2D] = []
@@ -84,6 +88,7 @@ func update(owner, delta: float) -> void:
 		return
 
 	if _is_manual_cast(owner):
+		manual_active_elapsed += max(0.0, delta)
 		active_remaining = MANUAL_ACTIVE_REMAINING
 	else:
 		active_remaining = max(0.0, active_remaining - delta)
@@ -122,6 +127,8 @@ func toggle_manual(owner) -> bool:
 	if not is_manual_toggle_enabled(owner):
 		return false
 	if active_remaining > 0.0 and _is_manual_cast(owner):
+		if manual_active_elapsed < LEVEL_TALENT_INFINITE_RELOAD_1_MIN_MANUAL_ACTIVE_TIME:
+			return false
 		_finish_manual_cast(owner)
 		return true
 	if not can_trigger(owner, str(owner._get_active_role().get("id", ""))):
@@ -137,6 +144,9 @@ func is_blocking_actions(owner) -> bool:
 func is_movement_locked(owner) -> bool:
 	return active_remaining > 0.0 and _is_manual_cast(owner)
 
+func is_preventing_switch(owner) -> bool:
+	return active_remaining > 0.0 and _is_manual_cast(owner) and manual_active_elapsed < LEVEL_TALENT_INFINITE_RELOAD_1_MIN_MANUAL_ACTIVE_TIME
+
 func get_dodge_value_bonus(owner, role_id: String) -> float:
 	if role_id != "gunner":
 		return 0.0
@@ -151,6 +161,7 @@ func _start_cast(owner, manual_cast: bool) -> bool:
 	finish_pending = false
 	finish_effects_applied = false
 	active_remaining = MANUAL_ACTIVE_REMAINING if manual_cast else _get_duration(owner)
+	manual_active_elapsed = 0.0
 	cooldown_remaining = 0.0 if manual_cast else _get_cooldown(owner)
 	tick_remaining = 0.0
 	locked_aim_direction = owner._get_live_mouse_aim_direction(owner.facing_direction)
@@ -169,6 +180,7 @@ func _start_cast(owner, manual_cast: bool) -> bool:
 
 func _finish_manual_cast(owner) -> void:
 	active_remaining = 0.0
+	manual_active_elapsed = 0.0
 	tick_remaining = 0.0
 	finish_pending = true
 	finish_effects_applied = true
@@ -178,6 +190,7 @@ func _finish_manual_cast(owner) -> void:
 
 func stop(owner = null) -> void:
 	active_remaining = 0.0
+	manual_active_elapsed = 0.0
 	tick_remaining = 0.0
 	locked_aim_direction = Vector2.RIGHT
 	sweep_elapsed = 0.0
@@ -216,19 +229,26 @@ func _release_visual_effect(effect: Node2D) -> void:
 	PLAYER_AUTHORED_EFFECTS.release_gunner_intersect_effect(effect)
 
 func get_cooldown_slot(owner = null) -> Dictionary:
-	var duration := _get_cooldown(owner)
+	var duration: float = _get_cooldown(owner)
+	var remaining: float = clamp(cooldown_remaining, 0.0, duration)
+	var description: String = "\u65E0\u9650\u88C5\u586B\uFF1A\u67AA\u624B\u8361\u9635\u8FDB\u5316\u3002\u6301\u7EED\u9AD8\u901F\u91CA\u653E\u8D2F\u7A7F\u706B\u529B\uFF0C\u671F\u95F4\u53EF\u6B63\u5E38\u91CA\u653E\u5176\u4ED6\u6280\u80FD\u4E0E\u5927\u62DB\uFF0C\u51B7\u5374\u7ED3\u675F\u540E\u53EF\u518D\u6B21\u89E6\u53D1\u3002"
+	if active_remaining > 0.0 and _is_manual_cast(owner) and manual_active_elapsed < LEVEL_TALENT_INFINITE_RELOAD_1_MIN_MANUAL_ACTIVE_TIME:
+		duration = LEVEL_TALENT_INFINITE_RELOAD_1_MIN_MANUAL_ACTIVE_TIME
+		remaining = max(0.0, duration - manual_active_elapsed)
+		description = "\u65E0\u9650\u88C5\u586B\u5DF2\u5F00\u542F\uFF0C1.5\u79D2\u5185\u4E0D\u53EF\u5173\u95ED"
 	return {
 		"name": "\u65E0\u9650\u88C5\u586B",
-		"remaining": clamp(cooldown_remaining, 0.0, duration),
+		"remaining": remaining,
 		"duration": duration,
 		"color": Color(1.0, 0.56, 0.28, 1.0),
-		"description": "无限装填：枪手荡阵进化。持续高速释放贯穿火力，期间可正常释放其他技能与大招，冷却结束后可再次触发。"
+		"description": description
 	}
 
 func get_save_data() -> Dictionary:
 	return {
 		"cooldown_remaining": cooldown_remaining,
 		"active_remaining": active_remaining,
+		"manual_active_elapsed": manual_active_elapsed,
 		"tick_remaining": tick_remaining,
 		"locked_aim_direction": [locked_aim_direction.x, locked_aim_direction.y],
 		"sweep_elapsed": sweep_elapsed,
@@ -239,8 +259,9 @@ func get_save_data() -> Dictionary:
 	}
 
 func apply_save_data(data: Dictionary) -> void:
-	cooldown_remaining = clamp(float(data.get("cooldown_remaining", 0.0)), 0.0, COOLDOWN)
-	active_remaining = clamp(float(data.get("active_remaining", 0.0)), 0.0, TIER_THREE_DURATION + 3.0 * DIELANG_DURATION_BONUS)
+	cooldown_remaining = clamp(float(data.get("cooldown_remaining", 0.0)), 0.0, COOLDOWN + LEVEL_TALENT_INFINITE_RELOAD_2_COOLDOWN_BONUS)
+	active_remaining = clamp(float(data.get("active_remaining", 0.0)), 0.0, TIER_THREE_DURATION + 3.0 * DIELANG_DURATION_BONUS + LEVEL_TALENT_INFINITE_RELOAD_2_DURATION_BONUS)
+	manual_active_elapsed = max(0.0, float(data.get("manual_active_elapsed", 0.0)))
 	tick_remaining = clamp(float(data.get("tick_remaining", 0.0)), 0.0, TICK_INTERVAL)
 	sweep_elapsed = max(0.0, float(data.get("sweep_elapsed", 0.0)))
 	hit_during_cast = bool(data.get("hit_during_cast", false))
@@ -534,6 +555,8 @@ func _get_duration(owner) -> float:
 		duration = TIER_THREE_DURATION
 	elif tier >= 2:
 		duration = TIER_TWO_DURATION
+	if _has_talent(owner, LEVEL_TALENT_INFINITE_RELOAD_2):
+		duration += LEVEL_TALENT_INFINITE_RELOAD_2_DURATION_BONUS
 	if owner != null and owner.has_method("_get_blessing_skill_duration_multiplier"):
 		duration *= float(owner._get_blessing_skill_duration_multiplier(INFINITE_RELOAD_SKILL_ID))
 	if owner != null and owner.has_method("_get_blessing_skill_duration_flat_bonus"):
@@ -572,7 +595,10 @@ func _get_cooldown(owner) -> float:
 		cooldown_multiplier *= float(owner._get_equipment_cooldown_multiplier())
 	if owner != null and is_instance_valid(owner) and owner.has_method("_get_mage_arcane_charge_skill_cooldown_multiplier"):
 		cooldown_multiplier *= float(owner._get_mage_arcane_charge_skill_cooldown_multiplier("gunner"))
-	return COOLDOWN * cooldown_multiplier
+	var cooldown: float = COOLDOWN * cooldown_multiplier
+	if _has_talent(owner, LEVEL_TALENT_INFINITE_RELOAD_2):
+		cooldown += LEVEL_TALENT_INFINITE_RELOAD_2_COOLDOWN_BONUS
+	return cooldown
 
 func _get_tier(owner) -> int:
 	if owner != null and owner.has_method("_get_blessing_skill_tier"):

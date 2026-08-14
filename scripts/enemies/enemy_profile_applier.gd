@@ -1,6 +1,7 @@
 extends RefCounted
 
 const ENEMY_DIRECTOR := preload("res://scripts/enemy/enemy_director.gd")
+const ENEMY_BOSS_STATE := preload("res://scripts/enemies/enemy_boss_state.gd")
 
 static func apply_profile(enemy, kind: String, profile: Dictionary) -> void:
 	enemy.enemy_kind = kind
@@ -10,8 +11,9 @@ static func apply_profile(enemy, kind: String, profile: Dictionary) -> void:
 	enemy.profile_visual_scene = profile.get("visual_scene", null) as PackedScene
 	enemy.max_health = float(profile.get("max_health", enemy.max_health))
 	enemy.current_health = enemy.max_health
+	enemy.boss_shield_max_health = max(0.0, float(profile.get("boss_shield_max_health", 0.0)))
 	if kind == "boss":
-		enemy.current_health = max(1.0, enemy.max_health / 3.0)
+		enemy.current_health = ENEMY_BOSS_STATE.get_boss_spawn_health(enemy)
 	enemy.speed = float(profile.get("speed", enemy.speed))
 	enemy.touch_damage = float(profile.get("touch_damage", enemy.touch_damage))
 	enemy.contact_radius = float(profile.get("contact_radius", enemy.contact_radius))
@@ -70,6 +72,8 @@ static func apply_profile(enemy, kind: String, profile: Dictionary) -> void:
 	enemy.rebirth_slow_multiplier = float(profile.get("rebirth_slow_multiplier", 0.5))
 	enemy.rebirth_slow_duration = float(profile.get("rebirth_slow_duration", 6.0))
 	enemy.skulltomb_summon_interval = float(profile.get("skulltomb_summon_interval", 20.0))
+	enemy.skulltomb_aging_aura_radius = max(0.0, float(profile.get("skulltomb_aging_aura_radius", 300.0)))
+	enemy.skulltomb_aging_aura_current_health_drain_ratio = clamp(float(profile.get("skulltomb_aging_aura_current_health_drain_ratio", 0.05)), 0.0, 1.0)
 	enemy.skulltomb_summon_timer = enemy.skulltomb_summon_interval
 	enemy.skulltomb_summon_windup = float(profile.get("skulltomb_summon_windup", 1.2))
 	enemy.skulltomb_summon_windup_remaining = 0.0

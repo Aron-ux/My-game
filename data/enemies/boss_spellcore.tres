@@ -19,6 +19,7 @@ display_color = Color(0.95, 0.2, 0.24, 1)
 extra = {
 "preferred_distance": 230.0,
 "projectile_damage": 18.5,
+"boss_shield_max_health": 10000.0,
 "boss_radial_interval": 0.78,
 "boss_radial_bullets": 16,
 "boss_sine_interval": 2.9,

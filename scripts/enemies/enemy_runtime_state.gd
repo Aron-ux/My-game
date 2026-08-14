@@ -1,6 +1,7 @@
 extends RefCounted
 
 const ENEMY_GLUTTON_SKILL_BEHAVIOR := preload("res://scripts/enemies/enemy_glutton_skill_behavior.gd")
+const ENEMY_BOSS_STATE := preload("res://scripts/enemies/enemy_boss_state.gd")
 
 static func reset(enemy, randomize_timers: bool) -> void:
 	if randomize_timers:
@@ -50,7 +51,7 @@ static func reset(enemy, randomize_timers: bool) -> void:
 	enemy.boss_shield_break_intro_played = false
 	enemy.boss_shield_break_visual_intro_active = false
 	if str(enemy.enemy_kind) == "boss":
-		enemy.current_health = max(1.0, float(enemy.max_health) / 3.0)
+		enemy.current_health = ENEMY_BOSS_STATE.get_boss_spawn_health(enemy)
 	enemy.boss_laser_remaining = 0.0
 	enemy.boss_laser_rotation = randf() * TAU if randomize_timers else 0.0
 	enemy.boss_laser_start_rotation = enemy.boss_laser_rotation

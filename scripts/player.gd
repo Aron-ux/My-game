@@ -1596,6 +1596,9 @@ func is_gunner_infinite_reload_blocking_actions() -> bool:
 func is_gunner_infinite_reload_movement_locked() -> bool:
 	return PLAYER_ABILITY_FLOW.is_gunner_infinite_reload_movement_locked(self)
 
+func is_gunner_infinite_reload_preventing_switch() -> bool:
+	return PLAYER_ABILITY_FLOW.is_gunner_infinite_reload_preventing_switch(self)
+
 func _get_gunner_infinite_reload_move_speed_multiplier() -> float:
 	return PLAYER_ABILITY_FLOW.get_gunner_infinite_reload_move_speed_multiplier(self)
 

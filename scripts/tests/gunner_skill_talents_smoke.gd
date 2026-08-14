@@ -112,6 +112,22 @@ func _init() -> void:
 	var restored_infinite := InfiniteReload.new()
 	restored_infinite.apply_save_data(infinite_save)
 	assert((restored_infinite.last_tick_data.get("origin", Vector2.ZERO) as Vector2).is_equal_approx(Vector2(1.0, 2.0)))
+	restored_infinite.apply_save_data({"cooldown_remaining": 21.0})
+	assert(is_equal_approx(restored_infinite.cooldown_remaining, 21.0))
+
+	owner.talents = {}
+	owner.level_talents = {"gunner_level_talent_infinite_reload_2": true}
+	owner.last_shapes.clear()
+	var infinite_two := InfiniteReload.new()
+	assert(is_equal_approx(infinite_two._get_duration(owner), 4.0))
+	assert(is_equal_approx(infinite_two._get_cooldown(owner), 21.0))
+	infinite_two._start_cast(owner, false)
+	infinite_two._trigger_tick(owner)
+	infinite_two._update_pending_beam_hits(owner, 0.2)
+	assert(owner.last_shapes.size() == 2)
+	assert(is_equal_approx(float(owner.last_shapes[0].get("length", 0.0)), 450.0))
+	infinite_two.stop(owner)
+	owner.level_talents.clear()
 
 	owner.last_shapes.clear()
 	var sync_infinite := InfiniteReload.new()
