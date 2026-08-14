@@ -89,7 +89,7 @@ The palette is restrained navy-black with a scarce amber-gold accent and semanti
 - **Text Gold** (`#FFE070`): section titles and selected labels.
 
 ### Secondary
-- **State Good** (`#6BFF94`): an effect, role, or mutation that is currently active.
+- **State Good** (`#6BFF94`): an effect, role, upgrade, or talent that is currently active.
 - **State Danger** (`#D62E2E`): unavailable or harmful states that require attention.
 
 ### Neutral
@@ -138,7 +138,7 @@ Depth is structural: nested navy surfaces, thin borders, and modest dark shadows
 
 ### Chips
 - **Style:** compact inline tier tokens such as `I×3 · II×1`; separators keep the ledger scannable without adding another row of controls.
-- **State:** owned tiers are written explicitly; inactive future talent nodes use muted text and an open-circle symbol.
+- **State:** owned blessing tiers are written explicitly; unavailable or locked information uses muted text plus an explicit label.
 
 ### Cards / Containers
 - **Corner Style:** 12px for rows/cards; 16px for the main modal.
@@ -157,7 +157,7 @@ Depth is structural: nested navy surfaces, thin borders, and modest dark shadows
 
 ### Skill Build Record
 
-Each role keeps a six-skill selector beside one focused talent tree. Hover, focus, or click selects a skill; the detail pane shows three fixed left/right stages, the current path, and owned repeatable build upgrades below the tree. Only real talent definitions may appear: unavailable stages stay visibly locked instead of inventing thresholds or effects.
+Each role keeps a six-skill selector beside one focused build record. Hover, focus, or click selects a skill; the detail pane shows its unlock state, derived build level, owned repeatable upgrades, stack counts, and current descriptions. The retired three-stage left/right tree must not be presented as live progression. When a player-level talent ledger is added, it must read `level_talents` directly and remain visually separate from ordinary build stacks.
 
 ### Blessing Ledger
 

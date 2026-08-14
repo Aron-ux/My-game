@@ -6,21 +6,20 @@ This roadmap tracks project direction, not a promise of release dates.
 
 - Keep the current survivor-like combat loop playable.
 - Stabilize save/load and continue-game behavior.
-- Validate the implemented 108 three-stage skill-talent nodes, especially ordinary-build inheritance, visual readability, branch balance, and long-session behavior.
-- Extend the character panel from total skill-build level to the exact acquired build cards and stack counts.
+- Validate the current every-three-player-level talent loop: role choice, up-to-three eligible role-detail cards, one-refresh-per-card behavior, skill prerequisites, pair locks, save restoration, and exhaustion at high levels.
+- Add a read-only player-level talent ledger to the character panel; the existing skill-build page already shows exact ordinary build cards and stack counts.
 - Identify the Boss referenced by the meeting, then measure its difficulty and high-tier blessing timing before changing values.
 - Keep dense-combat and autosave optimization evidence-driven through the existing benchmark, evaluator, trace, and feature-flag paths.
 
-## Now: three-tier skill-talent verification
+## Now: close the progression migration
 
-- Validate the implemented Lv.3/Lv.6/Lv.9, naming, upgrade-inheritance, and 108-node specification in `docs/14_三角色完整三层技能天赋设计.md`; complete 144-path behavior regression and balance passes.
-- Exercise the implemented three fixed binary tiers; paths such as `221` are composed from six independent options, not recursive branch-specific subtrees.
-- Keep talent thresholds derived from the existing skill-build level and preserve the ordinary four-card/select-two reward.
-- Regression-test old-save migration from one stable `talent_id` to ordered tier selections without losing the original stage-I talent.
-- Verify HUD, character panel, upgrade copy, developer tools, and continue-save restoration stay consistent for tiered selections.
-- Complete 144 single-skill-path regression and cross-role high-risk smoke coverage for the already implemented three roles.
-- Keep the gunner without periodic background attacks; its later talents reinforce entry and on-field damage instead.
-- Planning and acceptance criteria live in `docs/13_会议目标与三层技能天赋规划.md`; the complete content specification lives in `docs/14_三角色完整三层技能天赋设计.md`.
+- Decide explicitly whether the residual 18-tree/108-node definitions, projections, developer options, and old smokes are deleted, archived as test fixtures, or restored through a new approved design. Do not leave them half-authoritative.
+- Keep formal player progression on one route: ordinary four-card/select-two rewards, followed by queued player-level talents at level multiples of three.
+- Verify `level_talents`, pair locks, pending choices, and active talent context survive continue-save roundtrips while legacy `skill_talents` remain empty.
+- Resolve naming that makes `_1`/`_2` alternatives look like sequential ranks, and define behavior once all 21 current talent groups are exhausted.
+- Keep direct role-build cards as the only formal active-skill unlock route unless a separate review explicitly restores legacy blessing materials, binding, recipe locks, and evolution balance as one complete feature.
+- Align the character-panel hint, tutorial copy, current docs, and tests with the chosen source of truth.
+- Treat `docs/13_会议目标与三层技能天赋规划.md` and `docs/14_三角色完整三层技能天赋设计.md` as historical input until a new review explicitly reactivates that design.
 
 ## Next: rewards
 
