@@ -110,6 +110,8 @@ static func get_role_move_speed(owner, role_id: String) -> float:
 		return move_speed
 	if owner.entry_blessing_remaining > 0.0 and owner.entry_blessing_role_id == role_id:
 		move_speed *= owner.entry_haste_move_speed_multiplier
+	if role_id == "mage" and owner.has_method("_get_mage_flame_path_move_speed_multiplier"):
+		move_speed *= float(owner._get_mage_flame_path_move_speed_multiplier())
 	if role_id == "gunner" and owner.has_method("_get_gunner_infinite_reload_move_speed_multiplier"):
 		move_speed *= float(owner._get_gunner_infinite_reload_move_speed_multiplier())
 	if role_id == "gunner" and owner.has_method("_get_gunner_flash_move_speed_multiplier"):
@@ -323,7 +325,10 @@ static func get_role_damage(owner, role_id: String) -> float:
 		var blazing_sun_flat_base_damage := 0.0
 		if owner.has_method("_get_blazing_sun_flat_base_damage"):
 			blazing_sun_flat_base_damage = float(owner._get_blazing_sun_flat_base_damage(role_id))
-		var current_role_base_damage: float = float(role_data["damage"]) + blazing_sun_flat_base_damage
+		var king_blade_flat_base_damage := 0.0
+		if owner.has_method("_get_king_blade_flat_base_damage"):
+			king_blade_flat_base_damage = float(owner._get_king_blade_flat_base_damage(role_id))
+		var current_role_base_damage: float = float(role_data["damage"]) + blazing_sun_flat_base_damage + king_blade_flat_base_damage
 		var damage_amount: float = current_role_base_damage * max(0.01, 1.0 + blessing_damage_percent) * max(0.01, base_global_multiplier + role_equipment_bonus)
 		if owner.switch_power_remaining > 0.0 and owner.switch_power_role_id == role_id:
 			damage_amount *= owner.switch_power_damage_multiplier

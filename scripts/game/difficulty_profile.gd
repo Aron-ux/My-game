@@ -2,6 +2,10 @@ extends RefCounted
 
 const DEFAULT_DIFFICULTY_ID := "normal"
 const ENDLESS_TIER_ANCHOR_SPAN := 10.0
+const ENDLESS_ENEMY_HEALTH_INCREASE_PER_TIER := 0.10
+const ENDLESS_BOSS_HEALTH_INCREASE_PER_TIER := 0.20
+const ENDLESS_ENEMY_SPEED_INCREASE_PER_TIER := 0.08
+const ENDLESS_PROJECTILE_SPEED_BONUS_PER_TIER := 50.0
 const ENDLESS_UNBOUNDED_KEYS := [
 	"enemy_health_scale",
 	"special_health_scale",
@@ -140,6 +144,12 @@ static func get_endless_tier_profile(tier: int) -> Dictionary:
 	profile["id"] = "n%d" % safe_tier
 	profile["label"] = "N%d" % safe_tier
 	profile["tier"] = safe_tier
+	var tier_steps: int = safe_tier - 1
+	profile["enemy_health_scale"] = 1.0 + float(tier_steps) * ENDLESS_ENEMY_HEALTH_INCREASE_PER_TIER
+	profile["special_health_scale"] = profile["enemy_health_scale"]
+	profile["boss_health_scale"] = 1.0 + float(tier_steps) * ENDLESS_BOSS_HEALTH_INCREASE_PER_TIER
+	profile["enemy_speed_scale"] = 1.0 + float(tier_steps) * ENDLESS_ENEMY_SPEED_INCREASE_PER_TIER
+	profile["projectile_speed_bonus"] = float(tier_steps) * ENDLESS_PROJECTILE_SPEED_BONUS_PER_TIER
 	profile["description"] = "12 分钟内击败最终 Boss；生命与伤害随 N 层线性提升。"
 	return profile
 
@@ -151,12 +161,13 @@ static func get_limit(profile: Dictionary, key: String, fallback: int) -> int:
 
 static func get_health_scale_for_kind(kind: String, profile: Dictionary) -> float:
 	match kind:
-		"boss":
+		"boss", "small_boss":
 			return get_scale(profile, "boss_health_scale", get_scale(profile, "enemy_health_scale", 1.0))
-		"elite", "small_boss":
-			return get_scale(profile, "special_health_scale", get_scale(profile, "enemy_health_scale", 1.0))
 		_:
 			return get_scale(profile, "enemy_health_scale", 1.0)
+
+static func get_projectile_speed_bonus(profile: Dictionary) -> float:
+	return max(0.0, float(profile.get("projectile_speed_bonus", 0.0)))
 
 static func apply_to_wave_profile(wave_profile: Dictionary, profile: Dictionary) -> Dictionary:
 	var adjusted: Dictionary = wave_profile.duplicate(true)

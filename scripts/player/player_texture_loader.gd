@@ -9,6 +9,13 @@ static func get_project_sketch_path(relative_path: String) -> String:
 static func get_cached_runtime_texture(relative_path: String, runtime_texture_cache: Dictionary) -> Texture2D:
 	if runtime_texture_cache.has(relative_path):
 		return runtime_texture_cache[relative_path]
+	if relative_path.begins_with("res://"):
+		if ResourceLoader.exists(relative_path):
+			var direct_texture := load(relative_path) as Texture2D
+			if direct_texture != null:
+				runtime_texture_cache[relative_path] = direct_texture
+				return direct_texture
+		return null
 	var project_path := get_project_sketch_path(relative_path)
 	if ResourceLoader.exists(project_path):
 		var project_texture := load(project_path) as Texture2D

@@ -73,7 +73,8 @@ static func spawn_sketch_sprite_effect(
 		preserve_aspect: bool = false,
 		value_threshold: float = 0.94,
 		saturation_threshold: float = 0.08,
-		edge_softness: float = 0.03
+		edge_softness: float = 0.03,
+		fade_out: bool = true
 	) -> Node2D:
 	if not _can_spawn_temporary_effect(owner):
 		return null
@@ -117,7 +118,7 @@ static func spawn_sketch_sprite_effect(
 			target_visible_size.y / max(1.0, visible_bounds.size.y)
 		)
 
-	_track_sketch_sprite_effect(effect, duration, effect.scale, Vector2(1.06, 1.06), duration * 0.35)
+	_track_sketch_sprite_effect(effect, duration, effect.scale, Vector2(1.06, 1.06), duration * 0.35, fade_out)
 	return effect
 
 static func _acquire_sketch_sprite_effect(current_scene: Node) -> Node2D:
@@ -427,7 +428,7 @@ static func _release_authored_scene_if_token(effect: Node, scene_key: String, sp
 		return
 	_release_authored_scene(effect, scene_key)
 
-static func _track_sketch_sprite_effect(effect: Node2D, duration: float, start_scale: Vector2, target_scale: Vector2, scale_duration: float) -> void:
+static func _track_sketch_sprite_effect(effect: Node2D, duration: float, start_scale: Vector2, target_scale: Vector2, scale_duration: float, fade_out: bool = true) -> void:
 	active_sketch_sprite_effects.append({
 		"node": effect,
 		"elapsed": 0.0,
@@ -435,7 +436,8 @@ static func _track_sketch_sprite_effect(effect: Node2D, duration: float, start_s
 		"scale_duration": max(0.001, scale_duration),
 		"start_scale": start_scale,
 		"target_scale": target_scale,
-		"start_alpha": effect.modulate.a
+		"start_alpha": effect.modulate.a,
+		"fade_out": fade_out
 	})
 
 static func _track_authored_cleanup(effect: Node, scene_key: String, spawn_token: int, duration: float) -> void:
@@ -464,7 +466,8 @@ static func _update_sketch_sprite_effects(delta: float) -> void:
 		var alpha_progress: float = clamp(elapsed / duration, 0.0, 1.0)
 		var scale_progress: float = clamp(elapsed / scale_duration, 0.0, 1.0)
 		effect.scale = (data.get("start_scale", Vector2.ONE) as Vector2).lerp(data.get("target_scale", Vector2.ONE) as Vector2, scale_progress)
-		effect.modulate.a = float(data.get("start_alpha", 1.0)) * (1.0 - alpha_progress)
+		if bool(data.get("fade_out", true)):
+			effect.modulate.a = float(data.get("start_alpha", 1.0)) * (1.0 - alpha_progress)
 		if elapsed >= duration:
 			active_sketch_sprite_effects.remove_at(index)
 			_release_sketch_sprite_effect(effect)

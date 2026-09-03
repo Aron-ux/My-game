@@ -73,11 +73,11 @@ static func apply_healing_multiplier(owner, amount: float) -> float:
 
 
 static func get_swordsman_trait_heal_multiplier(owner) -> float:
-	if owner == null:
+	if owner == null or _get_active_role_id(owner) != "swordsman":
 		return 1.0
 	if get_healing_multiplier(owner) > 1.0:
 		return 1.0
-	return max(0.0, float(owner.get("swordsman_bloodthirst_heal_multiplier")))
+	return max(1.0, float(owner.get("swordsman_bloodthirst_heal_multiplier")))
 
 
 static func get_damage_reduction_value(owner, role_id: String) -> float:
@@ -121,7 +121,32 @@ static func get_move_speed_bonus(owner, role_id: String) -> float:
 
 
 static func is_bloodthirst_active(owner) -> bool:
-	return owner != null and float(owner.get("swordsman_entry_trait_share_remaining")) > 0.0
+	if owner == null or _get_active_role_id(owner) != "swordsman":
+		return false
+	return float(owner.get("swordsman_entry_trait_share_remaining")) > 0.0
+
+
+static func clear_bloodthirst_on_role_switch(owner) -> void:
+	if owner == null:
+		return
+	owner.swordsman_entry_trait_share_remaining = 0.0
+	owner.swordsman_bloodthirst_heal_multiplier = 1.0
+	var states_value: Variant = owner.get("role_special_states")
+	if states_value is not Dictionary:
+		return
+	var states: Dictionary = states_value as Dictionary
+	for role_id_value in states.keys():
+		var role_id := str(role_id_value)
+		if role_id == "swordsman":
+			continue
+		var state_value: Variant = states.get(role_id_value)
+		if state_value is not Dictionary:
+			continue
+		var state: Dictionary = (state_value as Dictionary).duplicate(true)
+		state.erase("swordsman_entry_bloodthirst_remaining")
+		state.erase("swordsman_entry_bloodthirst_heal_multiplier")
+		states[role_id_value] = state
+	owner.set("role_special_states", states)
 
 
 static func is_blade_storm_active(owner) -> bool:

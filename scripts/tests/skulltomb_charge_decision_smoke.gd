@@ -13,6 +13,7 @@ func _run() -> void:
 	_test_charge_roll_threshold()
 	_test_death_ring_visual_points()
 	_test_aging_aura_passive()
+	await _test_summon_area_does_not_pull_target()
 	await _test_charge_cooldown_after_active()
 	await _test_charge_push_candidates()
 
@@ -74,6 +75,51 @@ func _test_aging_aura_passive() -> void:
 	target.free()
 	enemy.free()
 
+
+
+func _test_summon_area_does_not_pull_target() -> void:
+	var scene := RuntimeRoot.new()
+	root.add_child(scene)
+	current_scene = scene
+
+	var target := TargetStub.new()
+	target.global_position = Vector2(640.0, 120.0)
+	scene.add_child(target)
+
+	var enemy := SkulltombStub.new()
+	enemy.target = target
+	enemy.skulltomb_summon_target_center = target.global_position
+	scene.add_child(enemy)
+
+	var target_position_before := target.global_position
+	SKULLTOMB_BEHAVIOR._start_summon_area(enemy)
+	SKULLTOMB_BEHAVIOR._update_summon_area(enemy, 0.1)
+
+	if target.global_position != target_position_before:
+		failures.append("summon area should not force the target position")
+	if enemy.skulltomb_area_center != target_position_before:
+		failures.append("summon area should keep the cast-time target center")
+	var area_instance := enemy.skulltomb_area_instance
+	if area_instance == null or not is_instance_valid(area_instance):
+		failures.append("summon area should create a persistent visual and collision root")
+	else:
+		if area_instance.global_position != target_position_before:
+			failures.append("summon area visual root should stay at the cast-time target center")
+		var collision := area_instance.get_node_or_null("SkulltombAreaCollision") as CollisionObject2D
+		if collision == null:
+			failures.append("summon area should create a collision object")
+		SKULLTOMB_BEHAVIOR.clear_runtime_effects_after_defeat(enemy)
+		if collision != null and (collision.collision_layer != 0 or collision.collision_mask != 0):
+			failures.append("defeated summon area should disable collision immediately")
+		await process_frame
+		if is_instance_valid(area_instance):
+			failures.append("defeated summon area should be freed")
+
+	enemy.queue_free()
+	target.queue_free()
+	scene.queue_free()
+	await process_frame
+	current_scene = null
 
 func _test_charge_cooldown_after_active() -> void:
 	var scene := RuntimeRoot.new()
@@ -186,6 +232,12 @@ class SkulltombStub:
 	var skulltomb_charge_push_distance: float = 116.0
 	var skulltomb_charge_target_position: Vector2 = Vector2.ZERO
 	var skulltomb_aging_aura_elapsed: float = 0.0
+	var skulltomb_summon_target_center: Vector2 = Vector2.ZERO
+	var skulltomb_area_center: Vector2 = Vector2.ZERO
+	var skulltomb_area_radius: float = 0.0
+	var skulltomb_area_remaining: float = 0.0
+	var skulltomb_area_damage_elapsed: float = 0.0
+	var skulltomb_area_instance: Node2D
 	var _cached_direction_to_target: Vector2 = Vector2.RIGHT
 
 	func _spawn_dash_trail(_direction: Vector2, _distance: float) -> void:

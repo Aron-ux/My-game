@@ -68,6 +68,7 @@ static func show_final_core(main: Node) -> void:
 	main.stage_cleared = true
 	main.reward_context = "final_core"
 	main.boss_enemy = null
+	main.small_boss_enemy = null
 	GAME_HUD_FLOW.hide_boss_ui(main)
 	if main.spawn_timer != null:
 		main.spawn_timer.stop()
@@ -82,6 +83,7 @@ static func finish_stage_clear(main: Node) -> void:
 		main.game_over = true
 		main.reward_context = ""
 		main.boss_enemy = null
+		main.small_boss_enemy = null
 		GAME_HUD_FLOW.hide_boss_ui(main)
 		if main.spawn_timer != null:
 			main.spawn_timer.stop()
@@ -94,6 +96,7 @@ static func finish_stage_clear(main: Node) -> void:
 	main.game_over = true
 	main.reward_context = ""
 	main.boss_enemy = null
+	main.small_boss_enemy = null
 	GAME_HUD_FLOW.hide_boss_ui(main)
 	SAVE_MANAGER.clear_save()
 	if main.spawn_timer != null:

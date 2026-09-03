@@ -6,15 +6,24 @@ const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessi
 const ROLE_ACTIVE_SKILL_PROPERTIES := {
 	"swordsman": {
 		"blade_storm": "swordsman_blade_storm_ability",
-		"crescent_wave": "swordsman_crescent_wave_ability"
+		"crescent_wave": "swordsman_crescent_wave_ability",
+		"knight_thrust": "swordsman_knight_thrust_ability",
+		"king_blade": "swordsman_king_blade_ability",
+		"judgement_sword": "swordsman_judgement_sword_ability"
 	},
 	"gunner": {
 		"infinite_reload": "gunner_infinite_reload_ability",
-		"shrapnel_field": "gunner_shrapnel_field_ability"
+		"shrapnel_field": "gunner_shrapnel_field_ability",
+		"explosive_round": "gunner_explosive_round_ability",
+		"magic_grenade": "gunner_magic_grenade_ability",
+		"magic_eye": "gunner_magic_eye_ability"
 	},
 	"mage": {
 		"surging_wave": "mage_tidal_surge_ability",
-		"meta_field": "mage_meta_field_ability"
+		"meta_field": "mage_meta_field_ability",
+		"flame_path": "mage_flame_path_ability",
+		"dark_contract": "mage_dark_contract_ability",
+		"fireball": "mage_fireball_ability"
 	}
 }
 

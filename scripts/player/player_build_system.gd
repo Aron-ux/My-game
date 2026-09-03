@@ -7,6 +7,8 @@ const OPTION_PREFIX := "role_build:"
 const CATEGORY_ROLE_BUILD := "role_build"
 const BUILD_LEVELS_KEY := "build_levels"
 const ROLE_SLOT_COUNT := 3
+const SKILL_OPTION_TOTAL_WEIGHT := 0.35
+const NON_SKILL_OPTION_TOTAL_WEIGHT := 0.65
 
 const BUILD_DEFINITIONS := {
 	"swordsman": [
@@ -25,7 +27,10 @@ const BUILD_DEFINITIONS := {
 		{"id": "crescent_wave_speed", "title": "月牙剑气飞行速度增加30", "summary": "月牙剑气飞行速度增加30", "requires_skill": "crescent_wave", "skill_progress_id": "swordsman_crescent_wave"},
 		{"id": "ultimate_damage", "title": "无敌斩伤害倍率+8％", "summary": "无敌斩伤害倍率+8％", "card_title": "无敌斩", "skill_progress_id": "swordsman_ultimate"},
 		{"id": "unlock_blade_storm", "title": "获得技能：剑刃风暴", "summary": "获得技能：剑刃风暴", "unlock_skill": "blade_storm", "skill_progress_id": "swordsman_blade_storm"},
-		{"id": "unlock_crescent_wave", "title": "获得技能：月牙剑气", "summary": "获得技能：月牙剑气", "unlock_skill": "crescent_wave", "skill_progress_id": "swordsman_crescent_wave"}
+		{"id": "unlock_crescent_wave", "title": "获得技能：月牙剑气", "summary": "获得技能：月牙剑气", "unlock_skill": "crescent_wave", "skill_progress_id": "swordsman_crescent_wave"},
+		{"id": "unlock_knight_thrust", "title": "获得技能：骑士突", "summary": "获得技能：骑士突", "unlock_skill": "knight_thrust", "skill_progress_id": "swordsman_knight_thrust"},
+		{"id": "unlock_king_blade", "title": "获得技能：王者之剑", "summary": "获得技能：王者之剑", "unlock_skill": "king_blade", "skill_progress_id": "swordsman_king_blade"},
+		{"id": "unlock_judgement_sword", "title": "获得技能：审判之誓", "summary": "获得技能：审判之誓", "unlock_skill": "judgement_sword", "skill_progress_id": "swordsman_judgement_sword"}
 	],
 	"gunner": [
 		{"id": "hunt_safe_radius", "title": "猎杀半径安全圈减少15", "summary": "猎杀半径安全圈减少15", "card_title": "枪手特性", "skill_progress_id": "gunner_trait"},
@@ -45,7 +50,10 @@ const BUILD_DEFINITIONS := {
 		{"id": "infinite_reload_cooldown", "title": "无限装填CD-15％", "summary": "无限装填CD-15％", "requires_skill": "infinite_reload", "skill_progress_id": "gunner_infinite_reload"},
 		{"id": "ultimate_wave_count", "title": "火箭弹幕波次+3", "summary": "火箭弹幕波次+3", "card_title": "火箭弹幕", "skill_progress_id": "gunner_ultimate"},
 		{"id": "unlock_shrapnel_field", "title": "获得技能：散弹", "summary": "获得技能：散弹", "unlock_skill": "shrapnel_field", "skill_progress_id": "gunner_shrapnel"},
-		{"id": "unlock_infinite_reload", "title": "获得技能：无限装填", "summary": "获得技能：无限装填", "unlock_skill": "infinite_reload", "skill_progress_id": "gunner_infinite_reload"}
+		{"id": "unlock_infinite_reload", "title": "获得技能：无限装填", "summary": "获得技能：无限装填", "unlock_skill": "infinite_reload", "skill_progress_id": "gunner_infinite_reload"},
+		{"id": "unlock_explosive_round", "title": "获得技能：爆破弹", "summary": "获得技能：爆破弹", "unlock_skill": "explosive_round", "skill_progress_id": "gunner_explosive_round"},
+		{"id": "unlock_magic_grenade", "title": "获得技能：魔法榴弹", "summary": "获得技能：魔法榴弹", "unlock_skill": "magic_grenade", "skill_progress_id": "gunner_magic_grenade"},
+		{"id": "unlock_magic_eye", "title": "获得技能：魔眼聚合", "summary": "获得技能：魔眼聚合", "unlock_skill": "magic_eye", "skill_progress_id": "gunner_magic_eye"}
 	],
 	"mage": [
 		{"id": "arcane_surplus_duration", "title": "密集雷群·奥法盈余持续时间+1.5s", "summary": "登场技触发的奥法盈余持续时间+1.5s", "card_title": "密集雷群", "skill_progress_id": "mage_entry"},
@@ -64,7 +72,10 @@ const BUILD_DEFINITIONS := {
 		{"id": "surging_wave_speed", "title": "波涛汹涌移动速度+8", "summary": "波涛汹涌移动速度+8", "requires_skill": "surging_wave", "skill_progress_id": "mage_surging_wave"},
 		{"id": "ultimate_bombard_count", "title": "奥数轰炸次数+3", "summary": "奥数轰炸次数+3", "card_title": "奥数轰炸", "skill_progress_id": "mage_ultimate"},
 		{"id": "unlock_meta_field", "title": "获得技能：梅塔领域", "summary": "获得技能：梅塔领域", "unlock_skill": "meta_field", "skill_progress_id": "mage_meta_field"},
-		{"id": "unlock_surging_wave", "title": "获得技能：波涛汹涌", "summary": "获得技能：波涛汹涌", "unlock_skill": "surging_wave", "skill_progress_id": "mage_surging_wave"}
+		{"id": "unlock_surging_wave", "title": "获得技能：波涛汹涌", "summary": "获得技能：波涛汹涌", "unlock_skill": "surging_wave", "skill_progress_id": "mage_surging_wave"},
+		{"id": "unlock_flame_path", "title": "获得技能：火焰之径", "summary": "获得技能：火焰之径", "unlock_skill": "flame_path", "skill_progress_id": "mage_flame_path"},
+		{"id": "unlock_dark_contract", "title": "获得技能：黑暗契约", "summary": "获得技能：黑暗契约", "unlock_skill": "dark_contract", "skill_progress_id": "mage_dark_contract"},
+		{"id": "unlock_fireball", "title": "获得技能：火球术", "summary": "获得技能：火球术", "unlock_skill": "fireball", "skill_progress_id": "mage_fireball"}
 	]
 }
 
@@ -376,8 +387,33 @@ static func _pick_role_option_excluding(owner, role_id: String, role_slot_index:
 		return _make_blank_role_option(role_id, role_slot_index)
 	var filtered: Array = _filter_options_by_excluded_keys(candidates, excluded_keys)
 	var pool: Array = filtered if not filtered.is_empty() else candidates
-	pool.shuffle()
-	return pool[0]
+	return _pick_weighted_role_option(pool)
+
+
+static func _pick_weighted_role_option(options: Array) -> Dictionary:
+	var skill_options: Array = []
+	var non_skill_options: Array = []
+	for option_value in options:
+		if not option_value is Dictionary:
+			continue
+		var option: Dictionary = option_value
+		if str(option.get("unlock_skill", "")) != "":
+			skill_options.append(option)
+		else:
+			non_skill_options.append(option)
+
+	if skill_options.is_empty():
+		non_skill_options.shuffle()
+		return non_skill_options[0]
+	if non_skill_options.is_empty():
+		skill_options.shuffle()
+		return skill_options[0]
+
+	if randf() < SKILL_OPTION_TOTAL_WEIGHT:
+		skill_options.shuffle()
+		return skill_options[0]
+	non_skill_options.shuffle()
+	return non_skill_options[0]
 
 
 static func _build_role_options(owner, role_id: String, role_slot_index: int) -> Array:

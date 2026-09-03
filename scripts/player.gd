@@ -29,6 +29,8 @@ const PLAYER_COMBAT_RESULT_FLOW := preload("res://scripts/player/player_combat_r
 const PLAYER_COMBAT_MODIFIERS := preload("res://scripts/player/player_combat_modifiers.gd")
 const PLAYER_EQUIPMENT_FLOW := preload("res://scripts/player/player_equipment_flow.gd")
 const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")
+const PLAYER_SWORDSMAN_ULTIMATE_FLOW := preload("res://scripts/player/player_swordsman_ultimate_flow.gd")
+const PLAYER_SWORDSMAN_KING_BLADE_FLOW := preload("res://scripts/player/player_swordsman_king_blade_flow.gd")
 const PLAYER_GUNNER_FLASH_TALENT_FLOW := preload("res://scripts/player/player_gunner_flash_talent_flow.gd")
 const PLAYER_GUNNER_HUNT_TALENT_FLOW := preload("res://scripts/player/player_gunner_hunt_talent_flow.gd")
 const PLAYER_GUNNER_ENTRY_TALENT_FLOW := preload("res://scripts/player/player_gunner_entry_talent_flow.gd")
@@ -52,6 +54,7 @@ const PLAYER_VISUAL_LAYOUT := preload("res://scripts/player/player_visual_layout
 const PLAYER_TEXTURE_LOADER := preload("res://scripts/player/player_texture_loader.gd")
 const PLAYER_VISUAL_STATE := preload("res://scripts/player/player_visual_state.gd")
 const PLAYER_EFFECT_PRIMITIVES := preload("res://scripts/player/player_effect_primitives.gd")
+const PLAYER_EFFECT_LINE_PRIMITIVES := preload("res://scripts/player/player_effect_line_primitives.gd")
 const ROLE_DATABASE := preload("res://scripts/player/roles/role_database.gd")
 const ROLE_ATTRIBUTE_RULES := preload("res://scripts/player/roles/role_attribute_rules.gd")
 const ROLE_RESOURCE_STATE := preload("res://scripts/player/roles/role_resource_state.gd")
@@ -64,6 +67,15 @@ const GUNNER_INFINITE_RELOAD_ABILITY := preload("res://scripts/abilities/gunner_
 const MAGE_META_FIELD_ABILITY := preload("res://scripts/abilities/mage_meta_field_ability.gd")
 const SWORDSMAN_CRESCENT_WAVE_ABILITY := preload("res://scripts/abilities/swordsman_crescent_wave_ability.gd")
 const GUNNER_SHRAPNEL_FIELD_ABILITY := preload("res://scripts/abilities/gunner_shrapnel_field_ability.gd")
+const SWORDSMAN_KNIGHT_THRUST_ABILITY := preload("res://scripts/abilities/swordsman_knight_thrust_ability.gd")
+const GUNNER_EXPLOSIVE_ROUND_ABILITY := preload("res://scripts/abilities/gunner_explosive_round_ability.gd")
+const GUNNER_MAGIC_GRENADE_ABILITY := preload("res://scripts/abilities/gunner_magic_grenade_ability.gd")
+const MAGE_DARK_CONTRACT_ABILITY := preload("res://scripts/abilities/mage_dark_contract_ability.gd")
+const SWORDSMAN_JUDGEMENT_SWORD_ABILITY := preload("res://scripts/abilities/swordsman_judgement_sword_ability.gd")
+const GUNNER_MAGIC_EYE_ABILITY := preload("res://scripts/abilities/gunner_magic_eye_ability.gd")
+const MAGE_FIREBALL_ABILITY := preload("res://scripts/abilities/mage_fireball_ability.gd")
+const MAGE_FLAME_PATH_ABILITY := preload("res://scripts/abilities/mage_flame_path_ability.gd")
+const SWORDSMAN_KING_BLADE_ABILITY := preload("res://scripts/abilities/swordsman_king_blade_ability.gd")
 const WHITE_KEY_SHADER := preload("res://shaders/white_key.gdshader")
 const SWORD_SLASH_EFFECT_SCENE := preload("res://effects/sword/slash3/slasheffect3.tscn")
 const SWORD_OMNISLASH_EFFECT_SCENE := preload("res://effects/sword/omnislash/omnislash.tscn")
@@ -298,6 +310,9 @@ var pending_attack_result_kill_count_by_role: Dictionary = {}
 var pending_attack_result_critical_hit_count_by_role: Dictionary = {}
 var swordsman_blade_storm_ability = SWORDSMAN_BLADE_STORM_ABILITY.new()
 var swordsman_crescent_wave_ability = SWORDSMAN_CRESCENT_WAVE_ABILITY.new()
+var swordsman_knight_thrust_ability = SWORDSMAN_KNIGHT_THRUST_ABILITY.new()
+var swordsman_king_blade_ability = SWORDSMAN_KING_BLADE_ABILITY.new()
+var swordsman_judgement_sword_ability = SWORDSMAN_JUDGEMENT_SWORD_ABILITY.new()
 var camera_node: Camera2D
 var camera_base_offset: Vector2 = Vector2.ZERO
 var camera_shake_strength: float = 0.0
@@ -389,10 +404,16 @@ var gunner_hunt_presence_check_remaining: float = 0.0
 var gunner_hunt_has_enemy: bool = false
 var gunner_infinite_reload_ability = GUNNER_INFINITE_RELOAD_ABILITY.new()
 var gunner_shrapnel_field_ability = GUNNER_SHRAPNEL_FIELD_ABILITY.new()
+var gunner_explosive_round_ability = GUNNER_EXPLOSIVE_ROUND_ABILITY.new()
+var gunner_magic_grenade_ability = GUNNER_MAGIC_GRENADE_ABILITY.new()
+var gunner_magic_eye_ability = GUNNER_MAGIC_EYE_ABILITY.new()
 var mage_role = MAGE_ROLE.new()
 var mage_attack_chain: int = 0
 var mage_tidal_surge_ability = MAGE_TIDAL_SURGE_ABILITY.new()
 var mage_meta_field_ability = MAGE_META_FIELD_ABILITY.new()
+var mage_flame_path_ability = MAGE_FLAME_PATH_ABILITY.new()
+var mage_dark_contract_ability = MAGE_DARK_CONTRACT_ABILITY.new()
+var mage_fireball_ability = MAGE_FIREBALL_ABILITY.new()
 var gunner_lock_target: Node2D
 var gunner_lock_stacks: int = 0
 var gem_collection_elapsed: float = 0.0
@@ -442,7 +463,8 @@ func _spawn_sketch_sprite_effect(
 		preserve_aspect: bool = false,
 		value_threshold: float = 0.94,
 		saturation_threshold: float = 0.08,
-		edge_softness: float = 0.03
+		edge_softness: float = 0.03,
+		fade_out: bool = true
 	) -> Node2D:
 	return PLAYER_AUTHORED_EFFECTS.spawn_sketch_sprite_effect(
 		self,
@@ -459,7 +481,8 @@ func _spawn_sketch_sprite_effect(
 		preserve_aspect,
 		value_threshold,
 		saturation_threshold,
-		edge_softness
+		edge_softness,
+		fade_out
 	)
 
 func _spawn_sword_slash_scene_effect(center: Vector2, direction: Vector2, radius: float, color: Color, duration: float, thickness: float, mirror_horizontal: bool = false) -> Node2D:
@@ -651,8 +674,8 @@ func _get_critical_damage_multiplier(role_id: String) -> float:
 	var blessing_bonus: float = float(_get_role_blessing_stat_bonus(role_id, "critical_damage_bonus"))
 	return BASE_CRITICAL_DAMAGE_MULTIPLIER + overflow_bonus + blessing_bonus
 
-func _roll_critical_hit(role_id: String) -> bool:
-	var critical_chance: float = _get_role_critical_chance(role_id)
+func _roll_critical_hit(role_id: String, chance_bonus: float = 0.0) -> bool:
+	var critical_chance: float = _get_role_critical_chance(role_id) + chance_bonus
 	return critical_chance > 0.0 and randf() <= critical_chance
 
 func _record_attack_result_instance(role_id: String, was_critical: bool, killed: bool, target_position: Variant = null, raw_source_role_id: String = "") -> void:
@@ -1125,6 +1148,9 @@ func _lock_player_actions(duration: float) -> void:
 	player_action_lock_remaining = max(player_action_lock_remaining, max(0.0, duration))
 	velocity = Vector2.ZERO
 
+func _unlock_player_actions() -> void:
+	player_action_lock_remaining = 0.0
+
 func _is_player_action_locked() -> bool:
 	return player_action_lock_remaining > 0.0
 
@@ -1458,7 +1484,7 @@ func _get_mage_arcane_charge_buff_slot() -> Dictionary:
 	}
 
 func _get_swordsman_bloodthirst_buff_slot() -> Dictionary:
-	if swordsman_entry_trait_share_remaining <= 0.0:
+	if _get_active_role_id() != "swordsman" or swordsman_entry_trait_share_remaining <= 0.0:
 		return {}
 	return {
 		"name": "嗜血",
@@ -1533,11 +1559,29 @@ func _get_live_mouse_aim_direction(fallback_direction: Vector2 = Vector2.RIGHT) 
 		return fallback_direction.normalized()
 	return Vector2.RIGHT
 
+func _try_trigger_swordsman_knight_thrust() -> void:
+	PLAYER_ABILITY_FLOW.try_trigger_swordsman_knight_thrust(self)
+
+func _try_trigger_swordsman_king_blade() -> void:
+	PLAYER_ABILITY_FLOW.try_trigger_swordsman_king_blade(self)
+
+func _try_trigger_swordsman_judgement_sword() -> void:
+	PLAYER_ABILITY_FLOW.try_trigger_swordsman_judgement_sword(self)
+
 func _try_trigger_swordsman_blade_storm() -> void:
 	PLAYER_ABILITY_FLOW.try_trigger_swordsman_blade_storm(self)
 
 func _try_trigger_swordsman_crescent_wave() -> void:
 	PLAYER_ABILITY_FLOW.try_trigger_swordsman_crescent_wave(self)
+
+func _try_trigger_gunner_explosive_round() -> void:
+	PLAYER_ABILITY_FLOW.try_trigger_gunner_explosive_round(self)
+
+func _try_trigger_gunner_magic_grenade() -> void:
+	PLAYER_ABILITY_FLOW.try_trigger_gunner_magic_grenade(self)
+
+func _try_trigger_gunner_magic_eye() -> void:
+	PLAYER_ABILITY_FLOW.try_trigger_gunner_magic_eye(self)
 
 func _try_trigger_gunner_infinite_reload() -> void:
 	PLAYER_ABILITY_FLOW.try_trigger_gunner_infinite_reload(self)
@@ -1553,6 +1597,15 @@ func _start_swordsman_blade_storm() -> void:
 
 func is_swordsman_blade_storm_active() -> bool:
 	return PLAYER_ABILITY_FLOW.is_swordsman_blade_storm_active(self)
+
+func _start_swordsman_knight_thrust() -> void:
+	PLAYER_ABILITY_FLOW.start_swordsman_knight_thrust(self)
+
+func _start_swordsman_king_blade() -> void:
+	PLAYER_ABILITY_FLOW.start_swordsman_king_blade(self)
+
+func _start_swordsman_judgement_sword() -> void:
+	PLAYER_ABILITY_FLOW.start_swordsman_judgement_sword(self)
 
 func _start_swordsman_crescent_wave() -> void:
 	PLAYER_ABILITY_FLOW.start_swordsman_crescent_wave(self)
@@ -1574,6 +1627,15 @@ func _cleanup_gunner_infinite_reload_effects() -> void:
 
 func _register_gunner_infinite_reload_effect(effect: Node2D) -> void:
 	PLAYER_ABILITY_FLOW.register_gunner_infinite_reload_effect(self, effect)
+
+func _start_gunner_explosive_round() -> void:
+	PLAYER_ABILITY_FLOW.start_gunner_explosive_round(self)
+
+func _start_gunner_magic_grenade() -> void:
+	PLAYER_ABILITY_FLOW.start_gunner_magic_grenade(self)
+
+func _start_gunner_magic_eye() -> void:
+	PLAYER_ABILITY_FLOW.start_gunner_magic_eye(self)
 
 func _start_gunner_infinite_reload() -> void:
 	PLAYER_ABILITY_FLOW.start_gunner_infinite_reload(self)
@@ -1599,12 +1661,33 @@ func is_gunner_infinite_reload_movement_locked() -> bool:
 func is_gunner_infinite_reload_preventing_switch() -> bool:
 	return PLAYER_ABILITY_FLOW.is_gunner_infinite_reload_preventing_switch(self)
 
+func _get_mage_flame_path_move_speed_multiplier() -> float:
+	return PLAYER_ABILITY_FLOW.get_mage_flame_path_move_speed_multiplier(self)
+
 func _get_gunner_infinite_reload_move_speed_multiplier() -> float:
 	return PLAYER_ABILITY_FLOW.get_gunner_infinite_reload_move_speed_multiplier(self)
 
 func _get_gunner_infinite_reload_dodge_value(role_id: String = "") -> float:
 	var resolved_role_id: String = role_id if role_id != "" else str(_get_active_role().get("id", ""))
 	return PLAYER_ABILITY_FLOW.get_gunner_infinite_reload_dodge_value(self, resolved_role_id)
+
+func _try_trigger_mage_flame_path() -> void:
+	PLAYER_ABILITY_FLOW.try_trigger_mage_flame_path(self)
+
+func _start_mage_flame_path() -> void:
+	PLAYER_ABILITY_FLOW.start_mage_flame_path(self)
+
+func _try_trigger_mage_dark_contract() -> void:
+	PLAYER_ABILITY_FLOW.try_trigger_mage_dark_contract(self)
+
+func _try_trigger_mage_fireball() -> void:
+	PLAYER_ABILITY_FLOW.try_trigger_mage_fireball(self)
+
+func _start_mage_dark_contract() -> void:
+	PLAYER_ABILITY_FLOW.start_mage_dark_contract(self)
+
+func _start_mage_fireball() -> void:
+	PLAYER_ABILITY_FLOW.start_mage_fireball(self)
 
 func _try_trigger_mage_tidal_surge() -> void:
 	PLAYER_ABILITY_FLOW.try_trigger_mage_tidal_surge(self)
@@ -1792,8 +1875,8 @@ func _pull_enemies_toward(center: Vector2, radius: float, pull_strength: float) 
 func _damage_enemies_in_line(start_position: Vector2, end_position: Vector2, width: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "") -> int:
 	return PLAYER_DAMAGE_RESOLVER.damage_enemies_in_line(self, start_position, end_position, width, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id)
 
-func _damage_enemies_in_oriented_rect(center: Vector2, axis_direction: Vector2, rect_length: float, rect_width: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "") -> int:
-	return PLAYER_DAMAGE_RESOLVER.damage_enemies_in_oriented_rect(self, center, axis_direction, rect_length, rect_width, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id)
+func _damage_enemies_in_oriented_rect(center: Vector2, axis_direction: Vector2, rect_length: float, rect_width: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "", knockback_distance: float = 0.0) -> int:
+	return PLAYER_DAMAGE_RESOLVER.damage_enemies_in_oriented_rect(self, center, axis_direction, rect_length, rect_width, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id, knockback_distance)
 
 func _damage_enemies_in_oriented_rect_unique(center: Vector2, axis_direction: Vector2, rect_length: float, rect_width: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, hit_registry: Dictionary, source_role_id: String = "") -> int:
 	return PLAYER_DAMAGE_RESOLVER.damage_enemies_in_oriented_rect_unique(self, center, axis_direction, rect_length, rect_width, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, hit_registry, source_role_id)
@@ -1974,6 +2057,11 @@ func _get_role_move_speed(role_id: String) -> float:
 func _get_role_damage(role_id: String) -> float:
 	return PLAYER_ROLE_STAT_FLOW.get_role_damage(self, role_id)
 
+func _get_king_blade_flat_base_damage(role_id: String) -> float:
+	if role_id != "swordsman":
+		return 0.0
+	return PLAYER_SWORDSMAN_KING_BLADE_FLOW.get_flat_attack_bonus(self)
+
 func _get_active_role_base_health() -> float:
 	return PLAYER_ROLE_STAT_FLOW.get_active_role_base_health(self)
 
@@ -2013,11 +2101,11 @@ func _consume_temporary_health(amount: float) -> float:
 func _clear_temporary_health(emit_signal: bool = true) -> void:
 	PLAYER_RESOURCE_FLOW.clear_temporary_health(self, emit_signal)
 
-func _add_temporary_health(amount: float, role_id: String = "") -> float:
-	return PLAYER_RESOURCE_FLOW.add_temporary_health(self, amount, role_id)
+func _add_temporary_health(amount: float, role_id: String = "", duration: float = PLAYER_RESOURCE_FLOW.TEMPORARY_HEALTH_DURATION) -> float:
+	return PLAYER_RESOURCE_FLOW.add_temporary_health(self, amount, role_id, duration)
 
-func grant_temporary_health(amount: float, role_id: String = "") -> float:
-	return _add_temporary_health(amount, role_id)
+func grant_temporary_health(amount: float, role_id: String = "", duration: float = PLAYER_RESOURCE_FLOW.TEMPORARY_HEALTH_DURATION) -> float:
+	return _add_temporary_health(amount, role_id, duration)
 
 func _add_all_role_current_health(amount: float) -> void:
 	PLAYER_ROLE_STAT_FLOW.add_all_role_current_health(self, amount)
@@ -2207,6 +2295,15 @@ func _apply_entry_lifesteal(role_id: String, hit_count: int, killed: bool) -> vo
 func _heal(amount: float) -> void:
 	PLAYER_RESOURCE_FLOW.heal(self, amount)
 
+func _record_swordsman_ultimate_followup_damage(amount: float) -> void:
+	if amount <= 0.0:
+		return
+	var state := _get_role_special_state("swordsman")
+	if not bool(state.get("level_ultimate_chain_damage_tracking", false)):
+		return
+	state["level_ultimate_chain_damage_total"] = float(state.get("level_ultimate_chain_damage_total", 0.0)) + amount
+	role_special_states["swordsman"] = state
+
 func _spawn_attack_aftershock(center: Vector2, role_id: String) -> void:
 	return
 
@@ -2390,6 +2487,9 @@ func _spawn_cross_slash_effect(center: Vector2, direction: Vector2, length: floa
 
 func _spawn_thrust_effect(start_position: Vector2, end_position: Vector2, color: Color, width: float, duration: float, show_arrow: bool = true) -> void:
 	PLAYER_EFFECT_PRIMITIVES.spawn_thrust_effect(self, start_position, end_position, color, width, duration, show_arrow)
+
+func _spawn_cone_effect(center: Vector2, direction: Vector2, range_value: float, arc_degrees: float, color: Color, duration: float) -> void:
+	PLAYER_EFFECT_LINE_PRIMITIVES.spawn_cone_effect(self, center, direction, range_value, arc_degrees, color, duration)
 
 func _spawn_guard_effect(center: Vector2, radius: float, color: Color, duration: float) -> void:
 	PLAYER_EFFECT_PRIMITIVES.spawn_owner_guard_effect(self, center, radius, color, duration)

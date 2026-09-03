@@ -186,6 +186,15 @@ class TimerOwnerStub:
 	var mage_meta_field_ability = null
 	var swordsman_blade_storm_ability = null
 	var swordsman_crescent_wave_ability = null
+	var swordsman_knight_thrust_ability = null
+	var swordsman_king_blade_ability = null
+	var swordsman_judgement_sword_ability = null
+	var gunner_explosive_round_ability = null
+	var gunner_magic_grenade_ability = null
+	var gunner_magic_eye_ability = null
+	var mage_flame_path_ability = null
+	var mage_dark_contract_ability = null
+	var mage_fireball_ability = null
 	var perpetual_motion_cooldown_remaining: float = 0.0
 	var switch_power_remaining: float = 0.0
 	var switch_power_role_id: String = ""
@@ -238,16 +247,43 @@ class TimerOwnerStub:
 	func _try_trigger_swordsman_crescent_wave() -> void:
 		pass
 
+	func _try_trigger_swordsman_knight_thrust() -> void:
+		pass
+
+	func _try_trigger_swordsman_king_blade() -> void:
+		pass
+
+	func _try_trigger_swordsman_judgement_sword() -> void:
+		pass
+
 	func _try_trigger_gunner_infinite_reload() -> void:
 		pass
 
 	func _try_trigger_gunner_shrapnel_field() -> void:
 		pass
 
+	func _try_trigger_gunner_explosive_round() -> void:
+		pass
+
+	func _try_trigger_gunner_magic_grenade() -> void:
+		pass
+
+	func _try_trigger_gunner_magic_eye() -> void:
+		pass
+
 	func _try_trigger_mage_tidal_surge() -> void:
 		pass
 
 	func _try_trigger_mage_meta_field() -> void:
+		pass
+
+	func _try_trigger_mage_flame_path() -> void:
+		pass
+
+	func _try_trigger_mage_dark_contract() -> void:
+		pass
+
+	func _try_trigger_mage_fireball() -> void:
 		pass
 
 	func _update_fire_timer() -> void:

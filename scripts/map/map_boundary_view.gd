@@ -5,22 +5,14 @@ const FILL_COLOR := Color(0.08, 0.16, 0.22, 0.08)
 const CORNER_COLOR := Color(1.0, 0.88, 0.42, 0.92)
 const EDGE_WIDTH := 5.0
 const CORNER_LENGTH := 92.0
-const BATTLE_MAP_TEXTURE_PATH := "res://assets/maps/grassland_4.png"
 
 var _bounds := Rect2(Vector2(-1600.0, -900.0), Vector2(3200.0, 1800.0))
-var _map_texture: Texture2D
-
-func _ready() -> void:
-	_map_texture = load(BATTLE_MAP_TEXTURE_PATH) as Texture2D
 
 func configure(bounds: Rect2) -> void:
 	_bounds = bounds
 	queue_redraw()
 
 func _draw() -> void:
-	if _map_texture != null:
-		draw_texture_rect(_map_texture, _bounds, false)
-		return
 	draw_rect(_bounds, FILL_COLOR, true)
 	draw_rect(_bounds, BORDER_COLOR, false, EDGE_WIDTH)
 	_draw_corners()

@@ -42,6 +42,10 @@ var boss_shield_bar: ProgressBar
 var boss_health_label: Label
 var boss_status_label: Label
 var boss_status_bar: ProgressBar
+var small_boss_panel: Control
+var small_boss_name_label: Label
+var small_boss_health_bar: ProgressBar
+var small_boss_health_label: Label
 var team_panel: PanelContainer
 var team_role_labels: Array[Label] = []
 var switch_cd_label: Label
@@ -110,11 +114,11 @@ func _ready() -> void:
 	boss_health_bar.offset_top = 32.0
 	boss_health_bar.offset_bottom = 56.0
 	boss_health_bar.show_percentage = false
-	var current_boss_fill: StyleBox = boss_health_bar.get_theme_stylebox("fill")
 	var boss_health_fill := StyleBoxFlat.new()
 	boss_health_fill.bg_color = Color(0.92, 0.08, 0.06, 0.96)
 	boss_health_fill.set_corner_radius_all(6)
 	boss_health_bar.add_theme_stylebox_override("fill", boss_health_fill)
+	boss_health_bar.z_index = 0
 	boss_panel.add_child(boss_health_bar)
 
 	boss_shield_bar = ProgressBar.new()
@@ -126,12 +130,15 @@ func _ready() -> void:
 	boss_shield_bar.offset_bottom = 44.0
 	boss_shield_bar.show_percentage = false
 	boss_shield_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if current_boss_fill != null:
-		boss_shield_bar.add_theme_stylebox_override("fill", current_boss_fill.duplicate() as StyleBox)
+	var boss_shield_fill := StyleBoxFlat.new()
+	boss_shield_fill.bg_color = Color(1.0, 0.68, 0.12, 1.0)
+	boss_shield_fill.set_corner_radius_all(6)
+	boss_shield_bar.add_theme_stylebox_override("fill", boss_shield_fill)
 	var boss_shield_background := StyleBoxFlat.new()
 	boss_shield_background.bg_color = Color(0.0, 0.0, 0.0, 0.0)
 	boss_shield_bar.add_theme_stylebox_override("background", boss_shield_background)
-	boss_shield_bar.modulate.a = 0.86
+	boss_shield_bar.modulate.a = 1.0
+	boss_shield_bar.z_index = 1
 	boss_shield_bar.visible = false
 	boss_panel.add_child(boss_shield_bar)
 
@@ -173,9 +180,106 @@ func _ready() -> void:
 	_build_endless_speed_toggle(root)
 	_build_attack_mode_hint(root)
 	_build_minimap(root)
+	_build_small_boss_panel(root)
 	if DEVELOPER_MODE.is_enabled():
 		_build_developer_panel(root)
 	set_performance_overlay_visible(performance_overlay_visible)
+
+func _build_small_boss_panel(root: Control) -> void:
+	small_boss_panel = Control.new()
+	small_boss_panel.anchor_left = 0.0
+	small_boss_panel.anchor_right = 1.0
+	small_boss_panel.offset_left = 120.0
+	small_boss_panel.offset_right = -120.0
+	small_boss_panel.offset_top = 10.0
+	small_boss_panel.offset_bottom = 82.0
+	small_boss_panel.visible = false
+	root.add_child(small_boss_panel)
+
+	small_boss_name_label = Label.new()
+	small_boss_name_label.anchor_left = 0.0
+	small_boss_name_label.anchor_right = 1.0
+	small_boss_name_label.offset_top = 0.0
+	small_boss_name_label.offset_bottom = 28.0
+	small_boss_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	small_boss_name_label.add_theme_font_size_override("font_size", 20)
+	small_boss_name_label.text = "小 Boss"
+	small_boss_panel.add_child(small_boss_name_label)
+
+	small_boss_health_bar = ProgressBar.new()
+	small_boss_health_bar.anchor_left = 0.0
+	small_boss_health_bar.anchor_right = 1.0
+	small_boss_health_bar.offset_left = 0.0
+	small_boss_health_bar.offset_right = 0.0
+	small_boss_health_bar.offset_top = 32.0
+	small_boss_health_bar.offset_bottom = 56.0
+	small_boss_health_bar.show_percentage = false
+	var small_boss_fill := StyleBoxFlat.new()
+	small_boss_fill.bg_color = Color(0.9, 0.28, 0.08, 0.96)
+	small_boss_fill.set_corner_radius_all(6)
+	small_boss_health_bar.add_theme_stylebox_override("fill", small_boss_fill)
+	small_boss_panel.add_child(small_boss_health_bar)
+
+	small_boss_health_label = Label.new()
+	small_boss_health_label.anchor_left = 0.0
+	small_boss_health_label.anchor_right = 1.0
+	small_boss_health_label.offset_top = 56.0
+	small_boss_health_label.offset_bottom = 78.0
+	small_boss_health_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	small_boss_health_label.add_theme_font_size_override("font_size", 15)
+	small_boss_health_label.text = "0 / 0"
+	small_boss_panel.add_child(small_boss_health_label)
+
+
+func _layout_boss_panels() -> void:
+	var has_small_boss := small_boss_panel != null and small_boss_panel.visible
+	if small_boss_panel != null:
+		small_boss_panel.offset_top = 10.0
+		small_boss_panel.offset_bottom = 82.0
+	if boss_panel != null:
+		boss_panel.offset_top = 128.0 if has_small_boss else 10.0
+		boss_panel.offset_bottom = 200.0 if has_small_boss else 82.0
+
+
+func show_small_boss_ui(boss_name: String, current_health: float, max_health: float) -> void:
+	if small_boss_panel != null:
+		small_boss_panel.visible = true
+	if time_label != null:
+		time_label.visible = false
+	_layout_boss_panels()
+	update_small_boss_ui(boss_name, current_health, max_health)
+
+
+func update_small_boss_ui(boss_name: String, current_health: float, max_health: float) -> void:
+	if small_boss_panel == null:
+		return
+	small_boss_panel.visible = true
+	small_boss_name_label.text = boss_name
+	var health_max_value: float = max(max_health, 1.0)
+	small_boss_health_bar.max_value = health_max_value
+	small_boss_health_bar.value = clamp(current_health, 0.0, health_max_value)
+	small_boss_health_label.text = "%.0f / %.0f" % [clamp(current_health, 0.0, health_max_value), health_max_value]
+	_layout_boss_panels()
+
+
+func hide_small_boss_ui() -> void:
+	if small_boss_panel != null:
+		small_boss_panel.visible = false
+	_layout_boss_panels()
+	if boss_panel == null or not boss_panel.visible:
+		if time_label != null:
+			time_label.visible = true
+
+
+func hide_final_boss_ui() -> void:
+	if boss_panel != null:
+		boss_panel.visible = false
+	if boss_shield_bar != null:
+		boss_shield_bar.visible = false
+	_layout_boss_panels()
+	if small_boss_panel == null or not small_boss_panel.visible:
+		if time_label != null:
+			time_label.visible = true
 
 func _unhandled_input(event: InputEvent) -> void:
 	if GAME_SETTINGS.event_matches_action(event, GAME_SETTINGS.ACTION_TOGGLE_PERFORMANCE_OVERLAY):
@@ -706,6 +810,7 @@ func show_boss_ui(boss_name: String, current_health: float, max_health: float, s
 		boss_panel.visible = true
 	if time_label != null:
 		time_label.visible = false
+	_layout_boss_panels()
 	update_boss_ui(boss_name, current_health, max_health, status_payload, boss_ui_payload)
 
 func update_boss_ui(boss_name: String, current_health: float, max_health: float, status_payload: Dictionary = {}, boss_ui_payload: Dictionary = {}) -> void:
@@ -732,10 +837,8 @@ func update_boss_ui(boss_name: String, current_health: float, max_health: float,
 	_update_boss_status_ui(status_payload)
 
 func hide_boss_ui() -> void:
-	if boss_panel != null:
-		boss_panel.visible = false
-	if boss_shield_bar != null:
-		boss_shield_bar.visible = false
+	hide_final_boss_ui()
+	hide_small_boss_ui()
 	if time_label != null:
 		time_label.visible = true
 

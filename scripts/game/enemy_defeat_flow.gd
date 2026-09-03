@@ -32,8 +32,8 @@ static func _handle_developer_boss_defeated(main: Node, enemy: Node2D) -> void:
 	main._refresh_hud()
 
 static func _handle_small_boss_defeated(main: Node, enemy: Node2D) -> void:
-	if main.boss_enemy == enemy:
-		main.boss_enemy = null
+	if main.small_boss_enemy == enemy:
+		main.small_boss_enemy = null
 	REWARD_FLOW.show_small_boss_reward(main)
 	main._refresh_hud()
 

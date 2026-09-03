@@ -64,6 +64,7 @@ static func get_enemy_profile(main: Node, kind: String, archetype: String) -> Di
 
 
 static func has_active_special_enemy(main: Node, kind: String) -> bool:
-	if main.boss_enemy == null or not is_instance_valid(main.boss_enemy):
+	var special_enemy: Node2D = main.small_boss_enemy if kind == "small_boss" else main.boss_enemy
+	if special_enemy == null or not is_instance_valid(special_enemy):
 		return false
-	return str(main.boss_enemy.get("enemy_kind")) == kind
+	return str(special_enemy.get("enemy_kind")) == kind

@@ -2,6 +2,7 @@ extends RefCounted
 
 const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
 const SPAWN_POSITION_FLOW := preload("res://scripts/game/enemy_spawn_position_flow.gd")
+const ENEMY_BOSS_STATE := preload("res://scripts/enemies/enemy_boss_state.gd")
 
 const GLOBAL_ENEMY_HEALTH_MULTIPLIER := 2.04
 const GLOBAL_ENEMY_PROJECTILE_DAMAGE_MULTIPLIER := 2.0
@@ -22,7 +23,10 @@ static func spawn_configured_enemy_at_position(main: Node, kind: String, archety
 	if enemy.has_method("apply_enemy_profile"):
 		enemy.apply_enemy_profile(kind, main.ENEMY_SPAWN_FLOW.get_enemy_profile(main, kind, archetype))
 	enemy.max_health *= health_multiplier * GLOBAL_ENEMY_HEALTH_MULTIPLIER
-	enemy.current_health = enemy.max_health
+	if kind == "boss":
+		enemy.current_health = ENEMY_BOSS_STATE.get_boss_spawn_health(enemy)
+	else:
+		enemy.current_health = enemy.max_health
 	enemy.speed *= speed_multiplier
 	enemy.touch_damage *= damage_multiplier
 	enemy.projectile_damage *= damage_multiplier * GLOBAL_ENEMY_PROJECTILE_DAMAGE_MULTIPLIER

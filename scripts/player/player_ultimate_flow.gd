@@ -4,6 +4,7 @@ const PLAYER_SEQUENCE_SCHEDULER := preload("res://scripts/player/player_sequence
 const SEQUENCE_SCHEDULER_NAME := "PlayerSequenceScheduler"
 
 const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
+const PLAYER_SWORDSMAN_ULTIMATE_FLOW := preload("res://scripts/player/player_swordsman_ultimate_flow.gd")
 
 const ULTIMATE_ENERGY_LOCK_AFTER_CAST := 3.2
 const ULTIMATE_ENERGY_REQUIRED := 100.0
@@ -81,6 +82,8 @@ static func _make_ultimate_enhancement_description(_owner, _role_id: String) -> 
 
 
 static func can_use_ultimate(owner) -> bool:
+	if owner != null and owner.has_method("_get_active_role_id") and owner._get_active_role_id() == "swordsman" and PLAYER_SWORDSMAN_ULTIMATE_FLOW.can_use_chain_ultimate(owner):
+		return true
 	if owner.has_method("_is_player_action_locked") and owner._is_player_action_locked():
 		return false
 	if owner.has_method("is_gunner_infinite_reload_blocking_actions") and owner.is_gunner_infinite_reload_blocking_actions():
@@ -131,12 +134,21 @@ static func get_ultimate_level_damage_multiplier(owner) -> float:
 
 
 static func try_use_ultimate(owner) -> void:
+	var active_role_id: String = str(owner._get_active_role_id())
+	var is_swordsman_followup: bool = active_role_id == "swordsman" and PLAYER_SWORDSMAN_ULTIMATE_FLOW.can_use_chain_ultimate(owner)
 	var ultimate_cost: float = get_ultimate_energy_cost(owner)
 	if not can_use_ultimate(owner):
 		return
 
 	var role_id: String = owner._get_active_role()["id"]
 	var cast_payload: Dictionary = build_ultimate_cast_payload(owner)
+	if is_swordsman_followup:
+		if not PLAYER_SWORDSMAN_ULTIMATE_FLOW.trigger_ultimate_followup(owner, cast_payload):
+			return
+		cast_payload = PLAYER_SWORDSMAN_ULTIMATE_FLOW.apply_followup_ultimate_cast(owner, cast_payload)
+		if owner.swordsman_role != null:
+			owner.swordsman_role.perform_ultimate(owner, cast_payload)
+		return
 	var consume_mage_transfer: bool = (
 		owner.has_method("_has_skill_talent")
 		and owner._has_skill_talent("mage_trait_ultimate")

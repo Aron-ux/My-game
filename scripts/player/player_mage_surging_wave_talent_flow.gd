@@ -1,6 +1,7 @@
 extends RefCounted
 
 const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_talent_system.gd")
+const MAGE_SURGING_WAVE_TRAIL := preload("res://scripts/player/mage_surging_wave_trail.gd")
 
 const TALENT_SURGING_WAVE_1 := "mage_level_talent_surging_wave_1"
 const TALENT_SURGING_WAVE_2 := "mage_level_talent_surging_wave_2"
@@ -13,6 +14,8 @@ const TRAIL_DAMAGE_PER_SECOND_RATIO := 0.30
 const TRAIL_SLOW_MULTIPLIER := 0.30
 const TRAIL_SLOW_DURATION := 0.25
 const TRAIL_ALPHA := 0.10
+const TRAIL_VISUAL_WIDTH_MULTIPLIER := 1.70
+const TRAIL_COLOR := Color(1.0, 0.52, 0.20, TRAIL_ALPHA)
 const TRAIL_MIN_LENGTH := 6.0
 
 
@@ -52,7 +55,7 @@ static func start_path_trail(owner, wave: Node2D, wave_token: int, origin: Vecto
 		return
 	if not owner.has_method("_schedule_repeating_sequence"):
 		return
-	var trail := _spawn_trail_visual(owner, origin)
+	var trail := _spawn_trail_visual(owner, wave, wave_token, origin)
 	var tick_count := int(ceil(max(TRAIL_TICK_INTERVAL, float(wave.get("lifetime"))) / TRAIL_TICK_INTERVAL)) + 2
 	owner._schedule_repeating_sequence(TRAIL_TICK_INTERVAL, tick_count, func(_index: int) -> void:
 		if owner == null or not is_instance_valid(owner):
@@ -68,46 +71,21 @@ static func start_path_trail(owner, wave: Node2D, wave_token: int, origin: Vecto
 			return
 		var direction: Vector2 = axis / length
 		var width: float = max(4.0, float(wave.get("hit_radius")) * 2.0)
-		_update_trail_visual(trail, origin, end_position, width)
 		if owner.has_method("_damage_enemies_in_oriented_rect"):
 			var damage_per_tick: float = float(wave.get("damage")) * TRAIL_DAMAGE_PER_SECOND_RATIO * TRAIL_TICK_INTERVAL
 			owner._damage_enemies_in_oriented_rect(origin + axis * 0.5, direction, length, width, damage_per_tick, 0.0, TRAIL_SLOW_MULTIPLIER, TRAIL_SLOW_DURATION, source_role_id)
 	, TRAIL_TICK_INTERVAL)
 
 
-static func _spawn_trail_visual(owner, origin: Vector2) -> Polygon2D:
+static func _spawn_trail_visual(owner, wave: Node2D, wave_token: int, origin: Vector2) -> Node2D:
 	var tree: SceneTree = owner.get_tree() if owner != null and owner.has_method("get_tree") else null
 	var scene: Node = tree.current_scene if tree != null else null
 	if scene == null:
 		return null
-	var trail := Polygon2D.new()
-	trail.color = Color(0.56, 0.88, 1.0, TRAIL_ALPHA)
-	trail.z_as_relative = false
-	trail.z_index = 12
-	trail.global_position = origin
-	trail.add_to_group("temporary_effects")
+	var trail := MAGE_SURGING_WAVE_TRAIL.new()
+	trail.setup(owner, wave, wave_token, origin, TRAIL_COLOR, TRAIL_VISUAL_WIDTH_MULTIPLIER, TRAIL_MIN_LENGTH)
 	scene.add_child(trail)
 	return trail
-
-
-static func _update_trail_visual(trail: Polygon2D, start_position: Vector2, end_position: Vector2, width: float) -> void:
-	if trail == null or not is_instance_valid(trail):
-		return
-	var axis: Vector2 = end_position - start_position
-	var length: float = axis.length()
-	if length < TRAIL_MIN_LENGTH:
-		return
-	trail.global_position = start_position + axis * 0.5
-	trail.rotation = axis.angle()
-	var half_length: float = length * 0.5
-	var half_width: float = width * 0.5
-	trail.polygon = PackedVector2Array([
-		Vector2(-half_length, -half_width),
-		Vector2(half_length, -half_width),
-		Vector2(half_length, half_width),
-		Vector2(-half_length, half_width)
-	])
-
 
 static func _release_trail_visual(trail: Polygon2D) -> void:
 	if trail == null or not is_instance_valid(trail):

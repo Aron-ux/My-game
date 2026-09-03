@@ -105,7 +105,10 @@ func _check_skill_tree_content(panel: Node) -> void:
 	var detail := panel.find_child("SkillTreeDetail", true, false)
 	if selector_list == null or detail == null:
 		return
-	_expect(selector_list.get_child_count() == 6, "skill tree page should render exactly six selectors")
+	_expect(
+		selector_list.get_child_count() == PLAYER_SKILL_TALENT_SYSTEM.ROLE_PROGRESS_ORDER["swordsman"].size(),
+		"skill tree page should render one selector per role progress node"
+	)
 	for progress_id in PLAYER_SKILL_TALENT_SYSTEM.ROLE_PROGRESS_ORDER["swordsman"]:
 		_expect(
 			panel.find_child("SkillTreeSelector_%s" % progress_id, true, false) != null,

@@ -1,6 +1,7 @@
 extends RefCounted
 
 const ENEMY_GEOMETRY := preload("res://scripts/enemies/enemy_geometry.gd")
+const ENEMY_PROJECTILES := preload("res://scripts/enemies/enemy_projectiles.gd")
 const ROSE_MINION := preload("res://scripts/enemies/rose_minion.gd")
 
 const ROSE_BULLET_STYLE := "rose_flower"
@@ -20,6 +21,32 @@ const BOMBARD_LIFETIME_MULTIPLIER := 1.5
 const ACTIVE_SPLITS_META_KEY := "__rose_active_splits"
 const ACTIVE_BOMBARDS_META_KEY := "__rose_active_bombards"
 const ROSE_FRAME_META_KEY := "__rose_behavior_frame"
+
+
+static func clear_runtime_effects_after_defeat(enemy) -> void:
+	if enemy == null or not is_instance_valid(enemy):
+		return
+	var scene := _get_enemy_current_scene(enemy)
+	if scene != null:
+		_clear_enemy_sequences(scene, ACTIVE_SPLITS_META_KEY, enemy)
+		_clear_enemy_sequences(scene, ACTIVE_BOMBARDS_META_KEY, enemy)
+	ENEMY_PROJECTILES.clear_projectiles_from_source(enemy)
+
+
+static func _clear_enemy_sequences(scene: Node, key: String, enemy) -> void:
+	var active_value: Variant = scene.get_meta(key, [])
+	if active_value is not Array:
+		return
+	var remaining: Array = []
+	for sequence_value in active_value:
+		if sequence_value is not Dictionary:
+			continue
+		var data: Dictionary = sequence_value as Dictionary
+		if _get_enemy_from_sequence(data) == enemy:
+			_release_sequence_visuals(data)
+		else:
+			remaining.append(data)
+	scene.set_meta(key, remaining)
 
 
 static func update(enemy, delta: float) -> void:

@@ -38,6 +38,6 @@ extra = {
 "skulltomb_death_soldier_speed_multiplier": 1.2,
 "skulltomb_min_soldiers": 10,
 "skulltomb_summon_interval": 20.0,
-"skulltomb_summon_windup": 1.2,
+"skulltomb_summon_windup": 0.7,
 "skulltomb_tomb_scene": ExtResource("3_tomb")
 }

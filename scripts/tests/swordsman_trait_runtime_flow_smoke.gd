@@ -91,6 +91,20 @@ func _check_bloodthirst_runtime() -> void:
 	_expect(is_equal_approx(owner.swordsman_bloodthirst_heal_multiplier, 1.0), "bloodthirst heal multiplier should reset on expiry")
 	_expect(is_equal_approx(owner.swordsman_bloodthirst_cooldown_remaining, owner.SWORDSMAN_BLOODTHIRST_INTERNAL_COOLDOWN), "bloodthirst expiry should start internal cooldown")
 	_expect(is_equal_approx(RuntimeFlow.get_damage_multiplier(owner, "swordsman"), 1.0), "bloodthirst damage bonus should expire")
+	owner.swordsman_entry_trait_share_remaining = 4.5
+	owner.swordsman_bloodthirst_heal_multiplier = 1.5
+	owner.role_special_states["gunner"] = {
+		"swordsman_entry_bloodthirst_remaining": 4.5,
+		"swordsman_entry_bloodthirst_heal_multiplier": 1.5
+	}
+	RuntimeFlow.clear_bloodthirst_on_role_switch(owner)
+	_expect(is_zero_approx(owner.swordsman_entry_trait_share_remaining), "switching away should clear swordsman bloodthirst remaining time")
+	_expect(is_equal_approx(owner.swordsman_bloodthirst_heal_multiplier, 1.0), "switching away should clear swordsman bloodthirst multiplier")
+	_expect(not (owner.role_special_states["gunner"] as Dictionary).has("swordsman_entry_bloodthirst_remaining"), "switching away should clear inherited bloodthirst remaining time")
+	owner.active_role_id = "gunner"
+	_expect(not RuntimeFlow.is_bloodthirst_active(owner), "non-swordsman should not benefit from swordsman bloodthirst")
+	owner.active_role_id = "swordsman"
+	_expect(not RuntimeFlow.is_bloodthirst_active(owner), "returning to swordsman should not restore cleared bloodthirst")
 	owner.queue_free()
 
 

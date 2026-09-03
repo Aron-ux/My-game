@@ -130,7 +130,7 @@ static func _spawn_queued_special_event(main: Node, event_type: String, archetyp
 		"elite":
 			main.ENEMY_SPAWN_FLOW.spawn_special_enemy_with_archetype(main, "elite", archetype)
 		"small_boss":
-			main.boss_enemy = main.ENEMY_SPAWN_FLOW.spawn_special_enemy_with_archetype(main, "small_boss", archetype)
+			main.small_boss_enemy = main.ENEMY_SPAWN_FLOW.spawn_special_enemy_with_archetype(main, "small_boss", archetype)
 		"boss":
 			main.boss_enemy = main.ENEMY_SPAWN_FLOW.spawn_special_enemy_with_archetype(main, "boss", archetype)
 			if main.spawn_timer != null:

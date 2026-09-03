@@ -3,6 +3,7 @@ extends RefCounted
 const ENEMY_SKULLTOMB_BEHAVIOR := preload("res://scripts/enemies/enemy_skulltomb_behavior.gd")
 const ENEMY_BOSS_STATE := preload("res://scripts/enemies/enemy_boss_state.gd")
 const PLAYER_GUNNER_BASIC_TALENT_FLOW := preload("res://scripts/player/player_gunner_basic_talent_flow.gd")
+const PLAYER_COMBAT_MODIFIERS := preload("res://scripts/player/player_combat_modifiers.gd")
 
 static func take_damage(enemy, amount: float, is_critical: bool = false) -> bool:
 	return apply_damage(enemy, amount, true, is_critical)
@@ -15,7 +16,8 @@ static func apply_damage(enemy, amount: float, show_feedback: bool = true, is_cr
 	if enemy.skull_damage_immune_timer > 0.0:
 		return false
 	var previous_health: float = float(enemy.current_health)
-	var adjusted_damage: float = amount * PLAYER_GUNNER_BASIC_TALENT_FLOW.get_enemy_damage_taken_multiplier(enemy) * (1.0 + enemy.vulnerability_bonus)
+	var damage_reduction_rate := PLAYER_COMBAT_MODIFIERS.calculate_damage_reduction_rate(PLAYER_GUNNER_BASIC_TALENT_FLOW.get_effective_damage_reduction_value(enemy))
+	var adjusted_damage: float = amount * max(0.0, 1.0 - damage_reduction_rate) * (1.0 + enemy.vulnerability_bonus)
 	enemy.current_health -= adjusted_damage
 	var shield_broken := _should_start_boss_shield_break_intro(enemy, previous_health)
 	var killed: bool = enemy.current_health <= 0.0 and not shield_broken

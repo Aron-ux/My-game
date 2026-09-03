@@ -2,6 +2,7 @@ extends RefCounted
 
 const MAP_BOUNDARY_VIEW := preload("res://scripts/map/map_boundary_view.gd")
 const DEFAULT_MAP_BOUNDS := Rect2(Vector2(-1600.0, -900.0), Vector2(3200.0, 1800.0))
+const MAP_AREA_MULTIPLIER := 16.0 / 9.0
 
 const TILE_MAP_LAYER_NAMES := {
 	"GroundLayer": true,
@@ -46,9 +47,15 @@ static func add_grassland_background(_map_scene: Node) -> void:
 static func apply_tile_map_bounds_to_main(main: Node, map_scene: Node2D) -> void:
 	var tile_bounds: Rect2 = calculate_tile_map_bounds(map_scene)
 	if tile_bounds.size.x > 0.0 and tile_bounds.size.y > 0.0:
-		main.map_bounds = tile_bounds.grow(MAP_BOUNDS_PADDING)
+		main.map_bounds = _expand_map_area(tile_bounds.grow(MAP_BOUNDS_PADDING))
 		return
-	main.map_bounds = DEFAULT_MAP_BOUNDS
+	main.map_bounds = _expand_map_area(DEFAULT_MAP_BOUNDS)
+
+
+static func _expand_map_area(bounds: Rect2) -> Rect2:
+	var linear_multiplier: float = sqrt(MAP_AREA_MULTIPLIER)
+	var expanded_size: Vector2 = bounds.size * linear_multiplier
+	return Rect2(bounds.get_center() - expanded_size * 0.5, expanded_size)
 
 
 static func calculate_tile_map_bounds(map_scene: Node2D) -> Rect2:

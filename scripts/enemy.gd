@@ -29,10 +29,12 @@ const ENEMY_VISUALS := preload("res://scripts/enemies/enemy_visuals.gd")
 const ENEMY_OCCLUSION_SORT := preload("res://scripts/enemies/enemy_occlusion_sort.gd")
 const ENEMY_GLUTTON_BEHAVIOR := preload("res://scripts/enemies/enemy_glutton_behavior.gd")
 const ENEMY_GLUTTON_SKILL_BEHAVIOR := preload("res://scripts/enemies/enemy_glutton_skill_behavior.gd")
+const ENEMY_ROSE_SKILL_BEHAVIOR := preload("res://scripts/enemies/enemy_rose_behavior.gd")
 const ENEMY_SKULLTOMB_BEHAVIOR := preload("res://scripts/enemies/enemy_skulltomb_behavior.gd")
 
 @export var speed: float = 80.0
 @export var max_health: float = 20.0
+@export var damage_reduction_value: float = 0.0
 @export var touch_damage: float = 10.0
 @export var contact_radius: float = 36.0
 @export var body_collision_radius: float = -1.0
@@ -141,7 +143,7 @@ var rebirth_slow_multiplier: float = 0.5
 var rebirth_slow_duration: float = 6.0
 var skulltomb_summon_interval: float = 20.0
 var skulltomb_summon_timer: float = 0.0
-var skulltomb_summon_windup: float = 1.2
+var skulltomb_summon_windup: float = 0.7
 var skulltomb_summon_windup_remaining: float = 0.0
 var skulltomb_aging_aura_radius: float = 300.0
 var skulltomb_aging_aura_current_health_drain_ratio: float = 0.05
@@ -354,6 +356,10 @@ func _clear_boss_peacock_markers() -> void:
 func clear_runtime_effects_after_defeat() -> void:
 	if enemy_kind == "boss":
 		_clear_boss_runtime_effects()
+	elif behavior_id == "rose":
+		ENEMY_ROSE_SKILL_BEHAVIOR.clear_runtime_effects_after_defeat(self)
+	elif behavior_id == "skulltomb":
+		ENEMY_SKULLTOMB_BEHAVIOR.clear_runtime_effects_after_defeat(self)
 
 func _clear_boss_runtime_effects() -> void:
 	boss_laser_remaining = 0.0

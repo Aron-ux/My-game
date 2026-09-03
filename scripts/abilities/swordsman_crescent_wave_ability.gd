@@ -545,7 +545,12 @@ func _get_wave_speed(owner) -> float:
 		speed = base_speed * TIER_THREE_SPEED_MULTIPLIER
 	elif tier >= 2:
 		speed = base_speed * TIER_TWO_SPEED_MULTIPLIER
-	return speed + PLAYER_BUILD_SYSTEM.get_crescent_wave_speed_bonus(owner)
+	var difficulty_speed_bonus := 0.0
+	if owner != null and owner.get_tree() != null:
+		var current_scene: Node = owner.get_tree().current_scene
+		if current_scene != null and current_scene.has_method("_get_difficulty_projectile_speed_bonus"):
+			difficulty_speed_bonus = max(0.0, float(current_scene._get_difficulty_projectile_speed_bonus()))
+	return speed + PLAYER_BUILD_SYSTEM.get_crescent_wave_speed_bonus(owner) + difficulty_speed_bonus
 
 
 func _has_talent(owner, talent_id: String) -> bool:

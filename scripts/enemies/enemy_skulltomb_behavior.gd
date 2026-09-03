@@ -449,8 +449,6 @@ static func _update_summon_area(enemy, delta: float) -> void:
 	var status_duration: float = float(enemy.skulltomb_area_remaining) + 0.12
 	if enemy.target.has_method("apply_healing_block"):
 		enemy.target.apply_healing_block(status_duration)
-	if enemy.target.has_method("apply_confinement"):
-		enemy.target.apply_confinement(enemy.skulltomb_area_center, enemy.skulltomb_area_radius, status_duration, _get_summon_area_global_vertices(enemy))
 
 static func _spawn_summon_area_visual(enemy) -> void:
 	var scene := _get_current_scene(enemy)
@@ -458,9 +456,11 @@ static func _spawn_summon_area_visual(enemy) -> void:
 		return
 	var root := Node2D.new()
 	root.name = "SkulltombSummonArea"
-	root.global_position = enemy.skulltomb_area_center
+	# Keep the area root in world space so enemy movement cannot carry it.
+	root.top_level = true
 	root.z_index = enemy.z_index - 1
 	scene.add_child(root)
+	root.global_position = enemy.skulltomb_area_center
 	enemy.skulltomb_area_instance = root
 	var vertices: PackedVector2Array = _build_triangle_vertices(enemy.skulltomb_area_radius)
 	var line := Line2D.new()
@@ -519,8 +519,23 @@ static func _instantiate_area_scene() -> Node2D:
 	return null
 
 
+static func clear_runtime_effects_after_defeat(enemy) -> void:
+	_clear_summon_area(enemy)
+	_clear_channel_ring(enemy)
+	_clear_death_ring(enemy)
+	_clear_tomb(enemy)
+	enemy.skulltomb_pending_spawns.clear()
+	enemy.skulltomb_summon_windup_remaining = 0.0
+	enemy.skulltomb_charge_windup_remaining = 0.0
+	enemy.skulltomb_charge_active = false
+
+
 static func _clear_summon_area(enemy) -> void:
 	if enemy.skulltomb_area_instance != null and is_instance_valid(enemy.skulltomb_area_instance):
+		var collision := enemy.skulltomb_area_instance.get_node_or_null("SkulltombAreaCollision") as CollisionObject2D
+		if collision != null:
+			collision.collision_layer = 0
+			collision.collision_mask = 0
 		enemy.skulltomb_area_instance.queue_free()
 	enemy.skulltomb_area_instance = null
 	enemy.skulltomb_area_remaining = 0.0
@@ -672,6 +687,7 @@ static func _update_channel_ring(enemy) -> void:
 		ring.width = 6.0
 		ring.default_color = DEATH_SPACE_WARNING_COLOR
 		ring.z_index = enemy.z_index + 1
+		ring.top_level = true
 		enemy.add_child(ring)
 		enemy.skulltomb_channel_ring = ring
 	var fill := enemy.skulltomb_channel_fill as Polygon2D
@@ -680,16 +696,17 @@ static func _update_channel_ring(enemy) -> void:
 		fill.name = "SkulltombChannelFill"
 		fill.color = DEATH_SPACE_WARNING_FILL_COLOR
 		fill.z_index = enemy.z_index
+		fill.top_level = true
 		enemy.add_child(fill)
 		enemy.skulltomb_channel_fill = fill
 	var progress: float = 1.0 - clamp(float(enemy.skulltomb_summon_windup_remaining) / max(0.001, float(enemy.skulltomb_summon_windup)), 0.0, 1.0)
 	var warning_radius: float = lerpf(max(18.0, enemy.contact_radius * 0.45), SUMMON_AREA_RADIUS, progress)
 	var vertices: PackedVector2Array = _build_triangle_vertices(warning_radius)
 	var center: Vector2 = enemy.skulltomb_summon_target_center if enemy.skulltomb_summon_target_center != Vector2.ZERO else enemy.skulltomb_area_center
-	ring.position = enemy.to_local(center)
+	ring.global_position = center
 	ring.points = vertices
 	ring.modulate.a = 0.4 + 0.45 * progress
-	fill.position = enemy.to_local(center)
+	fill.global_position = center
 	fill.polygon = vertices
 	fill.color = Color(DEATH_SPACE_WARNING_FILL_COLOR.r, DEATH_SPACE_WARNING_FILL_COLOR.g, DEATH_SPACE_WARNING_FILL_COLOR.b, 0.12 + 0.14 * progress)
 

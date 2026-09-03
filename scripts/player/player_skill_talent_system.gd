@@ -34,7 +34,9 @@ const LEVEL_TALENT_DEFINITIONS := {
 		{"id": "swordsman_level_talent_blade_storm_1", "title": "剑士天赋·剑刃风暴 I", "summary": "剑刃风暴范围扩大 20%；期间剑士移动速度增加 20 点，并获得 100 点减伤值。"},
 		{"id": "swordsman_level_talent_blade_storm_2", "title": "剑士天赋·剑刃风暴 II", "summary": "剑刃风暴期间可以进行普通攻击。"},
 		{"id": "swordsman_level_talent_charge_1", "title": "剑士天赋·冲锋 I", "summary": "剑士释放冲锋后获得 150 点减伤值，持续 3 秒。"},
-		{"id": "swordsman_level_talent_charge_2", "title": "剑士天赋·冲锋 II", "summary": "剑士释放冲锋后，为所有角色回复其已损失生命值的 20%。"}
+		{"id": "swordsman_level_talent_charge_2", "title": "剑士天赋·冲锋 II", "summary": "剑士释放冲锋后，为所有角色回复其已损失生命值的 20%。"},
+			{"id": "swordsman_level_talent_ultimate_1", "title": "剑士天赋·无敌斩 I", "summary": "无敌斩结束后的无敌时间结束后开启 5 秒窗口；窗口内免费再次释放两道无敌斩，伤害为当前斩击倍率的 60%，每道斩击回复最大生命 2.5% 与实际伤害的 50%；窗口超时返还 10% 大招能量。", "level_talent_group_id": "swordsman_ultimate_variant"},
+			{"id": "swordsman_level_talent_ultimate_2", "title": "剑士天赋·无敌斩 II", "summary": "无敌斩释放期间可以切换人物；登场角色免费释放一次登场技。嗜血状态仍只对剑士生效，切离剑士后清除。", "level_talent_group_id": "swordsman_ultimate_variant"}
 	],
 	"gunner": [
 		{"id": "gunner_level_talent_fireline", "title": "枪手天赋·火线", "summary": "预留枪手天赋效果接口。当前只记录选择，不附加旧天赋效果。", "placeholder": true},
@@ -44,8 +46,8 @@ const LEVEL_TALENT_DEFINITIONS := {
 		{"id": "gunner_level_talent_execution_2", "title": "枪手天赋·瞬杀 II", "summary": "枪手每次成功闪避后积攒 1 层永久瞬杀；这些层数不会因为受伤或切人消失，只在枪手登场时生效，最多 5 层。"},
 		{"id": "gunner_level_talent_hunt_1", "title": "枪手天赋·猎杀 I", "summary": "枪手在猎杀圈范围外每击杀 1 个单位，获得 2 闪避值与 1 移动速度；最多获得 100 闪避值与 50 移速，切人后清空。"},
 		{"id": "gunner_level_talent_hunt_2", "title": "枪手天赋·猎杀 II", "summary": "枪手在猎杀圈范围外每击杀 1 个单位，获得 0.5% 增伤；最多获得 50% 增伤，切人后清空。"},
-		{"id": "gunner_level_talent_basic_attack_1", "title": "枪手天赋·普通攻击 I", "summary": "枪手普通攻击弹道飞行速度增加 50，伤害增加 20%；普通攻击每次命中同一个单位，都会使该单位减伤值降低 1 点。"},
-		{"id": "gunner_level_talent_basic_attack_2", "title": "枪手天赋·普通攻击 II", "summary": "枪手普通攻击变为分裂弹；分裂前造成 80% 伤害，命中首个敌人后向子弹移动后方 60° 分裂出 3 颗子弹，每颗分裂弹造成 50% 伤害。"},
+		{"id": "gunner_level_talent_basic_attack_1", "title": "枪手天赋·普通攻击 I", "summary": "枪手普通攻击弹道飞行速度增加 150，伤害增加 20%；普通攻击每次命中同一个单位，都会使该单位减伤值降低 2 点。"},
+		{"id": "gunner_level_talent_basic_attack_2", "title": "枪手天赋·普通攻击 II", "summary": "枪手普通攻击变为分裂弹；分裂前造成 80% 伤害，命中首个敌人后向子弹移动后方 60° 分裂出 3 颗子弹，每颗分裂弹造成 50% 伤害，分裂弹飞行距离增加 100。"},
 		{"id": "gunner_level_talent_shrapnel_1", "title": "枪手天赋·散弹 I", "summary": "散弹圈数量变成 4 个，范围变大 20%（圆形面积）。"},
 		{"id": "gunner_level_talent_shrapnel_2", "title": "枪手天赋·散弹 II", "summary": "散弹每波伤害增加 5%；散弹在 1 秒内造成原来的所有伤害，并且对造成伤害的敌人造成持续 3 秒的减速。"},
 		{"id": "gunner_level_talent_infinite_reload_1", "title": "枪手天赋·无限装填 I", "summary": "无限装填变为快捷键开关技能，攻击距离提升 50；开启后无法移动、普通攻击、释放其他技能或大招，闪避值 +100，方向锁定为开启时方向，开启 1.5 秒后才能关闭，关闭后进入 0.5 秒冷却。"},
@@ -80,9 +82,9 @@ const TRIGGER_LEVELS := [3, 6, 9]
 const TALENT_STAGE_COUNT := 3
 
 const ROLE_PROGRESS_ORDER := {
-	"swordsman": ["swordsman_trait", "swordsman_entry", "swordsman_basic", "swordsman_blade_storm", "swordsman_crescent_wave", "swordsman_ultimate"],
-	"gunner": ["gunner_trait", "gunner_entry", "gunner_basic", "gunner_shrapnel", "gunner_infinite_reload", "gunner_ultimate"],
-	"mage": ["mage_trait", "mage_entry", "mage_basic", "mage_meta_field", "mage_surging_wave", "mage_ultimate"]
+	"swordsman": ["swordsman_trait", "swordsman_entry", "swordsman_basic", "swordsman_blade_storm", "swordsman_crescent_wave", "swordsman_knight_thrust", "swordsman_king_blade", "swordsman_judgement_sword", "swordsman_ultimate"],
+	"gunner": ["gunner_trait", "gunner_entry", "gunner_basic", "gunner_shrapnel", "gunner_infinite_reload", "gunner_explosive_round", "gunner_magic_grenade", "gunner_magic_eye", "gunner_ultimate"],
+	"mage": ["mage_trait", "mage_entry", "mage_basic", "mage_meta_field", "mage_surging_wave", "mage_flame_path", "mage_dark_contract", "mage_fireball", "mage_ultimate"]
 }
 
 const PROGRESS_TITLES := {
@@ -91,28 +93,46 @@ const PROGRESS_TITLES := {
 	"swordsman_basic": "普通攻击",
 	"swordsman_blade_storm": "剑刃风暴",
 	"swordsman_crescent_wave": "月牙剑气",
+	"swordsman_knight_thrust": "骑士突",
+	"swordsman_king_blade": "王者之剑",
+	"swordsman_judgement_sword": "审判之誓",
 	"swordsman_ultimate": "无敌斩",
 	"gunner_trait": "枪手特性",
 	"gunner_entry": "枪火典礼",
 	"gunner_basic": "普通攻击",
 	"gunner_shrapnel": "散弹",
 	"gunner_infinite_reload": "无限装填",
+	"gunner_explosive_round": "爆破弹",
+	"gunner_magic_grenade": "魔法榴弹",
+	"gunner_magic_eye": "魔眼聚合",
 	"gunner_ultimate": "火箭弹幕",
 	"mage_trait": "术师特性",
 	"mage_entry": "密集雷群",
 	"mage_basic": "范围轰炸",
 	"mage_meta_field": "梅塔领域",
 	"mage_surging_wave": "波涛汹涌",
+	"mage_flame_path": "火焰之径",
+	"mage_dark_contract": "黑暗契约",
+	"mage_fireball": "火球术",
 	"mage_ultimate": "奥数轰炸"
 }
 
 const UNLOCKABLE_PROGRESS := {
 	"swordsman_blade_storm": "blade_storm",
 	"swordsman_crescent_wave": "crescent_wave",
+	"swordsman_knight_thrust": "knight_thrust",
+	"swordsman_king_blade": "king_blade",
+	"swordsman_judgement_sword": "judgement_sword",
 	"gunner_shrapnel": "shrapnel_field",
 	"gunner_infinite_reload": "infinite_reload",
+	"gunner_explosive_round": "explosive_round",
+	"gunner_magic_grenade": "magic_grenade",
+	"gunner_magic_eye": "magic_eye",
 	"mage_meta_field": "meta_field",
-	"mage_surging_wave": "surging_wave"
+	"mage_surging_wave": "surging_wave",
+	"mage_flame_path": "flame_path",
+	"mage_dark_contract": "dark_contract",
+	"mage_fireball": "fireball",
 }
 
 const SKILL_PROGRESS_BY_SKILL_ID := {
@@ -121,10 +141,19 @@ const SKILL_PROGRESS_BY_SKILL_ID := {
 	"mage_basic_attack": "mage_basic",
 	"blade_storm": "swordsman_blade_storm",
 	"crescent_wave": "swordsman_crescent_wave",
+	"knight_thrust": "swordsman_knight_thrust",
+	"king_blade": "swordsman_king_blade",
+	"judgement_sword": "swordsman_judgement_sword",
 	"shrapnel_field": "gunner_shrapnel",
 	"infinite_reload": "gunner_infinite_reload",
+	"explosive_round": "gunner_explosive_round",
+	"magic_grenade": "gunner_magic_grenade",
+	"magic_eye": "gunner_magic_eye",
 	"meta_field": "mage_meta_field",
 	"surging_wave": "mage_surging_wave",
+	"flame_path": "mage_flame_path",
+	"dark_contract": "mage_dark_contract",
+	"fireball": "mage_fireball",
 	"swordsman_ultimate": "swordsman_ultimate",
 	"gunner_ultimate": "gunner_ultimate",
 	"mage_ultimate": "mage_ultimate"
@@ -133,6 +162,7 @@ const SKILL_PROGRESS_BY_SKILL_ID := {
 const LEVEL_TALENT_REQUIRED_SKILL_RULES := [
 	{"prefix": "swordsman_level_talent_blade_storm", "skill_id": "blade_storm"},
 	{"prefix": "swordsman_level_talent_crescent_wave", "skill_id": "crescent_wave"},
+	{"prefix": "swordsman_level_talent_ultimate", "skill_id": "swordsman_ultimate"},
 	{"prefix": "gunner_level_talent_shrapnel", "skill_id": "shrapnel_field"},
 	{"prefix": "gunner_level_talent_infinite_reload", "skill_id": "infinite_reload"},
 	{"prefix": "gunner_level_talent_rocket_barrage", "skill_id": "gunner_ultimate"},

@@ -52,6 +52,31 @@ static func compute_velocity(enemy, delta: float) -> Vector2:
 
 	return move_direction * move_speed * GLOBAL_UNIT_MOVE_SPEED_SCALE
 
+static func _get_boss_boundary_steering(enemy) -> Vector2:
+	if enemy == null or not (enemy is Node) or not (enemy as Node).is_inside_tree():
+		return Vector2.ZERO
+	var scene: Node = (enemy as Node).get_tree().current_scene if (enemy as Node).get_tree() != null else null
+	if scene == null:
+		return Vector2.ZERO
+	var bounds_value: Variant = scene.get("map_bounds")
+	if not (bounds_value is Rect2):
+		return Vector2.ZERO
+	var bounds: Rect2 = bounds_value as Rect2
+	var margin: float = max(160.0, float(enemy.get("contact_radius")) * 2.0)
+	if bounds.size.x <= margin * 2.0 or bounds.size.y <= margin * 2.0:
+		return Vector2.ZERO
+	var position: Vector2 = enemy.global_position
+	var steering := Vector2.ZERO
+	if position.x < bounds.position.x + margin:
+		steering.x += clamp((bounds.position.x + margin - position.x) / margin, 0.0, 1.0)
+	elif position.x > bounds.end.x - margin:
+		steering.x -= clamp((position.x - (bounds.end.x - margin)) / margin, 0.0, 1.0)
+	if position.y < bounds.position.y + margin:
+		steering.y += clamp((bounds.position.y + margin - position.y) / margin, 0.0, 1.0)
+	elif position.y > bounds.end.y - margin:
+		steering.y -= clamp((position.y - (bounds.end.y - margin)) / margin, 0.0, 1.0)
+	return steering.normalized() if steering.length_squared() > 0.001 else Vector2.ZERO
+
 static func compute_boss_velocity(enemy, direction_to_target: Vector2, distance_to_target: float, delta: float) -> Vector2:
 	if enemy.boss_phase_transition_target > 0 or bool(enemy.boss_shield_break_visual_intro_active):
 		return Vector2.ZERO
@@ -74,6 +99,9 @@ static func compute_boss_velocity(enemy, direction_to_target: Vector2, distance_
 	enemy.boss_pattern_rotation = wrapf(enemy.boss_pattern_rotation + delta * 0.3, 0.0, TAU)
 	var drift := Vector2.RIGHT.rotated(enemy.boss_pattern_rotation) * 0.08
 	var blended_direction := tangential * tangential_weight + radial * radial_weight + drift
+	var boundary_steering := _get_boss_boundary_steering(enemy)
+	if boundary_steering.length_squared() > 0.001:
+		blended_direction += boundary_steering * 1.8
 	if blended_direction.length_squared() <= 0.001:
 		return Vector2.ZERO
 	var move_direction := blended_direction.normalized()

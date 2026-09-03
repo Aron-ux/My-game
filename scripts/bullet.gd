@@ -92,6 +92,7 @@ var direction: Vector2 = Vector2.RIGHT
 var target: Node2D
 var source_player: Node
 var source_role_id: String = ""
+var difficulty_speed_bonus: float = 0.0
 var source_origin_position: Vector2 = Vector2.ZERO
 var traveled_distance: float = 0.0
 var hit_enemy_ids: Dictionary = {}
@@ -331,6 +332,7 @@ func reset_projectile(config: Dictionary = {}) -> void:
 	target = config.get("target", null) as Node2D
 	source_player = config.get("source_player", null) as Node
 	source_role_id = str(config.get("source_role_id", ""))
+	difficulty_speed_bonus = _resolve_difficulty_projectile_speed_bonus()
 	damage_event_id = str(config.get("damage_event_id", ""))
 	entry_repulse_on_first_hit = bool(config.get("entry_repulse_on_first_hit", false))
 	entry_repulse_consumed = false
@@ -368,7 +370,7 @@ func _physics_process(delta: float) -> void:
 		return
 
 	var start_position := global_position
-	var effective_speed: float = speed * max(0.0, speed_multiplier)
+	var effective_speed: float = speed * max(0.0, speed_multiplier) + difficulty_speed_bonus
 	if wave_amplitude > 0.0 and target == null:
 		_update_wave_motion(delta, effective_speed)
 	elif target != null and is_instance_valid(target):
@@ -392,6 +394,15 @@ func _physics_process(delta: float) -> void:
 		last_hit_scan_position = global_position
 	else:
 		_try_hit_enemy(start_position, global_position)
+
+func _resolve_difficulty_projectile_speed_bonus() -> float:
+	if source_player == null or not is_instance_valid(source_player):
+		return 0.0
+	var tree: SceneTree = source_player.get_tree()
+	var current_scene: Node = tree.current_scene if tree != null else null
+	if current_scene != null and current_scene.has_method("_get_difficulty_projectile_speed_bonus"):
+		return max(0.0, float(current_scene._get_difficulty_projectile_speed_bonus()))
+	return 0.0
 
 func configure_wave_motion(amplitude: float, frequency: float, phase: float = 0.0) -> void:
 	wave_amplitude = max(0.0, amplitude)
@@ -469,7 +480,7 @@ func _try_hit_enemy(start_position: Vector2, end_position: Vector2) -> void:
 			return
 
 	var query_center: Vector2 = (start_position + end_position) * 0.5
-	var query_radius: float = start_position.distance_to(end_position) * 0.5 + hit_radius * max(0.01, hit_radius_multiplier) + max(enemy_hit_radius_max, PLAYER_DAMAGE_RESOLVER.BOSS_TOUCH_DAMAGE_QUERY_PADDING) + 8.0
+	var query_radius: float = start_position.distance_to(end_position) * 0.5 + hit_radius * max(0.01, hit_radius_multiplier) + max(enemy_hit_radius_max, PLAYER_DAMAGE_RESOLVER.BOSS_MODEL_HURTBOX_QUERY_PADDING) + 8.0
 	for enemy in _get_candidate_enemies_near(query_center, query_radius):
 		if not is_instance_valid(enemy):
 			continue

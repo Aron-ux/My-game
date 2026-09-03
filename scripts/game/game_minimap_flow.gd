@@ -15,6 +15,7 @@ static func build_minimap_payload(main: Node) -> Dictionary:
 		"player_position": get_node_position(main.player),
 		"enemies": collect_group_points(main, "enemies"),
 		"boss_position": get_node_position(main.boss_enemy) if main.boss_enemy != null and is_instance_valid(main.boss_enemy) else null,
+		"small_boss_position": get_node_position(main.small_boss_enemy) if main.small_boss_enemy != null and is_instance_valid(main.small_boss_enemy) else null,
 		"gems": collect_group_points(main, "exp_gems", 18),
 		"hearts": collect_group_points(main, "heart_pickups", 8)
 	}

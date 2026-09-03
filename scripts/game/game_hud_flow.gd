@@ -59,46 +59,76 @@ static func refresh_hud(main: Node) -> void:
 		main.hud.set_developer_ruan_stone_options(main._get_developer_ruan_stone_options())
 	update_boss_hud(main)
 
+static func _get_boss_ui_data(enemy, default_name: String) -> Dictionary:
+	var current_health := float(enemy.get("current_health"))
+	var max_health := float(enemy.get("max_health"))
+	var boss_name := default_name
+	var status_payload: Dictionary = {}
+	var boss_ui_payload: Dictionary = {
+		"enemy_kind": str(enemy.get("enemy_kind")),
+		"shield_health": 0.0,
+		"shield_max_health": 0.0
+	}
+	var hide_health := false
+	if enemy.has_method("get_boss_ui_payload"):
+		var payload: Dictionary = enemy.get_boss_ui_payload()
+		boss_name = str(payload.get("name", boss_name))
+		current_health = float(payload.get("current_health", current_health))
+		max_health = float(payload.get("max_health", max_health))
+		status_payload = payload.get("status", {}) as Dictionary
+		boss_ui_payload = {
+			"enemy_kind": str(payload.get("enemy_kind", boss_ui_payload.get("enemy_kind", "boss"))),
+			"shield_health": max(0.0, float(payload.get("shield_health", 0.0))),
+			"shield_max_health": max(0.0, float(payload.get("shield_max_health", 0.0)))
+		}
+		hide_health = bool(payload.get("hide_health", false))
+	return {
+		"name": boss_name,
+		"current_health": current_health,
+		"max_health": max_health,
+		"status": status_payload,
+		"ui": boss_ui_payload,
+		"hide_health": hide_health
+	}
+
+
 static func update_boss_hud(main: Node) -> void:
 	if main.hud == null:
 		return
 
-	if main.boss_enemy != null and not is_instance_valid(main.boss_enemy):
+	var small_boss = main.small_boss_enemy
+	if small_boss != null and not is_instance_valid(small_boss):
+		main.small_boss_enemy = null
+		small_boss = null
+	var final_boss = main.boss_enemy
+	if final_boss != null and not is_instance_valid(final_boss):
 		main.boss_enemy = null
 		main.boss_spawned = false
+		final_boss = null
 
-	if main.boss_enemy != null and is_instance_valid(main.boss_enemy):
-		var boss_name := "Boss"
-		var current_health := float(main.boss_enemy.get("current_health"))
-		var max_health := float(main.boss_enemy.get("max_health"))
-		var status_payload: Dictionary = {}
-		var boss_kind := str(main.boss_enemy.get("enemy_kind"))
-		if boss_kind == "":
-			boss_kind = "boss"
-		var boss_ui_payload: Dictionary = {
-			"enemy_kind": boss_kind,
-			"shield_health": 0.0,
-			"shield_max_health": 0.0
-		}
-		if main.boss_enemy.has_method("get_boss_ui_payload"):
-			var payload: Dictionary = main.boss_enemy.get_boss_ui_payload()
-			boss_name = str(payload.get("name", boss_name))
-			current_health = float(payload.get("current_health", current_health))
-			max_health = float(payload.get("max_health", max_health))
-			status_payload = payload.get("status", {}) as Dictionary
-			boss_ui_payload = {
-				"enemy_kind": str(payload.get("enemy_kind", boss_ui_payload.get("enemy_kind", "boss"))),
-				"shield_health": max(0.0, float(payload.get("shield_health", 0.0))),
-				"shield_max_health": max(0.0, float(payload.get("shield_max_health", 0.0)))
-			}
-			if bool(payload.get("hide_health", false)):
-				hide_boss_ui(main)
-				return
-		if main.hud.has_method("show_boss_ui"):
+	var has_small_boss := small_boss != null and is_instance_valid(small_boss)
+	var has_final_boss := final_boss != null and is_instance_valid(final_boss)
+	if has_small_boss:
+		var small_data: Dictionary = _get_boss_ui_data(small_boss, "小 Boss")
+		if not bool(small_data.get("hide_health", false)) and main.hud.has_method("show_small_boss_ui"):
+			main.hud.show_small_boss_ui(str(small_data.get("name", "小 Boss")), float(small_data.get("current_health", 0.0)), float(small_data.get("max_health", 1.0)))
+		else:
+			has_small_boss = false
+	if not has_small_boss and main.hud.has_method("hide_small_boss_ui"):
+		main.hud.hide_small_boss_ui()
+
+	if has_final_boss:
+		var final_data: Dictionary = _get_boss_ui_data(final_boss, "Boss")
+		if not bool(final_data.get("hide_health", false)) and main.hud.has_method("show_boss_ui"):
+			var final_name := str(final_data.get("name", "Boss"))
 			if main.endless_mode_active or main._is_developer_mode():
-				boss_name = "N%d · %s" % [main.endless_tier, boss_name]
-			main.hud.show_boss_ui(boss_name, current_health, max_health, status_payload, boss_ui_payload)
-	else:
+				final_name = "N%d · %s" % [main.endless_tier, final_name]
+			main.hud.show_boss_ui(final_name, float(final_data.get("current_health", 0.0)), float(final_data.get("max_health", 1.0)), final_data.get("status", {}) as Dictionary, final_data.get("ui", {}) as Dictionary)
+		else:
+			has_final_boss = false
+	if not has_final_boss and main.hud.has_method("hide_final_boss_ui"):
+		main.hud.hide_final_boss_ui()
+	if not has_small_boss and not has_final_boss:
 		hide_boss_ui(main)
 
 static func update_performance_metrics(main: Node, delta: float) -> void:

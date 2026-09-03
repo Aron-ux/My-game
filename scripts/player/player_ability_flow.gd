@@ -12,6 +12,30 @@ static func try_trigger_swordsman_blade_storm(owner) -> void:
 	start_swordsman_blade_storm(owner)
 
 
+static func try_trigger_swordsman_knight_thrust(owner) -> void:
+	if owner.is_dead or owner.level_up_active or _is_action_blocked_by_lock_or_manual_skill(owner):
+		return
+	var active_role_id := str(owner._get_active_role().get("id", ""))
+	if owner.swordsman_knight_thrust_ability != null and owner.swordsman_knight_thrust_ability.can_trigger(owner, active_role_id):
+		owner.swordsman_knight_thrust_ability.try_trigger(owner)
+
+
+static func try_trigger_swordsman_king_blade(owner) -> void:
+	if owner.is_dead or owner.level_up_active or _is_action_blocked_by_lock_or_manual_skill(owner):
+		return
+	var active_role_id := str(owner._get_active_role().get("id", ""))
+	if owner.swordsman_king_blade_ability != null and owner.swordsman_king_blade_ability.can_trigger(owner, active_role_id):
+		owner.swordsman_king_blade_ability.try_trigger(owner)
+
+
+static func try_trigger_swordsman_judgement_sword(owner) -> void:
+	if owner.is_dead or owner.level_up_active or _is_action_blocked_by_lock_or_manual_skill(owner):
+		return
+	var active_role_id := str(owner._get_active_role().get("id", ""))
+	if owner.swordsman_judgement_sword_ability != null and owner.swordsman_judgement_sword_ability.can_trigger(owner, active_role_id):
+		owner.swordsman_judgement_sword_ability.try_trigger(owner)
+
+
 static func try_trigger_swordsman_crescent_wave(owner) -> void:
 	if owner.is_dead or owner.level_up_active or _is_action_blocked_by_lock_or_manual_skill(owner):
 		return
@@ -34,6 +58,30 @@ static func try_trigger_gunner_infinite_reload(owner) -> void:
 	start_gunner_infinite_reload(owner)
 
 
+static func try_trigger_gunner_explosive_round(owner) -> void:
+	if owner.is_dead or owner.level_up_active or _is_action_blocked_by_lock_or_manual_skill(owner):
+		return
+	var active_role_id := str(owner._get_active_role().get("id", ""))
+	if owner.gunner_explosive_round_ability != null and owner.gunner_explosive_round_ability.can_trigger(owner, active_role_id):
+		owner.gunner_explosive_round_ability.try_trigger(owner)
+
+
+static func try_trigger_gunner_magic_grenade(owner) -> void:
+	if owner.is_dead or owner.level_up_active or _is_action_blocked_by_lock_or_manual_skill(owner):
+		return
+	var active_role_id := str(owner._get_active_role().get("id", ""))
+	if owner.gunner_magic_grenade_ability != null and owner.gunner_magic_grenade_ability.can_trigger(owner, active_role_id):
+		owner.gunner_magic_grenade_ability.try_trigger(owner)
+
+
+static func try_trigger_gunner_magic_eye(owner) -> void:
+	if owner.is_dead or owner.level_up_active or _is_action_blocked_by_lock_or_manual_skill(owner):
+		return
+	var active_role_id := str(owner._get_active_role().get("id", ""))
+	if owner.gunner_magic_eye_ability != null and owner.gunner_magic_eye_ability.can_trigger(owner, active_role_id):
+		owner.gunner_magic_eye_ability.try_trigger(owner)
+
+
 static func try_trigger_gunner_shrapnel_field(owner) -> void:
 	if owner.is_dead or owner.level_up_active or _is_action_blocked_by_lock_or_manual_skill(owner):
 		return
@@ -52,6 +100,30 @@ static func try_trigger_mage_tidal_surge(owner) -> void:
 	start_mage_tidal_surge(owner)
 
 
+static func try_trigger_mage_flame_path(owner) -> void:
+	if owner.is_dead or owner.level_up_active or _is_action_blocked_by_lock_or_manual_skill(owner):
+		return
+	var active_role_id := str(owner._get_active_role().get("id", ""))
+	if owner.mage_flame_path_ability != null and owner.mage_flame_path_ability.can_trigger(owner, active_role_id):
+		owner.mage_flame_path_ability.try_trigger(owner)
+
+
+static func try_trigger_mage_dark_contract(owner) -> void:
+	if owner.is_dead or owner.level_up_active or _is_action_blocked_by_lock_or_manual_skill(owner):
+		return
+	var active_role_id := str(owner._get_active_role().get("id", ""))
+	if owner.mage_dark_contract_ability != null and owner.mage_dark_contract_ability.can_trigger(owner, active_role_id):
+		owner.mage_dark_contract_ability.try_trigger(owner)
+
+
+static func try_trigger_mage_fireball(owner) -> void:
+	if owner.is_dead or owner.level_up_active or _is_action_blocked_by_lock_or_manual_skill(owner):
+		return
+	var active_role_id := str(owner._get_active_role().get("id", ""))
+	if owner.mage_fireball_ability != null and owner.mage_fireball_ability.can_trigger(owner, active_role_id):
+		owner.mage_fireball_ability.try_trigger(owner)
+
+
 static func try_trigger_mage_meta_field(owner) -> void:
 	if owner.is_dead or owner.level_up_active or _is_action_blocked_by_lock_or_manual_skill(owner):
 		return
@@ -68,6 +140,21 @@ static func start_swordsman_blade_storm(owner) -> void:
 
 static func is_swordsman_blade_storm_active(owner) -> bool:
 	return owner.swordsman_blade_storm_ability != null and owner.swordsman_blade_storm_ability.is_active()
+
+
+static func start_swordsman_knight_thrust(owner) -> void:
+	if owner.swordsman_knight_thrust_ability != null:
+		owner.swordsman_knight_thrust_ability.try_trigger(owner)
+
+
+static func start_swordsman_king_blade(owner) -> void:
+	if owner.swordsman_king_blade_ability != null:
+		owner.swordsman_king_blade_ability.try_trigger(owner)
+
+
+static func start_swordsman_judgement_sword(owner) -> void:
+	if owner.swordsman_judgement_sword_ability != null:
+		owner.swordsman_judgement_sword_ability.try_trigger(owner)
 
 
 static func start_swordsman_crescent_wave(owner) -> void:
@@ -127,6 +214,21 @@ static func try_handle_manual_skill_slot(owner, slot_index: int) -> bool:
 	return owner.gunner_infinite_reload_ability.toggle_manual(owner)
 
 
+static func start_gunner_explosive_round(owner) -> void:
+	if owner.gunner_explosive_round_ability != null:
+		owner.gunner_explosive_round_ability.try_trigger(owner)
+
+
+static func start_gunner_magic_grenade(owner) -> void:
+	if owner.gunner_magic_grenade_ability != null:
+		owner.gunner_magic_grenade_ability.try_trigger(owner)
+
+
+static func start_gunner_magic_eye(owner) -> void:
+	if owner.gunner_magic_eye_ability != null:
+		owner.gunner_magic_eye_ability.try_trigger(owner)
+
+
 static func start_gunner_shrapnel_field(owner) -> void:
 	if owner.gunner_shrapnel_field_ability != null:
 		owner.gunner_shrapnel_field_ability.try_trigger(owner)
@@ -172,6 +274,12 @@ static func is_gunner_infinite_reload_preventing_switch(owner) -> bool:
 	)
 
 
+static func get_mage_flame_path_move_speed_multiplier(owner) -> float:
+	if owner.mage_flame_path_ability != null:
+		return float(owner.mage_flame_path_ability.get_move_speed_multiplier(owner))
+	return 1.0
+
+
 static func get_gunner_infinite_reload_move_speed_multiplier(owner) -> float:
 	if owner.gunner_infinite_reload_ability != null and owner.gunner_infinite_reload_ability.has_method("get_move_speed_multiplier"):
 		return float(owner.gunner_infinite_reload_ability.get_move_speed_multiplier(owner))
@@ -198,6 +306,21 @@ static func start_mage_tidal_surge(owner) -> void:
 		return
 	var base_direction: Vector2 = owner._get_live_mouse_aim_direction(owner.facing_direction)
 	owner.mage_tidal_surge_ability.try_trigger(owner, base_direction)
+
+
+static func start_mage_flame_path(owner) -> void:
+	if owner.mage_flame_path_ability != null:
+		owner.mage_flame_path_ability.try_trigger(owner)
+
+
+static func start_mage_dark_contract(owner) -> void:
+	if owner.mage_dark_contract_ability != null:
+		owner.mage_dark_contract_ability.try_trigger(owner)
+
+
+static func start_mage_fireball(owner) -> void:
+	if owner.mage_fireball_ability != null:
+		owner.mage_fireball_ability.try_trigger(owner)
 
 
 static func start_mage_meta_field(owner) -> void:

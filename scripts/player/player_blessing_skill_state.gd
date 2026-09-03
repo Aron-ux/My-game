@@ -23,6 +23,15 @@ const SKILL_GUNNER_ULTIMATE := "gunner_ultimate"
 const SKILL_MAGE_ULTIMATE := "mage_ultimate"
 const SKILL_ENTRY_RESCUE := "entry_rescue"
 const SKILL_HERO_ENTRY := "hero_entry"
+const SKILL_KNIGHT_THRUST := "knight_thrust"
+const SKILL_EXPLOSIVE_ROUND := "explosive_round"
+const SKILL_FLAME_PATH := "flame_path"
+const SKILL_KING_BLADE := "king_blade"
+const SKILL_MAGIC_GRENADE := "magic_grenade"
+const SKILL_DARK_CONTRACT := "dark_contract"
+const SKILL_JUDGEMENT_SWORD := "judgement_sword"
+const SKILL_MAGIC_EYE := "magic_eye"
+const SKILL_FIREBALL := "fireball"
 const ACTIVE_SKILL_IDS := [
 	SKILL_BLADE_STORM,
 	SKILL_CRESCENT_WAVE,
@@ -30,6 +39,15 @@ const ACTIVE_SKILL_IDS := [
 	SKILL_SHRAPNEL_FIELD,
 	SKILL_SURGING_WAVE,
 	SKILL_META_FIELD,
+	SKILL_KNIGHT_THRUST,
+	SKILL_EXPLOSIVE_ROUND,
+	SKILL_FLAME_PATH,
+	SKILL_KING_BLADE,
+	SKILL_MAGIC_GRENADE,
+	SKILL_DARK_CONTRACT,
+	SKILL_JUDGEMENT_SWORD,
+	SKILL_MAGIC_EYE,
+	SKILL_FIREBALL,
 	SKILL_SWORDSMAN_ULTIMATE,
 	SKILL_GUNNER_ULTIMATE,
 	SKILL_MAGE_ULTIMATE
@@ -40,7 +58,16 @@ const ACTIVE_SLOT_SKILL_IDS := [
 	SKILL_INFINITE_RELOAD,
 	SKILL_SHRAPNEL_FIELD,
 	SKILL_SURGING_WAVE,
-	SKILL_META_FIELD
+	SKILL_META_FIELD,
+	SKILL_KNIGHT_THRUST,
+	SKILL_EXPLOSIVE_ROUND,
+	SKILL_FLAME_PATH,
+	SKILL_KING_BLADE,
+	SKILL_MAGIC_GRENADE,
+	SKILL_DARK_CONTRACT,
+	SKILL_JUDGEMENT_SWORD,
+	SKILL_MAGIC_EYE,
+	SKILL_FIREBALL
 ]
 const BASIC_ATTACK_SKILL_IDS := {
 	SKILL_SWORDSMAN_BASIC_ATTACK: true,
@@ -110,6 +137,15 @@ const SKILL_TAGS := {
 	SKILL_BLADE_STORM: {SKILL_TAG_DURATION: true, SKILL_TAG_QUANTITY: true},
 	SKILL_INFINITE_RELOAD: {SKILL_TAG_DURATION: true, SKILL_TAG_COMBO: true},
 	SKILL_SURGING_WAVE: {SKILL_TAG_DURATION: true, SKILL_TAG_COMBO: true, SKILL_TAG_QUANTITY: true},
+	SKILL_KNIGHT_THRUST: {},
+	SKILL_EXPLOSIVE_ROUND: {},
+	SKILL_FLAME_PATH: {SKILL_TAG_DURATION: true},
+	SKILL_KING_BLADE: {},
+	SKILL_MAGIC_GRENADE: {},
+	SKILL_DARK_CONTRACT: {},
+	SKILL_JUDGEMENT_SWORD: {},
+	SKILL_MAGIC_EYE: {},
+	SKILL_FIREBALL: {SKILL_TAG_DURATION: true},
 	SKILL_SWORDSMAN_BASIC_ATTACK: {SKILL_TAG_COMBO: true, SKILL_TAG_QUANTITY: true},
 	SKILL_GUNNER_BASIC_ATTACK: {SKILL_TAG_COMBO: true, SKILL_TAG_QUANTITY: true},
 	SKILL_MAGE_BASIC_ATTACK: {SKILL_TAG_COMBO: true, SKILL_TAG_QUANTITY: true},
@@ -127,6 +163,15 @@ const SKILL_TITLES := {
 	SKILL_BLADE_STORM: "剑刃风暴",
 	SKILL_INFINITE_RELOAD: "无限装填",
 	SKILL_SURGING_WAVE: "波涛汹涌",
+	SKILL_KNIGHT_THRUST: "骑士突",
+	SKILL_EXPLOSIVE_ROUND: "爆破弹",
+	SKILL_FLAME_PATH: "火焰之径",
+	SKILL_KING_BLADE: "王者之剑",
+	SKILL_MAGIC_GRENADE: "魔法榴弹",
+	SKILL_DARK_CONTRACT: "黑暗契约",
+	SKILL_JUDGEMENT_SWORD: "审判之誓",
+	SKILL_MAGIC_EYE: "魔眼聚合",
+	SKILL_FIREBALL: "火球术",
 	SKILL_SWORDSMAN_BASIC_ATTACK: "剑士普攻",
 	SKILL_GUNNER_BASIC_ATTACK: "枪手普攻",
 	SKILL_MAGE_BASIC_ATTACK: "法师普攻",
@@ -142,6 +187,15 @@ const SKILL_ROLE_IDS := {
 	SKILL_BLADE_STORM: "swordsman",
 	SKILL_INFINITE_RELOAD: "gunner",
 	SKILL_SURGING_WAVE: "mage",
+	SKILL_KNIGHT_THRUST: "swordsman",
+	SKILL_EXPLOSIVE_ROUND: "gunner",
+	SKILL_FLAME_PATH: "mage",
+	SKILL_KING_BLADE: "swordsman",
+	SKILL_MAGIC_GRENADE: "gunner",
+	SKILL_DARK_CONTRACT: "mage",
+	SKILL_JUDGEMENT_SWORD: "swordsman",
+	SKILL_MAGIC_EYE: "gunner",
+	SKILL_FIREBALL: "mage",
 	SKILL_SWORDSMAN_BASIC_ATTACK: "swordsman",
 	SKILL_GUNNER_BASIC_ATTACK: "gunner",
 	SKILL_MAGE_BASIC_ATTACK: "mage",
@@ -401,8 +455,10 @@ static func refresh_unlocks(owner, selected_blessing_id: String = "", selected_t
 	for skill_id in _get_recipe_skill_ids():
 		if ALWAYS_UNLOCKED_SKILL_IDS.has(str(skill_id)):
 			continue
-		if not is_skill_unlocked(owner, str(skill_id)) and _can_apply_recipe(owner, str(skill_id), UNLOCK_RECIPES.get(skill_id, {}), resolved_role_context):
-			var unlock_recipe: Dictionary = UNLOCK_RECIPES.get(skill_id, {})
+		var unlock_recipe: Dictionary = UNLOCK_RECIPES.get(skill_id, {})
+		if unlock_recipe.is_empty():
+			continue
+		if not is_skill_unlocked(owner, str(skill_id)) and _can_apply_recipe(owner, str(skill_id), unlock_recipe, resolved_role_context):
 			var material_lines: Array[String] = _build_recipe_progress(owner, str(skill_id), unlock_recipe)
 			_unlock_skill(owner, str(skill_id), 1)
 			if not SHARED_ENTRY_SKILL_IDS.has(str(skill_id)):

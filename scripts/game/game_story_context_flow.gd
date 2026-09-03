@@ -71,6 +71,9 @@ static func get_difficulty_enemy_health_multiplier(main: Node, kind: String = "n
 static func get_difficulty_enemy_speed_multiplier(main: Node) -> float:
 	return DIFFICULTY_PROFILE.get_scale(get_difficulty_profile(main), "enemy_speed_scale", 1.0)
 
+static func get_difficulty_projectile_speed_bonus(main: Node) -> float:
+	return DIFFICULTY_PROFILE.get_projectile_speed_bonus(get_difficulty_profile(main))
+
 static func get_difficulty_enemy_damage_multiplier(main: Node) -> float:
 	return DIFFICULTY_PROFILE.get_scale(get_difficulty_profile(main), "enemy_damage_scale", 1.0)
 

@@ -65,6 +65,7 @@ var spawned_small_boss_count: int = 0
 var boss_spawned: bool = false
 var stage_cleared: bool = false
 var boss_enemy: Node2D
+var small_boss_enemy: Node2D
 var reward_context: String = ""
 var story_stage: Dictionary = {}
 var story_mode_active: bool = false
@@ -378,6 +379,9 @@ func _get_difficulty_enemy_health_multiplier(kind: String = "normal") -> float:
 
 func _get_difficulty_enemy_speed_multiplier() -> float:
 	return GAME_STORY_CONTEXT_FLOW.get_difficulty_enemy_speed_multiplier(self)
+
+func _get_difficulty_projectile_speed_bonus() -> float:
+	return GAME_STORY_CONTEXT_FLOW.get_difficulty_projectile_speed_bonus(self)
 
 func _get_difficulty_enemy_damage_multiplier() -> float:
 	return GAME_STORY_CONTEXT_FLOW.get_difficulty_enemy_damage_multiplier(self)

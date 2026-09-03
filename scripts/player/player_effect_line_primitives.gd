@@ -254,6 +254,30 @@ static func spawn_thrust_effect(owner: Node, start_position: Vector2, end_positi
 	effect.scale = Vector2(0.3, 0.8)
 	_track_composite_animation(effect, "thrust", duration, effect.scale, Vector2.ONE, duration * 0.45)
 
+static func spawn_cone_effect(owner: Node, center: Vector2, direction: Vector2, range_value: float, arc_degrees: float, color: Color, duration: float) -> void:
+	if not _can_spawn_temporary_effect(owner):
+		return
+	var current_scene: Node = owner.get_tree().current_scene
+	if current_scene == null:
+		return
+
+	var effect: Node2D = _acquire_composite(current_scene, "cone", ["polygon"])
+	effect.global_position = center
+	effect.rotation = direction.angle()
+	effect.scale = Vector2.ONE
+	effect.modulate = Color.WHITE
+	effect.z_index = 12
+
+	var polygon: Polygon2D = effect.get_node_or_null("polygon") as Polygon2D
+	if polygon == null:
+		return
+	var points: PackedVector2Array = PackedVector2Array([Vector2.ZERO])
+	points.append_array(owner._build_arc_points(range_value, arc_degrees))
+	polygon.color = color
+	polygon.polygon = points
+	effect.scale = Vector2(0.22, 0.72)
+	_track_composite_animation(effect, "cone", duration, effect.scale, Vector2.ONE, duration * 0.35)
+
 static func _track_line_animation(line: Line2D, duration: float, start_width: float, target_width: float) -> void:
 	active_lines.append({
 		"node": line,

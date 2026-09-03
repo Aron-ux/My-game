@@ -35,6 +35,16 @@ static func get_owner_closest_enemy(owner) -> Node2D:
 	return value
 
 
+static func get_aim_target_position(owner, fallback_direction: Vector2, max_range: float) -> Vector2:
+	if owner != null and owner.has_method("get_global_mouse_position"):
+		var mouse_offset: Vector2 = owner.get_global_mouse_position() - owner.global_position
+		if mouse_offset.length_squared() > 1.0:
+			if mouse_offset.length() > max_range:
+				mouse_offset = mouse_offset.normalized() * max_range
+			return owner.global_position + mouse_offset
+	return owner.global_position + fallback_direction * min(max_range * 0.55, 180.0)
+
+
 static func get_owner_farthest_enemy(owner) -> Node2D:
 	var key: String = _owner_cache_key(owner, "farthest")
 	if _has_owner_cache(key):

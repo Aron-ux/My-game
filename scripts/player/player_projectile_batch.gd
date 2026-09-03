@@ -64,6 +64,7 @@ var gunner_basic_split_arc_degrees: PackedFloat32Array = PackedFloat32Array()
 var gunner_basic_split_damages: PackedFloat32Array = PackedFloat32Array()
 var gunner_basic_split_lifetime_scales: PackedFloat32Array = PackedFloat32Array()
 var gunner_basic_split_speed_scales: PackedFloat32Array = PackedFloat32Array()
+var gunner_basic_split_distance_bonuses: PackedFloat32Array = PackedFloat32Array()
 var gunner_basic_split_visual_scales: PackedFloat32Array = PackedFloat32Array()
 var scan_cursor: int = 0
 var damage_enabled_count: int = 0
@@ -71,6 +72,7 @@ var animation_elapsed: float = 0.0
 var current_animation_frame: int = -1
 var bullet_frame_textures: Array[Texture2D] = []
 var source_player: Node
+var difficulty_projectile_speed_bonus: float = 0.0
 var bullet_outline_multimesh_instance: MultiMeshInstance2D
 var bullet_outline_multimesh: MultiMesh
 var bullet_multimesh_instance: MultiMeshInstance2D
@@ -93,6 +95,7 @@ func _exit_tree() -> void:
 
 func configure(batch_owner: Node) -> void:
 	source_player = batch_owner
+	difficulty_projectile_speed_bonus = _get_difficulty_projectile_speed_bonus()
 
 func add_projectile(data: Dictionary) -> bool:
 	if positions.size() >= MAX_BATCHED_PROJECTILES:
@@ -151,6 +154,7 @@ func add_projectile(data: Dictionary) -> bool:
 	gunner_basic_split_damages.append(float(data.get("gunner_basic_split_damage", 0.0)))
 	gunner_basic_split_lifetime_scales.append(float(data.get("gunner_basic_split_lifetime_scale", 1.0)))
 	gunner_basic_split_speed_scales.append(float(data.get("gunner_basic_split_speed_scale", 1.0)))
+	gunner_basic_split_distance_bonuses.append(float(data.get("gunner_basic_split_distance_bonus", 0.0)))
 	gunner_basic_split_visual_scales.append(float(data.get("gunner_basic_split_visual_scale", 1.0)))
 	PLAYER_DAMAGE_RESOLVER.register_gunner_damage_event(source_player, damage_event_id, float(data.get("lifetime", 1.0)))
 	return true
@@ -233,9 +237,19 @@ func add_projectile_values(
 	gunner_basic_split_damages.append(0.0)
 	gunner_basic_split_lifetime_scales.append(1.0)
 	gunner_basic_split_speed_scales.append(1.0)
+	gunner_basic_split_distance_bonuses.append(0.0)
 	gunner_basic_split_visual_scales.append(1.0)
 	PLAYER_DAMAGE_RESOLVER.register_gunner_damage_event(source_player, damage_event_id, lifetime)
 	return true
+
+func _get_difficulty_projectile_speed_bonus() -> float:
+	if source_player == null or not is_instance_valid(source_player):
+		return 0.0
+	var tree: SceneTree = source_player.get_tree()
+	var current_scene: Node = tree.current_scene if tree != null else null
+	if current_scene != null and current_scene.has_method("_get_difficulty_projectile_speed_bonus"):
+		return max(0.0, float(current_scene._get_difficulty_projectile_speed_bonus()))
+	return 0.0
 
 func _physics_process(delta: float) -> void:
 	if positions.is_empty():
@@ -254,7 +268,7 @@ func _update_projectiles(delta: float) -> void:
 		if lifetimes[index] <= 0.0:
 			_remove_projectile(index)
 			continue
-		var speed: float = speeds[index]
+		var speed: float = speeds[index] + difficulty_projectile_speed_bonus
 		if wave_amplitudes[index] > 0.0:
 			_update_wave_projectile(index, delta, speed)
 		else:
@@ -328,7 +342,7 @@ func _get_damage_batcher() -> RefCounted:
 
 func _find_hit_enemy(projectile_index: int, grid: Dictionary) -> Node2D:
 	var projectile_position: Vector2 = positions[projectile_index]
-	var total_cell_radius: float = hit_radii[projectile_index] + PLAYER_DAMAGE_RESOLVER.BOSS_TOUCH_DAMAGE_QUERY_PADDING
+	var total_cell_radius: float = hit_radii[projectile_index] + PLAYER_DAMAGE_RESOLVER.BOSS_MODEL_HURTBOX_QUERY_PADDING
 	var cell_radius: int = int(ceil(total_cell_radius / HIT_GRID_CELL_SIZE))
 	var center_cell: Vector2i = _grid_cell(projectile_position)
 	for x in range(center_cell.x - cell_radius, center_cell.x + cell_radius + 1):
@@ -446,6 +460,9 @@ func _try_spawn_gunner_basic_split_children(projectile_index: int, enemy: Node2D
 		if split_count > 1:
 			angle_offset = (float(split_index) - center_offset) * arc / float(split_count - 1)
 		var split_direction := forward.rotated(angle_offset).normalized()
+		var split_speed: float = speeds[projectile_index] * max(0.01, gunner_basic_split_speed_scales[projectile_index])
+		var split_distance: float = speeds[projectile_index] * lifetimes[projectile_index] * max(0.01, gunner_basic_split_lifetime_scales[projectile_index]) * max(0.01, gunner_basic_split_speed_scales[projectile_index])
+		split_distance += gunner_basic_split_distance_bonuses[projectile_index]
 		add_projectile({
 			"position": positions[projectile_index],
 			"source_origin": positions[projectile_index],
@@ -453,8 +470,8 @@ func _try_spawn_gunner_basic_split_children(projectile_index: int, enemy: Node2D
 			"damage": split_damage,
 			"color": colors[projectile_index],
 			"role_id": role_ids[projectile_index],
-			"speed": speeds[projectile_index] * max(0.01, gunner_basic_split_speed_scales[projectile_index]),
-			"lifetime": max(0.08, lifetimes[projectile_index] * max(0.01, gunner_basic_split_lifetime_scales[projectile_index])),
+			"speed": split_speed,
+			"lifetime": max(0.08, split_distance / max(1.0, split_speed)),
 			"hit_radius": hit_radii[projectile_index],
 			"visual_radius": visual_radii[projectile_index] * max(0.01, gunner_basic_split_visual_scales[projectile_index]),
 			"visual_min_diameter": visual_min_diameters[projectile_index],
@@ -554,6 +571,7 @@ func _remove_projectile(index: int) -> void:
 		gunner_basic_split_damages[index] = gunner_basic_split_damages[last_index]
 		gunner_basic_split_lifetime_scales[index] = gunner_basic_split_lifetime_scales[last_index]
 		gunner_basic_split_speed_scales[index] = gunner_basic_split_speed_scales[last_index]
+		gunner_basic_split_distance_bonuses[index] = gunner_basic_split_distance_bonuses[last_index]
 		gunner_basic_split_visual_scales[index] = gunner_basic_split_visual_scales[last_index]
 	elif damage_enabled_flags[index]:
 		damage_enabled_count -= 1
@@ -598,6 +616,7 @@ func _remove_projectile(index: int) -> void:
 	gunner_basic_split_damages.resize(last_index)
 	gunner_basic_split_lifetime_scales.resize(last_index)
 	gunner_basic_split_speed_scales.resize(last_index)
+	gunner_basic_split_distance_bonuses.resize(last_index)
 	gunner_basic_split_visual_scales.resize(last_index)
 	if scan_cursor > positions.size():
 		scan_cursor = positions.size()
@@ -646,6 +665,7 @@ func _clear_projectiles() -> void:
 	gunner_basic_split_damages.clear()
 	gunner_basic_split_lifetime_scales.clear()
 	gunner_basic_split_speed_scales.clear()
+	gunner_basic_split_distance_bonuses.clear()
 	gunner_basic_split_visual_scales.clear()
 	scan_cursor = 0
 	damage_enabled_count = 0

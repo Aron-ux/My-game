@@ -7,6 +7,9 @@ const PLAYER_GUNNER_BASIC_TALENT_FLOW := preload("res://scripts/player/player_gu
 const PLAYER_GUNNER_ENTRY_TALENT_FLOW := preload("res://scripts/player/player_gunner_entry_talent_flow.gd")
 const PLAYER_MAGE_ENTRY_TALENT_FLOW := preload("res://scripts/player/player_mage_entry_talent_flow.gd")
 const PLAYER_MAGE_ULTIMATE_TALENT_FLOW := preload("res://scripts/player/player_mage_ultimate_talent_flow.gd")
+const PLAYER_SWORDSMAN_KING_BLADE_FLOW := preload("res://scripts/player/player_swordsman_king_blade_flow.gd")
+const PLAYER_GUNNER_MAGIC_GRENADE_FLOW := preload("res://scripts/player/player_gunner_magic_grenade_flow.gd")
+const PLAYER_MAGE_DARK_CONTRACT_FLOW := preload("res://scripts/player/player_mage_dark_contract_flow.gd")
 
 const MAX_DAMAGE_APPLICATIONS_PER_RENDER_FRAME := 24
 const LARGE_QUEUE_DAMAGE_APPLICATIONS_PER_RENDER_FRAME := 56
@@ -241,9 +244,10 @@ func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_rol
 	var final_damage := damage_amount
 	var resolved_source_role_id: String = _resolve_damage_source_role_id(source_role_id)
 	var source_ultimate_energy_bonus: float = PLAYER_MAGE_ULTIMATE_TALENT_FLOW.get_ultimate_energy_bonus_multiplier(source_player, source_role_id, resolved_source_role_id)
+	var source_critical_chance_bonus: float = PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_critical_chance_bonus(source_role_id)
 	var was_critical := false
 	if resolved_source_role_id != "" and source_player.has_method("_roll_critical_hit") and source_player.has_method("_get_critical_damage_multiplier"):
-		was_critical = bool(source_player._roll_critical_hit(resolved_source_role_id))
+		was_critical = bool(source_player._roll_critical_hit(resolved_source_role_id, source_critical_chance_bonus))
 		if was_critical:
 			final_damage *= float(source_player._get_critical_damage_multiplier(resolved_source_role_id))
 	var applies_gunner_target_talents := damage_amount > 0.0 and _should_apply_gunner_hunt_multiplier(source_role_id, resolved_source_role_id) and enemy is Node2D
@@ -266,6 +270,8 @@ func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_rol
 		killed = bool(_call_enemy_take_batched_damage(enemy, final_damage, was_critical))
 	elif enemy.has_method("take_damage"):
 		killed = bool(enemy.take_damage(final_damage, was_critical))
+	if source_player.has_method("_record_swordsman_ultimate_followup_damage"):
+		source_player._record_swordsman_ultimate_followup_damage(max(0.0, health_before - _get_enemy_current_health(enemy)))
 	if used_batched_damage and not killed and _did_enemy_health_decrease(enemy, health_before) and enemy.has_method("_play_light_hit_feedback"):
 		enemy._play_light_hit_feedback()
 	if damage_amount > 0.0:
@@ -285,6 +291,7 @@ func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_rol
 	if killed:
 		PLAYER_MAGE_ENTRY_TALENT_FLOW.on_entry_lightning_killed(source_player, source_role_id, resolved_source_role_id)
 		PLAYER_MAGE_ULTIMATE_TALENT_FLOW.on_ultimate_bombardment_killed(source_player, source_role_id, resolved_source_role_id)
+		PLAYER_SWORDSMAN_KING_BLADE_FLOW.on_king_blade_killed(source_player, source_role_id, resolved_source_role_id)
 	if killed and source_player.has_method("_get_kill_energy_from_enemy"):
 		var kill_energy: float = source_player._get_kill_energy_from_enemy(enemy)
 		var bypass_lock_role_id: String = resolved_source_role_id if resolved_source_role_id == "mage" and kill_energy_bonus > 0.0 else ""
@@ -319,6 +326,12 @@ func _resolve_damage_source_role_id(source_role_id: String) -> String:
 	if PLAYER_MAGE_ENTRY_TALENT_FLOW.is_entry_lightning_source(source_role_id):
 		return "mage"
 	if PLAYER_MAGE_ULTIMATE_TALENT_FLOW.is_ultimate_source(source_role_id):
+		return "mage"
+	if PLAYER_SWORDSMAN_KING_BLADE_FLOW.is_king_blade_source(source_role_id):
+		return "swordsman"
+	if PLAYER_GUNNER_MAGIC_GRENADE_FLOW.is_magic_grenade_source(source_role_id):
+		return "gunner"
+	if PLAYER_MAGE_DARK_CONTRACT_FLOW.is_dark_contract_source(source_role_id):
 		return "mage"
 	for role_id in ["swordsman", "gunner", "mage"]:
 		if source_role_id.begins_with("%s_basic:" % role_id):

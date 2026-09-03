@@ -73,6 +73,7 @@ static func load_saved_run(main: Node) -> bool:
 		main.endless_tier = int(save_data.get("run_tier", 1))
 		main.endless_run_id = str(save_data.get("run_id", ""))
 	main.boss_enemy = null
+	main.small_boss_enemy = null
 
 	main.player.apply_save_data(save_data.get("player", {}))
 	_restore_enemies(main, save_data.get("enemies", []))

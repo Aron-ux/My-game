@@ -2,7 +2,7 @@ extends RefCounted
 
 const PLAYER_VISUAL_STATE := preload("res://scripts/player/player_visual_state.gd")
 
-const HEALTH_SEGMENT_VALUE := 20.0
+const HEALTH_SEGMENT_VALUE := 50.0
 const HEALTH_BAR_MIN_VISUAL_HEIGHT := 8.0
 const HEALTH_BAR_BORDER_WIDTH := 2.5
 const HEALTH_BAR_INNER_PADDING := 1.4
@@ -125,6 +125,10 @@ static func setup_player_health_bar(owner) -> void:
 	grid_lines.name = "GridLines"
 	bar_root.add_child(grid_lines)
 
+	var temporary_grid_lines := Node2D.new()
+	temporary_grid_lines.name = "TemporaryGridLines"
+	bar_root.add_child(temporary_grid_lines)
+
 	var border := Line2D.new()
 	border.name = "Border"
 	border.default_color = Color(0.0, 0.0, 0.0, 1.0)
@@ -194,13 +198,19 @@ static func update_player_health_bar(owner, role_data: Dictionary, bar_height: f
 		_set_health_bar_fill_polygon(fill, display_ratio, inner_half_width, inner_half_height)
 
 	var temporary_fill := _ensure_temporary_health_fill(bar_root)
+	var temporary_start_ratio: float = display_ratio
+	var temporary_end_ratio: float = min(1.0, display_ratio + temporary_display_ratio)
+	# Keep temporary health visible inside the fixed bar even when normal HP is full.
+	if temporary_display_ratio > 0.002 and temporary_end_ratio <= temporary_start_ratio + 0.0001:
+		temporary_start_ratio = max(0.0, 1.0 - temporary_display_ratio)
+		temporary_end_ratio = 1.0
 	if temporary_fill != null:
 		temporary_fill.visible = temporary_display_ratio > 0.002
 		temporary_fill.color = HEALTH_BAR_TEMP_FILL_COLOR
 		_set_health_bar_segment_polygon(
 			temporary_fill,
-			display_ratio,
-			display_ratio + temporary_display_ratio,
+			temporary_start_ratio,
+			temporary_end_ratio,
 			inner_half_width,
 			inner_half_height
 		)
@@ -216,6 +226,16 @@ static func update_player_health_bar(owner, role_data: Dictionary, bar_height: f
 	if grid_lines != null:
 		_update_health_bar_grid(
 			grid_lines,
+			float(owner.max_health),
+			inner_half_width,
+			inner_half_height
+		)
+	var temporary_grid_lines := bar_root.get_node_or_null("TemporaryGridLines") as Node2D
+	if temporary_grid_lines != null:
+		_update_temporary_health_bar_grid(
+			temporary_grid_lines,
+			temporary_start_ratio,
+			temporary_end_ratio,
 			float(owner.max_health),
 			inner_half_width,
 			inner_half_height
@@ -570,6 +590,45 @@ static func _update_health_bar_grid(
 			line.visible = false
 			continue
 		var segment_ratio: float = segment_hp / max(max_health, 1.0)
+		var line_x: float = -inner_half_width + inner_half_width * 2.0 * segment_ratio
+		line.visible = true
+		line.width = HEALTH_BAR_SEGMENT_LINE_WIDTH
+		line.default_color = HEALTH_BAR_SEGMENT_COLOR
+		line.points = PackedVector2Array([
+			Vector2(line_x, -inner_half_height),
+			Vector2(line_x, inner_half_height)
+		])
+
+
+static func _update_temporary_health_bar_grid(
+	grid_root: Node2D,
+	start_ratio: float,
+	end_ratio: float,
+	max_health: float,
+	inner_half_width: float,
+	inner_half_height: float
+) -> void:
+	var safe_max_health: float = max(max_health, 1.0)
+	var start_health: float = max(0.0, start_ratio * safe_max_health)
+	var end_health: float = max(start_health, end_ratio * safe_max_health)
+	var required_line_count: int = max(0, int(ceil((end_health - start_health) / HEALTH_SEGMENT_VALUE)) - 1)
+	var children: Array[Node] = grid_root.get_children()
+	while children.size() < required_line_count:
+		var new_line := Line2D.new()
+		new_line.width = HEALTH_BAR_SEGMENT_LINE_WIDTH
+		new_line.default_color = HEALTH_BAR_SEGMENT_COLOR
+		grid_root.add_child(new_line)
+		children = grid_root.get_children()
+
+	for child_index in range(children.size()):
+		var line := children[child_index] as Line2D
+		if line == null:
+			continue
+		var boundary_health: float = start_health + float(child_index + 1) * HEALTH_SEGMENT_VALUE
+		if child_index >= required_line_count or boundary_health >= end_health - 0.001:
+			line.visible = false
+			continue
+		var segment_ratio: float = boundary_health / safe_max_health
 		var line_x: float = -inner_half_width + inner_half_width * 2.0 * segment_ratio
 		line.visible = true
 		line.width = HEALTH_BAR_SEGMENT_LINE_WIDTH

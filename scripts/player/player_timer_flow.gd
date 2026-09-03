@@ -4,6 +4,7 @@ const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
 const ROLE_RESOURCE_STATE := preload("res://scripts/player/roles/role_resource_state.gd")
 const PLAYER_SWORDSMAN_BATTLE_WILL_FLOW := preload("res://scripts/player/player_swordsman_battle_will_flow.gd")
 const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")
+const PLAYER_SWORDSMAN_ULTIMATE_FLOW := preload("res://scripts/player/player_swordsman_ultimate_flow.gd")
 const PLAYER_GUNNER_FLASH_TALENT_FLOW := preload("res://scripts/player/player_gunner_flash_talent_flow.gd")
 const PLAYER_GUNNER_ENTRY_TALENT_FLOW := preload("res://scripts/player/player_gunner_entry_talent_flow.gd")
 const PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW := preload("res://scripts/player/player_mage_arcane_surplus_talent_flow.gd")
@@ -63,6 +64,7 @@ static func update_timers(owner, delta: float) -> void:
 	if owner.get("gunner_role") != null and owner.gunner_role.has_method("update_talent_states"):
 		owner.gunner_role.update_talent_states(owner, delta)
 	PLAYER_SWORDSMAN_BATTLE_WILL_FLOW.tick(owner, delta)
+	PLAYER_SWORDSMAN_ULTIMATE_FLOW.update(owner, delta)
 	var swordsman_special: Dictionary = owner._get_role_special_state("swordsman")
 	if float(swordsman_special.get("ultimate_lifesteal_multiplier_remaining", 0.0)) > 0.0:
 		swordsman_special["ultimate_lifesteal_multiplier_remaining"] = max(0.0, float(swordsman_special.get("ultimate_lifesteal_multiplier_remaining", 0.0)) - delta)
@@ -74,9 +76,27 @@ static func update_timers(owner, delta: float) -> void:
 	if owner.gunner_infinite_reload_ability != null:
 		PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.apply_skill_cooldown_tick_bonus(owner, owner.gunner_infinite_reload_ability, "gunner", delta)
 		owner.gunner_infinite_reload_ability.update(owner, delta)
+	if owner.gunner_explosive_round_ability != null:
+		PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.apply_skill_cooldown_tick_bonus(owner, owner.gunner_explosive_round_ability, "gunner", delta)
+		owner.gunner_explosive_round_ability.update(owner, delta)
+	if owner.gunner_magic_grenade_ability != null:
+		PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.apply_skill_cooldown_tick_bonus(owner, owner.gunner_magic_grenade_ability, "gunner", delta)
+		owner.gunner_magic_grenade_ability.update(owner, delta)
+	if owner.gunner_magic_eye_ability != null:
+		PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.apply_skill_cooldown_tick_bonus(owner, owner.gunner_magic_eye_ability, "gunner", delta)
+		owner.gunner_magic_eye_ability.update(owner, delta)
 	if owner.gunner_shrapnel_field_ability != null:
 		PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.apply_skill_cooldown_tick_bonus(owner, owner.gunner_shrapnel_field_ability, "gunner", delta)
 		owner.gunner_shrapnel_field_ability.update(owner, delta)
+	if owner.mage_flame_path_ability != null:
+		PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.apply_skill_cooldown_tick_bonus(owner, owner.mage_flame_path_ability, "mage", delta)
+		owner.mage_flame_path_ability.update(owner, delta)
+	if owner.mage_dark_contract_ability != null:
+		PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.apply_skill_cooldown_tick_bonus(owner, owner.mage_dark_contract_ability, "mage", delta)
+		owner.mage_dark_contract_ability.update(owner, delta)
+	if owner.mage_fireball_ability != null:
+		PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.apply_skill_cooldown_tick_bonus(owner, owner.mage_fireball_ability, "mage", delta)
+		owner.mage_fireball_ability.update(owner, delta)
 	if owner.mage_tidal_surge_ability != null:
 		PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.apply_skill_cooldown_tick_bonus(owner, owner.mage_tidal_surge_ability, "mage", delta)
 		owner.mage_tidal_surge_ability.update(delta)
@@ -86,15 +106,33 @@ static func update_timers(owner, delta: float) -> void:
 	if owner.swordsman_blade_storm_ability != null:
 		PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.apply_skill_cooldown_tick_bonus(owner, owner.swordsman_blade_storm_ability, "swordsman", delta)
 		owner.swordsman_blade_storm_ability.update(owner, delta)
+	if owner.swordsman_knight_thrust_ability != null:
+		PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.apply_skill_cooldown_tick_bonus(owner, owner.swordsman_knight_thrust_ability, "swordsman", delta)
+		owner.swordsman_knight_thrust_ability.update(owner, delta)
+	if owner.swordsman_king_blade_ability != null:
+		PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.apply_skill_cooldown_tick_bonus(owner, owner.swordsman_king_blade_ability, "swordsman", delta)
+		owner.swordsman_king_blade_ability.update(owner, delta)
+	if owner.swordsman_judgement_sword_ability != null:
+		PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.apply_skill_cooldown_tick_bonus(owner, owner.swordsman_judgement_sword_ability, "swordsman", delta)
+		owner.swordsman_judgement_sword_ability.update(owner, delta)
 	if owner.swordsman_crescent_wave_ability != null:
 		PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.apply_skill_cooldown_tick_bonus(owner, owner.swordsman_crescent_wave_ability, "swordsman", delta)
 		owner.swordsman_crescent_wave_ability.update(delta)
 	owner._try_trigger_swordsman_blade_storm()
+	owner._try_trigger_swordsman_knight_thrust()
+	owner._try_trigger_swordsman_king_blade()
+	owner._try_trigger_swordsman_judgement_sword()
 	owner._try_trigger_swordsman_crescent_wave()
 	owner._try_trigger_gunner_infinite_reload()
+	owner._try_trigger_gunner_explosive_round()
+	owner._try_trigger_gunner_magic_grenade()
+	owner._try_trigger_gunner_magic_eye()
 	owner._try_trigger_gunner_shrapnel_field()
+	owner._try_trigger_mage_flame_path()
 	owner._try_trigger_mage_tidal_surge()
 	owner._try_trigger_mage_meta_field()
+	owner._try_trigger_mage_dark_contract()
+	owner._try_trigger_mage_fireball()
 	if owner.perpetual_motion_cooldown_remaining > 0.0:
 		owner.perpetual_motion_cooldown_remaining = max(0.0, owner.perpetual_motion_cooldown_remaining - delta)
 	apply_developer_no_cooldown(owner)
@@ -168,13 +206,35 @@ static func apply_developer_no_cooldown(owner) -> void:
 	owner.perpetual_motion_cooldown_remaining = 0.0
 	if owner.gunner_infinite_reload_ability != null:
 		owner.gunner_infinite_reload_ability.cooldown_remaining = 0.0
+	if owner.gunner_explosive_round_ability != null:
+		owner.gunner_explosive_round_ability.cooldown_remaining = 0.0
+	if owner.gunner_magic_grenade_ability != null:
+		owner.gunner_magic_grenade_ability.cooldown_remaining = 0.0
+	if owner.gunner_magic_eye_ability != null:
+		owner.gunner_magic_eye_ability.cooldown_remaining = 0.0
+	if owner.gunner_magic_eye_ability != null:
+		owner.gunner_magic_eye_ability.shots_remaining = 0
 	if owner.gunner_shrapnel_field_ability != null:
 		owner.gunner_shrapnel_field_ability.cooldown_remaining = 0.0
+	if owner.mage_flame_path_ability != null:
+		owner.mage_flame_path_ability.cooldown_remaining = 0.0
+	if owner.mage_dark_contract_ability != null:
+		owner.mage_dark_contract_ability.cooldown_remaining = 0.0
+	if owner.mage_fireball_ability != null:
+		owner.mage_fireball_ability.cooldown_remaining = 0.0
 	if owner.mage_tidal_surge_ability != null:
 		owner.mage_tidal_surge_ability.cooldown_remaining = 0.0
 	if owner.mage_meta_field_ability != null:
 		owner.mage_meta_field_ability.cooldown_remaining = 0.0
 	if owner.swordsman_blade_storm_ability != null:
 		owner.swordsman_blade_storm_ability.cooldown_remaining = 0.0
+	if owner.swordsman_knight_thrust_ability != null:
+		owner.swordsman_knight_thrust_ability.cooldown_remaining = 0.0
+	if owner.swordsman_king_blade_ability != null:
+		owner.swordsman_king_blade_ability.cooldown_remaining = 0.0
+	if owner.swordsman_judgement_sword_ability != null:
+		owner.swordsman_judgement_sword_ability.cooldown_remaining = 0.0
+	if owner.swordsman_judgement_sword_ability != null:
+		owner.swordsman_judgement_sword_ability.active_remaining = 0.0
 	if owner.swordsman_crescent_wave_ability != null:
 		owner.swordsman_crescent_wave_ability.cooldown_remaining = 0.0

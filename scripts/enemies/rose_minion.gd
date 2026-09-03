@@ -79,10 +79,13 @@ func _spawn_projectile(origin: Vector2, shot_direction: Vector2, speed: float, d
 		projectile.get_parent().remove_child(projectile)
 		current_scene.add_child(projectile)
 	if projectile.has_method("reset_projectile"):
+		var difficulty_speed_bonus := 0.0
+		if current_scene.has_method("_get_difficulty_projectile_speed_bonus"):
+			difficulty_speed_bonus = max(0.0, float(current_scene._get_difficulty_projectile_speed_bonus()))
 		projectile.reset_projectile({
 			"position": origin,
 			"direction": shot_direction.normalized(),
-			"speed": speed,
+			"speed": speed + difficulty_speed_bonus,
 			"damage": damage,
 			"lifetime": shot_lifetime,
 			"hit_radius": 14.0 * size_scale,

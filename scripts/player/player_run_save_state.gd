@@ -8,6 +8,15 @@ const GUNNER_INFINITE_RELOAD_ABILITY := preload("res://scripts/abilities/gunner_
 const MAGE_META_FIELD_ABILITY := preload("res://scripts/abilities/mage_meta_field_ability.gd")
 const SWORDSMAN_CRESCENT_WAVE_ABILITY := preload("res://scripts/abilities/swordsman_crescent_wave_ability.gd")
 const GUNNER_SHRAPNEL_FIELD_ABILITY := preload("res://scripts/abilities/gunner_shrapnel_field_ability.gd")
+const SWORDSMAN_KNIGHT_THRUST_ABILITY := preload("res://scripts/abilities/swordsman_knight_thrust_ability.gd")
+const GUNNER_EXPLOSIVE_ROUND_ABILITY := preload("res://scripts/abilities/gunner_explosive_round_ability.gd")
+const MAGE_FLAME_PATH_ABILITY := preload("res://scripts/abilities/mage_flame_path_ability.gd")
+const SWORDSMAN_KING_BLADE_ABILITY := preload("res://scripts/abilities/swordsman_king_blade_ability.gd")
+const GUNNER_MAGIC_GRENADE_ABILITY := preload("res://scripts/abilities/gunner_magic_grenade_ability.gd")
+const MAGE_DARK_CONTRACT_ABILITY := preload("res://scripts/abilities/mage_dark_contract_ability.gd")
+const SWORDSMAN_JUDGEMENT_SWORD_ABILITY := preload("res://scripts/abilities/swordsman_judgement_sword_ability.gd")
+const GUNNER_MAGIC_EYE_ABILITY := preload("res://scripts/abilities/gunner_magic_eye_ability.gd")
+const MAGE_FIREBALL_ABILITY := preload("res://scripts/abilities/mage_fireball_ability.gd")
 const PLAYER_BLESSING_SYSTEM := preload("res://scripts/player/player_blessing_system.gd")
 const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
 const PLAYER_ROLE_STAT_FLOW := preload("res://scripts/player/player_role_stat_flow.gd")
@@ -389,8 +398,41 @@ static func _apply_ability_save_data(player, data: Dictionary) -> void:
 		"locked_aim_direction": data.get("gunner_infinite_reload_locked_aim_direction", [1.0, 0.0])
 	}
 	player.gunner_infinite_reload_ability.apply_save_data(_get_ability_runtime_entry(ability_runtime, "infinite_reload", infinite_reload_fallback))
+	if player.swordsman_knight_thrust_ability == null:
+		player.swordsman_knight_thrust_ability = SWORDSMAN_KNIGHT_THRUST_ABILITY.new()
+	if player.gunner_explosive_round_ability == null:
+		player.gunner_explosive_round_ability = GUNNER_EXPLOSIVE_ROUND_ABILITY.new()
+	if player.mage_flame_path_ability == null:
+		player.mage_flame_path_ability = MAGE_FLAME_PATH_ABILITY.new()
 	if player.mage_tidal_surge_ability == null:
 		player.mage_tidal_surge_ability = MAGE_TIDAL_SURGE_ABILITY.new()
+	player.swordsman_knight_thrust_ability.apply_save_data(_get_ability_runtime_entry(ability_runtime, "knight_thrust", {}))
+	player.gunner_explosive_round_ability.apply_save_data(_get_ability_runtime_entry(ability_runtime, "explosive_round", {}))
+	player.gunner_explosive_round_ability.restore_effect_if_active(player)
+	player.mage_flame_path_ability.apply_save_data(_get_ability_runtime_entry(ability_runtime, "flame_path", {}))
+	if player.swordsman_king_blade_ability == null:
+		player.swordsman_king_blade_ability = SWORDSMAN_KING_BLADE_ABILITY.new()
+	player.swordsman_king_blade_ability.apply_save_data(_get_ability_runtime_entry(ability_runtime, "king_blade", {}))
+	if player.gunner_magic_grenade_ability == null:
+		player.gunner_magic_grenade_ability = GUNNER_MAGIC_GRENADE_ABILITY.new()
+	player.gunner_magic_grenade_ability.apply_save_data(_get_ability_runtime_entry(ability_runtime, "magic_grenade", {}))
+	player.gunner_magic_grenade_ability.restore_effect_if_active(player)
+	if player.swordsman_judgement_sword_ability == null:
+		player.swordsman_judgement_sword_ability = SWORDSMAN_JUDGEMENT_SWORD_ABILITY.new()
+	player.swordsman_judgement_sword_ability.apply_save_data(_get_ability_runtime_entry(ability_runtime, "judgement_sword", {}))
+	player.swordsman_judgement_sword_ability.restore_effect_if_active(player)
+	if player.mage_dark_contract_ability == null:
+		player.mage_dark_contract_ability = MAGE_DARK_CONTRACT_ABILITY.new()
+	player.mage_dark_contract_ability.apply_save_data(_get_ability_runtime_entry(ability_runtime, "dark_contract", {}))
+	player.mage_dark_contract_ability.restore_effect_if_active(player)
+	if player.gunner_magic_eye_ability == null:
+		player.gunner_magic_eye_ability = GUNNER_MAGIC_EYE_ABILITY.new()
+	player.gunner_magic_eye_ability.apply_save_data(_get_ability_runtime_entry(ability_runtime, "magic_eye", {}))
+	player.gunner_magic_eye_ability.restore_effect_if_active(player)
+	if player.mage_fireball_ability == null:
+		player.mage_fireball_ability = MAGE_FIREBALL_ABILITY.new()
+	player.mage_fireball_ability.apply_save_data(_get_ability_runtime_entry(ability_runtime, "fireball", {}))
+	player.mage_fireball_ability.restore_effect_if_active(player)
 	player.mage_tidal_surge_ability.apply_save_data(_get_ability_runtime_entry(ability_runtime, "surging_wave", {
 		"cooldown_remaining": float(data.get("mage_tidal_surge_cooldown_remaining", 0.0))
 	}))
@@ -427,10 +469,19 @@ static func _apply_ability_save_data(player, data: Dictionary) -> void:
 static func _get_ability_runtime(player) -> Dictionary:
 	return {
 		"blade_storm": player.swordsman_blade_storm_ability.get_save_data() if player.swordsman_blade_storm_ability != null else {},
+		"knight_thrust": player.swordsman_knight_thrust_ability.get_save_data() if player.swordsman_knight_thrust_ability != null else {},
+		"king_blade": player.swordsman_king_blade_ability.get_save_data() if player.swordsman_king_blade_ability != null else {},
+		"judgement_sword": player.swordsman_judgement_sword_ability.get_save_data() if player.swordsman_judgement_sword_ability != null else {},
 		"crescent_wave": player.swordsman_crescent_wave_ability.get_save_data() if player.swordsman_crescent_wave_ability != null else {},
 		"infinite_reload": player.gunner_infinite_reload_ability.get_save_data() if player.gunner_infinite_reload_ability != null else {},
 		"shrapnel_field": player.gunner_shrapnel_field_ability.get_save_data() if player.gunner_shrapnel_field_ability != null else {},
+		"explosive_round": player.gunner_explosive_round_ability.get_save_data() if player.gunner_explosive_round_ability != null else {},
+		"magic_grenade": player.gunner_magic_grenade_ability.get_save_data() if player.gunner_magic_grenade_ability != null else {},
+		"magic_eye": player.gunner_magic_eye_ability.get_save_data() if player.gunner_magic_eye_ability != null else {},
 		"meta_field": player.mage_meta_field_ability.get_save_data() if player.mage_meta_field_ability != null else {},
+		"flame_path": player.mage_flame_path_ability.get_save_data() if player.mage_flame_path_ability != null else {},
+		"dark_contract": player.mage_dark_contract_ability.get_save_data() if player.mage_dark_contract_ability != null else {},
+		"fireball": player.mage_fireball_ability.get_save_data() if player.mage_fireball_ability != null else {},
 		"surging_wave": player.mage_tidal_surge_ability.get_save_data() if player.mage_tidal_surge_ability != null else {}
 	}
 

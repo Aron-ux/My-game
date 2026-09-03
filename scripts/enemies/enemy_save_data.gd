@@ -13,6 +13,7 @@ static func get_save_data(enemy) -> Dictionary:
 		"secondary_behavior_id": enemy.secondary_behavior_id,
 		"max_health": enemy.max_health,
 		"current_health": enemy.current_health,
+		"damage_reduction_value": enemy.damage_reduction_value,
 		"speed": enemy.speed,
 		"touch_damage": enemy.touch_damage,
 		"contact_radius": enemy.contact_radius,
@@ -143,6 +144,7 @@ static func apply_save_data(enemy, data: Dictionary, target_node: Node2D) -> voi
 	enemy.secondary_behavior_id = str(data.get("secondary_behavior_id", ""))
 	enemy.max_health = float(data.get("max_health", enemy.max_health))
 	enemy.current_health = float(data.get("current_health", enemy.max_health))
+	enemy.damage_reduction_value = float(data.get("damage_reduction_value", 0.0))
 	enemy.speed = float(data.get("speed", enemy.speed))
 	enemy.touch_damage = float(data.get("touch_damage", enemy.touch_damage))
 	enemy.contact_radius = float(data.get("contact_radius", enemy.contact_radius))

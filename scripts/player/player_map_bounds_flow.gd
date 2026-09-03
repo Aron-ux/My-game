@@ -41,27 +41,7 @@ static func _get_hurtbox_safe_bounds(owner: Node2D, bounds: Rect2) -> Rect2:
 	return bounds.grow(-margin)
 
 static func _clamp_to_active_confinement(owner: Node2D) -> void:
-	if owner.get("confinement_remaining") == null or float(owner.get("confinement_remaining")) <= 0.0:
-		return
-	var polygon_value: Variant = owner.get("confinement_polygon")
-	if polygon_value is PackedVector2Array and (polygon_value as PackedVector2Array).size() >= 3:
-		var safe_polygon := _shrink_polygon_toward_center(polygon_value as PackedVector2Array, owner)
-		if Geometry2D.is_point_in_polygon(owner.global_position, safe_polygon):
-			return
-		owner.global_position = _get_closest_point_on_polygon(owner.global_position, safe_polygon)
-		return
-	var radius: float = float(owner.get("confinement_radius"))
-	if radius <= 0.0:
-		return
-	var center_value: Variant = owner.get("confinement_center")
-	if center_value is not Vector2:
-		return
-	var center: Vector2 = center_value
-	var safe_radius: float = max(0.0, radius - _get_owner_hurtbox_radius(owner))
-	var offset: Vector2 = owner.global_position - center
-	if offset.length_squared() <= safe_radius * safe_radius:
-		return
-	owner.global_position = center + offset.normalized() * safe_radius
+	return
 
 static func _shrink_polygon_toward_center(points: PackedVector2Array, owner: Node2D) -> PackedVector2Array:
 	var center := Vector2.ZERO

@@ -3,6 +3,7 @@ extends RefCounted
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_COMBAT_RESULT_FLOW := preload("res://scripts/player/player_combat_result_flow.gd")
 const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")
+const PLAYER_SWORDSMAN_ULTIMATE_FLOW := preload("res://scripts/player/player_swordsman_ultimate_flow.gd")
 
 const BASIC_COMBO_INTERVAL := 0.14
 const ULTIMATE_SKILL_ID := "swordsman_ultimate"
@@ -34,14 +35,18 @@ func get_talent_basic_attack_interval_multiplier(owner) -> float:
 		return 1.0
 	var state: Dictionary = owner.role_special_states.get("swordsman", {})
 	return 1.0 / 1.15 if float(state.get("head_high_remaining", 0.0)) > 0.0 else 1.0
-func _try_start_bloodthirst(owner, duration: float, heal_multiplier: float) -> bool:
-	if owner.swordsman_entry_trait_share_remaining > 0.0:
+func _try_start_bloodthirst(owner, duration: float, heal_multiplier: float, force_refresh: bool = false) -> bool:
+	if owner == null or (owner.has_method("_get_active_role_id") and str(owner._get_active_role_id()) != "swordsman"):
 		return false
-	if owner.swordsman_bloodthirst_cooldown_remaining > 0.0:
+	if not force_refresh and owner.swordsman_entry_trait_share_remaining > 0.0:
+		return false
+	if not force_refresh and owner.swordsman_bloodthirst_cooldown_remaining > 0.0:
 		return false
 	owner.swordsman_entry_trait_share_remaining = max(0.0, duration)
 	owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, duration)
 	owner.swordsman_bloodthirst_heal_multiplier = max(owner.swordsman_bloodthirst_heal_multiplier, heal_multiplier)
+	if force_refresh:
+		owner.swordsman_bloodthirst_cooldown_remaining = 0.0
 	return true
 
 func perform_attack(owner) -> void:
@@ -337,10 +342,17 @@ func perform_ultimate(owner, cast_payload: Dictionary) -> void:
 	var thrust_level: int = 0
 	var talent_snapshot := _snapshot_ultimate_talents(owner)
 	var ultimate_tier: int = _get_ultimate_skill_tier(owner)
-	var total_duration: float = _get_ultimate_duration(owner, cast_payload)
-	var slash_count: int = max(1, int(floor(total_duration / ULTIMATE_SLASH_INTERVAL)))
+	var is_followup: bool = bool(cast_payload.get("ultimate_chain_followup", false))
+	talent_snapshot["ultimate_chain_followup"] = is_followup
+	var total_duration: float = 2.0 * ULTIMATE_SLASH_INTERVAL if is_followup else _get_ultimate_duration(owner, cast_payload)
+	var slash_count: int = 2 if is_followup else max(1, int(floor(total_duration / ULTIMATE_SLASH_INTERVAL)))
 	var combo_scales: Array[float] = _get_ultimate_combo_scales(owner)
-	var slash_scales: Array[float] = _build_ultimate_segment_scales(slash_count, combo_scales)
+	var slash_scales: Array[float] = []
+	if is_followup:
+		slash_scales.append(1.0)
+		slash_scales.append(1.0)
+	else:
+		slash_scales = _build_ultimate_segment_scales(slash_count, combo_scales)
 	var total_sequence_duration: float = float(max(0, slash_scales.size() - 1)) * ULTIMATE_SLASH_INTERVAL + 0.18
 	var combo_start_index: int = max(0, slash_count - 1)
 	var combo_end_index: int = combo_start_index + combo_scales.size()
@@ -352,6 +364,7 @@ func perform_ultimate(owner, cast_payload: Dictionary) -> void:
 	owner.hidden_invulnerability_status_remaining = max(owner.hidden_invulnerability_status_remaining, total_sequence_duration)
 	owner.swordsman_ultimate_crit_bonus_chance = max(owner.swordsman_ultimate_crit_bonus_chance, ULTIMATE_CRITICAL_BONUS_CHANCE)
 	owner.swordsman_bloodthirst_heal_multiplier = max(owner.swordsman_bloodthirst_heal_multiplier, 1.0)
+	PLAYER_SWORDSMAN_ULTIMATE_FLOW.begin_ultimate(owner, total_sequence_duration, is_followup)
 	if owner.has_method("_lock_player_actions"):
 		owner._lock_player_actions(total_sequence_duration)
 	owner._delay_level_up_requests(total_sequence_duration)
@@ -375,14 +388,16 @@ func perform_ultimate(owner, cast_payload: Dictionary) -> void:
 			owner._pop_attack_result_context_tag("suppress_swordsman_trait_heal")
 			owner.swordsman_ultimate_crit_bonus_chance = 0.0
 			_activate_ultimate_triumph(owner, bool(talent_snapshot.get("swordsman_ultimate_triumph", false)))
-			_try_start_bloodthirst(owner, POST_ULTIMATE_BLOODTHIRST_DURATION, 1.5)
+			_try_start_bloodthirst(owner, POST_ULTIMATE_BLOODTHIRST_DURATION, 1.5, true)
+			PLAYER_SWORDSMAN_ULTIMATE_FLOW.on_ultimate_finished(owner)
 		, total_sequence_duration)
 	else:
 		owner._pop_attack_result_context_tag("suppress_greed_heal")
 		owner._pop_attack_result_context_tag("suppress_swordsman_trait_heal")
 		owner.swordsman_ultimate_crit_bonus_chance = 0.0
 		_activate_ultimate_triumph(owner, bool(talent_snapshot.get("swordsman_ultimate_triumph", false)))
-		_try_start_bloodthirst(owner, POST_ULTIMATE_BLOODTHIRST_DURATION, 1.5)
+		_try_start_bloodthirst(owner, POST_ULTIMATE_BLOODTHIRST_DURATION, 1.5, true)
+		PLAYER_SWORDSMAN_ULTIMATE_FLOW.on_ultimate_finished(owner)
 
 func _activate_ultimate_triumph(owner, enabled: bool) -> void:
 	if not enabled:
@@ -409,6 +424,7 @@ func _execute_ultimate_slash(owner, slash_scales: Array[float], pursuit_level: i
 	var effect_scale: float = 1.0
 	if slash_index >= 0 and slash_index < slash_count:
 		effect_scale = float(slash_scales[slash_index])
+	var swordsman_is_active: bool = not owner.has_method("_get_active_role_id") or str(owner._get_active_role_id()) == "swordsman"
 	var start_position: Vector2 = owner.global_position
 	var cluster_center: Vector2 = owner._get_enemy_cluster_center()
 	var target_enemy: Node2D = _get_ultimate_priority_boss_target(owner, start_position, bool(talent_snapshot.get("swordsman_ultimate_king", false)))
@@ -449,8 +465,9 @@ func _execute_ultimate_slash(owner, slash_scales: Array[float], pursuit_level: i
 	elif cluster_center != Vector2.ZERO:
 		dash_distance = 600.0 + thrust_level * 48.0 + pursuit_level * 28.0
 	var end_position: Vector2 = start_position + travel_direction * dash_distance
-	owner.global_position = end_position
-	owner.facing_direction = travel_direction
+	if swordsman_is_active:
+		owner.global_position = end_position
+		owner.facing_direction = travel_direction
 	owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, 0.24)
 	owner._queue_camera_shake(8.6 + float(slash_index) * 0.7, 0.15)
 	var tier_visual_hit_scale: float = 1.0
@@ -488,7 +505,14 @@ func _execute_ultimate_slash(owner, slash_scales: Array[float], pursuit_level: i
 	var line_damage: float = owner._get_role_damage("swordsman") * damage_scale
 	if pursuit_strike:
 		line_damage *= 0.70
+	if bool(talent_snapshot.get("ultimate_chain_followup", false)):
+		PLAYER_SWORDSMAN_ULTIMATE_FLOW.begin_followup_damage_tracking(owner)
 	var slash_hits: int = owner._damage_enemies_in_line(start_position, scar_length_end, scar_width, line_damage, 0.08 + pursuit_level * 0.02, 1.0, 0.0, "swordsman")
+	if bool(talent_snapshot.get("ultimate_chain_followup", false)):
+		var actual_damage: float = PLAYER_SWORDSMAN_ULTIMATE_FLOW.consume_followup_damage_total(owner)
+		if actual_damage <= 0.0 and slash_hits > 0:
+			actual_damage = line_damage * float(slash_hits)
+		PLAYER_SWORDSMAN_ULTIMATE_FLOW.apply_followup_slash_heal(owner, slash_hits, actual_damage)
 	if slash_hits > 0 and blood_surge_multiplier > 1.0:
 		PLAYER_COMBAT_RESULT_FLOW.consume_swordsman_blood_surge(owner)
 	if pursuit_strike and target_enemy != null and is_instance_valid(target_enemy):

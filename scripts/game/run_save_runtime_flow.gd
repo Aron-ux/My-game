@@ -34,8 +34,8 @@ static func restore_enemies(main: Node, enemies_data: Array) -> void:
 		if loaded_enemy_kind == "boss":
 			main.boss_enemy = enemy
 			main.boss_spawned = true
-		elif loaded_enemy_kind == "small_boss" and main.boss_enemy == null:
-			main.boss_enemy = enemy
+		elif loaded_enemy_kind == "small_boss":
+			main.small_boss_enemy = enemy
 
 
 static func restore_enemy_projectiles(main: Node, projectiles_data: Array) -> void:

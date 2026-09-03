@@ -6,6 +6,12 @@ const InfiniteReload := preload("res://scripts/abilities/gunner_infinite_reload_
 const ShrapnelField := preload("res://scripts/abilities/gunner_shrapnel_field_ability.gd")
 const MetaField := preload("res://scripts/abilities/mage_meta_field_ability.gd")
 const TidalSurge := preload("res://scripts/abilities/mage_tidal_surge_ability.gd")
+const JudgementSword := preload("res://scripts/abilities/swordsman_judgement_sword_ability.gd")
+const MagicEye := preload("res://scripts/abilities/gunner_magic_eye_ability.gd")
+const Fireball := preload("res://scripts/abilities/mage_fireball_ability.gd")
+const JudgementSwordFlow := preload("res://scripts/player/player_swordsman_judgement_sword_flow.gd")
+const MagicEyeFlow := preload("res://scripts/player/player_gunner_magic_eye_flow.gd")
+const FireballFlow := preload("res://scripts/player/player_mage_fireball_flow.gd")
 const RunSaveState := preload("res://scripts/player/player_run_save_state.gd")
 
 class TalentOwner:
@@ -18,10 +24,19 @@ class AbilityOwner:
 	extends RefCounted
 	var swordsman_blade_storm_ability = null
 	var swordsman_crescent_wave_ability = null
+	var swordsman_knight_thrust_ability = null
+	var swordsman_king_blade_ability = null
+	var swordsman_judgement_sword_ability = null
 	var gunner_infinite_reload_ability = null
 	var gunner_shrapnel_field_ability = null
+	var gunner_explosive_round_ability = null
+	var gunner_magic_grenade_ability = null
+	var gunner_magic_eye_ability = null
 	var mage_meta_field_ability = null
 	var mage_tidal_surge_ability = null
+	var mage_flame_path_ability = null
+	var mage_dark_contract_ability = null
+	var mage_fireball_ability = null
 
 func _init() -> void:
 	call_deferred("_run")
@@ -141,6 +156,43 @@ func _run() -> void:
 	assert(tidal._has_talent(owner, "mage_surge_heavy"))
 	assert(int(tidal.get_save_data()["next_wave_token"]) == 9)
 
+	assert(JudgementSwordFlow != null)
+	assert(MagicEyeFlow.is_inside_beam(Vector2(80.0, 0.0), Vector2(80.0, 0.0), Vector2.RIGHT, 160.0, 64.0))
+	assert(not MagicEyeFlow.is_inside_beam(Vector2(80.0, 50.0), Vector2(80.0, 0.0), Vector2.RIGHT, 160.0, 64.0))
+	assert(FireballFlow != null)
+
+	var judgement := JudgementSword.new()
+	judgement.active_remaining = 4.0
+	judgement.shockwave_timer = 0.8
+	judgement.sword_position = Vector2(120.0, -80.0)
+	var judgement_copy := JudgementSword.new()
+	judgement_copy.apply_save_data(_json_roundtrip(judgement.get_save_data()))
+	assert(is_equal_approx(judgement_copy.active_remaining, 4.0))
+	assert(is_equal_approx(judgement_copy.shockwave_timer, 0.8))
+	assert(judgement_copy.sword_position == Vector2(120.0, -80.0))
+
+	var eye := MagicEye.new()
+	eye.shots_remaining = 3
+	eye.shot_timer = 0.25
+	eye.locked_direction = Vector2(0.0, -1.0)
+	var eye_copy := MagicEye.new()
+	eye_copy.apply_save_data(_json_roundtrip(eye.get_save_data()))
+	assert(eye_copy.shots_remaining == 3)
+	assert(is_equal_approx(eye_copy.shot_timer, 0.25))
+	assert(eye_copy.locked_direction == Vector2(0.0, -1.0))
+
+	var fireball := Fireball.new()
+	fireball.active_fire_fields.append({
+		"center": Vector2(40.0, 60.0),
+		"remaining": 2.5,
+		"tick_elapsed": 0.3
+	})
+	var fireball_copy := Fireball.new()
+	fireball_copy.apply_save_data(_json_roundtrip(fireball.get_save_data()))
+	assert(fireball_copy.pending_saved_fields.size() == 1)
+	assert(is_equal_approx(float(fireball_copy.pending_saved_fields[0]["remaining"]), 2.5))
+	assert((fireball_copy.pending_saved_fields[0]["center"] as Array).size() == 2)
+
 	var runtime_owner := AbilityOwner.new()
 	RunSaveState._apply_ability_save_data(runtime_owner, {
 		"gunner_infinite_reload_cooldown_remaining": 3.0,
@@ -153,7 +205,24 @@ func _run() -> void:
 	assert(is_equal_approx(runtime_owner.gunner_infinite_reload_ability.cooldown_remaining, 3.0))
 	assert(is_equal_approx(runtime_owner.mage_tidal_surge_ability.cooldown_remaining, 4.0))
 	var nested_runtime := RunSaveState._get_ability_runtime(runtime_owner)
-	assert(nested_runtime.size() == 6)
+	for required_key in [
+		"blade_storm",
+		"knight_thrust",
+		"crescent_wave",
+		"infinite_reload",
+		"shrapnel_field",
+		"explosive_round",
+		"magic_grenade",
+		"magic_eye",
+		"meta_field",
+		"flame_path",
+		"dark_contract",
+		"fireball",
+		"surging_wave",
+		"king_blade",
+		"judgement_sword"
+	]:
+		assert(nested_runtime.has(required_key), "ability runtime should keep entry %s" % required_key)
 	RunSaveState._apply_ability_save_data(runtime_owner, {
 		"ability_runtime": {
 			"infinite_reload": {

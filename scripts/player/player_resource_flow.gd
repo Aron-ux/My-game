@@ -157,7 +157,7 @@ static func heal(owner, amount: float) -> void:
 		)
 
 
-static func add_temporary_health(owner, amount: float, role_id: String = "") -> float:
+static func add_temporary_health(owner, amount: float, role_id: String = "", duration: float = TEMPORARY_HEALTH_DURATION) -> float:
 	if amount <= 0.0 or owner.is_dead:
 		return 0.0
 	var active_role_id: String = get_active_role_id(owner)
@@ -167,7 +167,7 @@ static func add_temporary_health(owner, amount: float, role_id: String = "") -> 
 	owner.temporary_health_stacks = normalize_temporary_health_stack_state(owner.temporary_health_stacks)
 	owner.temporary_health_stacks.append({
 		"amount": amount,
-		"remaining": TEMPORARY_HEALTH_DURATION
+		"remaining": max(0.01, duration)
 	})
 	sync_temporary_health_state(owner, true, signal_role_id)
 	if owner.has_method("_update_player_health_bar"):

@@ -835,7 +835,11 @@ func _on_gift_popup_index_pressed(index: int) -> void:
 	refresh()
 
 func _build_skill_tree_selectors() -> void:
-	for index in range(6):
+	var selector_count := 0
+	for progress_order_value in PLAYER_SKILL_TALENT_SYSTEM.ROLE_PROGRESS_ORDER.values():
+		if progress_order_value is Array:
+			selector_count = maxi(selector_count, progress_order_value.size())
+	for index in range(selector_count):
 		var button := Button.new()
 		button.name = "SkillTreeSelector%d" % index
 		button.toggle_mode = true
@@ -857,6 +861,13 @@ func _refresh_skill_build_list(role_id: String) -> void:
 	if progress_ids.is_empty():
 		return
 	selected_skill_tree_index = clamp(selected_skill_tree_index, 0, progress_ids.size() - 1)
+	for index in range(skill_tree_selector_list.get_child_count()):
+		var button := skill_tree_selector_list.get_child(index) as Button
+		if button == null:
+			continue
+		button.visible = index < progress_ids.size()
+		if index >= progress_ids.size():
+			button.button_pressed = false
 	for index in range(progress_ids.size()):
 		var progress_id_value: Variant = progress_ids[index]
 		var progress_id := str(progress_id_value)

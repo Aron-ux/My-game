@@ -36,11 +36,12 @@ func _check_gunner_role_projectile_config() -> void:
 	var role := GunnerRole.new()
 	role._spawn_primary_batched_bullet(owner, Vector2.RIGHT, 100.0, Color.WHITE, {"id": "gunner"}, {"range_bonus": 0.0}, 0, Vector2.ZERO, {"damage_event_id": "event"})
 	_expect_float(float(owner.last_projectile.get("damage", 0.0)), 96.0, "basic I + basic II parent damage should be 100 * 1.2 * 0.8")
-	_expect_float(float(owner.last_projectile.get("speed", 0.0)), 810.0, "basic I should add 50 projectile speed")
+	_expect_float(float(owner.last_projectile.get("speed", 0.0)), 910.0, "basic I should add 150 projectile speed")
 	_expect_equal(str(owner.last_projectile.get("role_id", "")), "gunner_basic:event", "gunner basic projectile should keep basic source id")
 	_expect_equal(int(owner.last_projectile.get("gunner_basic_split_count", 0)), 3, "basic II should configure 3 split bullets")
 	_expect_float(float(owner.last_projectile.get("gunner_basic_split_arc_degrees", 0.0)), 60.0, "basic II split arc should be 60 degrees")
 	_expect_float(float(owner.last_projectile.get("gunner_basic_split_damage", 0.0)), 60.0, "basic II split damage should be 100 * 1.2 * 0.5")
+	_expect_float(float(owner.last_projectile.get("gunner_basic_split_distance_bonus", 0.0)), 100.0, "basic II should add 100 split flight distance")
 	owner.queue_free()
 
 
@@ -60,7 +61,7 @@ func _check_batched_split_projectiles() -> void:
 		"damage": 0.0,
 		"color": Color.WHITE,
 		"role_id": "gunner_basic:event",
-		"speed": 810.0,
+		"speed": 910.0,
 		"lifetime": 1.0,
 		"hit_radius": 10.0,
 		"visual_radius": 4.0,
@@ -70,6 +71,7 @@ func _check_batched_split_projectiles() -> void:
 		"gunner_basic_split_damage": 60.0,
 		"gunner_basic_split_lifetime_scale": 0.72,
 		"gunner_basic_split_speed_scale": 0.92,
+		"gunner_basic_split_distance_bonus": 100.0,
 		"gunner_basic_split_visual_scale": 0.88
 	})
 	batch._apply_projectile_hit(0, enemy)
@@ -94,13 +96,14 @@ func _check_basic_hit_armor_shred() -> void:
 	enemy.current_health = 100.0
 	enemy.max_health = 100.0
 	root.add_child(enemy)
+	_expect_float(enemy.damage_reduction_value, 0.0, "enemies should default to zero damage reduction value")
 	DamageResolver.deal_damage_to_enemy(owner, enemy, 10.0, "gunner_basic:event")
 	_expect_float(enemy.current_health, 90.0, "first basic hit should not benefit from its own armor shred")
-	_expect_float(float(enemy.get_meta(GunnerBasicTalentFlow.ARMOR_SHRED_META, 0.0)), 1.0, "first basic hit should add 1 armor shred value")
+	_expect_float(enemy.damage_reduction_value, -2.0, "first basic hit should reduce the enemy damage reduction value by 2")
 	var expected_second_damage := 10.0 * GunnerBasicTalentFlow.get_enemy_damage_taken_multiplier(enemy)
 	DamageResolver.deal_damage_to_enemy(owner, enemy, 10.0, "gunner_basic:event")
 	_expect_float(enemy.current_health, 90.0 - expected_second_damage, "second basic hit should benefit from previous armor shred")
-	_expect_float(float(enemy.get_meta(GunnerBasicTalentFlow.ARMOR_SHRED_META, 0.0)), 2.0, "second basic hit should stack armor shred")
+	_expect_float(enemy.damage_reduction_value, -4.0, "second basic hit should stack enemy damage reduction value")
 	enemy.queue_free()
 	owner.queue_free()
 
@@ -145,6 +148,7 @@ class BasicEnemy:
 	var enemy_kind: String = "normal"
 	var max_health: float = 100.0
 	var current_health: float = 100.0
+	var damage_reduction_value: float = 0.0
 	var vulnerability_bonus: float = 0.0
 	var rebirth_timer: float = 0.0
 	var skull_damage_immune_timer: float = 0.0

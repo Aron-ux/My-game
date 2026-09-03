@@ -25,6 +25,7 @@ static func activate(main: Node) -> void:
 	main.stage_cleared = false
 	main.boss_spawned = false
 	main.boss_enemy = null
+	main.small_boss_enemy = null
 	if main.hud != null and main.hud.has_method("hide_boss_ui"):
 		main.hud.hide_boss_ui()
 	if main.hud != null and main.hud.has_method("set_developer_invincibility_enabled"):
@@ -107,7 +108,7 @@ static func spawn_small_boss(main: Node, archetype_id: String) -> void:
 	var health_multiplier: float = main._get_spawn_enemy_health_multiplier()
 	var speed_multiplier: float = main._get_spawn_enemy_speed_multiplier()
 	var damage_multiplier: float = main._get_spawn_enemy_damage_multiplier()
-	main._spawn_configured_enemy("small_boss", archetype_id, health_multiplier, speed_multiplier, INF, 0.0, damage_multiplier)
+	main.small_boss_enemy = main._spawn_configured_enemy("small_boss", archetype_id, health_multiplier, speed_multiplier, INF, 0.0, damage_multiplier)
 
 static func spawn_normal_enemy_batch(main: Node, archetype_id: String, _count: int) -> void:
 	if main == null or main.player == null or not ENEMY_ARCHETYPE_DATABASE.is_normal_archetype(archetype_id):
@@ -274,14 +275,32 @@ static func _get_skill_ability_property(skill_id: String) -> String:
 			return "swordsman_blade_storm_ability"
 		PLAYER_BLESSING_SKILL_STATE.SKILL_CRESCENT_WAVE:
 			return "swordsman_crescent_wave_ability"
+		PLAYER_BLESSING_SKILL_STATE.SKILL_KNIGHT_THRUST:
+			return "swordsman_knight_thrust_ability"
+		PLAYER_BLESSING_SKILL_STATE.SKILL_KING_BLADE:
+			return "swordsman_king_blade_ability"
+		PLAYER_BLESSING_SKILL_STATE.SKILL_JUDGEMENT_SWORD:
+			return "swordsman_judgement_sword_ability"
 		PLAYER_BLESSING_SKILL_STATE.SKILL_INFINITE_RELOAD:
 			return "gunner_infinite_reload_ability"
 		PLAYER_BLESSING_SKILL_STATE.SKILL_SHRAPNEL_FIELD:
 			return "gunner_shrapnel_field_ability"
+		PLAYER_BLESSING_SKILL_STATE.SKILL_EXPLOSIVE_ROUND:
+			return "gunner_explosive_round_ability"
+		PLAYER_BLESSING_SKILL_STATE.SKILL_MAGIC_GRENADE:
+			return "gunner_magic_grenade_ability"
+		PLAYER_BLESSING_SKILL_STATE.SKILL_MAGIC_EYE:
+			return "gunner_magic_eye_ability"
 		PLAYER_BLESSING_SKILL_STATE.SKILL_SURGING_WAVE:
 			return "mage_tidal_surge_ability"
 		PLAYER_BLESSING_SKILL_STATE.SKILL_META_FIELD:
 			return "mage_meta_field_ability"
+		PLAYER_BLESSING_SKILL_STATE.SKILL_FLAME_PATH:
+			return "mage_flame_path_ability"
+		PLAYER_BLESSING_SKILL_STATE.SKILL_DARK_CONTRACT:
+			return "mage_dark_contract_ability"
+		PLAYER_BLESSING_SKILL_STATE.SKILL_FIREBALL:
+			return "mage_fireball_ability"
 	return ""
 
 static func _get_owner_property(owner, property_name: String):

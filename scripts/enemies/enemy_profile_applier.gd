@@ -10,6 +10,7 @@ static func apply_profile(enemy, kind: String, profile: Dictionary) -> void:
 	enemy.secondary_behavior_id = str(profile.get("secondary_behavior", ""))
 	enemy.profile_visual_scene = profile.get("visual_scene", null) as PackedScene
 	enemy.max_health = float(profile.get("max_health", enemy.max_health))
+	enemy.damage_reduction_value = float(profile.get("damage_reduction_value", 0.0))
 	enemy.current_health = enemy.max_health
 	enemy.boss_shield_max_health = max(0.0, float(profile.get("boss_shield_max_health", 0.0)))
 	if kind == "boss":
@@ -75,7 +76,7 @@ static func apply_profile(enemy, kind: String, profile: Dictionary) -> void:
 	enemy.skulltomb_aging_aura_radius = max(0.0, float(profile.get("skulltomb_aging_aura_radius", 300.0)))
 	enemy.skulltomb_aging_aura_current_health_drain_ratio = clamp(float(profile.get("skulltomb_aging_aura_current_health_drain_ratio", 0.05)), 0.0, 1.0)
 	enemy.skulltomb_summon_timer = enemy.skulltomb_summon_interval
-	enemy.skulltomb_summon_windup = float(profile.get("skulltomb_summon_windup", 1.2))
+	enemy.skulltomb_summon_windup = float(profile.get("skulltomb_summon_windup", 0.7))
 	enemy.skulltomb_summon_windup_remaining = 0.0
 	enemy.skulltomb_charge_interval = float(profile.get("skulltomb_charge_interval", 9.0))
 	enemy.skulltomb_charge_timer = enemy.skulltomb_charge_interval

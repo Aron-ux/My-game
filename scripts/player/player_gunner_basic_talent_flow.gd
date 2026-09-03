@@ -6,19 +6,22 @@ const PLAYER_COMBAT_MODIFIERS := preload("res://scripts/player/player_combat_mod
 const TALENT_BASIC_ATTACK_1 := "gunner_level_talent_basic_attack_1"
 const TALENT_BASIC_ATTACK_2 := "gunner_level_talent_basic_attack_2"
 const BASIC_SOURCE_PREFIX := "gunner_basic:"
-const ARMOR_SHRED_META := "gunner_basic_armor_shred_value"
+
 const TIMED_ARMOR_SHRED_META := "gunner_timed_armor_shred_entries"
 
-const BASIC_ATTACK_1_SPEED_BONUS := 50.0
+const BASIC_ATTACK_1_SPEED_BONUS := 150.0
 const BASIC_ATTACK_1_DAMAGE_MULTIPLIER := 1.20
-const BASIC_ATTACK_1_ARMOR_SHRED_PER_HIT := 1.0
+const BASIC_ATTACK_1_ARMOR_SHRED_PER_HIT := 2.0
 const BASIC_ATTACK_2_PRE_SPLIT_DAMAGE_MULTIPLIER := 0.80
 const BASIC_ATTACK_2_SPLIT_DAMAGE_MULTIPLIER := 0.50
 const BASIC_ATTACK_2_SPLIT_COUNT := 3
 const BASIC_ATTACK_2_SPLIT_ARC_DEGREES := 60.0
 const BASIC_ATTACK_2_SPLIT_LIFETIME_SCALE := 0.72
 const BASIC_ATTACK_2_SPLIT_SPEED_SCALE := 0.92
+const BASIC_ATTACK_2_SPLIT_DISTANCE_BONUS := 100.0
 const BASIC_ATTACK_2_SPLIT_VISUAL_SCALE := 0.88
+const BASIC_ATTACK_CAMERA_SHAKE_STRENGTH := 5.8
+const BASIC_ATTACK_CAMERA_SHAKE_DURATION := 0.12
 
 
 static func has_level_talent(owner, talent_id: String) -> bool:
@@ -60,6 +63,7 @@ static func build_projectile_config(owner, base_config: Dictionary, base_damage_
 		config["gunner_basic_split_damage"] = get_split_damage(owner, base_damage_amount)
 		config["gunner_basic_split_lifetime_scale"] = BASIC_ATTACK_2_SPLIT_LIFETIME_SCALE
 		config["gunner_basic_split_speed_scale"] = BASIC_ATTACK_2_SPLIT_SPEED_SCALE
+		config["gunner_basic_split_distance_bonus"] = BASIC_ATTACK_2_SPLIT_DISTANCE_BONUS
 		config["gunner_basic_split_visual_scale"] = BASIC_ATTACK_2_SPLIT_VISUAL_SCALE
 	return config
 
@@ -71,8 +75,9 @@ static func should_apply_basic_armor_shred(source_role_id: String) -> bool:
 static func apply_basic_armor_shred(enemy: Node, source_role_id: String, shred_value: float = BASIC_ATTACK_1_ARMOR_SHRED_PER_HIT) -> void:
 	if enemy == null or not is_instance_valid(enemy) or not should_apply_basic_armor_shred(source_role_id) or shred_value <= 0.0:
 		return
-	var current_value := float(enemy.get_meta(ARMOR_SHRED_META, 0.0))
-	enemy.set_meta(ARMOR_SHRED_META, current_value + shred_value)
+	if enemy.get("damage_reduction_value") == null:
+		return
+	enemy.damage_reduction_value = float(enemy.damage_reduction_value) - shred_value
 
 
 static func apply_timed_armor_shred(enemy: Node, shred_value: float, duration: float) -> void:
@@ -87,7 +92,11 @@ static func apply_timed_armor_shred(enemy: Node, shred_value: float, duration: f
 
 
 static func on_basic_attack_hit(owner, enemy: Node, source_role_id: String) -> void:
-	if owner == null or not has_level_talent(owner, TALENT_BASIC_ATTACK_1):
+	if owner == null or not should_apply_basic_armor_shred(source_role_id):
+		return
+	if owner.has_method("_queue_camera_shake"):
+		owner._queue_camera_shake(BASIC_ATTACK_CAMERA_SHAKE_STRENGTH, BASIC_ATTACK_CAMERA_SHAKE_DURATION)
+	if not has_level_talent(owner, TALENT_BASIC_ATTACK_1):
 		return
 	apply_basic_armor_shred(enemy, source_role_id, BASIC_ATTACK_1_ARMOR_SHRED_PER_HIT)
 
@@ -95,11 +104,17 @@ static func on_basic_attack_hit(owner, enemy: Node, source_role_id: String) -> v
 static func get_enemy_damage_taken_multiplier(enemy: Node) -> float:
 	if enemy == null or not is_instance_valid(enemy):
 		return 1.0
-	var shred_value := float(enemy.get_meta(ARMOR_SHRED_META, 0.0)) + _get_active_timed_armor_shred_value(enemy)
-	if shred_value <= 0.0:
-		return 1.0
-	var damage_reduction_rate := PLAYER_COMBAT_MODIFIERS.calculate_damage_reduction_rate(-shred_value)
+	var damage_reduction_rate := PLAYER_COMBAT_MODIFIERS.calculate_damage_reduction_rate(get_effective_damage_reduction_value(enemy))
 	return max(0.0, 1.0 - damage_reduction_rate)
+
+
+static func get_effective_damage_reduction_value(enemy: Node) -> float:
+	if enemy == null or not is_instance_valid(enemy):
+		return 0.0
+	var base_value: Variant = enemy.get("damage_reduction_value")
+	if base_value == null:
+		return 0.0
+	return float(base_value) - _get_active_timed_armor_shred_value(enemy)
 
 
 static func _get_active_timed_armor_shred_value(enemy: Node) -> float:

@@ -90,6 +90,7 @@ static func spawn_projectile(enemy, origin: Vector2, shot_direction: Vector2, sh
 	if projectile == null:
 		return null
 	var speed_multiplier := NON_BOSS_PROJECTILE_SPEED_MULTIPLIER if str(enemy.enemy_kind) != "boss" else 1.0
+	var difficulty_speed_bonus := _get_difficulty_projectile_speed_bonus(current_scene)
 	if projectile.get_parent() == null:
 		current_scene.add_child(projectile)
 	elif projectile.get_parent() != current_scene:
@@ -98,7 +99,7 @@ static func spawn_projectile(enemy, origin: Vector2, shot_direction: Vector2, sh
 	var config := {
 		"position": origin,
 		"direction": shot_direction.normalized(),
-		"speed": shot_speed * speed_multiplier,
+		"speed": shot_speed * speed_multiplier + difficulty_speed_bonus,
 		"damage": shot_damage,
 		"lifetime": shot_lifetime,
 		"hit_radius": DEFAULT_HIT_RADIUS,
@@ -118,7 +119,7 @@ static func spawn_projectile(enemy, origin: Vector2, shot_direction: Vector2, sh
 	}
 	for key in extra_config.keys():
 		if key in ["split_speed", "return_speed"]:
-			config[key] = float(extra_config[key]) * speed_multiplier
+			config[key] = float(extra_config[key]) * speed_multiplier + difficulty_speed_bonus
 		else:
 			config[key] = extra_config[key]
 	if projectile.has_method("reset_projectile"):
@@ -191,6 +192,11 @@ static func _get_enemy_projectile_limit(enemy) -> int:
 	if current_scene != null and current_scene.has_method("_get_difficulty_limit"):
 		return int(current_scene._get_difficulty_limit("enemy_projectile_limit", PERFORMANCE_GUARD.DEFAULT_ENEMY_PROJECTILE_LIMIT))
 	return PERFORMANCE_GUARD.DEFAULT_ENEMY_PROJECTILE_LIMIT
+
+static func _get_difficulty_projectile_speed_bonus(current_scene: Node) -> float:
+	if current_scene != null and current_scene.has_method("_get_difficulty_projectile_speed_bonus"):
+		return max(0.0, float(current_scene._get_difficulty_projectile_speed_bonus()))
+	return 0.0
 
 static func _can_spawn_enemy_projectile(current_scene: Node, enemy) -> bool:
 	var limit: int = _get_enemy_projectile_limit(enemy)
