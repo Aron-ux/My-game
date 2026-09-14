@@ -3,6 +3,7 @@ extends RefCounted
 const ROLE_ATTRIBUTE_RULES := preload("res://scripts/player/roles/role_attribute_rules.gd")
 const PLAYER_EQUIPMENT_FLOW := preload("res://scripts/player/player_equipment_flow.gd")
 const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")
+const PLAYER_RUAN_STONE_STAT_FLOW := preload("res://scripts/player/player_ruan_stone_stat_flow.gd")
 
 const DAMAGE_REDUCTION_RATE_SCALE := 0.75
 const DAMAGE_REDUCTION_VALUE_SCALE := 160.0
@@ -55,6 +56,7 @@ static func get_role_damage_reduction_value(owner, role_id: String = "") -> floa
 	value += _get_equipment_damage_reduction_value(owner, resolved_role_id)
 	value += _get_blessing_damage_reduction_value(owner, resolved_role_id)
 	value += _get_passive_damage_reduction_value(owner)
+	value += PLAYER_RUAN_STONE_STAT_FLOW.get_damage_reduction_bonus(owner)
 	if resolved_role_id == "swordsman":
 		var judgement_ability: Variant = owner.get("swordsman_judgement_sword_ability")
 		if judgement_ability != null and judgement_ability.has_method("get_active_damage_reduction_value"):

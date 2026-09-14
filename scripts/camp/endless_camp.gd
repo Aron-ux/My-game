@@ -66,7 +66,7 @@ const DIALOGUE_LINES := {
 @onready var shop_body: Label = $CanvasLayer/ShopPanel/MarginContainer/ShopContent/Body
 @onready var ruan_stone_panel: PanelContainer = $CanvasLayer/RuanStonePanel
 @onready var ruan_stone_status: Label = $CanvasLayer/RuanStonePanel/MarginContainer/StoneContent/Status
-@onready var ruan_stone_cards: HBoxContainer = $CanvasLayer/RuanStonePanel/MarginContainer/StoneContent/Cards
+@onready var ruan_stone_cards: GridContainer = $CanvasLayer/RuanStonePanel/MarginContainer/StoneContent/Cards/CardList
 @onready var ruan_stone_feedback: Label = $CanvasLayer/RuanStonePanel/MarginContainer/StoneContent/Feedback
 @onready var ruan_stone_close_button: Button = $CanvasLayer/RuanStonePanel/MarginContainer/StoneContent/CloseButton
 @onready var tutorial_prompt_panel: PanelContainer = $CanvasLayer/TutorialPromptPanel
@@ -387,17 +387,16 @@ func _rebuild_ruan_stone_cards() -> void:
 	ruan_stone_purchase_buttons.clear()
 	ruan_stone_equip_buttons.clear()
 	var purchased: Array = ruan_stone_profile.get("ruan_stone_purchased", [])
-	var equipped_id := ""
 	ruan_stone_status.text = "骨头：%d    本场已购买：%d/5" % [int(ruan_stone_profile.get("bones", 0)), purchased.size()]
 	for stone_id_value in RUAN_STONE_SYSTEM.STONE_IDS:
-		_add_ruan_stone_card(str(stone_id_value), equipped_id)
+		_add_ruan_stone_card(str(stone_id_value), "")
 
 func _add_ruan_stone_card(stone_id: String, equipped_id: String) -> void:
 	var definition := RUAN_STONE_SYSTEM.get_definition(stone_id)
 	var level := RUAN_STONE_SYSTEM.get_level(ruan_stone_profile, stone_id)
 	var cost := RUAN_STONE_SYSTEM.get_next_cost(ruan_stone_profile, stone_id)
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(198.0, 250.0)
+	card.custom_minimum_size = Vector2(0.0, 170.0)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card.add_theme_stylebox_override("panel", SURVIVORS_THEME.card_style(stone_id == equipped_id))
 	ruan_stone_cards.add_child(card)
@@ -416,6 +415,8 @@ func _add_ruan_stone_card(stone_id: String, equipped_id: String) -> void:
 	purchase_button.custom_minimum_size = Vector2(0.0, 42.0)
 	purchase_button.text = ("已购买" if level > 0 else "购买 · %d 骨" % cost)
 	purchase_button.disabled = level > 0
+	if not (ruan_stone_profile.get("ruan_stone_purchased", []) as Array).is_empty() and level <= 0:
+		purchase_button.disabled = true
 	purchase_button.focus_mode = Control.FOCUS_ALL
 	SURVIVORS_THEME.apply_button_style(purchase_button, "primary")
 	purchase_button.pressed.connect(_on_ruan_stone_purchase.bind(stone_id))

@@ -12,12 +12,8 @@ const MAX_TRACKED_EVENTS := 64
 static func apply_basic_hit(owner, enemy: Node, triggering_damage: float, source_role_id: String, damage_event_id: String, killed: bool, target_position: Vector2, target_max_health: float) -> void:
 	if owner == null or enemy == null or triggering_damage <= 0.0:
 		return
-	var stone_id := str(owner.get("equipped_ruan_stone"))
-	var levels: Variant = owner.get("ruan_stone_levels")
-	if stone_id == "" or levels is not Dictionary:
-		return
-	var level: int = max(0, int((levels as Dictionary).get(stone_id, 0)))
-	if level <= 0:
+	var purchased: Variant = owner.get("ruan_stone_purchased")
+	if not purchased is Array or (purchased as Array).is_empty():
 		return
 	var event_key: String = _event_key(source_role_id, damage_event_id)
 	if event_key == "":
@@ -28,7 +24,14 @@ static func apply_basic_hit(owner, enemy: Node, triggering_damage: float, source
 	var first_target_hit: bool = not hit_targets.has(target_id)
 	hit_targets[target_id] = true
 	state["hit_targets"] = hit_targets
-	var values: Dictionary = RUAN_STONE_SYSTEM.get_effect_values(stone_id, level)
+	for stone_value in purchased:
+		var stone_id := str(stone_value)
+		var level: int = 1
+		var values: Dictionary = RUAN_STONE_SYSTEM.get_effect_values(stone_id, level)
+		_apply_stone_hit(owner, enemy, triggering_damage, source_role_id, damage_event_id, killed, target_position, target_max_health, stone_id, values, state, first_target_hit)
+	_store_event_state(owner, event_key, state)
+
+static func _apply_stone_hit(owner, enemy, triggering_damage: float, source_role_id: String, damage_event_id: String, killed: bool, target_position: Vector2, target_max_health: float, stone_id: String, values: Dictionary, state: Dictionary, first_target_hit: bool) -> void:
 	match stone_id:
 		RUAN_STONE_SYSTEM.STONE_THUNDER:
 			if not bool(state.get("primary_proc", false)):
@@ -46,7 +49,6 @@ static func apply_basic_hit(owner, enemy: Node, triggering_damage: float, source
 		RUAN_STONE_SYSTEM.STONE_FURY:
 			if first_target_hit and not killed:
 				_apply_fury(enemy, values)
-	_store_event_state(owner, event_key, state)
 
 
 static func _apply_thunder(owner, origin_enemy: Node, triggering_damage: float, values: Dictionary) -> void:

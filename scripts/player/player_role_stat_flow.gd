@@ -5,6 +5,7 @@ const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/playe
 const PLAYER_GUNNER_FLASH_TALENT_FLOW := preload("res://scripts/player/player_gunner_flash_talent_flow.gd")
 const PLAYER_GUNNER_ENTRY_TALENT_FLOW := preload("res://scripts/player/player_gunner_entry_talent_flow.gd")
 const PLAYER_SWORDSMAN_KING_BLADE_FLOW := preload("res://scripts/player/player_swordsman_king_blade_flow.gd")
+const PLAYER_RUAN_STONE_STAT_FLOW := preload("res://scripts/player/player_ruan_stone_stat_flow.gd")
 
 const GLOBAL_UNIT_MOVE_SPEED_SCALE := 0.7
 
@@ -97,7 +98,7 @@ static func get_role_move_speed(owner, role_id: String) -> float:
 	var role_equipment_speed_bonus := 0.0
 	if owner.has_method("_get_role_equipment_bonus_summary"):
 		role_equipment_speed_bonus = float(owner._get_role_equipment_bonus_summary(role_id).get("speed_bonus", 0.0))
-	var owner_speed_for_role: float = max(0.0, float(owner.get("speed")) - active_equipment_speed_bonus + role_equipment_speed_bonus)
+	var owner_speed_for_role: float = max(0.0, float(owner.get("speed")) - active_equipment_speed_bonus + role_equipment_speed_bonus + PLAYER_RUAN_STONE_STAT_FLOW.get_speed_bonus(owner))
 	var move_speed: float
 	if role_data.has("move_speed"):
 		move_speed = float(role_data.get("move_speed", owner.base_speed)) + (owner_speed_for_role - owner.base_speed)
@@ -284,7 +285,7 @@ static func get_role_max_health(owner, role_id: String) -> float:
 	else:
 		equipment_bonus = float(owner.get("equipment_max_health_bonus"))
 	var king_blade_health_bonus: float = PLAYER_SWORDSMAN_KING_BLADE_FLOW.get_permanent_health_bonus(owner) if role_id == "swordsman" else 0.0
-	return max(1.0, base_health * max(0.01, 1.0 + blessing_percent_bonus) + blessing_bonus + equipment_bonus + king_blade_health_bonus)
+	return max(1.0, base_health * max(0.01, 1.0 + blessing_percent_bonus) + blessing_bonus + equipment_bonus + king_blade_health_bonus + PLAYER_RUAN_STONE_STAT_FLOW.get_max_health_bonus(owner))
 
 
 static func get_active_role_max_health(owner) -> float:
@@ -337,7 +338,7 @@ static func get_role_damage(owner, role_id: String) -> float:
 		if owner.has_method("_get_king_blade_flat_base_damage"):
 			king_blade_flat_base_damage = float(owner._get_king_blade_flat_base_damage(role_id))
 		var current_role_base_damage: float = float(role_data["damage"]) + blazing_sun_flat_base_damage + king_blade_flat_base_damage
-		var damage_amount: float = current_role_base_damage * max(0.01, 1.0 + blessing_damage_percent) * max(0.01, base_global_multiplier + role_equipment_bonus)
+		var damage_amount: float = (current_role_base_damage + PLAYER_RUAN_STONE_STAT_FLOW.get_attack_bonus(owner)) * max(0.01, 1.0 + blessing_damage_percent) * max(0.01, base_global_multiplier + role_equipment_bonus) * (1.0 + PLAYER_RUAN_STONE_STAT_FLOW.get_damage_bonus(owner))
 		if owner.switch_power_remaining > 0.0 and owner.switch_power_role_id == role_id:
 			damage_amount *= owner.switch_power_damage_multiplier
 		if owner._is_last_stand_active():

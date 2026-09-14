@@ -5,7 +5,7 @@ const STONE_FROST := "frost"
 const STONE_POISON := "poison"
 const STONE_FLAME := "flame"
 const STONE_FURY := "fury"
-const STONE_IDS := [STONE_THUNDER, STONE_FROST, STONE_POISON, STONE_FLAME, STONE_FURY]
+const STONE_IDS := [STONE_THUNDER, STONE_FROST, STONE_FURY, STONE_FLAME, "useless_pendant", "broken_sword", "keen_fragment", "tattered_cloak", "ground_branch", "guild_token", "broken_magic_stone", "rusted_dagger", "used_potion", "broken_chestplate", "unknown_spellbook"]
 
 const DEFINITIONS := {
 	STONE_THUNDER: {"title": "雷石", "summary": "普攻触发电流连锁。"},
@@ -13,21 +13,31 @@ const DEFINITIONS := {
 	STONE_POISON: {"title": "毒石", "summary": "普攻附加持续毒伤。"},
 	STONE_FLAME: {"title": "炎石", "summary": "普攻击杀敌人时引爆尸骸。"},
 	STONE_FURY: {"title": "烈石", "summary": "普攻附加伤害加深。"}
+	,"broken_sword": {"title": "冒险者破剑", "summary": "攻击力 +2，伤害 +5%。"}
+	,"keen_fragment": {"title": "基恩碎片", "summary": "远程攻击距离 +25，近战攻击范围 +25%。"}
+	,"tattered_cloak": {"title": "残破披风", "summary": "移动速度 +10，闪避值 +20。"}
+	,"ground_branch": {"title": "地上的树枝", "summary": "减伤值 +20，所有角色伤害 +8%。"}
+	,"guild_token": {"title": "工会令牌碎片", "summary": "每 10 秒回复 20 点生命。"}
+	,"broken_magic_stone": {"title": "残破的魔石", "summary": "经验获取效率 +10%。"}
+	,"rusted_dagger": {"title": "生锈的匕首", "summary": "暴击率 +8%，暴击伤害 +8%。"}
+	,"used_potion": {"title": "喝过的魔瓶", "summary": "每秒恢复 1 点生命和 1 点大招能量。"}
+	,"broken_chestplate": {"title": "残破胸甲", "summary": "生命 +30，减伤值 +20。"}
+	,"unknown_spellbook": {"title": "不知名魔法书残页", "summary": "大招伤害 +20%，其他技能冷却减少 5%。"}
+	,"useless_pendant": {"title": "无用挂件", "summary": "每秒回复1点大招能量，大招伤害增加10%。"}
 }
 
 
 static func normalize_profile(profile: Dictionary) -> Dictionary:
 	profile["bones"] = _non_negative_int(profile.get("bones", 0))
-	var source_levels: Dictionary = profile.get("ruan_stone_levels", {}) if profile.get("ruan_stone_levels", {}) is Dictionary else {}
-	var normalized_levels := {}
-	for stone_id in STONE_IDS:
-		normalized_levels[stone_id] = _non_negative_int(source_levels.get(stone_id, 0))
-	profile["ruan_stone_levels"] = normalized_levels
-	var equipped := str(profile.get("equipped_ruan_stone", ""))
-	if not STONE_IDS.has(equipped) or int(normalized_levels.get(equipped, 0)) <= 0:
-		equipped = ""
-	profile["equipped_ruan_stone"] = equipped
-	profile["ruan_stone_purchased"] = profile.get("ruan_stone_purchased", []) if profile.get("ruan_stone_purchased", []) is Array else []
+	var source_purchased: Variant = profile.get("ruan_stone_purchased", [])
+	var purchased: Array = source_purchased.duplicate() if source_purchased is Array else []
+	var normalized_purchased: Array = []
+	for stone_id in purchased:
+		if STONE_IDS.has(str(stone_id)) and not normalized_purchased.has(str(stone_id)):
+			normalized_purchased.append(str(stone_id))
+	profile["ruan_stone_purchased"] = normalized_purchased
+	profile["ruan_stone_levels"] = {}
+	profile["equipped_ruan_stone"] = ""
 	return profile
 
 
@@ -41,10 +51,7 @@ static func get_level(profile: Dictionary, stone_id: String) -> int:
 	var purchased: Variant = profile.get("ruan_stone_purchased", [])
 	if purchased is Array:
 		return 1 if (purchased as Array).has(stone_id) else 0
-	var levels: Variant = profile.get("ruan_stone_levels", {})
-	if levels is not Dictionary:
-		return 0
-	return _non_negative_int((levels as Dictionary).get(stone_id, 0))
+	return 0
 
 
 static func get_next_cost(profile: Dictionary, stone_id: String) -> int:
@@ -62,6 +69,8 @@ static func purchase(profile: Dictionary, stone_id: String) -> Dictionary:
 	if bones < cost:
 		return {"success": false, "reason": "not_enough_bones", "cost": cost, "bones": bones}
 	var purchased: Array = profile.get("ruan_stone_purchased", [])
+	if not purchased.is_empty():
+		return {"success": false, "reason": "purchase_limit_reached", "cost": cost, "bones": bones}
 	if purchased.has(stone_id):
 		return {"success": false, "reason": "already_purchased", "cost": 0, "bones": bones}
 	profile["bones"] = bones - cost
@@ -119,6 +128,17 @@ static func get_effect_values(stone_id: String, level: int) -> Dictionary:
 				"vulnerability_ratio": 0.06 + 0.005 * upgrades,
 				"duration": 2.0 + 0.05 * upgrades
 			}
+		"broken_sword": return {"attack_bonus": 2.0, "damage_bonus": 0.05}
+		"keen_fragment": return {"range_bonus": 25.0, "melee_range_multiplier": 1.25}
+		"tattered_cloak": return {"speed_bonus": 10.0, "dodge_bonus": 20.0}
+		"ground_branch": return {"damage_reduction_bonus": 20.0, "damage_bonus": 0.08}
+		"guild_token": return {"heal_interval": 10.0, "heal_amount": 20.0}
+		"broken_magic_stone": return {"experience_multiplier": 1.10}
+		"rusted_dagger": return {"critical_chance_bonus": 0.08, "critical_damage_bonus": 0.08}
+		"used_potion": return {"heal_per_second": 1.0, "energy_per_second": 1.0}
+		"broken_chestplate": return {"max_health_bonus": 30.0, "damage_reduction_bonus": 20.0}
+		"unknown_spellbook": return {"ultimate_damage_bonus": 0.20, "cooldown_multiplier": 0.95}
+		"useless_pendant": return {"energy_per_second": 1.0, "ultimate_damage_bonus": 0.10}
 	return {}
 
 

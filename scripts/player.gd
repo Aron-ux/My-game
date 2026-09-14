@@ -37,6 +37,7 @@ const PLAYER_GUNNER_ENTRY_TALENT_FLOW := preload("res://scripts/player/player_gu
 const PLAYER_MAGE_ARCANE_CHARGE_TALENT_FLOW := preload("res://scripts/player/player_mage_arcane_charge_talent_flow.gd")
 const PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW := preload("res://scripts/player/player_mage_arcane_surplus_talent_flow.gd")
 const RUAN_STONE_SYSTEM := preload("res://scripts/player/ruan_stone_system.gd")
+const PLAYER_RUAN_STONE_STAT_FLOW := preload("res://scripts/player/player_ruan_stone_stat_flow.gd")
 const PLAYER_HEALTH_VISUALS := preload("res://scripts/player/player_health_visuals.gd")
 const PLAYER_TIMER_FLOW := preload("res://scripts/player/player_timer_flow.gd")
 const PLAYER_ULTIMATE_FLOW := preload("res://scripts/player/player_ultimate_flow.gd")
@@ -300,6 +301,7 @@ var role_equipment_levels: Dictionary = {}
 var ruan_bone_count: int = 0
 var ruan_stone_levels: Dictionary = {}
 var equipped_ruan_stone: String = ""
+var ruan_stone_purchased: Array = []
 var ruan_stone_proc_events: Dictionary = {}
 var basic_attack_event_serial: int = 0
 var equipment_damage_multiplier_bonus: float = 0.0
@@ -671,6 +673,7 @@ func _get_role_base_critical_chance(role_id: String) -> float:
 func _get_role_raw_critical_chance(role_id: String) -> float:
 	var critical_chance: float = _get_role_base_critical_chance(role_id)
 	critical_chance += float(_get_role_blessing_stat_bonus(role_id, "critical_chance"))
+	critical_chance += PLAYER_RUAN_STONE_STAT_FLOW.get_critical_chance_bonus(self)
 	if role_id == "swordsman":
 		critical_chance += swordsman_ultimate_crit_bonus_chance
 	return max(0.0, critical_chance)
@@ -2444,8 +2447,9 @@ func get_save_data() -> Dictionary:
 func configure_ruan_stones(profile: Dictionary) -> void:
 	var normalized := RUAN_STONE_SYSTEM.normalize_profile(profile.duplicate(true))
 	ruan_bone_count = int(normalized.get("bones", 0))
-	ruan_stone_levels = (normalized.get("ruan_stone_levels", {}) as Dictionary).duplicate(true)
-	equipped_ruan_stone = RUAN_STONE_SYSTEM.get_equipped(normalized)
+	ruan_stone_levels = {}
+	equipped_ruan_stone = ""
+	ruan_stone_purchased = (normalized.get("ruan_stone_purchased", []) as Array).duplicate()
 	ruan_stone_proc_events.clear()
 
 
@@ -2466,11 +2470,14 @@ func collect_ruan_bones(amount: int) -> int:
 
 
 func get_ruan_stone_level(stone_id: String) -> int:
-	return max(0, int(ruan_stone_levels.get(stone_id, 0)))
+	return 1 if ruan_stone_purchased.has(stone_id) else 0
 
 
 func get_equipped_ruan_stone() -> String:
 	return equipped_ruan_stone
+
+func get_purchased_ruan_stones() -> Array:
+	return ruan_stone_purchased.duplicate()
 
 
 func get_developer_bone_count() -> int:
