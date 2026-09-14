@@ -406,9 +406,9 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -560.0
-offset_top = -300.0
+offset_top = -330.0
 offset_right = 560.0
-offset_bottom = 300.0
+offset_bottom = 330.0
 
 [node name="MarginContainer" type="MarginContainer" parent="CanvasLayer/RuanStonePanel"]
 theme_override_constants/margin_left = 22
@@ -431,7 +431,8 @@ theme_override_font_sizes/font_size = 19
 theme_override_colors/font_color = Color(0.9, 0.93, 1, 1)
 
 [node name="Cards" type="HBoxContainer" parent="CanvasLayer/RuanStonePanel/MarginContainer/StoneContent"]
-size_flags_vertical = 3
+custom_minimum_size = Vector2(0, 270)
+size_flags_vertical = 0
 alignment = 1
 theme_override_constants/separation = 10
 

@@ -4,7 +4,9 @@ const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_t
 
 const TALENT_BASIC_ATTACK_1 := "mage_level_talent_basic_attack_1"
 const TALENT_BASIC_ATTACK_2 := "mage_level_talent_basic_attack_2"
+const TALENT_FLAME_PATH_2 := "mage_level_talent_flame_path_2"
 const BASIC_SOURCE_PREFIX := "mage_basic:"
+const FLAME_PATH_SOURCE := "mage_flame_path"
 
 const BASIC_ATTACK_1_FOLLOWUP_DELAY := 0.20
 const BASIC_ATTACK_1_FOLLOWUP_DAMAGE_MULTIPLIER := 0.50
@@ -38,6 +40,8 @@ static func get_basic_followup_damage_multiplier(owner) -> float:
 
 
 static func get_kill_energy_bonus(owner, source_role_id: String, resolved_role_id: String = "") -> float:
+	if source_role_id == FLAME_PATH_SOURCE:
+		return 0.50 if has_level_talent(owner, TALENT_FLAME_PATH_2) else 0.0
 	if not _is_mage_basic_source(source_role_id, resolved_role_id):
 		return 0.0
 	return BASIC_ATTACK_2_KILL_ENERGY_BONUS if has_level_talent(owner, TALENT_BASIC_ATTACK_2) else 0.0

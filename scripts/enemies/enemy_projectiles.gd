@@ -5,6 +5,8 @@ const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
 const NON_BOSS_PROJECTILE_SPEED_MULTIPLIER := 0.6
 const DEFAULT_HIT_RADIUS := 16.0
 const ENEMY_PROJECTILE_POOL_GROUP := "enemy_projectile_pool"
+const SHOTGUNNER_PROJECTILE_LIMIT := 24
+const ELITE_SPLITSHOT_PROJECTILE_LIMIT := 32
 
 static func fire_shooter_pattern(enemy) -> void:
 	var current_scene: Node = _get_enemy_current_scene(enemy)
@@ -84,6 +86,8 @@ static func spawn_projectile(enemy, origin: Vector2, shot_direction: Vector2, sh
 		return null
 	if not _can_spawn_enemy_projectile(current_scene, enemy):
 		return null
+	if not _can_spawn_archetype_projectile(current_scene, enemy):
+		return null
 	var projectile = _take_projectile_from_pool(current_scene)
 	if projectile == null:
 		projectile = enemy.projectile_scene.instantiate()
@@ -115,7 +119,8 @@ static func spawn_projectile(enemy, origin: Vector2, shot_direction: Vector2, sh
 		"split_visual_style": "",
 		"target": enemy.target,
 		"source_enemy_instance_id": enemy.get_instance_id(),
-		"source_enemy_kind": str(enemy.enemy_kind)
+		"source_enemy_kind": str(enemy.enemy_kind),
+		"source_enemy_archetype": str(enemy.archetype_id)
 	}
 	for key in extra_config.keys():
 		if key in ["split_speed", "return_speed"]:
@@ -203,6 +208,29 @@ static func _can_spawn_enemy_projectile(current_scene: Node, enemy) -> bool:
 	if current_scene != null and current_scene.has_method("_can_spawn_runtime_group"):
 		return bool(current_scene._can_spawn_runtime_group("enemy_projectiles", limit))
 	return PERFORMANCE_GUARD.can_spawn_in_group(current_scene, "enemy_projectiles", limit)
+
+static func _can_spawn_archetype_projectile(current_scene: Node, enemy) -> bool:
+	var archetype := str(enemy.get("archetype_id"))
+	var limit := _get_archetype_projectile_limit(archetype)
+	if limit <= 0:
+		return true
+	var active: Array = current_scene.get_runtime_enemy_projectiles() if current_scene.has_method("get_runtime_enemy_projectiles") else []
+	var count := 0
+	for projectile in active:
+		if projectile == null or not is_instance_valid(projectile) or projectile.is_queued_for_deletion():
+			continue
+		if projectile.has_meta("source_enemy_archetype") and str(projectile.get_meta("source_enemy_archetype")) == archetype:
+			count += 1
+	return count < limit
+
+static func _get_archetype_projectile_limit(archetype: String) -> int:
+	match archetype:
+		"shotgunner":
+			return SHOTGUNNER_PROJECTILE_LIMIT
+		"elite_splitshot":
+			return ELITE_SPLITSHOT_PROJECTILE_LIMIT
+		_:
+			return 0
 
 static func _uses_split_volley_budget(enemy) -> bool:
 	if enemy == null or not is_instance_valid(enemy):

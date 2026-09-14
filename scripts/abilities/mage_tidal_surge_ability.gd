@@ -144,6 +144,12 @@ func _spawn_wave(owner, origin: Vector2, fire_direction: Vector2, damage_amount:
 	)
 	if wave == null:
 		return null
+	var wave_sprite := wave.get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
+	if wave_sprite != null and wave_sprite.sprite_frames != null:
+		# The generic projectile visualizer hides authored sprites unless frames are explicit.
+		wave.custom_sprite_frames = wave_sprite.sprite_frames
+		wave.visual_cache_ready = false
+		wave._refresh_bullet_visual(true)
 	var wave_token := next_wave_token
 	next_wave_token += 1
 	wave.set_meta("mage_surge_token", wave_token)
@@ -170,6 +176,10 @@ func _spawn_wave(owner, origin: Vector2, fire_direction: Vector2, damage_amount:
 	wave.hit_radius = WAVE_HIT_RADIUS * range_multiplier * WAVE_WIDTH_MULTIPLIER * width_multiplier
 	wave.pierce_count = 999
 	wave.visual_scale_multiplier = WAVE_VISUAL_SCALE * range_multiplier * WAVE_WIDTH_MULTIPLIER * width_multiplier
+	# Keep the authored wave scene's actual frame bounds; the generic bullet defaults are 36x36.
+	wave.animated_scene_size = Vector2(1024.0, 1024.0)
+	wave.animated_visible_bounds = Rect2(205.0, 224.0, 216.0, 492.0)
+	wave.visual_cache_ready = false
 	wave.enemy_hit_radius_scale = 0.62
 	wave.enemy_hit_radius_min = 12.0
 	wave.enemy_hit_radius_max = 72.0 * _get_scale_multiplier(owner) * WAVE_WIDTH_MULTIPLIER * width_multiplier

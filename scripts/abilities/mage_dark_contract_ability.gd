@@ -5,16 +5,41 @@ const DARK_CONTRACT_VISUAL_SCRIPT := preload("res://scripts/player/mage_dark_con
 
 const SKILL_ID := "dark_contract"
 const COOLDOWN := 24.0
-const PROJECTILE_SPEED := 50.0
-const TRAVEL_DISTANCE := 600.0
+const BASE_PROJECTILE_SPEED := 50.0
+const TALENT_1_PROJECTILE_SPEED := 100.0
+const BASE_TRAVEL_DISTANCE := 600.0
+const TALENT_1_TRAVEL_DISTANCE := 800.0
+const LINGER_DURATION := 3.0
 
 var cooldown_remaining: float = 0.0
 var active_spheres: Array[Dictionary] = []
 var pending_saved_spheres: Array[Dictionary] = []
 
 
+func _has_talent(owner, talent_id: String) -> bool:
+	if owner == null or talent_id == "":
+		return false
+	if owner.has_method("_has_level_talent"):
+		return bool(owner._has_level_talent(talent_id))
+	return false
+
+
+func _get_projectile_speed(owner) -> float:
+	if _has_talent(owner, "mage_level_talent_dark_contract_1"):
+		return TALENT_1_PROJECTILE_SPEED
+	return BASE_PROJECTILE_SPEED
+
+
+func _get_travel_distance(owner) -> float:
+	if _has_talent(owner, "mage_level_talent_dark_contract_1"):
+		return TALENT_1_TRAVEL_DISTANCE
+	return BASE_TRAVEL_DISTANCE
+
+
 func update(owner, delta: float) -> void:
 	cooldown_remaining = max(0.0, cooldown_remaining - delta)
+	var projectile_speed: float = _get_projectile_speed(owner)
+	var travel_distance: float = _get_travel_distance(owner)
 	for index in range(active_spheres.size() - 1, -1, -1):
 		var data: Dictionary = active_spheres[index]
 		var sphere: Node2D = data.get("node", null) as Node2D
@@ -23,20 +48,40 @@ func update(owner, delta: float) -> void:
 				sphere.queue_free()
 			active_spheres.remove_at(index)
 			continue
-		var direction: Vector2 = data.get("direction", Vector2.RIGHT)
-		var origin: Vector2 = data.get("origin", Vector2.ZERO)
-		var traveled: float = float(data.get("traveled", 0.0)) + PROJECTILE_SPEED * delta
-		data["traveled"] = traveled
-		var position: Vector2 = origin + direction * traveled
-		sphere.global_position = position
-		active_spheres[index] = data
-		if traveled >= TRAVEL_DISTANCE:
-			_explode(owner, position)
-			sphere.queue_free()
-			active_spheres.remove_at(index)
-			continue
-		data = PLAYER_MAGE_DARK_CONTRACT_FLOW.apply_sphere_tick(owner, data, position, delta)
-		active_spheres[index] = data
+		var phase := str(data.get("phase", "travel"))
+		if phase == "travel":
+			var direction: Vector2 = data.get("direction", Vector2.RIGHT)
+			var origin: Vector2 = data.get("origin", Vector2.ZERO)
+			var traveled: float = float(data.get("traveled", 0.0)) + projectile_speed * delta
+			data["traveled"] = traveled
+			var position: Vector2 = origin + direction * traveled
+			sphere.global_position = position
+			active_spheres[index] = data
+			if traveled >= travel_distance:
+				# 到达终点
+				if _has_talent(owner, "mage_level_talent_dark_contract_2"):
+					# 天赋II：进入暂留阶段
+					data["phase"] = "linger"
+					data["linger_elapsed"] = 0.0
+					data["linger_damage_accum"] = 0.0
+					active_spheres[index] = data
+				else:
+					_explode(owner, position)
+					sphere.queue_free()
+					active_spheres.remove_at(index)
+					continue
+			data = PLAYER_MAGE_DARK_CONTRACT_FLOW.apply_sphere_tick(owner, data, position, delta)
+			active_spheres[index] = data
+		elif phase == "linger":
+			var position: Vector2 = sphere.global_position
+			data["linger_elapsed"] = float(data.get("linger_elapsed", 0.0)) + delta
+			data = PLAYER_MAGE_DARK_CONTRACT_FLOW.apply_linger_tick(owner, data, position, delta)
+			active_spheres[index] = data
+			if float(data.get("linger_elapsed", 0.0)) >= LINGER_DURATION:
+				_explode(owner, position)
+				sphere.queue_free()
+				active_spheres.remove_at(index)
+				continue
 
 
 func can_trigger(owner, role_id: String) -> bool:
@@ -60,12 +105,15 @@ func try_trigger(owner) -> bool:
 	sphere.global_position = owner.global_position + direction * 22.0
 	sphere.z_index = 27
 	sphere.set_script(DARK_CONTRACT_VISUAL_SCRIPT)
+	if _has_talent(owner, "mage_level_talent_dark_contract_1"):
+		sphere.scale = Vector2(1.5, 1.5)
 	scene.add_child(sphere)
 	active_spheres.append({
 		"node": sphere,
 		"origin": owner.global_position + direction * 22.0,
 		"direction": direction,
 		"traveled": 0.0,
+		"phase": "travel",
 		"attract_tick_elapsed": 0.0,
 		"collided_ids": {}
 	})
@@ -94,6 +142,7 @@ func get_save_data() -> Dictionary:
 			"origin": _encode_vector2(data.get("origin", sphere.global_position)),
 			"direction": [direction.x, direction.y],
 			"traveled": max(0.0, float(data.get("traveled", 0.0))),
+			"phase": str(data.get("phase", "travel")),
 			"attract_tick_elapsed": max(0.0, float(data.get("attract_tick_elapsed", 0.0)))
 		})
 	return {"cooldown_remaining": cooldown_remaining, "spheres": spheres}
@@ -125,12 +174,15 @@ func restore_effect_if_active(owner) -> void:
 		sphere.global_position = position
 		sphere.z_index = 27
 		sphere.set_script(DARK_CONTRACT_VISUAL_SCRIPT)
+		if _has_talent(owner, "mage_level_talent_dark_contract_1"):
+			sphere.scale = Vector2(1.5, 1.5)
 		scene.add_child(sphere)
 		active_spheres.append({
 			"node": sphere,
 			"origin": _decode_vector2(saved_data.get("origin", []), position),
 			"direction": direction,
-			"traveled": clamp(float(saved_data.get("traveled", 0.0)), 0.0, TRAVEL_DISTANCE),
+			"traveled": clamp(float(saved_data.get("traveled", 0.0)), 0.0, _get_travel_distance(owner)),
+			"phase": str(saved_data.get("phase", "travel")),
 			"attract_tick_elapsed": clamp(float(saved_data.get("attract_tick_elapsed", 0.0)), 0.0, PLAYER_MAGE_DARK_CONTRACT_FLOW.ATTRACT_TICK_INTERVAL),
 			"collided_ids": {}
 		})

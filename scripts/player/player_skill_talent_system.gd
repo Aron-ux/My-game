@@ -87,7 +87,13 @@ const LEVEL_TALENT_DEFINITIONS := {
 		{"id": "mage_level_talent_arcane_bombardment_1", "title": "\u5965\u6570\u8F70\u70B8 I", "summary": "\u5965\u6570\u8F70\u70B8\u8F6E\u6B21 +3\uFF1B\u5965\u6570\u8F70\u70B8\u51FB\u6740\u5355\u4F4D\u6216\u5BF9 Boss \u9020\u6210\u4F24\u5BB3\u65F6\uFF0C\u6240\u6709\u89D2\u8272\u56DE\u590D\u7684\u5927\u62DB\u80FD\u91CF\u6309 2 \u500D\u7ED3\u7B97\u3002"},
 		{"id": "mage_level_talent_arcane_bombardment_2", "title": "\u5965\u6570\u8F70\u70B8 II", "summary": "\u5965\u6570\u8F70\u70B8\u6BCF\u6CE2\u4F24\u5BB3\u500D\u7387 +5%\uFF1B\u5965\u6570\u8F70\u70B8\u6BCF\u51FB\u6740 1 \u4E2A\u5355\u4F4D\uFF0C\u6C38\u4E45\u63D0\u5347 0.05% \u6BCF\u8F6E\u4F24\u5BB3\u500D\u7387\u3002"},
 		{"id": "mage_level_talent_dense_lightning_1", "title": "\u5BC6\u96C6\u96F7\u7FA4 I", "summary": "\u5BC6\u96C6\u96F7\u7FA4 5 \u4E2A\u65B9\u5411\u989D\u5916\u589E\u52A0 1 \u5708\u96F7\u51FB\uFF1B\u6BCF\u51FB\u6740 1 \u4E2A\u5355\u4F4D\uFF0C\u4E3A\u6CD5\u5E08\u6240\u6709\u6B63\u5728\u51B7\u5374\u7684\u975E\u5927\u62DB\u6280\u80FD\u6216\u666E\u901A\u653B\u51FB\u51CF\u5C11 0.2 \u79D2\u51B7\u5374\u3002"},
-		{"id": "mage_level_talent_dense_lightning_2", "title": "\u5BC6\u96C6\u96F7\u7FA4 II", "summary": "\u5BC6\u96C6\u96F7\u7FA4 5 \u4E2A\u65B9\u5411\u989D\u5916\u589E\u52A0 1 \u5708\u96F7\u51FB\uFF1B\u6BCF\u51FB\u6740 1 \u4E2A\u5355\u4F4D\uFF0C\u4E3A\u5965\u6CD5\u76C8\u4F59\u63D0\u4F9B 0.2 \u79D2\u6301\u7EED\u65F6\u95F4\u3002"}
+			{"id": "mage_level_talent_dense_lightning_2", "title": "\u5BC6\u96C6\u96F7\u7FA4 II", "summary": "\u5BC6\u96C6\u96F7\u7FA4 5 \u4E2A\u65B9\u5411\u989D\u5916\u589E\u52A0 1 \u5708\u96F7\u51FB\uFF1B\u6BCF\u51FB\u6740 1 \u4E2A\u5355\u4F4D\uFF0C\u4E3A\u5965\u6CD5\u76C8\u4F59\u63D0\u4F9B 0.2 \u79D2\u6301\u7EED\u65F6\u95F4\u3002"},
+		{"id": "mage_level_talent_flame_path_1", "title": "\u706B\u7130\u4E4B\u5F84 I", "summary": "\u88AB\u706B\u7130\u8DEF\u5F84\u707C\u70E7\u8FC7\u7684\u654C\u4EBA\u51CF\u4F24\u503C\u964D\u4F4E 20 \u70B9\uFF0C\u8BE5\u524A\u5F31\u6301\u7EED\u76F4\u81F3\u654C\u4EBA\u6B7B\u4EA1\u3002", "level_talent_group_id": "mage_flame_path_variant"},
+		{"id": "mage_level_talent_flame_path_2", "title": "\u706B\u7130\u4E4B\u5F84 II", "summary": "\u706B\u7130\u4E4B\u5F84\u671F\u95F4\u6CD5\u5E08\u79FB\u52A8\u901F\u5EA6\u589E\u52A0 30%\uFF1B\u706B\u7130\u8DEF\u5F84\u6BCF\u51FB\u6740\u4E00\u4E2A\u654C\u4EBA\uFF0C\u4E3A\u6CD5\u5E08\u63D0\u4F9B 1.5 \u500D\u5927\u62DB\u80FD\u91CF\u56DE\u590D\u3002", "level_talent_group_id": "mage_flame_path_variant"},
+		{"id": "mage_level_talent_dark_contract_1", "title": "\u9ED1\u6697\u5951\u7EA6 I", "summary": "\u7403\u4F53\u5438\u5F15\u534A\u5F84\u589E\u52A0\u81F3 150\uFF0C\u7403\u4F53\u79FB\u52A8\u901F\u5EA6 +50\uFF0C\u5438\u5F15\u901F\u5EA6 +50\uFF0C\u79FB\u52A8\u8DDD\u79BB +200\uFF0C\u7403\u4F53\u89C6\u89C9\u76F8\u5E94\u53D8\u5927\u3002", "level_talent_group_id": "mage_dark_contract_variant"},
+		{"id": "mage_level_talent_dark_contract_2", "title": "\u9ED1\u6697\u5951\u7EA6 II", "summary": "\u7403\u4F53\u5230\u8FBE\u6700\u8FDC\u8DDD\u79BB\u540E\u6682\u7559 3 \u79D2\uFF0C\u671F\u95F4\u5438\u5F15 150 \u534A\u5F84\u5185\u6240\u6709\u654C\u4EBA\u5E76\u9020\u6210\u6BCF\u79D2 150% \u4F24\u5BB3\uFF0C3 \u79D2\u540E\u7403\u4F53\u7206\u70B8\u3002", "level_talent_group_id": "mage_dark_contract_variant"},
+		{"id": "mage_level_talent_fireball_1", "title": "\u706B\u7403\u672F I", "summary": "\u706B\u7403\u672F\u7206\u70B8\u534A\u5F84\u589E\u52A0 75\uFF0C\u4F24\u5BB3\u500D\u7387\u589E\u52A0 150%\u3002", "level_talent_group_id": "mage_fireball_variant"},
+		{"id": "mage_level_talent_fireball_2", "title": "\u706B\u7403\u672F II", "summary": "\u7B2C\u4E00\u6B21\u7206\u70B8\u540E\uFF0C\u5728\u7206\u70B8\u5706\u5916\u5708\u5207\u4E868\u4E2A\u65B9\u5411\u5404\u8FDB\u884C\u4E00\u6B21\u7B2C\u4E8C\u6B21\u7206\u70B8\uFF0C\u6BCF\u4E2A\u7B2C\u4E8C\u6B21\u7206\u70B8\u9020\u6210 200% \u4F24\u5BB3\uFF0C\u534A\u5F8450\u3002", "level_talent_group_id": "mage_fireball_variant"}
 	],
 	"mechanic": [
 		{"id": "mechanic_level_talent_overclock", "title": "机械师天赋·超频", "summary": "预留机械师天赋效果接口。当前只记录选择，不附加旧天赋效果。", "placeholder": true},
@@ -231,6 +237,9 @@ const LEVEL_TALENT_REQUIRED_SKILL_RULES := [
 	{"prefix": "mage_level_talent_dense_lightning", "skill_id": "hero_entry"},
 	{"prefix": "mage_level_talent_surging_wave", "skill_id": "surging_wave"},
 	{"prefix": "mage_level_talent_surge", "skill_id": "surging_wave"},
+	{"prefix": "mage_level_talent_flame_path", "skill_id": "flame_path"},
+	{"prefix": "mage_level_talent_dark_contract", "skill_id": "dark_contract"},
+	{"prefix": "mage_level_talent_fireball", "skill_id": "fireball"},
 	{"prefix": "mechanic_level_talent_drone", "skill_id": "drone"},
 	{"prefix": "mechanic_level_talent_mine", "skill_id": "mine"},
 	{"prefix": "mechanic_level_talent_turret", "skill_id": "tulip_turret"},

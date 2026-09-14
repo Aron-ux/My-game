@@ -9,6 +9,10 @@ Entries within each section are newest first. Earlier experiments remain recorde
 - Level-up UI mechanic avatars: `TRAIT_HEAD_SCENES["level_trait_mechanic"]` and `LEVEL_TALENT_ROLE_SCENES["mechanic"]` in `scripts/level_up_ui.gd` pointed at the gunner's `gunhead.tscn` / `gunchange.tscn`, so mechanic trait cards and level-talent role entries showed the gunner portrait; they now use `mechanichead.tscn` / `mechanicchange.tscn`.
 
 ### Changed
+- 新增法师天赋：火球术 I/II（爆炸半径+75+伤害+150% / 第一次爆炸外圈8方向各炸一个200%伤害半径50的小爆炸）。
+- 新增法师天赋：火焰之径 I/II（灼烧减敌减伤20点 / 移速+30%+击杀1.5倍回能）、黑暗契约 I/II（吸引半径150+移动/吸引速度+50+距离+200 / 终点暂留3秒持续吸引伤害后爆炸）。
+- 爱心掉落与回血量调整: 普通小怪 0.6%→0.1%, 精英 1.2%→0.5%, 小BOSS/大BOSS 100%必掉, 每颗回血 25→50.
+- 地瑰灵 (smallboss_turret): base projectile speed 320→352 (+10%), projectile damage 15→16.5 (+10%, all derived attacks scale automatically), bombard warning 1.9s→1.5s.
 - Mechanic weapons swapped: the inherited wizard wand/orb are flood-erased from the amber seed color family per frame and replaced by an open-end wrench (left hand) and a pistol-grip electric drill (right hand); frames where detection fails get the tools redrawn at the glasses-lens anchor plus the median offset, and detached amber sparkles are purged. The round glasses keep the previous iris-anchored version (a face-bbox redraw pass caused visible jitter and was reverted).
 - Mechanic sprite refined further toward Maria Custard via `scripts/tools/refine_mechanic_maria.py`: hair family shifted from deep navy toward Maria's brighter blue (+Δ(14,48,58) on the navy cluster family, sheets and both facility portraits) and her iconic red necktie painted at the collar of the lab coat on all idle/run frames (anchored to the stable glasses-lens pixels).
 - 机械蜘蛛 tuning: crawl speed 300→100 (one third) and visual scale ×1.8, so the spider reads as a crawling machine instead of a fast bullet; damage, range and hit radius unchanged.

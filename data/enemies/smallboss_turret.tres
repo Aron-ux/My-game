@@ -21,8 +21,8 @@ visual_scene = ExtResource("2_visual")
 extra = {
 "preferred_distance": 0.0,
 "shot_interval": 1.0,
-"projectile_speed": 320.0,
-"projectile_damage": 15.0,
+"projectile_speed": 352.0,
+"projectile_damage": 16.5,
 "projectile_lifetime": 4.4,
 "projectile_spread": 0.14,
 "projectile_count": 3,

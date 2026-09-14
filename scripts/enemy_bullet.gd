@@ -9,6 +9,9 @@ const POOL_GROUP := "enemy_projectile_pool"
 const POOL_SOFT_LIMIT := 96
 const PROJECTILE_Z_INDEX := 12
 const LIFETIME_FADE_DURATION := 0.6
+const PLAYER_RELEVANCE_DISTANCE := 1900.0
+const PLAYER_FULL_UPDATE_DISTANCE := 720.0
+const REMOTE_UPDATE_INTERVAL := 0.05
 
 @export var speed: float = 260.0
 @export var damage: float = 8.0
@@ -67,6 +70,7 @@ var chain_trail: Dictionary = {}
 var chain_follow_distance: float = 0.0
 var chain_path_distance: float = 0.0
 var max_lifetime: float = 4.0
+var remote_update_elapsed: float = 0.0
 
 static var visual_shape_cache: Dictionary = {}
 
@@ -89,14 +93,24 @@ func _sync_source_enemy_meta(source_id: int, source_kind: String) -> void:
 	elif has_meta("source_enemy_kind"):
 		remove_meta("source_enemy_kind")
 
+func _sync_source_enemy_archetype(archetype_id: String) -> void:
+	if archetype_id != "":
+		set_meta("source_enemy_archetype", archetype_id)
+	elif has_meta("source_enemy_archetype"):
+		remove_meta("source_enemy_archetype")
+
 func _clear_source_enemy_meta() -> void:
 	_sync_source_enemy_meta(0, "")
+	_sync_source_enemy_archetype("")
 
 func _get_source_enemy_instance_id() -> int:
 	return int(get_meta("source_enemy_instance_id")) if has_meta("source_enemy_instance_id") else 0
 
 func _get_source_enemy_kind() -> String:
 	return str(get_meta("source_enemy_kind")) if has_meta("source_enemy_kind") else ""
+
+func _get_source_enemy_archetype() -> String:
+	return str(get_meta("source_enemy_archetype")) if has_meta("source_enemy_archetype") else ""
 
 func reset_projectile(config: Dictionary) -> void:
 	_release_split_volley_membership()
@@ -149,6 +163,7 @@ func reset_projectile(config: Dictionary) -> void:
 	chain_follow_spacing = float(config.get("chain_follow_spacing", chain_follow_spacing))
 	chain_follow_index = int(config.get("chain_follow_index", chain_follow_index))
 	_sync_source_enemy_meta(int(config.get("source_enemy_instance_id", 0)), str(config.get("source_enemy_kind", "")))
+	_sync_source_enemy_archetype(str(config.get("source_enemy_archetype", "")))
 	_initialize_runtime_state()
 
 func recycle() -> void:
@@ -213,6 +228,21 @@ func can_use_batch_simulation() -> bool:
 func _run_physics_tick(delta: float) -> void:
 	if pooled:
 		return
+	var target_distance: float = INF
+	if target != null and is_instance_valid(target) and target is Node2D:
+		target_distance = global_position.distance_to((target as Node2D).global_position)
+	if target_distance > PLAYER_RELEVANCE_DISTANCE:
+		recycle()
+		return
+	if target_distance > PLAYER_FULL_UPDATE_DISTANCE:
+		remote_update_elapsed += delta
+		if remote_update_elapsed < REMOTE_UPDATE_INTERVAL:
+			lifetime -= delta
+			return
+		delta = remote_update_elapsed
+		remote_update_elapsed = 0.0
+	else:
+		remote_update_elapsed = 0.0
 	lifetime -= delta
 	if lifetime <= 0.0:
 		if motion_mode == "returning_sine" and split_on_return and not split_performed:
@@ -512,7 +542,8 @@ func _spawn_split_bullets() -> void:
 				"visual_style": split_visual_style if split_visual_style != "" else visual_style,
 				"target": target,
 				"source_enemy_instance_id": _get_source_enemy_instance_id(),
-				"source_enemy_kind": _get_source_enemy_kind()
+				"source_enemy_kind": _get_source_enemy_kind(),
+				"source_enemy_archetype": _get_source_enemy_archetype()
 			})
 
 func _get_relative_cross_split_direction(index: int) -> Vector2:

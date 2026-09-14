@@ -6,18 +6,45 @@ const FIRE_GROUND_VISUAL_SCRIPT := preload("res://scripts/player/mage_fire_groun
 const SKILL_ID := "fireball"
 const COOLDOWN := 28.0
 const MAX_RANGE := 450.0
-const BLAST_RADIUS := 200.0
-const BLAST_DAMAGE_RATIO := 6.00
+const BASE_BLAST_RADIUS := 200.0
+const BASE_BLAST_DAMAGE_RATIO := 6.00
+const TALENT_1_RADIUS_BONUS := 75.0
+const TALENT_1_DAMAGE_BONUS := 1.50
 const CHARGE_DURATION := 0.5
 const GROUND_DURATION := 6.0
 const GROUND_TICK_INTERVAL := 1.0
 const GROUND_BURN_CURRENT_HEALTH_RATIO := 0.01
+const SECONDARY_BLAST_RADIUS := 50.0
+const SECONDARY_BLAST_DAMAGE_RATIO := 2.00
+const SECONDARY_BLAST_COUNT := 8
 
 var cooldown_remaining: float = 0.0
 var active_fire_fields: Array[Dictionary] = []
 var pending_saved_fields: Array[Dictionary] = []
 var pending_impact_remaining: float = 0.0
 var pending_impact_center: Vector2 = Vector2.ZERO
+
+
+func _has_talent(owner, talent_id: String) -> bool:
+	if owner == null or talent_id == "":
+		return false
+	if owner.has_method("_has_level_talent"):
+		return bool(owner._has_level_talent(talent_id))
+	return false
+
+
+func _get_blast_radius(owner) -> float:
+	var r: float = BASE_BLAST_RADIUS
+	if _has_talent(owner, "mage_level_talent_fireball_1"):
+		r += TALENT_1_RADIUS_BONUS
+	return r
+
+
+func _get_blast_damage_ratio(owner) -> float:
+	var r: float = BASE_BLAST_DAMAGE_RATIO
+	if _has_talent(owner, "mage_level_talent_fireball_1"):
+		r += TALENT_1_DAMAGE_BONUS
+	return r
 
 
 func update(owner, delta: float) -> void:
@@ -36,7 +63,7 @@ func update(owner, delta: float) -> void:
 		active_fire_fields[index] = data
 		while tick_elapsed >= GROUND_TICK_INTERVAL:
 			tick_elapsed -= GROUND_TICK_INTERVAL
-			PLAYER_MAGE_FIREBALL_FLOW.apply_burn_tick(owner, data.get("center", Vector2.ZERO), BLAST_RADIUS, GROUND_BURN_CURRENT_HEALTH_RATIO)
+			PLAYER_MAGE_FIREBALL_FLOW.apply_burn_tick(owner, data.get("center", Vector2.ZERO), data.get("radius", BASE_BLAST_RADIUS), GROUND_BURN_CURRENT_HEALTH_RATIO)
 		data["tick_elapsed"] = tick_elapsed
 		active_fire_fields[index] = data
 		if remaining <= 0.0:
@@ -61,11 +88,12 @@ func try_trigger(owner) -> bool:
 	if scene == null:
 		return false
 	cooldown_remaining = COOLDOWN
+	var blast_radius: float = _get_blast_radius(owner)
 	pending_impact_center = PLAYER_MAGE_FIREBALL_FLOW.resolve_target_position(owner, direction, MAX_RANGE)
 	pending_impact_remaining = CHARGE_DURATION
 	if owner.has_method("_spawn_ring_effect"):
-		owner._spawn_ring_effect(pending_impact_center, BLAST_RADIUS * 0.55, Color(1.0, 0.34, 0.08, 0.72), 5.0, CHARGE_DURATION)
-		owner._spawn_ring_effect(pending_impact_center, BLAST_RADIUS * 0.30, Color(1.0, 0.86, 0.28, 0.86), 3.0, CHARGE_DURATION)
+		owner._spawn_ring_effect(pending_impact_center, blast_radius * 0.55, Color(1.0, 0.34, 0.08, 0.72), 5.0, CHARGE_DURATION)
+		owner._spawn_ring_effect(pending_impact_center, blast_radius * 0.30, Color(1.0, 0.86, 0.28, 0.86), 3.0, CHARGE_DURATION)
 	if owner.has_method("_spawn_combat_tag"):
 		owner._spawn_combat_tag(pending_impact_center + Vector2(0.0, -32.0), "火球聚能", Color(1.0, 0.68, 0.24, 1.0))
 	return true
@@ -76,20 +104,34 @@ func _resolve_pending_impact(owner) -> void:
 		return
 	var center := pending_impact_center
 	pending_impact_center = Vector2.ZERO
-	var damage: float = float(owner._get_role_damage("mage")) * BLAST_DAMAGE_RATIO
-	PLAYER_MAGE_FIREBALL_FLOW.apply_impact(owner, center, BLAST_RADIUS, damage)
+	var blast_radius: float = _get_blast_radius(owner)
+	var damage: float = float(owner._get_role_damage("mage")) * _get_blast_damage_ratio(owner)
+	# 第一次爆炸
+	PLAYER_MAGE_FIREBALL_FLOW.apply_impact(owner, center, blast_radius, damage)
+	# 天赋II：8个方向的第二次小爆炸
+	if _has_talent(owner, "mage_level_talent_fireball_2"):
+		var secondary_damage: float = float(owner._get_role_damage("mage")) * SECONDARY_BLAST_DAMAGE_RATIO
+		var ring_distance: float = blast_radius + SECONDARY_BLAST_RADIUS
+		for i in range(SECONDARY_BLAST_COUNT):
+			var angle: float = TAU * float(i) / float(SECONDARY_BLAST_COUNT)
+			var offset: Vector2 = Vector2.RIGHT.rotated(angle) * ring_distance
+			var secondary_center: Vector2 = center + offset
+			PLAYER_MAGE_FIREBALL_FLOW.apply_impact(owner, secondary_center, SECONDARY_BLAST_RADIUS, secondary_damage)
+			if owner.has_method("_spawn_ring_effect"):
+				owner._spawn_ring_effect(secondary_center, SECONDARY_BLAST_RADIUS, Color(1.0, 0.5, 0.15, 0.8), 3.0, 0.2)
 	if owner.has_method("_spawn_ring_effect"):
-		owner._spawn_ring_effect(center, BLAST_RADIUS, Color(1.0, 0.48, 0.14, 0.95), 6.0, 0.3)
-		owner._spawn_ring_effect(center, BLAST_RADIUS * 0.6, Color(1.0, 0.82, 0.32, 0.85), 3.0, 0.2)
+		owner._spawn_ring_effect(center, blast_radius, Color(1.0, 0.48, 0.14, 0.95), 6.0, 0.3)
+		owner._spawn_ring_effect(center, blast_radius * 0.6, Color(1.0, 0.82, 0.32, 0.85), 3.0, 0.2)
 	if owner.has_method("_spawn_burst_effect"):
-		owner._spawn_burst_effect(center, BLAST_RADIUS * 0.5, Color(1.0, 0.62, 0.2, 0.9), 0.26)
+		owner._spawn_burst_effect(center, blast_radius * 0.5, Color(1.0, 0.62, 0.2, 0.9), 0.26)
 	if owner.has_method("_queue_camera_shake"):
 		owner._queue_camera_shake(15.0, 0.3)
-	# 爆炸后留下按当前生命百分比结算的燃烧地面。
-	var ground := _create_fire_ground(owner, center)
+	# 爆炸后留下按当前生命百分比结算的燃烧地面
+	var ground := _create_fire_ground(owner, center, blast_radius)
 	active_fire_fields.append({
 		"node": ground,
 		"center": center,
+		"radius": blast_radius,
 		"remaining": GROUND_DURATION,
 		"tick_elapsed": 0.0
 	})
@@ -111,6 +153,7 @@ func get_save_data() -> Dictionary:
 		var center: Vector2 = data.get("center", Vector2.ZERO)
 		fields.append({
 			"center": [center.x, center.y],
+			"radius": float(data.get("radius", BASE_BLAST_RADIUS)),
 			"remaining": max(0.0, float(data.get("remaining", 0.0))),
 			"tick_elapsed": max(0.0, float(data.get("tick_elapsed", 0.0)))
 		})
@@ -137,19 +180,21 @@ func restore_effect_if_active(owner) -> void:
 		var remaining: float = max(0.0, float(saved_data.get("remaining", 0.0)))
 		if remaining <= 0.0:
 			continue
-		var ground := _create_fire_ground(owner, center)
+		var saved_radius: float = float(saved_data.get("radius", BASE_BLAST_RADIUS))
+		var ground := _create_fire_ground(owner, center, saved_radius)
 		if ground == null:
 			continue
 		active_fire_fields.append({
 			"node": ground,
 			"center": center,
+			"radius": saved_radius,
 			"remaining": remaining,
 			"tick_elapsed": clamp(float(saved_data.get("tick_elapsed", 0.0)), 0.0, GROUND_TICK_INTERVAL)
 		})
 	pending_saved_fields.clear()
 
 
-func _create_fire_ground(owner, center: Vector2) -> Node2D:
+func _create_fire_ground(owner, center: Vector2, radius: float) -> Node2D:
 	if owner == null or not is_instance_valid(owner):
 		return null
 	var scene: Node = owner.get_tree().current_scene if owner.get_tree() != null else null
@@ -160,7 +205,7 @@ func _create_fire_ground(owner, center: Vector2) -> Node2D:
 	ground.global_position = center
 	ground.z_index = 15
 	ground.set_script(FIRE_GROUND_VISUAL_SCRIPT)
-	ground.set("radius", BLAST_RADIUS)
+	ground.set("radius", radius)
 	ground.add_to_group("temporary_effects")
 	scene.add_child(ground)
 	return ground

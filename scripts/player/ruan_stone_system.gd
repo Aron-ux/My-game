@@ -27,6 +27,7 @@ static func normalize_profile(profile: Dictionary) -> Dictionary:
 	if not STONE_IDS.has(equipped) or int(normalized_levels.get(equipped, 0)) <= 0:
 		equipped = ""
 	profile["equipped_ruan_stone"] = equipped
+	profile["ruan_stone_purchased"] = profile.get("ruan_stone_purchased", []) if profile.get("ruan_stone_purchased", []) is Array else []
 	return profile
 
 
@@ -37,6 +38,9 @@ static func get_definition(stone_id: String) -> Dictionary:
 static func get_level(profile: Dictionary, stone_id: String) -> int:
 	if not STONE_IDS.has(stone_id):
 		return 0
+	var purchased: Variant = profile.get("ruan_stone_purchased", [])
+	if purchased is Array:
+		return 1 if (purchased as Array).has(stone_id) else 0
 	var levels: Variant = profile.get("ruan_stone_levels", {})
 	if levels is not Dictionary:
 		return 0
@@ -46,7 +50,7 @@ static func get_level(profile: Dictionary, stone_id: String) -> int:
 static func get_next_cost(profile: Dictionary, stone_id: String) -> int:
 	if not STONE_IDS.has(stone_id):
 		return 0
-	return 5 + 3 * get_level(profile, stone_id)
+	return 5
 
 
 static func purchase(profile: Dictionary, stone_id: String) -> Dictionary:
@@ -57,14 +61,17 @@ static func purchase(profile: Dictionary, stone_id: String) -> Dictionary:
 	var bones := int(profile.get("bones", 0))
 	if bones < cost:
 		return {"success": false, "reason": "not_enough_bones", "cost": cost, "bones": bones}
-	var next_level := get_level(profile, stone_id) + 1
+	var purchased: Array = profile.get("ruan_stone_purchased", [])
+	if purchased.has(stone_id):
+		return {"success": false, "reason": "already_purchased", "cost": 0, "bones": bones}
 	profile["bones"] = bones - cost
-	(profile["ruan_stone_levels"] as Dictionary)[stone_id] = next_level
+	purchased.append(stone_id)
+	profile["ruan_stone_purchased"] = purchased
 	return {
 		"success": true,
 		"stone_id": stone_id,
 		"cost": cost,
-		"level": next_level,
+		"level": 1,
 		"bones": int(profile["bones"])
 	}
 

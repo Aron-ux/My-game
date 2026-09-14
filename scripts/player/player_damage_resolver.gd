@@ -16,6 +16,7 @@ const PLAYER_MAGE_ULTIMATE_TALENT_FLOW := preload("res://scripts/player/player_m
 const PLAYER_SWORDSMAN_KING_BLADE_FLOW := preload("res://scripts/player/player_swordsman_king_blade_flow.gd")
 const PLAYER_GUNNER_MAGIC_GRENADE_FLOW := preload("res://scripts/player/player_gunner_magic_grenade_flow.gd")
 const PLAYER_MAGE_DARK_CONTRACT_FLOW := preload("res://scripts/player/player_mage_dark_contract_flow.gd")
+const PLAYER_MAGE_FLAME_PATH_FLOW := preload("res://scripts/player/player_mage_flame_path_flow.gd")
 const PLAYER_GUNNER_EXPLOSIVE_ROUND_FLOW := preload("res://scripts/player/player_gunner_explosive_round_flow.gd")
 
 const DAMAGE_JOB_QUEUE_NAME := "PlayerDamageJobQueue"
@@ -1030,6 +1031,8 @@ static func _resolve_damage_source_role_id(source_role_id: String) -> String:
 	if PLAYER_GUNNER_MAGIC_GRENADE_FLOW.is_magic_grenade_source(source_role_id):
 		return "gunner"
 	if PLAYER_MAGE_DARK_CONTRACT_FLOW.is_dark_contract_source(source_role_id):
+		return "mage"
+	if PLAYER_MAGE_FLAME_PATH_FLOW.is_flame_path_source(source_role_id):
 		return "mage"
 	if PLAYER_GUNNER_EXPLOSIVE_ROUND_FLOW.is_explosive_round_source(source_role_id):
 		return "gunner"

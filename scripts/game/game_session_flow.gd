@@ -8,6 +8,17 @@ const REWARD_FLOW := preload("res://scripts/game/reward_flow.gd")
 const CONTINUE_BGM_RESUME_DELAY := 0.25
 const NORMAL_GAME_SPEED := 1.0
 const ENDLESS_FAST_GAME_SPEED := 2.0
+const RUAN_STONE_SYSTEM := preload("res://scripts/player/ruan_stone_system.gd")
+
+static func clear_endless_battle_ruan_stones() -> void:
+	var profile: Dictionary = SAVE_MANAGER.get_current_endless_profile()
+	if profile.is_empty():
+		return
+	profile["ruan_stone_purchased"] = []
+	profile["equipped_ruan_stone"] = ""
+	profile["ruan_stone_levels"] = {}
+	RUAN_STONE_SYSTEM.normalize_profile(profile)
+	SAVE_MANAGER.save_endless_profile(profile)
 
 static func set_endless_speed_enabled(main: Node, enabled: bool) -> void:
 	var resolved_enabled: bool = enabled and bool(main.get("endless_mode_active")) and not bool(main.get("game_over"))
@@ -92,6 +103,7 @@ static func return_to_main_menu(main: Node) -> void:
 static func return_to_endless_camp(main: Node) -> void:
 	if not main.endless_mode_active:
 		return
+	clear_endless_battle_ruan_stones()
 	reset_game_speed(main)
 	SAVE_MANAGER.clear_save(-1, SAVE_MANAGER.MODE_ENDLESS)
 	main.suppress_exit_save = true

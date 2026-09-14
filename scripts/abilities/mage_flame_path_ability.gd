@@ -54,7 +54,12 @@ func try_trigger(owner) -> bool:
 	return true
 
 func get_move_speed_multiplier(owner) -> float:
-	return MOVE_SPEED_MULTIPLIER if active_remaining > 0.0 and owner != null and str(owner._get_active_role().get("id", "")) == "mage" else 1.0
+	if active_remaining <= 0.0 or owner == null or str(owner._get_active_role().get("id", "")) != "mage":
+		return 1.0
+	var mult: float = MOVE_SPEED_MULTIPLIER
+	if owner.has_method("_has_level_talent") and owner._has_level_talent("mage_level_talent_flame_path_2"):
+		mult += 0.30
+	return mult
 
 func get_cooldown_slot(owner = null) -> Dictionary:
 	var remaining: float = cooldown_remaining

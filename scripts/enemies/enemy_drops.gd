@@ -3,10 +3,10 @@ extends RefCounted
 const PICKUP_COMPACTOR := preload("res://scripts/game/pickup_compactor.gd")
 const BONE_PICKUP_SCENE := preload("res://scenes/bone_pickup.tscn")
 
-const HEART_HEAL_AMOUNT := 25.0
-const HEART_DROP_CHANCE := 0.006
-const HEART_DROP_CHANCE_ELITE := 0.012
-const HEART_DROP_CHANCE_BOSS := 0.044
+const HEART_HEAL_AMOUNT := 50.0
+const HEART_DROP_CHANCE := 0.001
+const HEART_DROP_CHANCE_ELITE := 0.005
+const HEART_DROP_CHANCE_BOSS := 1.0
 const NORMAL_BONE_DROP_CHANCE := 0.01
 
 static func drop_experience_gem(enemy) -> void:
@@ -74,7 +74,7 @@ static func get_heart_drop_chance(enemy_kind: String) -> float:
 	match enemy_kind:
 		"elite":
 			return HEART_DROP_CHANCE_ELITE
-		"boss":
+		"small_boss", "boss":
 			return HEART_DROP_CHANCE_BOSS
 		_:
 			return HEART_DROP_CHANCE

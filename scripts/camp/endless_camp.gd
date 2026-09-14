@@ -367,6 +367,7 @@ func _open_ruan_stone_shop() -> void:
 	ruan_stone_profile = RUAN_STONE_SYSTEM.normalize_profile(SAVE_MANAGER.get_current_endless_profile())
 	_rebuild_ruan_stone_cards()
 	ruan_stone_panel.visible = true
+	ruan_stone_panel.move_to_front()
 	_set_camp_player_movement_enabled(false)
 	var first_stone_id := str(RUAN_STONE_SYSTEM.STONE_IDS[0])
 	var first_button := ruan_stone_purchase_buttons.get(first_stone_id) as Button
@@ -375,8 +376,6 @@ func _open_ruan_stone_shop() -> void:
 	_update_prompt()
 
 func _close_ruan_stone_shop() -> void:
-	if not ruan_stone_panel.visible:
-		return
 	ruan_stone_panel.visible = false
 	_set_camp_player_movement_enabled(true)
 	_update_prompt()
@@ -387,11 +386,9 @@ func _rebuild_ruan_stone_cards() -> void:
 		child.queue_free()
 	ruan_stone_purchase_buttons.clear()
 	ruan_stone_equip_buttons.clear()
-	var equipped_id := RUAN_STONE_SYSTEM.get_equipped(ruan_stone_profile)
-	var equipped_name := "无"
-	if equipped_id != "":
-		equipped_name = str(RUAN_STONE_SYSTEM.get_definition(equipped_id).get("title", equipped_id))
-	ruan_stone_status.text = "骨头：%d    当前装备：%s" % [int(ruan_stone_profile.get("bones", 0)), equipped_name]
+	var purchased: Array = ruan_stone_profile.get("ruan_stone_purchased", [])
+	var equipped_id := ""
+	ruan_stone_status.text = "骨头：%d    本场已购买：%d/5" % [int(ruan_stone_profile.get("bones", 0)), purchased.size()]
 	for stone_id_value in RUAN_STONE_SYSTEM.STONE_IDS:
 		_add_ruan_stone_card(str(stone_id_value), equipped_id)
 
@@ -400,7 +397,7 @@ func _add_ruan_stone_card(stone_id: String, equipped_id: String) -> void:
 	var level := RUAN_STONE_SYSTEM.get_level(ruan_stone_profile, stone_id)
 	var cost := RUAN_STONE_SYSTEM.get_next_cost(ruan_stone_profile, stone_id)
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(198.0, 330.0)
+	card.custom_minimum_size = Vector2(198.0, 250.0)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card.add_theme_stylebox_override("panel", SURVIVORS_THEME.card_style(stone_id == equipped_id))
 	ruan_stone_cards.add_child(card)
@@ -408,17 +405,17 @@ func _add_ruan_stone_card(stone_id: String, equipped_id: String) -> void:
 	content.add_theme_constant_override("separation", 8)
 	card.add_child(content)
 	content.add_child(_make_stone_label(str(definition.get("title", stone_id)), 24, SURVIVORS_THEME.COLOR_TEXT_GOLD, HORIZONTAL_ALIGNMENT_CENTER))
-	content.add_child(_make_stone_label("Lv.%d" % level, 18, SURVIVORS_THEME.COLOR_TEXT, HORIZONTAL_ALIGNMENT_CENTER))
+	content.add_child(_make_stone_label("已购买" if level > 0 else "未购买", 18, SURVIVORS_THEME.COLOR_TEXT, HORIZONTAL_ALIGNMENT_CENTER))
 	content.add_child(_make_stone_label(str(definition.get("summary", "")), 15, SURVIVORS_THEME.COLOR_TEXT_MUTED))
 	var current_text := "当前：%s" % RUAN_STONE_SYSTEM.get_effect_text(stone_id, level)
 	content.add_child(_make_stone_label(current_text, 15, SURVIVORS_THEME.COLOR_TEXT))
-	var next_text := "下级：%s\n费用：%d 骨" % [RUAN_STONE_SYSTEM.get_next_effect_text(ruan_stone_profile, stone_id), cost]
+	var next_text := "本场效果：%s\n费用：%d 骨" % [RUAN_STONE_SYSTEM.get_effect_text(stone_id, 1), cost]
 	var next_label := _make_stone_label(next_text, 15, SURVIVORS_THEME.COLOR_TEXT_MUTED)
-	next_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	content.add_child(next_label)
 	var purchase_button := Button.new()
 	purchase_button.custom_minimum_size = Vector2(0.0, 42.0)
-	purchase_button.text = ("%s · %d 骨" % ["获取" if level == 0 else "升级", cost])
+	purchase_button.text = ("已购买" if level > 0 else "购买 · %d 骨" % cost)
+	purchase_button.disabled = level > 0
 	purchase_button.focus_mode = Control.FOCUS_ALL
 	SURVIVORS_THEME.apply_button_style(purchase_button, "primary")
 	purchase_button.pressed.connect(_on_ruan_stone_purchase.bind(stone_id))
@@ -426,8 +423,8 @@ func _add_ruan_stone_card(stone_id: String, equipped_id: String) -> void:
 	ruan_stone_purchase_buttons[stone_id] = purchase_button
 	var equip_button := Button.new()
 	equip_button.custom_minimum_size = Vector2(0.0, 40.0)
-	equip_button.text = "已装备" if stone_id == equipped_id else "装备"
-	equip_button.disabled = level <= 0 or stone_id == equipped_id
+	equip_button.text = "本场生效" if level > 0 else "未购买"
+	equip_button.disabled = true
 	equip_button.focus_mode = Control.FOCUS_ALL
 	SURVIVORS_THEME.apply_button_style(equip_button, "normal", stone_id == equipped_id)
 	equip_button.pressed.connect(_on_ruan_stone_equip.bind(stone_id))

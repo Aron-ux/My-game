@@ -1,12 +1,12 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://sw4kjpy7mlgu"]
 
-[ext_resource type="Script" path="res://scripts/bullet.gd" id="1_wave_script"]
-[ext_resource type="Texture2D" path="res://effects/wizard/wave/11.png" id="2_wave_11"]
-[ext_resource type="Texture2D" path="res://effects/wizard/wave/12.png" id="3_wave_12"]
-[ext_resource type="Texture2D" path="res://effects/wizard/wave/13.png" id="4_wave_13"]
-[ext_resource type="Texture2D" path="res://effects/wizard/wave/14.png" id="5_wave_14"]
-[ext_resource type="Texture2D" path="res://effects/wizard/wave/15.png" id="6_wave_15"]
-[ext_resource type="Texture2D" path="res://effects/wizard/wave/16.png" id="7_wave_16"]
+[ext_resource type="Script" uid="uid://cqe8fsrrjq8dw" path="res://scripts/bullet.gd" id="1_wave_script"]
+[ext_resource type="Texture2D" uid="uid://dxhsg45lw6kuu" path="res://effects/wizard/wave/11.png" id="2_wave_11"]
+[ext_resource type="Texture2D" uid="uid://cx3pwdj7s8ibq" path="res://effects/wizard/wave/12.png" id="3_wave_12"]
+[ext_resource type="Texture2D" uid="uid://dyoe5a6etcukk" path="res://effects/wizard/wave/13.png" id="4_wave_13"]
+[ext_resource type="Texture2D" uid="uid://8xra8b1xi2v4" path="res://effects/wizard/wave/14.png" id="5_wave_14"]
+[ext_resource type="Texture2D" uid="uid://cu68c6pibi725" path="res://effects/wizard/wave/15.png" id="6_wave_15"]
+[ext_resource type="Texture2D" uid="uid://fjrmbhyp2q52" path="res://effects/wizard/wave/16.png" id="7_wave_16"]
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_wave"]
 animations = [{
@@ -29,17 +29,18 @@ animations = [{
 "duration": 1.0,
 "texture": ExtResource("7_wave_16")
 }],
-"loop": true,
+"loop": false,
 "name": &"wave",
 "speed": 14.0
 }]
 
-[node name="Wave" type="Node2D"]
+[node name="Wave" type="Node2D" unique_id=1722235178]
 script = ExtResource("1_wave_script")
-animated_scene_size = Vector2(1024, 1024)
 animated_visible_bounds = Rect2(205, 224, 216, 492)
 
-[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1627720114]
 sprite_frames = SubResource("SpriteFrames_wave")
 animation = &"wave"
+frame = 5
+frame_progress = 1.0
 speed_scale = 1.4

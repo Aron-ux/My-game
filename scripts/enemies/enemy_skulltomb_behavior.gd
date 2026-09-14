@@ -66,11 +66,11 @@ static func _update_aging_aura(enemy, delta: float) -> void:
 	if enemy.global_position.distance_squared_to(target_node.global_position) > aura_radius * aura_radius:
 		enemy.skulltomb_aging_aura_elapsed = 0.0
 		return
-	if enemy.target.has_method("apply_aging"):
-		enemy.target.apply_aging(AGING_AURA_TICK_INTERVAL + 0.12)
 	enemy.skulltomb_aging_aura_elapsed += delta
 	while enemy.skulltomb_aging_aura_elapsed >= AGING_AURA_TICK_INTERVAL:
 		enemy.skulltomb_aging_aura_elapsed -= AGING_AURA_TICK_INTERVAL
+		if enemy.target.has_method("apply_aging"):
+			enemy.target.apply_aging(AGING_AURA_TICK_INTERVAL + 0.12)
 		_apply_aging_aura_tick(enemy)
 
 
@@ -445,7 +445,12 @@ static func _update_summon_area(enemy, delta: float) -> void:
 		_clear_summon_area(enemy)
 		return
 	if enemy.target == null or not is_instance_valid(enemy.target) or enemy.target is not Node2D:
+		enemy.skulltomb_area_damage_elapsed = 0.0
 		return
+	enemy.skulltomb_area_damage_elapsed += delta
+	if enemy.skulltomb_area_damage_elapsed < AGING_AURA_TICK_INTERVAL:
+		return
+	enemy.skulltomb_area_damage_elapsed -= AGING_AURA_TICK_INTERVAL
 	var status_duration: float = float(enemy.skulltomb_area_remaining) + 0.12
 	if enemy.target.has_method("apply_healing_block"):
 		enemy.target.apply_healing_block(status_duration)
