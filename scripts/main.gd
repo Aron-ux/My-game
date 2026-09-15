@@ -590,6 +590,14 @@ func _on_developer_enemy_spawn_requested(kind: String, archetype_id: String, cou
 func _on_developer_skill_unlock_requested(skill_id: String, tier: int) -> void:
 	DEVELOPER_ACTIONS.unlock_skill(self, skill_id, tier)
 
+func _on_skill_mode_toggle_requested(skill_id: String) -> void:
+	if player != null and is_instance_valid(player) and player.has_method("_toggle_skill_manual_by_id"):
+		player._toggle_skill_manual_by_id(skill_id)
+
+func _on_skill_slot_swap_requested(role_id: String, from_slot: int, to_slot: int) -> void:
+	if player != null and is_instance_valid(player) and player.has_method("_swap_skill_slot_order"):
+		player._swap_skill_slot_order(role_id, from_slot, to_slot)
+
 func _on_developer_skill_talent_grant_requested(talent_id: String) -> void:
 	DEVELOPER_ACTIONS.grant_skill_talent(self, talent_id)
 

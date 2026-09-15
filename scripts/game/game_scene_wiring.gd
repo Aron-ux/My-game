@@ -38,6 +38,8 @@ static func _setup_hud(main: Node) -> void:
 	main.hud = main.hud_scene.instantiate()
 	main.add_child(main.hud)
 	_connect_if_present(main.hud, "endless_speed_toggled", Callable(main, "_on_endless_speed_toggled"))
+	_connect_if_present(main.hud, "skill_mode_toggle_requested", Callable(main, "_on_skill_mode_toggle_requested"))
+	_connect_if_present(main.hud, "skill_slot_swap_requested", Callable(main, "_on_skill_slot_swap_requested"))
 	if main.hud.has_method("set_endless_mode_enabled"):
 		main.hud.set_endless_mode_enabled(main.endless_mode_active)
 	_connect_if_present(main.hud, "developer_level_up_requested", Callable(main, "_on_developer_level_up_requested"))

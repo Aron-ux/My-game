@@ -37,6 +37,10 @@ const ACTION_CHARACTER_PANEL := "character_panel"
 const ACTION_TOGGLE_HURT_CORE := "toggle_hurt_core"
 const ACTION_TOGGLE_PERFORMANCE_OVERLAY := "toggle_performance_overlay"
 const ACTION_INTERACT := "interact"
+const SKILL_SLOT_COUNT := 6
+const ACTION_SKILL_SLOT_PREFIX := "skill_slot_"
+const SKILL_MODE_SECTION := "skill_modes"
+const SKILL_ORDER_SECTION := "skill_slot_order"
 
 const ACTION_ORDER := [
 	ACTION_MOVE_UP,
@@ -44,6 +48,12 @@ const ACTION_ORDER := [
 	ACTION_MOVE_LEFT,
 	ACTION_MOVE_RIGHT,
 	ACTION_ULTIMATE,
+	"skill_slot_1",
+	"skill_slot_2",
+	"skill_slot_3",
+	"skill_slot_4",
+	"skill_slot_5",
+	"skill_slot_6",
 	ACTION_SWITCH_PREV,
 	ACTION_SWITCH_NEXT,
 	ACTION_TOGGLE_ATTACK_MODE,
@@ -59,6 +69,12 @@ const DEFAULT_KEYS := {
 	"move_left": KEY_A,
 	"move_right": KEY_D,
 	"ultimate": KEY_R,
+	"skill_slot_1": KEY_1,
+	"skill_slot_2": KEY_2,
+	"skill_slot_3": KEY_3,
+	"skill_slot_4": KEY_4,
+	"skill_slot_5": KEY_5,
+	"skill_slot_6": KEY_6,
 	"switch_prev": KEY_Q,
 	"switch_next": KEY_E,
 	"toggle_attack_mode": KEY_TAB,
@@ -108,6 +124,70 @@ static func event_matches_action(event: InputEvent, action_id: String) -> bool:
 		return false
 	var key_event := event as InputEventKey
 	return key_event.pressed and not key_event.echo and key_event.keycode == load_keycode(action_id)
+
+static func get_skill_slot_action_id(slot_index: int) -> String:
+	return "%s%d" % [ACTION_SKILL_SLOT_PREFIX, slot_index]
+
+
+static func get_skill_slot_index_for_event(event: InputEvent) -> int:
+	if event is not InputEventKey:
+		return 0
+	var key_event := event as InputEventKey
+	if not key_event.pressed or key_event.echo:
+		return 0
+	for slot_index in range(1, SKILL_SLOT_COUNT + 1):
+		if key_event.keycode == load_keycode(get_skill_slot_action_id(slot_index)):
+			return slot_index
+	return 0
+
+
+static func is_skill_manual(skill_id: String) -> bool:
+	if skill_id == "":
+		return false
+	var config := _get_config()
+	return bool(config.get_value(SKILL_MODE_SECTION, skill_id, false))
+
+
+static func set_skill_manual(skill_id: String, manual: bool) -> void:
+	if skill_id == "":
+		return
+	var config := _get_config()
+	config.set_value(SKILL_MODE_SECTION, skill_id, manual)
+	config.save(SETTINGS_PATH)
+
+
+static func toggle_skill_manual(skill_id: String) -> bool:
+	var next_value := not is_skill_manual(skill_id)
+	set_skill_manual(skill_id, next_value)
+	return next_value
+
+
+static func get_skill_slot_order(role_id: String) -> Array[String]:
+	var result: Array[String] = []
+	if role_id == "":
+		return result
+	var config := _get_config()
+	var raw_value: Variant = config.get_value(SKILL_ORDER_SECTION, role_id, [])
+	if raw_value is Array:
+		for skill_id_value in raw_value:
+			var skill_id := str(skill_id_value)
+			if skill_id != "" and not result.has(skill_id):
+				result.append(skill_id)
+	return result
+
+
+static func set_skill_slot_order(role_id: String, order: Array) -> void:
+	if role_id == "":
+		return
+	var normalized: Array[String] = []
+	for skill_id_value in order:
+		var skill_id := str(skill_id_value)
+		if skill_id != "" and not normalized.has(skill_id):
+			normalized.append(skill_id)
+	var config := _get_config()
+	config.set_value(SKILL_ORDER_SECTION, role_id, normalized)
+	config.save(SETTINGS_PATH)
+
 
 static func get_key_display_name(keycode: int) -> String:
 	if keycode == KEY_NONE:

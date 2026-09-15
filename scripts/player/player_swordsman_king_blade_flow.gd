@@ -6,7 +6,7 @@ extends RefCounted
 const KILLS_STATE_KEY := "king_blade_permanent_kills"
 const HEALTH_STATE_KEY := "king_blade_permanent_health_bonus"
 const SOURCE_PREFIX := "swordsman_king_blade:"
-const FLAT_ATTACK_PER_KILL := 0.01
+const FLAT_ATTACK_PER_KILL := 0.0
 const MAX_HEALTH_PER_KILL := 0.05
 const SEARCH_RADIUS := 350.0
 const SLASH_LENGTH := 350.0

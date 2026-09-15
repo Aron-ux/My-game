@@ -7,8 +7,8 @@ const COOLDOWN := 18.0
 const MAX_RANGE := 400.0
 const FALL_RADIUS := 100.0
 const FALL_DAMAGE_RATIO := 2.00
-const SWORD_DURATION := 8.0
-const SHOCKWAVE_INTERVAL := 2.0
+const SWORD_DURATION := 2.0
+const SHOCKWAVE_DELAY := 2.0
 const SHOCKWAVE_DAMAGE_RATIO := 1.00
 const ARMOR_SHRED_PER_SHOCKWAVE := 20.0
 const FULL_MAP_RADIUS := 4000.0
@@ -16,7 +16,7 @@ const FULL_MAP_RADIUS := 4000.0
 const TALENT_JUDGEMENT_SWORD_1 := "swordsman_level_talent_judgement_sword_1"
 const TALENT_JUDGEMENT_SWORD_2 := "swordsman_level_talent_judgement_sword_2"
 const FALL_DAMAGE_TALENT_BONUS := 1.00
-const SHOCKWAVE_INTERVAL_TALENT_REDUCTION := 1.0
+const SHOCKWAVE_DELAY_TALENT_REDUCTION := 1.0
 const SHOCKWAVE_DAMAGE_TALENT_BONUS := 0.50
 const ARMOR_SHRED_TALENT_BONUS := 10.0
 const ACTIVE_DAMAGE_REDUCTION_TALENT_BONUS := 80.0
@@ -28,7 +28,8 @@ const SWORD_AREA_VISIBLE_SIZE := Vector2(240.0, 240.0)
 
 var cooldown_remaining: float = 0.0
 var active_remaining: float = 0.0
-var shockwave_timer: float = SHOCKWAVE_INTERVAL
+var shockwave_timer: float = SHOCKWAVE_DELAY
+var shockwave_released: bool = false
 var sword_visual: Node2D = null
 var sword_position: Vector2 = Vector2.ZERO
 
@@ -38,15 +39,16 @@ func update(owner, delta: float) -> void:
 	if active_remaining <= 0.0:
 		return
 	active_remaining = max(0.0, active_remaining - delta)
+	if not shockwave_released:
+		shockwave_timer -= delta
+		if shockwave_timer <= 0.0:
+			shockwave_released = true
+			_release_shockwave(owner)
 	if active_remaining <= 0.0:
 		# 巨剑持续时间结束后才开始计算冷却
 		cooldown_remaining = COOLDOWN
 		_clear_sword_visual()
 		return
-	shockwave_timer -= delta
-	while shockwave_timer <= 0.0:
-		shockwave_timer += _get_shockwave_interval(owner)
-		_release_shockwave(owner)
 
 
 func can_trigger(owner, role_id: String) -> bool:
@@ -76,16 +78,17 @@ func try_trigger(owner) -> bool:
 	sword_position = center
 	_spawn_sword_visual(owner, center)
 	active_remaining = SWORD_DURATION
-	shockwave_timer = _get_shockwave_interval(owner)
+	shockwave_timer = _get_shockwave_delay(owner)
+	shockwave_released = false
 	return true
 
 
 func get_cooldown_slot(owner = null) -> Dictionary:
-	var description := "指定地点降下巨剑，对击中的敌人造成 200% 伤害；巨剑留地 8 秒，每 2 秒释放全图冲击波造成 100% 伤害，并使受到冲击的敌人减伤值降低 20 点（可叠加）。"
+	var description := "指定地点降下巨剑，对击中的敌人造成 200% 伤害；巨剑落地 2 秒后释放一道全图冲击波，造成 100% 伤害，并使受到冲击的敌人减伤值降低 20 点。"
 	if owner != null and _has_talent(owner, TALENT_JUDGEMENT_SWORD_1):
-		description += " 审判之誓 I：落地伤害增加 100%，冲击波间隔减少 1 秒，每道冲击波伤害增加 50%，并额外降低 10 点减伤值。"
+		description += " 审判之誓 I：落地伤害增加 100%，冲击波提前 1 秒释放，伤害增加 50%，并额外降低 10 点减伤值。"
 	if owner != null and _has_talent(owner, TALENT_JUDGEMENT_SWORD_2):
-		description += " 审判之誓 II：冲击波间隔减少 1 秒，每道冲击波为当前站场角色回复 30% 已损失生命，巨剑存在期间剑士获得 80 点减伤值。"
+		description += " 审判之誓 II：冲击波提前 1 秒释放，释放时为当前站场角色回复 30% 已损失生命，巨剑存在期间剑士获得 80 点减伤值。"
 	return {
 		"name": "审判之誓",
 		"remaining": clamp(cooldown_remaining, 0.0, COOLDOWN),
@@ -100,6 +103,7 @@ func get_save_data() -> Dictionary:
 		"cooldown_remaining": cooldown_remaining,
 		"active_remaining": active_remaining,
 		"shockwave_timer": shockwave_timer,
+		"shockwave_released": shockwave_released,
 		"sword_position": [sword_position.x, sword_position.y]
 	}
 
@@ -107,7 +111,8 @@ func get_save_data() -> Dictionary:
 func apply_save_data(data: Dictionary) -> void:
 	cooldown_remaining = clamp(float(data.get("cooldown_remaining", 0.0)), 0.0, COOLDOWN)
 	active_remaining = clamp(float(data.get("active_remaining", 0.0)), 0.0, SWORD_DURATION)
-	shockwave_timer = clamp(float(data.get("shockwave_timer", SHOCKWAVE_INTERVAL)), 0.0, SHOCKWAVE_INTERVAL)
+	shockwave_timer = clamp(float(data.get("shockwave_timer", SHOCKWAVE_DELAY)), 0.0, SHOCKWAVE_DELAY)
+	shockwave_released = bool(data.get("shockwave_released", false))
 	var position_data: Variant = data.get("sword_position", [0.0, 0.0])
 	if position_data is Array and (position_data as Array).size() >= 2:
 		sword_position = Vector2(float(position_data[0]), float(position_data[1]))
@@ -140,10 +145,10 @@ func get_active_damage_reduction_value(owner) -> float:
 	return 0.0
 
 
-func _get_shockwave_interval(owner) -> float:
+func _get_shockwave_delay(owner) -> float:
 	if owner != null and (_has_talent(owner, TALENT_JUDGEMENT_SWORD_1) or _has_talent(owner, TALENT_JUDGEMENT_SWORD_2)):
-		return SHOCKWAVE_INTERVAL - SHOCKWAVE_INTERVAL_TALENT_REDUCTION
-	return SHOCKWAVE_INTERVAL
+		return SHOCKWAVE_DELAY - SHOCKWAVE_DELAY_TALENT_REDUCTION
+	return SHOCKWAVE_DELAY
 
 
 func _has_talent(owner, talent_id: String) -> bool:

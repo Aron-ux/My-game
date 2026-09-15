@@ -93,7 +93,7 @@ func get_cooldown_slot(owner = null) -> Dictionary:
 		"remaining": clamp(cooldown_remaining, 0.0, cooldown_duration),
 		"duration": cooldown_duration,
 		"color": Color(1.0, 0.86, 0.4, 1.0),
-		"description": "王者之剑优先锁定 Boss，否则锁定敌人密集区域，造成 600% 伤害；每击杀一个敌人永久增加剑士 0.01 点攻击力。王者之剑 I：变为间隔 0.8 秒的三道斩击，每道造成 400% 伤害，冷却时间增加 8 秒。王者之剑 II：在基础效果上额外使每次击杀永久增加最大生命值 0.05 点。"
+		"description": "王者之剑优先锁定 Boss，否则锁定敌人密集区域，造成 600% 伤害。王者之剑 I：变为间隔 0.8 秒的三道斩击，每道造成 400% 伤害，冷却时间增加 8 秒。王者之剑 II：每次击杀永久增加剑士最大生命值 0.05 点。"
 	}
 
 

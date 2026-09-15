@@ -2,6 +2,7 @@ extends RefCounted
 
 const PLAYER_SKILL_COOLDOWN_SLOTS := preload("res://scripts/player/player_skill_cooldown_slots.gd")
 const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
+const GAME_SETTINGS := preload("res://scripts/game_settings.gd")
 
 const ROLE_ACTIVE_SKILL_PROPERTIES := {
 	"swordsman": {
@@ -130,15 +131,43 @@ static func _append_blessing_active_skill_slot(owner, role_id: String, extra_slo
 
 static func get_role_active_skill_ids(owner, role_id: String) -> Array[String]:
 	var ordered_ids: Array[String] = PLAYER_BLESSING_SKILL_STATE.get_unlocked_active_skill_order(owner, role_id)
-	if not ordered_ids.is_empty():
-		return ordered_ids
-	var result: Array[String] = []
-	var role_properties: Dictionary = ROLE_ACTIVE_SKILL_PROPERTIES.get(role_id, {})
-	for skill_id_value in role_properties.keys():
-		var skill_id := str(skill_id_value)
-		if owner.has_method("_is_blessing_skill_unlocked") and bool(owner._is_blessing_skill_unlocked(skill_id)):
-			result.append(skill_id)
-	return result
+	if ordered_ids.is_empty():
+		var result: Array[String] = []
+		var role_properties: Dictionary = ROLE_ACTIVE_SKILL_PROPERTIES.get(role_id, {})
+		for skill_id_value in role_properties.keys():
+			var skill_id := str(skill_id_value)
+			if owner.has_method("_is_blessing_skill_unlocked") and bool(owner._is_blessing_skill_unlocked(skill_id)):
+				result.append(skill_id)
+		return _apply_custom_skill_slot_order(result, role_id)
+	return _apply_custom_skill_slot_order(ordered_ids, role_id)
+
+
+static func _apply_custom_skill_slot_order(skill_ids: Array[String], role_id: String) -> Array[String]:
+	var custom_order: Array[String] = GAME_SETTINGS.get_skill_slot_order(role_id)
+	if custom_order.is_empty():
+		return skill_ids
+	var arranged: Array[String] = []
+	for skill_id in custom_order:
+		if skill_ids.has(skill_id) and not arranged.has(skill_id):
+			arranged.append(skill_id)
+	for skill_id in skill_ids:
+		if not arranged.has(skill_id):
+			arranged.append(skill_id)
+	return arranged
+
+
+static func swap_role_skill_order(owner, role_id: String, from_slot: int, to_slot: int) -> bool:
+	if owner == null or role_id == "" or from_slot < 1 or to_slot < 1 or from_slot == to_slot:
+		return false
+	var skill_ids: Array[String] = get_role_active_skill_ids(owner, role_id)
+	if from_slot > skill_ids.size() or to_slot > skill_ids.size():
+		return false
+	var swapped: Array[String] = skill_ids.duplicate()
+	var temp_skill_id: String = swapped[from_slot - 1]
+	swapped[from_slot - 1] = swapped[to_slot - 1]
+	swapped[to_slot - 1] = temp_skill_id
+	GAME_SETTINGS.set_skill_slot_order(role_id, swapped)
+	return true
 
 
 static func _get_role_skill_property_names(role_id: String) -> Array[String]:

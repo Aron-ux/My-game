@@ -162,12 +162,12 @@ func _run() -> void:
 	assert(FireballFlow != null)
 
 	var judgement := JudgementSword.new()
-	judgement.active_remaining = 4.0
+	judgement.active_remaining = 1.5
 	judgement.shockwave_timer = 0.8
 	judgement.sword_position = Vector2(120.0, -80.0)
 	var judgement_copy := JudgementSword.new()
 	judgement_copy.apply_save_data(_json_roundtrip(judgement.get_save_data()))
-	assert(is_equal_approx(judgement_copy.active_remaining, 4.0))
+	assert(is_equal_approx(judgement_copy.active_remaining, 1.5))
 	assert(is_equal_approx(judgement_copy.shockwave_timer, 0.8))
 	assert(judgement_copy.sword_position == Vector2(120.0, -80.0))
 

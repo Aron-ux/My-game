@@ -28,8 +28,16 @@ static func unhandled_input(owner, event: InputEvent) -> void:
 		return
 
 	var manual_skill_slot := _get_manual_skill_slot_index(event)
-	if manual_skill_slot > 0 and owner.has_method("_try_handle_manual_skill_slot") and owner._try_handle_manual_skill_slot(manual_skill_slot):
-		owner.get_viewport().set_input_as_handled()
+	if manual_skill_slot > 0:
+		# Ctrl + 槽位键：切换该技能的自动/手动释放状态
+		if event.ctrl_pressed:
+			if owner.has_method("_toggle_skill_manual_slot"):
+				owner._toggle_skill_manual_slot(manual_skill_slot)
+			owner.get_viewport().set_input_as_handled()
+			return
+		# 槽位键：仅在该技能处于手动释放状态时才施放
+		if owner.has_method("_try_handle_manual_skill_slot") and owner._try_handle_manual_skill_slot(manual_skill_slot):
+			owner.get_viewport().set_input_as_handled()
 		return
 
 	if GAME_SETTINGS.event_matches_action(event, GAME_SETTINGS.ACTION_SWITCH_PREV):
@@ -45,20 +53,7 @@ static func unhandled_input(owner, event: InputEvent) -> void:
 
 
 static func _get_manual_skill_slot_index(event: InputEventKey) -> int:
-	match event.keycode:
-		KEY_1:
-			return 1
-		KEY_2:
-			return 2
-		KEY_3:
-			return 3
-		KEY_4:
-			return 4
-		KEY_5:
-			return 5
-		KEY_6:
-			return 6
-	return 0
+	return GAME_SETTINGS.get_skill_slot_index_for_event(event)
 
 
 static func toggle_attack_aim_mode(owner) -> void:

@@ -1605,6 +1605,21 @@ func _try_trigger_gunner_infinite_reload() -> void:
 func _try_handle_manual_skill_slot(slot_index: int) -> bool:
 	return PLAYER_ABILITY_FLOW.try_handle_manual_skill_slot(self, slot_index)
 
+func _toggle_skill_manual_slot(slot_index: int) -> bool:
+	return PLAYER_ABILITY_FLOW.toggle_manual_skill_slot(self, slot_index)
+
+func _toggle_skill_manual_by_id(skill_id: String) -> bool:
+	return PLAYER_ABILITY_FLOW.toggle_skill_manual(self, skill_id)
+
+func _swap_skill_slot_order(role_id: String, from_slot: int, to_slot: int) -> bool:
+	var resolved_role_id := role_id
+	if resolved_role_id == "":
+		resolved_role_id = str(_get_active_role().get("id", ""))
+	var swapped := PLAYER_SKILL_COOLDOWN_FLOW.swap_role_skill_order(self, resolved_role_id, from_slot, to_slot)
+	if swapped and has_signal("stats_changed"):
+		stats_changed.emit(get_stat_summary())
+	return swapped
+
 func _try_trigger_gunner_shrapnel_field() -> void:
 	PLAYER_ABILITY_FLOW.try_trigger_gunner_shrapnel_field(self)
 

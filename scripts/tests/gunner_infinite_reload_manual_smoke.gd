@@ -8,6 +8,7 @@ const PlayerEquipmentFlow := preload("res://scripts/player/player_equipment_flow
 const PlayerSurvivalFlow := preload("res://scripts/player/player_survival_flow.gd")
 const PlayerUltimateFlow := preload("res://scripts/player/player_ultimate_flow.gd")
 const PlayerSwitchFlow := preload("res://scripts/player/player_switch_flow.gd")
+const GAME_SETTINGS := preload("res://scripts/game_settings.gd")
 
 var failures: Array[String] = []
 
@@ -33,11 +34,15 @@ func _run() -> void:
 		"gunner_level_talent_infinite_reload_1": true,
 		"gunner_level_talent_infinite_reload_2": true
 	}
+	# 热键仅在技能处于“手动释放”状态时生效，先临时切到手动并在结束时还原。
+	var previous_manual_mode := GAME_SETTINGS.is_skill_manual("infinite_reload")
+	GAME_SETTINGS.set_skill_manual("infinite_reload", true)
 
 	var active_skill_ids := PlayerCooldownFlow.get_role_active_skill_ids(owner, "gunner")
 	_expect(active_skill_ids == ["shrapnel_field", "infinite_reload"], "skill hotkey slots should follow active skill unlock order")
 	_expect(not owner.gunner_infinite_reload_ability.try_trigger(owner), "manual infinite reload should not auto-cast")
-	_expect(not PlayerAbilityFlow.try_handle_manual_skill_slot(owner, 1), "slot 1 should not toggle shrapnel")
+	_expect(PlayerAbilityFlow.try_handle_manual_skill_slot(owner, 1), "slot 1 should report the auto state instead of toggling shrapnel")
+	_expect(not owner.gunner_infinite_reload_ability.is_active(), "slot 1 should not affect infinite reload")
 
 	owner.mouse_aim_direction = Vector2.RIGHT
 	_expect(PlayerAbilityFlow.try_handle_manual_skill_slot(owner, 2), "slot 2 should toggle infinite reload on")
@@ -82,6 +87,7 @@ func _run() -> void:
 	_expect(not PlayerSurvivalFlow.is_movement_locked(owner), "manual infinite reload should release movement lock after closing")
 
 	owner.queue_free()
+	GAME_SETTINGS.set_skill_manual("infinite_reload", previous_manual_mode)
 	await process_frame
 	if failures.is_empty():
 		print("GUNNER_INFINITE_RELOAD_MANUAL_SMOKE_OK")

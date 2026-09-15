@@ -1,5 +1,8 @@
 extends Control
 
+signal skill_mode_toggle_requested(skill_id: String)
+signal skill_slot_swap_requested(role_id: String, from_slot: int, to_slot: int)
+
 const GAME_SETTINGS := preload("res://scripts/game_settings.gd")
 const SURVIVORS_HOVER_DETAIL := preload("res://scripts/ui/components/survivors_hover_detail.gd")
 const SKILL_CD_SLOT_COUNT := 6
@@ -23,6 +26,16 @@ const TEAM_STACK_SLOT_SIZE_ACTIVE := 36.0
 const TEAM_STACK_SLOT_SIZE_STANDBY := 28.0
 const TEAM_STACK_SLOT_GAP_ACTIVE := 7.0
 const TEAM_STACK_SLOT_GAP_STANDBY := 6.0
+const BASIC_ATTACK_SLOT_EXTRA_GAP := 25.0
+const SKILL_CD_SLOT_SEPARATION := 9
+const TEAM_STACK_BASIC_ATTACK_GAP := 16.0
+const SKILL_SLOT_KEY_LABEL_FONT_SIZE := 12
+const SKILL_SLOT_MANUAL_COLOR := Color(1.0, 0.86, 0.42, 1.0)
+const SKILL_SLOT_AUTO_COLOR := Color(0.78, 0.86, 0.96, 0.92)
+const AUTO_BORDER_SPIN_SPEED := 0.85
+const SKILL_SLOT_DRAG_THRESHOLD := 6.0
+const SKILL_SLOT_SWAP_ANIMATION_DURATION := 0.26
+const SKILL_SLOT_DRAG_GHOST_FONT_SIZE := 16
 const TEAM_STACK_SLOT_COUNT := SKILL_CD_SLOT_COUNT
 const COOLDOWN_REDRAW_EPSILON: float = 0.01
 const ENERGY_REDRAW_EPSILON: float = 0.0001
@@ -89,6 +102,8 @@ class SkillCooldownIcon:
 	var cooldown_ratio: float = 0.0
 	var unlocked: bool = false
 	var cooldown_overlay: CooldownOverlay
+	var auto_mode: bool = false
+	var _auto_border_spin: float = 0.0
 
 	func _ready() -> void:
 		clip_contents = true
@@ -101,6 +116,51 @@ class SkillCooldownIcon:
 		cooldown_overlay.offset_bottom = 0.0
 		add_child(cooldown_overlay)
 		cooldown_overlay.set_ratio(cooldown_ratio if unlocked else 0.0)
+		set_process(auto_mode)
+
+	func set_auto_mode(enabled: bool) -> void:
+		if auto_mode == enabled:
+			return
+		auto_mode = enabled
+		set_process(enabled)
+		queue_redraw()
+
+	func _process(delta: float) -> void:
+		if not auto_mode:
+			return
+		_auto_border_spin = fmod(_auto_border_spin + delta * AUTO_BORDER_SPIN_SPEED, TAU)
+		queue_redraw()
+
+	func _border_point(rect: Rect2, progress: float) -> Vector2:
+		var normalized_progress := fmod(progress, TAU) / TAU
+		var width: float = max(1.0, rect.size.x)
+		var height: float = max(1.0, rect.size.y)
+		var perimeter: float = (width + height) * 2.0
+		var distance: float = normalized_progress * perimeter
+		if distance < width:
+			return rect.position + Vector2(distance, 0.0)
+		distance -= width
+		if distance < height:
+			return rect.position + Vector2(width, distance)
+		distance -= height
+		if distance < width:
+			return rect.position + Vector2(width - distance, height)
+		distance -= width
+		return rect.position + Vector2(0.0, height - distance)
+
+	func _draw_auto_border_glow(rect: Rect2) -> void:
+		var span := 0.22
+		var segments := 9
+		var points := PackedVector2Array()
+		var colors := PackedColorArray()
+		for index in range(segments + 1):
+			var step_progress: float = _auto_border_spin * TAU + span * TAU * float(index) / float(segments)
+			var fade: float = 1.0 - float(index) / float(segments)
+			points.append(_border_point(rect, step_progress))
+			colors.append(Color(0.55, 0.92, 1.0, 0.9 * fade))
+		if points.size() >= 2:
+			draw_polyline_colors(points, colors, 3.0)
+		draw_circle(_border_point(rect, _auto_border_spin * TAU), 2.6, Color(0.92, 0.99, 1.0, 0.95))
 
 	func set_state(new_unlocked: bool, new_color: Color, new_cooldown_ratio: float) -> void:
 		var resolved_ratio: float = clamp(new_cooldown_ratio, 0.0, 1.0)
@@ -127,6 +187,8 @@ class SkillCooldownIcon:
 		if not unlocked:
 			draw_rect(inner_rect, Color(0.0, 0.0, 0.0, 0.42), true)
 		draw_rect(outer_rect.grow(-1.0), frame_color, false, 2.0)
+		if auto_mode and unlocked:
+			_draw_auto_border_glow(outer_rect.grow(-1.5))
 
 class BuffStatusIcon:
 	extends Control
@@ -716,6 +778,7 @@ class TeamRoleStatusRow:
 
 var switch_cd_left_key_label: Label
 var switch_cd_right_key_label: Label
+var skill_slot_drag_state: Dictionary = {}
 var switch_cd_time_label: Label
 var switch_cd_portraits: Dictionary = {}
 var switch_cd_active_role_id: String = ""
@@ -884,12 +947,18 @@ func update_skill_cooldown_slots(slot_data_list: Array) -> void:
 		var slot_nodes: Dictionary = skill_cd_slots[index]
 		var slot_view: SkillCooldownIcon = slot_nodes["view"] as SkillCooldownIcon
 		var label: Label = slot_nodes["label"] as Label
+		var key_label: Label = slot_nodes.get("key_label", null) as Label
 		if index >= slot_data_list.size():
 			slot_view.set_state(false, Color(0.12, 0.13, 0.16, 1.0), 0.0)
+			slot_view.set_auto_mode(false)
 			if slot_view.tooltip_text != "":
 				slot_view.tooltip_text = ""
 			if label.text != "":
 				label.text = ""
+			if key_label != null and key_label.text != "":
+				key_label.text = ""
+			if str(slot_nodes.get("skill_id", "")) != "":
+				slot_nodes["skill_id"] = ""
 			if str(slot_nodes.get("title", "")) != "":
 				slot_nodes["title"] = ""
 			if str(slot_nodes.get("description", "")) != "":
@@ -921,6 +990,58 @@ func update_skill_cooldown_slots(slot_data_list: Array) -> void:
 		var next_slot_label: String = str(slot_data.get("slot_label", "技能冷却"))
 		if str(slot_nodes.get("slot_label", "")) != next_slot_label:
 			slot_nodes["slot_label"] = next_slot_label
+		slot_nodes["skill_id"] = str(slot_data.get("skill_id", ""))
+		_apply_skill_slot_key_label(slot_nodes, index, str(slot_data.get("skill_id", "")), slot_data)
+
+
+func _apply_skill_slot_key_label(slot_nodes: Dictionary, slot_index: int, skill_id: String, slot_data: Dictionary) -> void:
+	var key_label: Label = slot_nodes.get("key_label", null) as Label
+	var slot_view: SkillCooldownIcon = slot_nodes.get("view", null) as SkillCooldownIcon
+	if slot_view != null:
+		slot_view.set_auto_mode(slot_index > 0 and skill_id != "" and not GAME_SETTINGS.is_skill_manual(skill_id))
+	if key_label == null:
+		return
+	if slot_index == 0 or skill_id == "":
+		if key_label.text != "":
+			key_label.text = ""
+		return
+	var key_slot_index: int = int(slot_data.get("manual_slot_index", slot_index))
+	if key_slot_index <= 0:
+		key_slot_index = slot_index
+	var action_id := GAME_SETTINGS.get_skill_slot_action_id(key_slot_index)
+	var key_text := GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(action_id))
+	var manual := GAME_SETTINGS.is_skill_manual(skill_id)
+	var next_text := key_text
+	var next_color := SKILL_SLOT_AUTO_COLOR
+	if manual:
+		next_text = "%s 手动" % key_text
+		next_color = SKILL_SLOT_MANUAL_COLOR
+	if key_label.text != next_text:
+		key_label.text = next_text
+	key_label.add_theme_color_override("font_color", next_color)
+
+
+func _emit_skill_mode_toggle(skill_id: String) -> void:
+	if skill_id == "":
+		return
+	skill_mode_toggle_requested.emit(skill_id)
+
+
+func _on_legacy_skill_slot_gui_input(event: InputEvent, slot_index: int) -> void:
+	if not (event is InputEventMouseButton):
+		return
+	var mouse_event := event as InputEventMouseButton
+	if not mouse_event.pressed:
+		return
+	if slot_index < 0 or slot_index >= skill_cd_slots.size():
+		return
+	var slot_nodes: Dictionary = skill_cd_slots[slot_index]
+	if mouse_event.button_index == MOUSE_BUTTON_RIGHT:
+		_emit_skill_mode_toggle(str(slot_nodes.get("skill_id", "")))
+		accept_event()
+	elif mouse_event.button_index == MOUSE_BUTTON_LEFT:
+		_begin_skill_slot_drag(slot_index, "", str(slot_nodes.get("skill_id", "")), str(slot_nodes.get("title", "")))
+		accept_event()
 
 func update_buff_slots(buff_data_list: Array) -> void:
 	if buff_status_bar == null:
@@ -1038,7 +1159,7 @@ func _build_legacy_widgets() -> void:
 	var skill_cd_panel := HBoxContainer.new()
 	skill_cd_panel.position = Vector2(SWITCH_WIDGET_WIDTH + SWITCH_WIDGET_GAP, 10.0)
 	skill_cd_panel.alignment = BoxContainer.ALIGNMENT_CENTER
-	skill_cd_panel.add_theme_constant_override("separation", 14)
+	skill_cd_panel.add_theme_constant_override("separation", SKILL_CD_SLOT_SEPARATION)
 	add_child(skill_cd_panel)
 
 	buff_status_bar = HBoxContainer.new()
@@ -1069,6 +1190,7 @@ func _build_legacy_widgets() -> void:
 		slot_icon.tooltip_text = ""
 		slot_icon.mouse_entered.connect(_on_skill_slot_hovered.bind(slot_icon, index))
 		slot_icon.mouse_exited.connect(_on_skill_slot_unhovered)
+		slot_icon.gui_input.connect(_on_legacy_skill_slot_gui_input.bind(index))
 		skill_cd_panel.add_child(slot_icon)
 
 		var label := Label.new()
@@ -1084,13 +1206,36 @@ func _build_legacy_widgets() -> void:
 		label.text = ""
 		slot_icon.add_child(label)
 
+		var key_label := Label.new()
+		key_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		key_label.position = Vector2(2.0, 1.0)
+		key_label.custom_minimum_size = Vector2(SKILL_CD_SLOT_SIZE - 4.0, 16.0)
+		key_label.size = Vector2(SKILL_CD_SLOT_SIZE - 4.0, 16.0)
+		key_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		key_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+		key_label.add_theme_font_size_override("font_size", SKILL_SLOT_KEY_LABEL_FONT_SIZE)
+		key_label.add_theme_color_override("font_color", SKILL_SLOT_AUTO_COLOR)
+		key_label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.95))
+		key_label.add_theme_constant_override("shadow_offset_x", 1)
+		key_label.add_theme_constant_override("shadow_offset_y", 1)
+		key_label.text = ""
+		slot_icon.add_child(key_label)
+
 		skill_cd_slots.append({
 			"view": slot_icon,
 			"label": label,
+			"key_label": key_label,
 			"title": "",
 			"description": "",
+			"skill_id": "",
 			"slot_label": ""
 		})
+		if index == 0:
+			# 普攻槽与技能槽视觉分离
+			var basic_attack_gap := Control.new()
+			basic_attack_gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			basic_attack_gap.custom_minimum_size = Vector2(BASIC_ATTACK_SLOT_EXTRA_GAP, 1.0)
+			skill_cd_panel.add_child(basic_attack_gap)
 
 	ultimate_energy_widget = UltimateEnergyDisplay.new()
 	ultimate_energy_widget.position = Vector2(SWITCH_WIDGET_WIDTH + SWITCH_WIDGET_GAP + SKILL_PANEL_WIDTH + ULTIMATE_WIDGET_GAP, -18.0)
@@ -1190,6 +1335,7 @@ func _build_team_role_rows() -> void:
 			slot_icon.tooltip_text = ""
 			slot_icon.mouse_entered.connect(_on_team_role_skill_slot_hovered.bind(row_index, slot_index, slot_icon))
 			slot_icon.mouse_exited.connect(_on_skill_slot_unhovered)
+			slot_icon.gui_input.connect(_on_team_skill_slot_gui_input.bind(row_index, slot_index))
 			row.add_child(slot_icon)
 
 			var label := Label.new()
@@ -1205,9 +1351,22 @@ func _build_team_role_rows() -> void:
 			label.text = ""
 			slot_icon.add_child(label)
 
+			var key_label := Label.new()
+			key_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			key_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			key_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+			key_label.add_theme_font_size_override("font_size", 11 if bool(spec["active"]) else 10)
+			key_label.add_theme_color_override("font_color", SKILL_SLOT_AUTO_COLOR)
+			key_label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.95))
+			key_label.add_theme_constant_override("shadow_offset_x", 1)
+			key_label.add_theme_constant_override("shadow_offset_y", 1)
+			key_label.text = ""
+			slot_icon.add_child(key_label)
+
 			slot_nodes.append({
 				"view": slot_icon,
 				"label": label,
+				"key_label": key_label,
 				"title": "",
 				"description": "",
 				"base_description": "",
@@ -1408,19 +1567,25 @@ func _layout_team_role_slots(row_index: int) -> void:
 	var slot_size: float = TEAM_STACK_SLOT_SIZE_ACTIVE if row_active else TEAM_STACK_SLOT_SIZE_STANDBY
 	var slot_gap: float = TEAM_STACK_SLOT_GAP_ACTIVE if row_active else TEAM_STACK_SLOT_GAP_STANDBY
 	var slots: Array = row_entry["slots"]
-	var slot_area_width: float = float(slots.size()) * slot_size + max(0.0, float(slots.size() - 1)) * slot_gap
+	var basic_attack_gap: float = TEAM_STACK_BASIC_ATTACK_GAP if slots.size() > 1 else 0.0
+	var slot_area_width: float = float(slots.size()) * slot_size + max(0.0, float(slots.size() - 1)) * slot_gap + basic_attack_gap
 	var start_x: float = row.size.x - slot_area_width - 18.0
 	var start_y: float = (row.size.y - slot_size) * 0.5
 	for slot_index in range(slots.size()):
 		var slot_nodes: Dictionary = slots[slot_index]
 		var slot_view: SkillCooldownIcon = slot_nodes["view"] as SkillCooldownIcon
 		var label: Label = slot_nodes["label"] as Label
+		var key_label: Label = slot_nodes.get("key_label", null) as Label
 		if slot_view != null:
-			slot_view.position = Vector2(start_x + float(slot_index) * (slot_size + slot_gap), start_y)
+			slot_view.position = Vector2(start_x + float(slot_index) * (slot_size + slot_gap) + (basic_attack_gap if slot_index > 0 else 0.0), start_y)
 			slot_view.size = Vector2(slot_size, slot_size)
 			slot_view.custom_minimum_size = Vector2(slot_size, slot_size)
 		if label != null:
 			label.add_theme_font_size_override("font_size", 14 if row_active else 12)
+		if key_label != null:
+			key_label.position = Vector2(0.0, 0.0)
+			key_label.size = Vector2(slot_size, 14.0)
+			key_label.custom_minimum_size = Vector2(slot_size, 14.0)
 
 func _update_team_role_slots(row_index: int, slot_data_list: Array) -> void:
 	if row_index < 0 or row_index >= team_role_rows.size():
@@ -1435,8 +1600,12 @@ func _update_team_role_slots(row_index: int, slot_data_list: Array) -> void:
 		var label: Label = slot_nodes["label"] as Label
 		if slot_index >= slot_data_list.size():
 			slot_view.set_state(false, Color(0.12, 0.13, 0.16, 1.0), 0.0)
+			slot_view.set_auto_mode(false)
 			if label.text != "":
 				label.text = ""
+			var empty_key_label: Label = slot_nodes.get("key_label", null) as Label
+			if empty_key_label != null and empty_key_label.text != "":
+				empty_key_label.text = ""
 			slot_nodes["title"] = "空技能槽"
 			slot_nodes["description"] = "该位置保留给此角色后续解锁的技能。"
 			slot_nodes["base_description"] = ""
@@ -1472,6 +1641,209 @@ func _update_team_role_slots(row_index: int, slot_data_list: Array) -> void:
 		tooltip_data["description"] = base_description
 		slot_nodes["description"] = _build_slot_tooltip(tooltip_data, duration, remaining)
 		slot_nodes["slot_label"] = str(slot_data.get("slot_label", "技能冷却"))
+		_apply_team_slot_key_label(slot_nodes, slot_index, skill_id, slot_data)
+
+func _apply_team_slot_key_label(slot_nodes: Dictionary, slot_index: int, skill_id: String, slot_data: Dictionary) -> void:
+	var key_label: Label = slot_nodes.get("key_label", null) as Label
+	var slot_view: SkillCooldownIcon = slot_nodes.get("view", null) as SkillCooldownIcon
+	if slot_view != null:
+		slot_view.set_auto_mode(slot_index > 0 and skill_id != "" and not GAME_SETTINGS.is_skill_manual(skill_id))
+	if key_label == null:
+		return
+	if slot_index == 0 or skill_id == "":
+		if key_label.text != "":
+			key_label.text = ""
+		return
+	var key_slot_index: int = int(slot_data.get("manual_slot_index", slot_index))
+	if key_slot_index <= 0:
+		key_slot_index = slot_index
+	var action_id := GAME_SETTINGS.get_skill_slot_action_id(key_slot_index)
+	var key_text := GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(action_id))
+	if key_label.text != key_text:
+		key_label.text = key_text
+	key_label.add_theme_color_override("font_color", SKILL_SLOT_MANUAL_COLOR if GAME_SETTINGS.is_skill_manual(skill_id) else SKILL_SLOT_AUTO_COLOR)
+
+func _on_team_skill_slot_gui_input(event: InputEvent, row_index: int, slot_index: int) -> void:
+	if not (event is InputEventMouseButton):
+		return
+	var mouse_event := event as InputEventMouseButton
+	if not mouse_event.pressed:
+		return
+	if row_index < 0 or row_index >= team_role_rows.size():
+		return
+	var row_entry: Dictionary = team_role_rows[row_index]
+	var slots: Array = row_entry.get("slots", [])
+	if slot_index < 0 or slot_index >= slots.size():
+		return
+	var slot_nodes: Dictionary = slots[slot_index]
+	var skill_id := str(slot_nodes.get("skill_id", ""))
+	if mouse_event.button_index == MOUSE_BUTTON_RIGHT:
+		_emit_skill_mode_toggle(skill_id)
+		accept_event()
+	elif mouse_event.button_index == MOUSE_BUTTON_LEFT:
+		var role_id := str((row_entry.get("data", {}) as Dictionary).get("role_id", ""))
+		_begin_skill_slot_drag(slot_index, role_id, skill_id, str(slot_nodes.get("title", "")))
+		accept_event()
+
+
+func _begin_skill_slot_drag(slot_index: int, role_id: String, skill_id: String, title: String) -> void:
+	if slot_index < 1 or skill_id == "":
+		return
+	var key_slot_index := slot_index
+	var key_text := GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(GAME_SETTINGS.get_skill_slot_action_id(key_slot_index)))
+	var display_title := title if title != "" else skill_id
+	skill_slot_drag_state = {
+		"armed": true,
+		"active": false,
+		"from_slot": slot_index,
+		"role_id": role_id,
+		"skill_id": skill_id,
+		"origin": get_global_mouse_position(),
+		"ghost": null,
+		"ghost_text": "%s  %s" % [display_title, key_text]
+	}
+
+
+func _input(event: InputEvent) -> void:
+	if not bool(skill_slot_drag_state.get("armed", false)):
+		return
+	if event is InputEventMouseMotion:
+		var mouse_position := get_global_mouse_position()
+		if not bool(skill_slot_drag_state.get("active", false)):
+			var origin: Vector2 = skill_slot_drag_state.get("origin", mouse_position)
+			if origin.distance_to(mouse_position) < SKILL_SLOT_DRAG_THRESHOLD:
+				return
+			skill_slot_drag_state["active"] = true
+			_create_skill_slot_drag_ghost()
+		_update_skill_slot_drag_ghost(mouse_position)
+		get_viewport().set_input_as_handled()
+	elif event is InputEventMouseButton:
+		var mouse_event := event as InputEventMouseButton
+		if mouse_event.button_index == MOUSE_BUTTON_LEFT and not mouse_event.pressed:
+			if bool(skill_slot_drag_state.get("active", false)):
+				_finish_skill_slot_drag()
+			else:
+				_cancel_skill_slot_drag()
+
+
+func _create_skill_slot_drag_ghost() -> void:
+	var ghost := PanelContainer.new()
+	ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ghost.z_index = 200
+	ghost.modulate = Color(1.0, 1.0, 1.0, 0.94)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.08, 0.1, 0.14, 0.94)
+	style.border_color = Color(1.0, 0.86, 0.42, 0.95)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(4)
+	ghost.add_theme_stylebox_override("panel", style)
+	var label := Label.new()
+	label.text = str(skill_slot_drag_state.get("ghost_text", ""))
+	label.add_theme_font_size_override("font_size", SKILL_SLOT_DRAG_GHOST_FONT_SIZE)
+	label.add_theme_color_override("font_color", Color(1.0, 0.94, 0.78, 1.0))
+	ghost.add_child(label)
+	add_child(ghost)
+	ghost.reset_size()
+	ghost.pivot_offset = ghost.size * 0.5
+	skill_slot_drag_state["ghost"] = ghost
+	_update_skill_slot_drag_ghost(get_global_mouse_position())
+
+
+func _update_skill_slot_drag_ghost(mouse_position: Vector2) -> void:
+	var ghost: Control = skill_slot_drag_state.get("ghost", null) as Control
+	if ghost == null or not is_instance_valid(ghost):
+		return
+	ghost.global_position = mouse_position - ghost.size * 0.5
+
+
+func _find_skill_slot_at(mouse_position: Vector2) -> Dictionary:
+	for index in range(1, skill_cd_slots.size()):
+		var nodes: Dictionary = skill_cd_slots[index]
+		var view: SkillCooldownIcon = nodes.get("view", null) as SkillCooldownIcon
+		if view == null or not view.is_visible_in_tree() or str(nodes.get("skill_id", "")) == "":
+			continue
+		if view.get_global_rect().has_point(mouse_position):
+			return {"slot_index": index, "role_id": "", "center": view.get_global_rect().get_center(), "view": view}
+	var drag_role_id := str(skill_slot_drag_state.get("role_id", ""))
+	for row_index in range(team_role_rows.size()):
+		var row_entry: Dictionary = team_role_rows[row_index]
+		var role_id := str((row_entry.get("data", {}) as Dictionary).get("role_id", ""))
+		if drag_role_id != "" and role_id != drag_role_id:
+			continue
+		var slots: Array = row_entry.get("slots", [])
+		for slot_index in range(1, slots.size()):
+			var nodes: Dictionary = slots[slot_index]
+			var view: SkillCooldownIcon = nodes.get("view", null) as SkillCooldownIcon
+			if view == null or not view.is_visible_in_tree() or str(nodes.get("skill_id", "")) == "":
+				continue
+			if view.get_global_rect().has_point(mouse_position):
+				return {"slot_index": slot_index, "role_id": role_id, "center": view.get_global_rect().get_center(), "view": view}
+	return {}
+
+
+func _get_skill_slot_view(slot_index: int, role_id: String) -> SkillCooldownIcon:
+	if role_id == "":
+		if slot_index >= 0 and slot_index < skill_cd_slots.size():
+			return (skill_cd_slots[slot_index] as Dictionary).get("view", null) as SkillCooldownIcon
+		return null
+	for row_entry_value in team_role_rows:
+		var row_entry: Dictionary = row_entry_value
+		var row_role_id := str((row_entry.get("data", {}) as Dictionary).get("role_id", ""))
+		if row_role_id != role_id:
+			continue
+		var slots: Array = row_entry.get("slots", [])
+		if slot_index >= 0 and slot_index < slots.size():
+			return (slots[slot_index] as Dictionary).get("view", null) as SkillCooldownIcon
+	return null
+
+
+func _finish_skill_slot_drag() -> void:
+	var mouse_position := get_global_mouse_position()
+	var target := _find_skill_slot_at(mouse_position)
+	var from_slot := int(skill_slot_drag_state.get("from_slot", 0))
+	var drag_role_id := str(skill_slot_drag_state.get("role_id", ""))
+	var ghost: Control = skill_slot_drag_state.get("ghost", null) as Control
+	var source_view := _get_skill_slot_view(from_slot, drag_role_id)
+	if not target.is_empty() and int(target.get("slot_index", 0)) != from_slot:
+		var target_slot := int(target.get("slot_index", 0))
+		var target_view: SkillCooldownIcon = target.get("view", null) as SkillCooldownIcon
+		var target_center: Vector2 = target.get("center", mouse_position)
+		_play_skill_slot_swap_animation(ghost, source_view, target_view, target_center)
+		skill_slot_swap_requested.emit(drag_role_id, from_slot, target_slot)
+	else:
+		_dispose_skill_slot_drag_ghost(ghost)
+	skill_slot_drag_state = {}
+
+
+func _cancel_skill_slot_drag() -> void:
+	_dispose_skill_slot_drag_ghost(skill_slot_drag_state.get("ghost", null) as Control)
+	skill_slot_drag_state = {}
+
+
+func _dispose_skill_slot_drag_ghost(ghost: Control) -> void:
+	if ghost != null and is_instance_valid(ghost):
+		ghost.queue_free()
+
+
+func _play_skill_slot_swap_animation(ghost: Control, source_view: Control, target_view: Control, target_center: Vector2) -> void:
+	if ghost != null and is_instance_valid(ghost):
+		var tween := create_tween()
+		tween.set_parallel(true)
+		tween.tween_property(ghost, "global_position", target_center - ghost.size * 0.5, SKILL_SLOT_SWAP_ANIMATION_DURATION)
+		tween.tween_property(ghost, "scale", Vector2(0.55, 0.55), SKILL_SLOT_SWAP_ANIMATION_DURATION)
+		tween.tween_property(ghost, "modulate:a", 0.0, SKILL_SLOT_SWAP_ANIMATION_DURATION)
+		tween.chain().tween_callback(ghost.queue_free)
+	_pulse_skill_slot_view(source_view)
+	_pulse_skill_slot_view(target_view)
+
+
+func _pulse_skill_slot_view(view: Control) -> void:
+	if view == null or not is_instance_valid(view):
+		return
+	view.pivot_offset = view.size * 0.5
+	var tween := create_tween()
+	tween.tween_property(view, "scale", Vector2(1.14, 1.14), 0.1)
+	tween.tween_property(view, "scale", Vector2.ONE, 0.16)
 
 func _get_slot_display_text(slot_name: String, _row_active: bool) -> String:
 	var max_length: int = 2

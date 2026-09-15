@@ -199,8 +199,9 @@ static func try_switch_role(owner, new_role_index: int, ignore_restrictions: boo
 	if ultimate_switch_allowed:
 		PLAYER_SWORDSMAN_ULTIMATE_FLOW.release_action_lock_for_switch(owner)
 		PLAYER_SWORDSMAN_ULTIMATE_FLOW.record_ultimate_switch(owner, active_role_id)
-	if owner.mage_flame_path_ability != null and owner.mage_flame_path_ability.has_method("on_role_switched"):
-		owner.mage_flame_path_ability.on_role_switched(previous_role_id, active_role_id)
+	var flame_path_ability: Variant = owner.get("mage_flame_path_ability") if owner != null else null
+	if flame_path_ability != null and flame_path_ability.has_method("on_role_switched"):
+		flame_path_ability.on_role_switched(previous_role_id, active_role_id)
 	if previous_role_id == "mage" and owner.has_method("_transfer_mage_arcane_charge_to_role_on_switch"):
 		owner._transfer_mage_arcane_charge_to_role_on_switch(active_role_id)
 	elif owner.has_method("_relay_mage_arcane_charge_on_switch"):
