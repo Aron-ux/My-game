@@ -143,16 +143,21 @@ static func heal(owner, amount: float) -> void:
 	if owner.has_method("_save_active_role_health"):
 		owner._save_active_role_health()
 	owner.health_changed.emit(owner.current_health, owner.max_health)
+	owner.pending_heal_combat_text = float(owner.get("pending_heal_combat_text", 0.0)) + actual_heal_amount
+	var displayed_heal: float = floor(owner.pending_heal_combat_text)
+	if displayed_heal < 1.0:
+		return
+	owner.pending_heal_combat_text -= displayed_heal
 	if owner.has_method("_spawn_forced_combat_tag"):
 		owner._spawn_forced_combat_tag(
 			owner.global_position + Vector2(0.0, -56.0),
-			_format_heal_combat_text(actual_heal_amount),
+			_format_heal_combat_text(displayed_heal),
 			Color(0.48, 1.0, 0.66, 1.0)
 		)
 	elif owner.has_method("_spawn_combat_tag"):
 		owner._spawn_combat_tag(
 			owner.global_position + Vector2(0.0, -56.0),
-			_format_heal_combat_text(actual_heal_amount),
+			_format_heal_combat_text(displayed_heal),
 			Color(0.48, 1.0, 0.66, 1.0)
 		)
 

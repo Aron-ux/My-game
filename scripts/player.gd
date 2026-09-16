@@ -258,6 +258,7 @@ var pending_level_talent_choices: int = 0
 var level_up_active: bool = false
 var active_upgrade_kind: String = ""
 var current_health: float = 0.0
+var pending_heal_combat_text: float = 0.0
 var current_temporary_health: float = 0.0
 var temporary_health_stacks: Array = []
 var current_mana: float = 0.0
