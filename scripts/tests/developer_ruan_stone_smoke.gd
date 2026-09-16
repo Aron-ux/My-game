@@ -17,7 +17,7 @@ func _run() -> void:
 	main.add_child(player)
 
 	var options := DEVELOPER_OPTION_PROVIDER.get_ruan_stone_options(player)
-	assert(options.size() == 17)
+	assert(options.size() == 47)
 	assert(str(options[0].get("title", "")).contains("当前 0"))
 	assert(DEVELOPER_ACTIONS.apply_ruan_stone_action(main, "bones:add:100"))
 	assert(player.get_developer_bone_count() == 100)
@@ -39,7 +39,7 @@ func _run() -> void:
 	hud._build_developer_panel(developer_root)
 	var panel: PanelContainer = hud.get("developer_panel")
 	hud.set_developer_ruan_stone_options(DEVELOPER_OPTION_PROVIDER.get_ruan_stone_options(player))
-	assert((panel.get("ruan_stone_list") as VBoxContainer).get_child_count() == 17)
+	assert((panel.get("ruan_stone_list") as VBoxContainer).get_child_count() == 47)
 	hud.developer_ruan_stone_action_requested.connect(func(action_id: String): hud.set_meta("emitted_action", action_id))
 	panel._on_ruan_stone_button_pressed("ruan_stone:equip:thunder")
 	assert(str(hud.get_meta("emitted_action", "")) == "equip:thunder")

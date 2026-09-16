@@ -285,13 +285,14 @@ static func try_handle_manual_skill_slot(owner, slot_index: int) -> bool:
 		var key_text := GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(GAME_SETTINGS.get_skill_slot_action_id(slot_index)))
 		_spawn_slot_feedback(owner, "%s：自动释放（Ctrl+%s 切换）" % [title, key_text], Color(0.62, 0.86, 1.0, 1.0))
 		return true
-	# 无限装填（持有对应天赋时）是开关型技能：快捷键切换开关，不受动作锁限制以便关闭
+	# 无限装填：持有“无限装填 I”天赋时是开关型技能（快捷键切换开关）；无天赋时按普通技能处理
 	if skill_id == "infinite_reload":
-		if owner.gunner_infinite_reload_ability == null:
+		var reload_ability: Variant = owner.get("gunner_infinite_reload_ability")
+		if reload_ability != null and reload_ability.has_method("is_manual_toggle_enabled") and bool(reload_ability.is_manual_toggle_enabled(owner)):
+			return bool(reload_ability.toggle_manual(owner))
+		if _is_action_blocked_by_lock_or_manual_skill(owner):
 			return false
-		if not owner.gunner_infinite_reload_ability.has_method("is_manual_toggle_enabled") or not owner.gunner_infinite_reload_ability.is_manual_toggle_enabled(owner):
-			return false
-		return owner.gunner_infinite_reload_ability.toggle_manual(owner)
+		return start_skill_by_id(owner, skill_id)
 	if _is_action_blocked_by_lock_or_manual_skill(owner):
 		return false
 	return start_skill_by_id(owner, skill_id)

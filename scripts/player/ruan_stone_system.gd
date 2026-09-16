@@ -33,12 +33,38 @@ static func normalize_profile(profile: Dictionary) -> Dictionary:
 	var purchased: Array = source_purchased.duplicate() if source_purchased is Array else []
 	var normalized_purchased: Array = []
 	for stone_id in purchased:
-		if STONE_IDS.has(str(stone_id)) and not normalized_purchased.has(str(stone_id)):
+		# 允许重复购买：同一个物件可以携带多份，效果按数量加法叠加
+		if STONE_IDS.has(str(stone_id)):
 			normalized_purchased.append(str(stone_id))
 	profile["ruan_stone_purchased"] = normalized_purchased
 	profile["ruan_stone_levels"] = {}
-	profile["equipped_ruan_stone"] = ""
+	# 保留仍然有效的装备展示字段；未拥有或不存在的装备被清空
+	var equipped := str(profile.get("equipped_ruan_stone", ""))
+	profile["equipped_ruan_stone"] = equipped if (STONE_IDS.has(equipped) and normalized_purchased.has(equipped)) else ""
 	return profile
+
+
+static func get_carry_limit(profile: Dictionary) -> int:
+	# 携带上限 = 档案最高解锁 N（初始 N1 带 1 件，通关 N1 解锁 N2 后可带 2 件，以此类推）
+	return max(1, int(profile.get("highest_cleared_tier", 0)) + 1)
+
+
+static func get_carried_count(profile: Dictionary) -> int:
+	var purchased: Variant = profile.get("ruan_stone_purchased", [])
+	return (purchased as Array).size() if purchased is Array else 0
+
+
+static func get_count(profile: Dictionary, stone_id: String) -> int:
+	if not STONE_IDS.has(stone_id):
+		return 0
+	var purchased: Variant = profile.get("ruan_stone_purchased", [])
+	if not (purchased is Array):
+		return 0
+	var count := 0
+	for stone_value in purchased as Array:
+		if str(stone_value) == stone_id:
+			count += 1
+	return count
 
 
 static func get_definition(stone_id: String) -> Dictionary:
@@ -46,12 +72,8 @@ static func get_definition(stone_id: String) -> Dictionary:
 
 
 static func get_level(profile: Dictionary, stone_id: String) -> int:
-	if not STONE_IDS.has(stone_id):
-		return 0
-	var purchased: Variant = profile.get("ruan_stone_purchased", [])
-	if purchased is Array:
-		return 1 if (purchased as Array).has(stone_id) else 0
-	return 0
+	# 兼容旧调用：等级即“已携带份数”
+	return get_count(profile, stone_id)
 
 
 static func get_next_cost(profile: Dictionary, stone_id: String) -> int:
@@ -64,15 +86,21 @@ static func purchase(profile: Dictionary, stone_id: String) -> Dictionary:
 	normalize_profile(profile)
 	if not STONE_IDS.has(stone_id):
 		return {"success": false, "reason": "invalid_stone"}
+	var purchased: Array = profile.get("ruan_stone_purchased", [])
+	var carry_limit := get_carry_limit(profile)
 	var cost := get_next_cost(profile, stone_id)
 	var bones := int(profile.get("bones", 0))
+	if purchased.size() >= carry_limit:
+		return {
+			"success": false,
+			"reason": "carry_limit_reached",
+			"cost": cost,
+			"bones": bones,
+			"carry_limit": carry_limit,
+			"carried": purchased.size()
+		}
 	if bones < cost:
 		return {"success": false, "reason": "not_enough_bones", "cost": cost, "bones": bones}
-	var purchased: Array = profile.get("ruan_stone_purchased", [])
-	if not purchased.is_empty():
-		return {"success": false, "reason": "purchase_limit_reached", "cost": cost, "bones": bones}
-	if purchased.has(stone_id):
-		return {"success": false, "reason": "already_purchased", "cost": 0, "bones": bones}
 	profile["bones"] = bones - cost
 	purchased.append(stone_id)
 	profile["ruan_stone_purchased"] = purchased
@@ -80,7 +108,35 @@ static func purchase(profile: Dictionary, stone_id: String) -> Dictionary:
 		"success": true,
 		"stone_id": stone_id,
 		"cost": cost,
-		"level": 1,
+		"count": get_count(profile, stone_id),
+		"carried": purchased.size(),
+		"carry_limit": carry_limit,
+		"bones": int(profile["bones"])
+	}
+
+
+static func refund(profile: Dictionary, stone_id: String) -> Dictionary:
+	normalize_profile(profile)
+	if not STONE_IDS.has(stone_id):
+		return {"success": false, "reason": "invalid_stone"}
+	var purchased: Array = profile.get("ruan_stone_purchased", [])
+	if get_count(profile, stone_id) <= 0:
+		return {"success": false, "reason": "not_carried", "bones": int(profile.get("bones", 0))}
+	for index in range(purchased.size() - 1, -1, -1):
+		if str(purchased[index]) == stone_id:
+			purchased.remove_at(index)
+			break
+	var cost := get_next_cost(profile, stone_id)
+	profile["bones"] = int(profile.get("bones", 0)) + cost
+	if get_count(profile, stone_id) <= 0 and str(profile.get("equipped_ruan_stone", "")) == stone_id:
+		profile["equipped_ruan_stone"] = ""
+	return {
+		"success": true,
+		"stone_id": stone_id,
+		"refunded": cost,
+		"count": get_count(profile, stone_id),
+		"carried": purchased.size(),
+		"carry_limit": get_carry_limit(profile),
 		"bones": int(profile["bones"])
 	}
 
@@ -96,6 +152,44 @@ static func equip(profile: Dictionary, stone_id: String) -> bool:
 static func get_equipped(profile: Dictionary) -> String:
 	var equipped := str(profile.get("equipped_ruan_stone", ""))
 	return equipped if STONE_IDS.has(equipped) and get_level(profile, equipped) > 0 else ""
+
+
+static func get_stacked_effect_values(stone_id: String, count: int) -> Dictionary:
+	var base := get_effect_values(stone_id, 1)
+	if count <= 1 or base.is_empty():
+		return base
+	return _scale_effect_values(stone_id, base, count)
+
+
+static func _scale_effect_values(stone_id: String, base: Dictionary, count: int) -> Dictionary:
+	var scaled: Dictionary = base.duplicate(true)
+	match stone_id:
+		STONE_THUNDER:
+			scaled["damage_ratio"] = float(base.get("damage_ratio", 0.0)) * float(count)
+			scaled["jump_count"] = min(5, int(base.get("jump_count", 1)) * count)
+		STONE_FROST:
+			scaled["slow_ratio"] = min(0.75, float(base.get("slow_ratio", 0.0)) * float(count))
+		STONE_POISON:
+			scaled["total_damage_ratio"] = float(base.get("total_damage_ratio", 0.0)) * float(count)
+		STONE_FLAME:
+			scaled["damage_ratio"] = float(base.get("damage_ratio", 0.0)) * float(count)
+		STONE_FURY:
+			scaled["vulnerability_ratio"] = float(base.get("vulnerability_ratio", 0.0)) * float(count)
+		_:
+			# 属性/百分比类物件：所有增量按数量线性相加
+			for key_value in base.keys():
+				var key := str(key_value)
+				var value: Variant = base[key_value]
+				if not (value is float or value is int):
+					continue
+				var number := float(value)
+				if key == "cooldown_multiplier":
+					scaled[key] = max(0.05, 1.0 - (1.0 - number) * float(count))
+				elif key.ends_with("_multiplier"):
+					scaled[key] = 1.0 + (number - 1.0) * float(count)
+				else:
+					scaled[key] = number * float(count)
+	return scaled
 
 
 static func get_effect_values(stone_id: String, level: int) -> Dictionary:
@@ -142,10 +236,29 @@ static func get_effect_values(stone_id: String, level: int) -> Dictionary:
 	return {}
 
 
+static func get_carried_summary_text(purchased: Array) -> String:
+	var counts: Dictionary = {}
+	for stone_value in purchased:
+		var stone_id := str(stone_value)
+		if not STONE_IDS.has(stone_id):
+			continue
+		counts[stone_id] = int(counts.get(stone_id, 0)) + 1
+	if counts.is_empty():
+		return "未携带"
+	var parts: Array[String] = []
+	for stone_id_value in STONE_IDS:
+		var stone_id := str(stone_id_value)
+		if not counts.has(stone_id):
+			continue
+		var title := str((DEFINITIONS.get(stone_id, {}) as Dictionary).get("title", stone_id))
+		parts.append("%s×%d" % [title, int(counts[stone_id])])
+	return "、".join(parts)
+
+
 static func get_effect_text(stone_id: String, level: int) -> String:
 	if level <= 0 or not STONE_IDS.has(stone_id):
 		return "未拥有"
-	var values := get_effect_values(stone_id, level)
+	var values := get_stacked_effect_values(stone_id, level)
 	match stone_id:
 		STONE_THUNDER:
 			return "连锁%d个目标，造成%s%%伤害" % [int(values["jump_count"]), _percent(values["damage_ratio"])]

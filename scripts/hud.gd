@@ -779,14 +779,12 @@ func update_stats(summary: Dictionary) -> void:
 
 func _update_ruan_stone_status(summary: Dictionary) -> void:
 	var bone_count: int = max(0, int(summary.get("ruan_bone_count", 0)))
-	var stone_id: String = str(summary.get("equipped_ruan_stone", ""))
-	var stone_level: int = max(0, int(summary.get("equipped_ruan_stone_level", 0)))
-	var stone_title: String = str(summary.get("equipped_ruan_stone_title", ""))
-	if stone_id == "" or stone_level <= 0:
-		stone_title = "未装备"
-		stone_level = 0
-	var stone_text: String = stone_title if stone_level <= 0 else "%s Lv.%d" % [stone_title, stone_level]
-	_set_label_text(ruan_stone_status_label, "骨头 %d\n阮石 %s" % [bone_count, stone_text])
+	var carried: int = max(0, int(summary.get("ruan_stone_carried_count", 0)))
+	var carry_limit: int = max(1, int(summary.get("ruan_stone_carry_limit", 1)))
+	var stone_text: String = str(summary.get("ruan_stone_summary", "未携带"))
+	if carried <= 0:
+		stone_text = "未携带"
+	_set_label_text(ruan_stone_status_label, "骨头 %d\n阮石 %d/%d：%s" % [bone_count, carried, carry_limit, stone_text])
 
 
 func update_time(seconds_elapsed: float) -> void:

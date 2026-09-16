@@ -1,6 +1,7 @@
 extends SceneTree
 
 const GAME_SETTINGS := preload("res://scripts/game_settings.gd")
+const RUAN_STONE_SYSTEM := preload("res://scripts/player/ruan_stone_system.gd")
 
 var failures: Array[String] = []
 
@@ -32,7 +33,7 @@ func _run() -> void:
 	var dialogue_body := instance.get_node_or_null("CanvasLayer/DialoguePanel/MarginContainer/DialogueContent/TextContent/Body") as Label
 	var dialogue_portrait := instance.get_node_or_null("CanvasLayer/DialoguePanel/MarginContainer/DialogueContent/Portrait") as TextureRect
 	var stone_panel := instance.get_node_or_null("CanvasLayer/RuanStonePanel") as PanelContainer
-	var stone_cards := instance.get_node_or_null("CanvasLayer/RuanStonePanel/MarginContainer/StoneContent/Cards") as HBoxContainer
+	var stone_cards := instance.get_node_or_null("CanvasLayer/RuanStonePanel/MarginContainer/StoneContent/Cards/CardList") as GridContainer
 	var stone_status := instance.get_node_or_null("CanvasLayer/RuanStonePanel/MarginContainer/StoneContent/Status") as Label
 	var stone_feedback := instance.get_node_or_null("CanvasLayer/RuanStonePanel/MarginContainer/StoneContent/Feedback") as Label
 	var tutorial_prompt := instance.get_node_or_null("CanvasLayer/TutorialPromptPanel") as PanelContainer
@@ -97,8 +98,8 @@ func _run() -> void:
 		instance.call("_unhandled_input", interact_event)
 		if dialogue_panel.visible or not stone_panel.visible:
 			failures.append("Finishing Ruan Dog dialogue did not open the stone shop.")
-		if stone_cards.get_child_count() != 5 or not stone_status.text.contains("骨头"):
-			failures.append("Ruan stone shop did not build all five stone cards and balance status.")
+		if stone_cards.get_child_count() != RUAN_STONE_SYSTEM.STONE_IDS.size() or not stone_status.text.contains("骨头"):
+			failures.append("Ruan stone shop did not build a card for every shop item and the balance status.")
 		if instance.get_viewport().gui_get_focus_owner() == null:
 			failures.append("Ruan stone shop did not assign keyboard/gamepad focus.")
 		if player.is_physics_processing():

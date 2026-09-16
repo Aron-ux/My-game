@@ -84,7 +84,6 @@ var active_dialogue_index: int = 0
 var active_dialogue_id: String = ""
 var ruan_stone_profile: Dictionary = {}
 var ruan_stone_purchase_buttons: Dictionary = {}
-var ruan_stone_equip_buttons: Dictionary = {}
 var tier_overlay: Control
 var team_swap_panel: Control
 
@@ -385,16 +384,18 @@ func _rebuild_ruan_stone_cards() -> void:
 		ruan_stone_cards.remove_child(child)
 		child.queue_free()
 	ruan_stone_purchase_buttons.clear()
-	ruan_stone_equip_buttons.clear()
 	var purchased: Array = ruan_stone_profile.get("ruan_stone_purchased", [])
-	ruan_stone_status.text = "骨头：%d    本场已购买：%d/5" % [int(ruan_stone_profile.get("bones", 0)), purchased.size()]
+	var carry_limit := RUAN_STONE_SYSTEM.get_carry_limit(ruan_stone_profile)
+	ruan_stone_status.text = "骨头：%d    已携带：%d/%d（上限 = 档案最高解锁 N）" % [int(ruan_stone_profile.get("bones", 0)), purchased.size(), carry_limit]
 	for stone_id_value in RUAN_STONE_SYSTEM.STONE_IDS:
 		_add_ruan_stone_card(str(stone_id_value), "")
 
 func _add_ruan_stone_card(stone_id: String, equipped_id: String) -> void:
 	var definition := RUAN_STONE_SYSTEM.get_definition(stone_id)
-	var level := RUAN_STONE_SYSTEM.get_level(ruan_stone_profile, stone_id)
+	var count := RUAN_STONE_SYSTEM.get_count(ruan_stone_profile, stone_id)
 	var cost := RUAN_STONE_SYSTEM.get_next_cost(ruan_stone_profile, stone_id)
+	var carry_limit := RUAN_STONE_SYSTEM.get_carry_limit(ruan_stone_profile)
+	var carried := RUAN_STONE_SYSTEM.get_carried_count(ruan_stone_profile)
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(0.0, 170.0)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -404,33 +405,29 @@ func _add_ruan_stone_card(stone_id: String, equipped_id: String) -> void:
 	content.add_theme_constant_override("separation", 8)
 	card.add_child(content)
 	content.add_child(_make_stone_label(str(definition.get("title", stone_id)), 24, SURVIVORS_THEME.COLOR_TEXT_GOLD, HORIZONTAL_ALIGNMENT_CENTER))
-	content.add_child(_make_stone_label("已购买" if level > 0 else "未购买", 18, SURVIVORS_THEME.COLOR_TEXT, HORIZONTAL_ALIGNMENT_CENTER))
+	content.add_child(_make_stone_label(("已携带 ×%d" % count) if count > 0 else "未携带", 18, SURVIVORS_THEME.COLOR_TEXT, HORIZONTAL_ALIGNMENT_CENTER))
 	content.add_child(_make_stone_label(str(definition.get("summary", "")), 15, SURVIVORS_THEME.COLOR_TEXT_MUTED))
-	var current_text := "当前：%s" % RUAN_STONE_SYSTEM.get_effect_text(stone_id, level)
+	var current_text := "当前：%s" % RUAN_STONE_SYSTEM.get_effect_text(stone_id, count)
 	content.add_child(_make_stone_label(current_text, 15, SURVIVORS_THEME.COLOR_TEXT))
-	var next_text := "本场效果：%s\n费用：%d 骨" % [RUAN_STONE_SYSTEM.get_effect_text(stone_id, 1), cost]
-	var next_label := _make_stone_label(next_text, 15, SURVIVORS_THEME.COLOR_TEXT_MUTED)
-	content.add_child(next_label)
+	var next_text := "再携带 1 件：%s\n费用：%d 骨" % [RUAN_STONE_SYSTEM.get_effect_text(stone_id, count + 1), cost]
+	content.add_child(_make_stone_label(next_text, 15, SURVIVORS_THEME.COLOR_TEXT_MUTED))
 	var purchase_button := Button.new()
 	purchase_button.custom_minimum_size = Vector2(0.0, 42.0)
-	purchase_button.text = ("已购买" if level > 0 else "购买 · %d 骨" % cost)
-	purchase_button.disabled = level > 0
-	if not (ruan_stone_profile.get("ruan_stone_purchased", []) as Array).is_empty() and level <= 0:
+	var at_limit := carried >= carry_limit
+	if count > 0:
+		purchase_button.text = "取消购买 · 退还 %d 骨" % cost
+		purchase_button.disabled = false
+	elif at_limit:
+		purchase_button.text = "携带已满（%d/%d）" % [carried, carry_limit]
 		purchase_button.disabled = true
+	else:
+		purchase_button.text = "购买 · %d 骨" % cost
+		purchase_button.disabled = false
 	purchase_button.focus_mode = Control.FOCUS_ALL
-	SURVIVORS_THEME.apply_button_style(purchase_button, "primary")
+	SURVIVORS_THEME.apply_button_style(purchase_button, "primary" if count <= 0 else "normal")
 	purchase_button.pressed.connect(_on_ruan_stone_purchase.bind(stone_id))
 	content.add_child(purchase_button)
 	ruan_stone_purchase_buttons[stone_id] = purchase_button
-	var equip_button := Button.new()
-	equip_button.custom_minimum_size = Vector2(0.0, 40.0)
-	equip_button.text = "本场生效" if level > 0 else "未购买"
-	equip_button.disabled = true
-	equip_button.focus_mode = Control.FOCUS_ALL
-	SURVIVORS_THEME.apply_button_style(equip_button, "normal", stone_id == equipped_id)
-	equip_button.pressed.connect(_on_ruan_stone_equip.bind(stone_id))
-	content.add_child(equip_button)
-	ruan_stone_equip_buttons[stone_id] = equip_button
 
 func _make_stone_label(text_value: String, font_size: int, color: Color, alignment: int = HORIZONTAL_ALIGNMENT_LEFT) -> Label:
 	var label := Label.new()
@@ -442,38 +439,51 @@ func _make_stone_label(text_value: String, font_size: int, color: Color, alignme
 	return label
 
 func _on_ruan_stone_purchase(stone_id: String) -> void:
-	var result := RUAN_STONE_SYSTEM.purchase(ruan_stone_profile, stone_id)
 	var definition := RUAN_STONE_SYSTEM.get_definition(stone_id)
 	var stone_name := str(definition.get("title", stone_id))
-	if not bool(result.get("success", false)):
-		ruan_stone_feedback.text = "骨头不足：%s需要 %d 骨，当前只有 %d 骨。" % [
+	# 已携带的物件：同一个按钮变为“取消购买”，退还对应骨头
+	if RUAN_STONE_SYSTEM.get_count(ruan_stone_profile, stone_id) > 0:
+		var refund_result := RUAN_STONE_SYSTEM.refund(ruan_stone_profile, stone_id)
+		if not bool(refund_result.get("success", false)):
+			ruan_stone_feedback.text = "取消失败：当前未携带 %s。" % stone_name
+			return
+		SAVE_MANAGER.save_endless_profile(ruan_stone_profile)
+		ruan_stone_feedback.text = "已取消 %s ×1，退还 %d 骨（当前 ×%d，骨头 %d）。" % [
 			stone_name,
-			int(result.get("cost", 0)),
-			int(result.get("bones", ruan_stone_profile.get("bones", 0)))
+			int(refund_result.get("refunded", 0)),
+			int(refund_result.get("count", 0)),
+			int(refund_result.get("bones", 0))
 		]
+		_rebuild_ruan_stone_cards()
+		var refund_button := ruan_stone_purchase_buttons.get(stone_id) as Button
+		if refund_button != null:
+			refund_button.grab_focus()
+		return
+	var result := RUAN_STONE_SYSTEM.purchase(ruan_stone_profile, stone_id)
+	if not bool(result.get("success", false)):
+		match str(result.get("reason", "")):
+			"carry_limit_reached":
+				ruan_stone_feedback.text = "携带位已满：当前上限 %d（= 档案最高解锁 N），无法继续购买。" % int(result.get("carry_limit", 1))
+			"not_enough_bones":
+				ruan_stone_feedback.text = "骨头不足：%s需要 %d 骨，当前只有 %d 骨。" % [
+					stone_name,
+					int(result.get("cost", 0)),
+					int(result.get("bones", ruan_stone_profile.get("bones", 0)))
+				]
+			_:
+				ruan_stone_feedback.text = "无法购买 %s。" % stone_name
 		return
 	SAVE_MANAGER.save_endless_profile(ruan_stone_profile)
-	ruan_stone_feedback.text = "%s已提升至 Lv.%d。" % [stone_name, int(result.get("level", 0))]
+	ruan_stone_feedback.text = "已携带 %s ×%d（%d/%d）。" % [
+		stone_name,
+		int(result.get("count", 1)),
+		int(result.get("carried", 1)),
+		int(result.get("carry_limit", 1))
+	]
 	_rebuild_ruan_stone_cards()
 	var purchase_button := ruan_stone_purchase_buttons.get(stone_id) as Button
-	if purchase_button != null:
+	if purchase_button != null and not purchase_button.disabled:
 		purchase_button.grab_focus()
-
-func _on_ruan_stone_equip(stone_id: String) -> void:
-	if not RUAN_STONE_SYSTEM.equip(ruan_stone_profile, stone_id):
-		ruan_stone_feedback.text = "需要先获取这颗石头。"
-		return
-	SAVE_MANAGER.save_endless_profile(ruan_stone_profile)
-	var stone_name := str(RUAN_STONE_SYSTEM.get_definition(stone_id).get("title", stone_id))
-	ruan_stone_feedback.text = "已装备%s，全队普攻生效。" % stone_name
-	_rebuild_ruan_stone_cards()
-	var equip_button := ruan_stone_equip_buttons.get(stone_id) as Button
-	if equip_button != null and not equip_button.disabled:
-		equip_button.grab_focus()
-	else:
-		var purchase_button := ruan_stone_purchase_buttons.get(stone_id) as Button
-		if purchase_button != null:
-			purchase_button.grab_focus()
 
 func _open_tutorial_prompt() -> void:
 	_close_shop()

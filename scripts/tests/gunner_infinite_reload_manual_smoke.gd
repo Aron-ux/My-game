@@ -37,6 +37,9 @@ func _run() -> void:
 	# 热键仅在技能处于“手动释放”状态时生效，先临时切到手动并在结束时还原。
 	var previous_manual_mode := GAME_SETTINGS.is_skill_manual("infinite_reload")
 	GAME_SETTINGS.set_skill_manual("infinite_reload", true)
+	# 槽位顺序来自全局设置：测试内固定为解锁顺序，结束后还原玩家原有顺序。
+	var previous_slot_order: Array[String] = GAME_SETTINGS.get_skill_slot_order("gunner")
+	GAME_SETTINGS.set_skill_slot_order("gunner", ["shrapnel_field", "infinite_reload"])
 
 	var active_skill_ids := PlayerCooldownFlow.get_role_active_skill_ids(owner, "gunner")
 	_expect(active_skill_ids == ["shrapnel_field", "infinite_reload"], "skill hotkey slots should follow active skill unlock order")
@@ -88,6 +91,7 @@ func _run() -> void:
 
 	owner.queue_free()
 	GAME_SETTINGS.set_skill_manual("infinite_reload", previous_manual_mode)
+	GAME_SETTINGS.set_skill_slot_order("gunner", previous_slot_order)
 	await process_frame
 	if failures.is_empty():
 		print("GUNNER_INFINITE_RELOAD_MANUAL_SMOKE_OK")

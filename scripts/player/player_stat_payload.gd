@@ -61,9 +61,9 @@ static func build_from_player(owner) -> Dictionary:
 		"team_role_statuses": team_role_statuses,
 		"buff_status_slots": buff_status_slots,
 		"ruan_bone_count": ruan_stone_summary["ruan_bone_count"],
-		"equipped_ruan_stone": ruan_stone_summary["equipped_ruan_stone"],
-		"equipped_ruan_stone_level": ruan_stone_summary["equipped_ruan_stone_level"],
-		"equipped_ruan_stone_title": ruan_stone_summary["equipped_ruan_stone_title"]
+		"ruan_stone_carried_count": ruan_stone_summary["ruan_stone_carried_count"],
+		"ruan_stone_carry_limit": ruan_stone_summary["ruan_stone_carry_limit"],
+		"ruan_stone_summary": ruan_stone_summary["ruan_stone_summary"]
 	})
 
 static func build_frame_hud_from_player(owner) -> Dictionary:
@@ -105,9 +105,9 @@ static func build_frame_hud_from_player(owner) -> Dictionary:
 		"team_role_statuses": team_role_statuses,
 		"buff_status_slots": buff_status_slots,
 		"ruan_bone_count": ruan_stone_summary["ruan_bone_count"],
-		"equipped_ruan_stone": ruan_stone_summary["equipped_ruan_stone"],
-		"equipped_ruan_stone_level": ruan_stone_summary["equipped_ruan_stone_level"],
-		"equipped_ruan_stone_title": ruan_stone_summary["equipped_ruan_stone_title"]
+		"ruan_stone_carried_count": ruan_stone_summary["ruan_stone_carried_count"],
+		"ruan_stone_carry_limit": ruan_stone_summary["ruan_stone_carry_limit"],
+		"ruan_stone_summary": ruan_stone_summary["ruan_stone_summary"]
 	}
 	PERFORMANCE_RECORDER.end_scope("hud_payload_misc_ms")
 	return summary
@@ -137,14 +137,14 @@ static func _build_switch_energy_by_role(owner) -> Dictionary:
 
 
 static func _build_ruan_stone_summary(owner) -> Dictionary:
-	var stone_id := str(owner.get_equipped_ruan_stone()) if owner != null and owner.has_method("get_equipped_ruan_stone") else ""
-	var level := int(owner.get_ruan_stone_level(stone_id)) if stone_id != "" and owner.has_method("get_ruan_stone_level") else 0
-	var definition := RUAN_STONE_SYSTEM.get_definition(stone_id)
+	var carried_count: int = int(owner.get_ruan_stone_carried_count()) if owner != null and owner.has_method("get_ruan_stone_carried_count") else 0
+	var carry_limit: int = max(1, int(owner.get_ruan_stone_carry_limit())) if owner != null and owner.has_method("get_ruan_stone_carry_limit") else 1
+	var summary_text: String = str(owner.get_ruan_stone_carry_summary()) if owner != null and owner.has_method("get_ruan_stone_carry_summary") else "未携带"
 	return {
 		"ruan_bone_count": max(0, int(owner.get_ruan_bone_count())) if owner != null and owner.has_method("get_ruan_bone_count") else 0,
-		"equipped_ruan_stone": stone_id if level > 0 else "",
-		"equipped_ruan_stone_level": max(0, level),
-		"equipped_ruan_stone_title": str(definition.get("title", "")) if level > 0 else ""
+		"ruan_stone_carried_count": max(0, carried_count),
+		"ruan_stone_carry_limit": carry_limit,
+		"ruan_stone_summary": summary_text
 	}
 
 static func _build_team_role_statuses(owner, active_role_id: String, include_descriptions: bool) -> Array:
@@ -276,6 +276,7 @@ static func build_stat_summary(context: Dictionary) -> Dictionary:
 		"buff_status_slots": context.get("buff_status_slots", []),
 		"ruan_bone_count": context.get("ruan_bone_count", 0),
 		"equipped_ruan_stone": context.get("equipped_ruan_stone", ""),
-		"equipped_ruan_stone_level": context.get("equipped_ruan_stone_level", 0),
-		"equipped_ruan_stone_title": context.get("equipped_ruan_stone_title", "")
+		"ruan_stone_carried_count": context.get("ruan_stone_carried_count", 0),
+		"ruan_stone_carry_limit": context.get("ruan_stone_carry_limit", 1),
+		"ruan_stone_summary": context.get("ruan_stone_summary", "未携带")
 	}

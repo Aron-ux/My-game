@@ -18,8 +18,7 @@ func _run() -> void:
 	player.auto_attack_enabled = true
 	player.configure_ruan_stones({
 		"bones": 0,
-		"ruan_stone_levels": {"thunder": 1},
-		"equipped_ruan_stone": "thunder"
+		"ruan_stone_purchased": ["thunder"]
 	})
 
 	var primary := FormalEnemy.new()

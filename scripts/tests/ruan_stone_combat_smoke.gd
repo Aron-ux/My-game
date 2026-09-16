@@ -21,7 +21,7 @@ func _run() -> void:
 		enemies.append(enemy)
 	scene.enemies = enemies
 
-	owner.equipped_ruan_stone = "thunder"
+	owner.ruan_stone_purchased = ["thunder"]
 	owner.ruan_stone_levels = {"thunder": 1}
 	DamageResolver.deal_damage_to_enemy(owner, enemies[0], 10.0, "swordsman_basic:event_thunder")
 	assert(is_equal_approx(enemies[0].damage_taken, 10.0))
@@ -31,7 +31,7 @@ func _run() -> void:
 
 	_reset(enemies)
 	owner.ruan_stone_proc_events.clear()
-	owner.equipped_ruan_stone = "flame"
+	owner.ruan_stone_purchased = ["flame"]
 	owner.ruan_stone_levels = {"flame": 1}
 	owner.stone_rings = 0
 	DamageResolver.deal_damage_to_enemy(owner, enemies[0], 20.0, "mage_basic:event_flame")
@@ -42,7 +42,7 @@ func _run() -> void:
 
 	_reset(enemies)
 	owner.ruan_stone_proc_events.clear()
-	owner.equipped_ruan_stone = "frost"
+	owner.ruan_stone_purchased = ["frost"]
 	owner.ruan_stone_levels = {"frost": 1}
 	DamageResolver.deal_damage_to_enemy(owner, enemies[0], 10.0, "gunner_basic:event_frost", 0.0, 2.0, 1.0, 0.0, null, false, 0.0, false, "event_frost")
 	assert(is_equal_approx(enemies[0].slow_multiplier, 0.55))
@@ -50,7 +50,7 @@ func _run() -> void:
 
 	_reset(enemies)
 	owner.ruan_stone_proc_events.clear()
-	owner.equipped_ruan_stone = "fury"
+	owner.ruan_stone_purchased = ["fury"]
 	owner.ruan_stone_levels = {"fury": 1}
 	DamageResolver.deal_damage_to_enemy(owner, enemies[0], 10.0, "swordsman_basic:event_fury")
 	assert(is_equal_approx(enemies[0].vulnerability_at_last_hit, 0.0))
@@ -58,7 +58,7 @@ func _run() -> void:
 
 	_reset(enemies)
 	owner.ruan_stone_proc_events.clear()
-	owner.equipped_ruan_stone = "poison"
+	owner.ruan_stone_purchased = ["poison"]
 	owner.ruan_stone_levels = {"poison": 1}
 	DamageResolver.deal_damage_to_enemy(owner, enemies[0], 10.0, "mage_basic:event_poison")
 	var poison := enemies[0].get_node("RuanPoisonEffect")
@@ -68,7 +68,7 @@ func _run() -> void:
 
 	_reset(enemies)
 	owner.ruan_stone_proc_events.clear()
-	owner.equipped_ruan_stone = "poison"
+	owner.ruan_stone_purchased = ["poison"]
 	owner.ruan_stone_levels = {"poison": 1}
 	DamageResolver.deal_damage_to_enemy(owner, enemies[0], 10.0, "mage_basic:event_poison_first")
 	poison = enemies[0].get_node("RuanPoisonEffect")
@@ -84,7 +84,7 @@ func _run() -> void:
 
 	_reset(enemies)
 	owner.ruan_stone_proc_events.clear()
-	owner.equipped_ruan_stone = "thunder"
+	owner.ruan_stone_purchased = ["thunder"]
 	owner.ruan_stone_levels = {"thunder": 1}
 	DamageResolver.damage_enemies_in_oriented_rect_unique(owner, enemies[0].global_position, Vector2.RIGHT, 20.0, 20.0, 10.0, 0.0, 1.0, 0.0, {}, "swordsman_basic:event_batched_sword")
 	var queue := scene.get_node("PlayerDamageJobQueue")
@@ -94,7 +94,7 @@ func _run() -> void:
 
 	_reset(enemies)
 	owner.ruan_stone_proc_events.clear()
-	owner.equipped_ruan_stone = "frost"
+	owner.ruan_stone_purchased = ["frost"]
 	owner.ruan_stone_levels = {"frost": 1}
 	DamageResolver.damage_enemies_in_radius(owner, enemies[0].global_position, 20.0, 10.0, 0.0, 1.0, 0.0, "mage_basic:event_batched_mage")
 	queue._apply_job_at_index(1)
@@ -102,7 +102,7 @@ func _run() -> void:
 
 	_reset(enemies)
 	owner.ruan_stone_proc_events.clear()
-	owner.equipped_ruan_stone = "flame"
+	owner.ruan_stone_purchased = ["flame"]
 	owner.ruan_stone_levels = {"flame": 1}
 	owner.stone_rings = 0
 	enemies[0].max_health = 200.0
@@ -119,7 +119,7 @@ func _run() -> void:
 
 	_reset(enemies)
 	owner.ruan_stone_proc_events.clear()
-	owner.equipped_ruan_stone = "thunder"
+	owner.ruan_stone_purchased = ["thunder"]
 	owner.ruan_stone_levels = {"thunder": 1}
 	DamageResolver.deal_damage_to_enemy(owner, enemies[0], 10.0, "mage")
 	assert(is_equal_approx(enemies[0].damage_taken, 10.0))
@@ -127,7 +127,7 @@ func _run() -> void:
 
 	_reset(enemies)
 	owner.ruan_stone_proc_events.clear()
-	owner.equipped_ruan_stone = "flame"
+	owner.ruan_stone_purchased = ["flame"]
 	owner.ruan_stone_levels = {"flame": 1}
 	owner.stone_rings = 0
 	enemies[0].max_health = 200.0
@@ -145,7 +145,7 @@ func _run() -> void:
 
 	_reset(enemies)
 	owner.ruan_stone_proc_events.clear()
-	owner.equipped_ruan_stone = "thunder"
+	owner.ruan_stone_purchased = ["thunder"]
 	owner.ruan_stone_levels = {"thunder": 1}
 	DamageResolver.deal_damage_to_enemy(owner, enemies[0], 10.0, "mechanic_basic:event_mechanic_spider")
 	assert(is_equal_approx(enemies[0].damage_taken, 10.0))
@@ -219,6 +219,7 @@ class StoneOwner:
 	extends Node2D
 	var equipped_ruan_stone := ""
 	var ruan_stone_levels: Dictionary = {}
+	var ruan_stone_purchased: Array = []
 	var ruan_stone_proc_events: Dictionary = {}
 	var stone_rings := 0
 

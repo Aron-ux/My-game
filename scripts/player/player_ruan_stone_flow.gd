@@ -24,10 +24,15 @@ static func apply_basic_hit(owner, enemy: Node, triggering_damage: float, source
 	var first_target_hit: bool = not hit_targets.has(target_id)
 	hit_targets[target_id] = true
 	state["hit_targets"] = hit_targets
-	for stone_value in purchased:
-		var stone_id := str(stone_value)
-		var level: int = 1
-		var values: Dictionary = RUAN_STONE_SYSTEM.get_effect_values(stone_id, level)
+	# 同一物件可重复携带：按数量聚合，数值按份数加法叠加后只触发一次
+	var counts: Dictionary = {}
+	for stone_value in purchased as Array:
+		var purchased_id := str(stone_value)
+		counts[purchased_id] = int(counts.get(purchased_id, 0)) + 1
+	for stone_key in counts.keys():
+		var stone_id := str(stone_key)
+		var count := int(counts[stone_id])
+		var values: Dictionary = RUAN_STONE_SYSTEM.get_stacked_effect_values(stone_id, count)
 		_apply_stone_hit(owner, enemy, triggering_damage, source_role_id, damage_event_id, killed, target_position, target_max_health, stone_id, values, state, first_target_hit)
 	_store_event_state(owner, event_key, state)
 

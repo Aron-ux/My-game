@@ -49,7 +49,9 @@ func _run() -> void:
 	PLAYER_ABILITY_FLOW.toggle_manual_skill_slot(player, slot_index)
 	assert(not GAME_SETTINGS.is_skill_manual("blade_storm"), "slot toggle should turn manual off again")
 
-	# 4) 槽位交换：拖动交换等价于重排该角色的技能槽顺序（全局设置，可还原）
+	# 4) 槽位交换：拖动交换等价于重排该角色的技能槽顺序（全局设置，测试前后保存还原）
+	var previous_order: Array[String] = GAME_SETTINGS.get_skill_slot_order("swordsman")
+	GAME_SETTINGS.set_skill_slot_order("swordsman", [])
 	assert(PLAYER_BLESSING_SKILL_STATE.force_unlock_skill(player, "knight_thrust", 1), "knight thrust should unlock")
 	var order_before: Array[String] = PLAYER_SKILL_COOLDOWN_FLOW.get_role_active_skill_ids(player, "swordsman")
 	assert(order_before.size() >= 2, "swordsman should have at least two skill slots")
@@ -61,14 +63,25 @@ func _run() -> void:
 	GAME_SETTINGS.set_skill_slot_order("swordsman", [])
 	var order_restored: Array[String] = PLAYER_SKILL_COOLDOWN_FLOW.get_role_active_skill_ids(player, "swordsman")
 	assert(order_restored[0] == first_skill, "clearing the custom order should restore the unlock order")
+	GAME_SETTINGS.set_skill_slot_order("swordsman", previous_order)
+
+	# 5) 无天赋的无限装填按普通技能处理：手动状态下快捷键应能单次施放（不再是只能开关）
+	assert(PLAYER_BLESSING_SKILL_STATE.force_unlock_skill(player, "infinite_reload", 1), "infinite reload should unlock")
+	player.active_role_index = 1
+	GAME_SETTINGS.set_skill_manual("infinite_reload", true)
+	var reload_slot := _find_slot_index(player, "infinite_reload", "gunner")
+	assert(reload_slot > 0, "infinite reload should occupy a gunner slot")
+	assert(PLAYER_ABILITY_FLOW.try_handle_manual_skill_slot(player, reload_slot), "manual infinite reload without talent should cast from the hotkey")
+	assert(player.gunner_infinite_reload_ability.is_active(), "infinite reload should be active after the hotkey cast")
+	GAME_SETTINGS.set_skill_manual("infinite_reload", false)
 
 	GAME_SETTINGS.set_skill_manual("blade_storm", previous_manual)
 	print("SKILL_MANUAL_MODE_SMOKE_OK")
 	quit(0)
 
 
-func _find_slot_index(player, skill_id: String) -> int:
-	var skill_ids: Array[String] = PLAYER_SKILL_COOLDOWN_FLOW.get_role_active_skill_ids(player, "swordsman")
+func _find_slot_index(player, skill_id: String, role_id: String = "swordsman") -> int:
+	var skill_ids: Array[String] = PLAYER_SKILL_COOLDOWN_FLOW.get_role_active_skill_ids(player, role_id)
 	for index in range(skill_ids.size()):
 		if skill_ids[index] == skill_id:
 			return index + 1
