@@ -27,10 +27,12 @@ func _check_every_reached_level_queues_build_menu() -> void:
 	_expect_equal(owner.pending_level_talent_choices, 0, "level 2 should not queue a level talent")
 	PLAYER_LEVEL_FLOW.handle_reached_level(owner, 3)
 	_expect_equal(owner.pending_level_ups, 2, "level 3 should still queue the build menu")
-	_expect_equal(owner.pending_level_talent_choices, 1, "level 3 should queue one level talent")
+	_expect_equal(owner.pending_level_talent_choices, 0, "level 3 should not queue a player-level talent")
+	_expect_equal(owner.queued_level_talent_requests, 0, "player-level talent requests should stay disabled")
 	PLAYER_LEVEL_FLOW.handle_reached_level(owner, 6)
 	_expect_equal(owner.pending_level_ups, 3, "level 6 should also queue the build menu")
-	_expect_equal(owner.pending_level_talent_choices, 2, "level 6 should queue a second level talent")
+	_expect_equal(owner.pending_level_talent_choices, 0, "level 6 should not queue a player-level talent")
+	_expect_equal(owner.queued_level_talent_requests, 0, "player-level talent requests should stay disabled at level 6")
 	owner.free()
 
 
@@ -44,6 +46,7 @@ class LevelOwnerStub:
 
 	var pending_level_ups: int = 0
 	var pending_level_talent_choices: int = 0
+	var queued_level_talent_requests: int = 0
 
 	func queue_level_talent_choice(_reached_level: int) -> void:
-		pending_level_talent_choices += 1
+		queued_level_talent_requests += 1

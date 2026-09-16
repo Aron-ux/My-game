@@ -1,6 +1,7 @@
 extends RefCounted
 
 const PLAYER_SWORDSMAN_JUDGEMENT_SWORD_FLOW := preload("res://scripts/player/player_swordsman_judgement_sword_flow.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 
 const SKILL_ID := "judgement_sword"
 const COOLDOWN := 18.0
@@ -12,6 +13,9 @@ const SHOCKWAVE_DELAY := 2.0
 const SHOCKWAVE_DAMAGE_RATIO := 1.00
 const ARMOR_SHRED_PER_SHOCKWAVE := 20.0
 const FULL_MAP_RADIUS := 4000.0
+## 冲击波最多 4 道：基础 1 道 + 技能等级 3/6/9 级各追加 1 道
+const MAX_SHOCKWAVE_COUNT := 4
+const MAX_ACTIVE_DURATION := SHOCKWAVE_DELAY * float(MAX_SHOCKWAVE_COUNT)
 # 审判之誓 I/II 天赋加成（均按线性比例相加，不乘算）
 const TALENT_JUDGEMENT_SWORD_1 := "swordsman_level_talent_judgement_sword_1"
 const TALENT_JUDGEMENT_SWORD_2 := "swordsman_level_talent_judgement_sword_2"
@@ -29,7 +33,7 @@ const SWORD_AREA_VISIBLE_SIZE := Vector2(240.0, 240.0)
 var cooldown_remaining: float = 0.0
 var active_remaining: float = 0.0
 var shockwave_timer: float = SHOCKWAVE_DELAY
-var shockwave_released: bool = false
+var shockwaves_remaining: int = 0
 var sword_visual: Node2D = null
 var sword_position: Vector2 = Vector2.ZERO
 
@@ -39,13 +43,15 @@ func update(owner, delta: float) -> void:
 	if active_remaining <= 0.0:
 		return
 	active_remaining = max(0.0, active_remaining - delta)
-	if not shockwave_released:
+	if shockwaves_remaining > 0:
 		shockwave_timer -= delta
 		if shockwave_timer <= 0.0:
-			shockwave_released = true
+			shockwaves_remaining -= 1
 			_release_shockwave(owner)
+			shockwave_timer = SHOCKWAVE_DELAY
 	if active_remaining <= 0.0:
 		# 巨剑持续时间结束后才开始计算冷却
+		shockwaves_remaining = 0
 		cooldown_remaining = COOLDOWN
 		_clear_sword_visual()
 		return
@@ -68,18 +74,20 @@ func try_trigger(owner) -> bool:
 		return false
 	# 落点 = 鼠标所指位置，鼠标可指定的最远距离为 MAX_RANGE
 	var center: Vector2 = PLAYER_SWORDSMAN_JUDGEMENT_SWORD_FLOW.resolve_target_position(owner, direction, MAX_RANGE)
-	# 巨剑从天而降命中（审判之誓 I：落地伤害线性增加 100%）
+	# 巨剑从天而降命中（审判之誓 I：落地伤害线性增加 100%；技能等级：每级 +50%）
 	var fall_ratio: float = FALL_DAMAGE_RATIO + (FALL_DAMAGE_TALENT_BONUS if _has_talent(owner, TALENT_JUDGEMENT_SWORD_1) else 0.0)
+	fall_ratio += PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_judgement_sword_fall_ratio_bonus(owner)
 	var damage: float = float(owner._get_role_damage("swordsman")) * fall_ratio
 	PLAYER_SWORDSMAN_JUDGEMENT_SWORD_FLOW.apply_impact(owner, center, damage, FALL_RADIUS)
 	if owner.has_method("_queue_camera_shake"):
 		owner._queue_camera_shake(14.0, 0.26)
-	# 巨剑插地留场
+	# 巨剑插地留场：留场时间随冲击波数量延长，最后一道冲击波在巨剑消失时释放
 	sword_position = center
 	_spawn_sword_visual(owner, center)
-	active_remaining = SWORD_DURATION
+	var shockwave_count: int = maxi(1, PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_judgement_sword_shockwave_count(owner))
+	active_remaining = SHOCKWAVE_DELAY * float(shockwave_count)
 	shockwave_timer = _get_shockwave_delay(owner)
-	shockwave_released = false
+	shockwaves_remaining = shockwave_count
 	return true
 
 
@@ -103,16 +111,21 @@ func get_save_data() -> Dictionary:
 		"cooldown_remaining": cooldown_remaining,
 		"active_remaining": active_remaining,
 		"shockwave_timer": shockwave_timer,
-		"shockwave_released": shockwave_released,
+		"shockwaves_remaining": shockwaves_remaining,
+		"shockwave_released": shockwaves_remaining <= 0,
 		"sword_position": [sword_position.x, sword_position.y]
 	}
 
 
 func apply_save_data(data: Dictionary) -> void:
 	cooldown_remaining = clamp(float(data.get("cooldown_remaining", 0.0)), 0.0, COOLDOWN)
-	active_remaining = clamp(float(data.get("active_remaining", 0.0)), 0.0, SWORD_DURATION)
+	active_remaining = clamp(float(data.get("active_remaining", 0.0)), 0.0, MAX_ACTIVE_DURATION)
 	shockwave_timer = clamp(float(data.get("shockwave_timer", SHOCKWAVE_DELAY)), 0.0, SHOCKWAVE_DELAY)
-	shockwave_released = bool(data.get("shockwave_released", false))
+	var remaining: int = int(data.get("shockwaves_remaining", -1))
+	if remaining < 0:
+		# 旧存档只有 shockwave_released：未释放时补 1 道待放冲击波
+		remaining = 0 if bool(data.get("shockwave_released", true)) else 1
+	shockwaves_remaining = clampi(remaining, 0, MAX_SHOCKWAVE_COUNT)
 	var position_data: Variant = data.get("sword_position", [0.0, 0.0])
 	if position_data is Array and (position_data as Array).size() >= 2:
 		sword_position = Vector2(float(position_data[0]), float(position_data[1]))
@@ -127,6 +140,7 @@ func restore_effect_if_active(owner) -> void:
 func _release_shockwave(owner) -> void:
 	var has_talent_1 := _has_talent(owner, TALENT_JUDGEMENT_SWORD_1)
 	var shockwave_ratio: float = SHOCKWAVE_DAMAGE_RATIO + (SHOCKWAVE_DAMAGE_TALENT_BONUS if has_talent_1 else 0.0)
+	shockwave_ratio += PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_judgement_sword_shockwave_ratio_bonus(owner)
 	var armor_shred: float = ARMOR_SHRED_PER_SHOCKWAVE + (ARMOR_SHRED_TALENT_BONUS if has_talent_1 else 0.0)
 	var heal_ratio: float = SHOCKWAVE_HEAL_MISSING_HEALTH_RATIO if _has_talent(owner, TALENT_JUDGEMENT_SWORD_2) else 0.0
 	var damage: float = float(owner._get_role_damage("swordsman")) * shockwave_ratio

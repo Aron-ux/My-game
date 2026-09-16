@@ -13,16 +13,15 @@ const SIDE_ANGLE := deg_to_rad(15.0)
 const SIDE_SCALE := 0.8
 
 
-static func apply(owner, direction: Vector2, length_bonus: float = 0.0, damage_ratio_bonus: float = 0.0, thrust_count: int = 1, has_side_thrusts: bool = false, temporary_health_bonus: float = 0.0) -> int:
+static func apply(owner, direction: Vector2, length_bonus: float = 0.0, damage_ratio_bonus: float = 0.0, thrust_count: int = 1, has_side_thrusts: bool = false, temporary_health_bonus: float = 0.0, hit_registry: Dictionary = {}, damage_scale: float = 1.0) -> int:
 	if owner == null or not is_instance_valid(owner):
 		return 0
 	var axis := direction.normalized()
 	if axis.length_squared() <= 0.001:
 		axis = Vector2.RIGHT
-	var hit_registry: Dictionary = {}
 	var total_new_hits := 0
 	var base_length := THRUST_LENGTH + length_bonus
-	var base_damage: float = float(owner._get_role_damage(SOURCE_ROLE_ID)) * (DAMAGE_RATIO + damage_ratio_bonus)
+	var base_damage: float = float(owner._get_role_damage(SOURCE_ROLE_ID)) * (DAMAGE_RATIO + damage_ratio_bonus) * max(0.0, damage_scale)
 	var angles: Array[float] = [0.0]
 	if has_side_thrusts:
 		angles = [-SIDE_ANGLE, 0.0, SIDE_ANGLE]

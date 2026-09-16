@@ -4,6 +4,7 @@ const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_t
 const ROLE_ATTRIBUTE_RULES := preload("res://scripts/player/roles/role_attribute_rules.gd")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 
 const SWORDSMAN_LEVEL_TALENT_BATTLE_WILL_SHARED := "swordsman_level_talent_battle_will_1"
 const SWORDSMAN_LEVEL_TALENT_BATTLE_WILL_LOW_HEALTH := "swordsman_level_talent_battle_will_2"
@@ -33,8 +34,10 @@ static func build_heal_context(owner, role_id: String, hit_count: int) -> Dictio
 	var low_health_multiplier: float = get_low_health_will_multiplier(owner)
 	var proc_chance: float = owner._get_swordsman_trait_heal_proc_chance() if owner.has_method("_get_swordsman_trait_heal_proc_chance") else 0.0
 	proc_chance += PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW.get_battle_will_proc_chance_bonus(owner)
-	var heal_ratio: float = owner._get_swordsman_trait_heal_amount() if owner.has_method("_get_swordsman_trait_heal_amount") else 0.0
-	var missing_heal_ratio: float = ROLE_ATTRIBUTE_RULES.SWORDSMAN_TRAIT_MISSING_HEAL_RATIO + PLAYER_BUILD_SYSTEM.get_swordsman_trait_heal_bonus(owner)
+	proc_chance += PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_battle_will_proc_chance_bonus(owner)
+	var heal_ratio_bonus: float = PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_battle_will_heal_ratio_bonus(owner)
+	var heal_ratio: float = (owner._get_swordsman_trait_heal_amount() if owner.has_method("_get_swordsman_trait_heal_amount") else 0.0) + heal_ratio_bonus
+	var missing_heal_ratio: float = ROLE_ATTRIBUTE_RULES.SWORDSMAN_TRAIT_MISSING_HEAL_RATIO + PLAYER_BUILD_SYSTEM.get_swordsman_trait_heal_bonus(owner) + heal_ratio_bonus
 	return {
 		"heal_role_id": heal_role_id,
 		"proc_chance": proc_chance * chance_multiplier * low_health_multiplier,

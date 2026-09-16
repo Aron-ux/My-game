@@ -4,6 +4,7 @@ const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.g
 const PLAYER_COMBAT_RESULT_FLOW := preload("res://scripts/player/player_combat_result_flow.gd")
 const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")
 const PLAYER_SWORDSMAN_ULTIMATE_FLOW := preload("res://scripts/player/player_swordsman_ultimate_flow.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 
 const BASIC_COMBO_INTERVAL := 0.14
 const ULTIMATE_SKILL_ID := "swordsman_ultimate"
@@ -79,6 +80,9 @@ func _apply_basic_talent_followup(owner, base_direction: Vector2, blood_surge_mu
 	if owner.swordsman_attack_chain == 0 and _has_talent(owner, "swordsman_basic_sword_wheel"):
 		total_hits += _perform_attack_variant(owner, base_direction.rotated(PI * 0.5), 0.35, false, false, false, blood_surge_multiplier, basic_source_id)
 		total_hits += _perform_attack_variant(owner, base_direction.rotated(-PI * 0.5), 0.35, false, false, false, blood_surge_multiplier, basic_source_id)
+	# 技能等级 2 / 4 / 6 / 8 级各追加一道同方向斩击，每道为第一道斩击的 60% 伤害
+	for _extra_index in range(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_basic_attack_extra_slash_count(owner)):
+		total_hits += _perform_attack_variant(owner, base_direction, PLAYER_SKILL_LEVEL_EFFECT_FLOW.BASIC_ATTACK_EXTRA_SLASH_DAMAGE_SCALE, false, false, false, blood_surge_multiplier, basic_source_id)
 	return total_hits
 
 func _perform_combo_segment(owner, base_direction: Vector2, combo_scale: float, allow_trick_variants: bool = true, allow_followthrough: bool = true, blood_surge_multiplier: float = -1.0, basic_source_id: String = "") -> int:
@@ -112,12 +116,14 @@ func _perform_attack_variant(owner, attack_direction: Vector2, effect_scale: flo
 	var normal_attack_scale: float = owner._get_swordsman_normal_attack_scale(heart_level)
 	var normal_attack_width_scale: float = owner._get_swordsman_normal_attack_width_scale(heart_level)
 	var basic_range_multiplier: float = _get_basic_attack_range_multiplier(owner)
+	basic_range_multiplier *= PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_basic_attack_range_multiplier(owner)
 	if _has_talent(owner, "swordsman_basic_pursuit"):
 		basic_range_multiplier *= 1.25
 	var attack_range: float = (float(role_data["range"]) + float(upgrade_data.get("range_bonus", 0.0))) * owner._get_role_attribute_range_multiplier(role_data["id"]) * owner._get_role_equipment_skill_range_multiplier(role_data["id"]) * basic_range_multiplier
 	var third_main_slash: bool = advance_chain and owner.swordsman_attack_chain == 2
 	var opening_damage_multiplier: float = 1.20 if third_main_slash and _has_talent(owner, "swordsman_basic_opening") else 1.0
-	var attack_damage: float = owner._get_role_damage(role_data["id"]) * 1.5 * max(0.0, effect_scale) * PLAYER_BUILD_SYSTEM.get_basic_attack_damage_multiplier(owner, "swordsman") * opening_damage_multiplier * blood_surge_multiplier
+	var basic_damage_ratio: float = 1.5 + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_basic_attack_damage_ratio_bonus(owner)
+	var attack_damage: float = owner._get_role_damage(role_data["id"]) * basic_damage_ratio * max(0.0, effect_scale) * PLAYER_BUILD_SYSTEM.get_basic_attack_damage_multiplier(owner, "swordsman") * opening_damage_multiplier * blood_surge_multiplier
 	var slash_axis: Vector2 = owner._get_downward_perpendicular(attack_direction)
 	var slash_mirror: bool = attack_direction.x > 0.0
 	var slash_length: float = (58.0 + float(upgrade_data.get("range_bonus", 0.0)) * 0.19) * owner._get_role_attribute_range_multiplier(role_data["id"]) * owner._get_role_equipment_skill_range_multiplier(role_data["id"]) * basic_range_multiplier
@@ -241,12 +247,15 @@ func perform_background(owner) -> void:
 		owner._damage_enemies_in_line(owner.global_position, target_enemy.global_position, bg_thrust_width, damage_amount * 0.5, 0.04 * thrust_level, 1.0, 0.0, "swordsman")
 	owner._register_attack_result("swordsman", 1, killed)
 
+func _get_entry_damage_ratio(owner) -> float:
+	return 1.5 + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_entry_damage_ratio_bonus(owner)
+
 func perform_enter(owner, role_id: String, _assault_level: int, assault_multiplier: float) -> int:
 	var previous_position: Vector2 = owner.global_position
 	var travel_direction: Vector2 = owner._get_live_mouse_aim_direction(owner.facing_direction)
 	if travel_direction.length_squared() <= 0.001:
 		travel_direction = Vector2.RIGHT
-	var dash_distance: float = 160.0
+	var dash_distance: float = 160.0 + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_entry_distance_bonus(owner)
 	owner.global_position += travel_direction * dash_distance
 	if owner.has_method("_clamp_to_active_map_bounds"):
 		owner._clamp_to_active_map_bounds()
@@ -262,7 +271,7 @@ func perform_enter(owner, role_id: String, _assault_level: int, assault_multipli
 	owner._push_attack_result_context_tag("suppress_swordsman_trait_heal")
 	owner._push_attack_result_context_tag("suppress_greed_heal")
 	var blood_surge_multiplier := PLAYER_COMBAT_RESULT_FLOW.get_swordsman_blood_surge_multiplier(owner)
-	var entry_damage: float = owner._get_role_damage(role_id) * 1.5 * max(0.0, assault_multiplier) * blood_surge_multiplier
+	var entry_damage: float = owner._get_role_damage(role_id) * _get_entry_damage_ratio(owner) * max(0.0, assault_multiplier) * blood_surge_multiplier
 	var slow_multiplier: float = 0.70 if _has_talent(owner, "swordsman_entry_break_formation") else 1.0
 	var slow_duration: float = 0.8 if slow_multiplier < 1.0 else 0.0
 	var hits: int = owner._damage_enemies_in_line(previous_position, scar_end, scar_width, entry_damage, 0.1, slow_multiplier, slow_duration, role_id)
@@ -303,7 +312,7 @@ func _perform_entry_talent_dash(owner, role_id: String, direction: Vector2, dist
 	var slow_multiplier: float = 0.70 if _has_talent(owner, "swordsman_entry_break_formation") else 1.0
 	var slow_duration: float = 0.8 if slow_multiplier < 1.0 else 0.0
 	var blood_surge_multiplier := PLAYER_COMBAT_RESULT_FLOW.get_swordsman_blood_surge_multiplier(owner)
-	var hits: int = owner._damage_enemies_in_line(start_position, end_position, 32.0 * (1.40 if _has_talent(owner, "swordsman_entry_through_ranks") else 1.0), owner._get_role_damage(role_id) * 1.5 * max(0.0, damage_scale) * blood_surge_multiplier, 0.1, slow_multiplier, slow_duration, role_id)
+	var hits: int = owner._damage_enemies_in_line(start_position, end_position, 32.0 * (1.40 if _has_talent(owner, "swordsman_entry_through_ranks") else 1.0), owner._get_role_damage(role_id) * _get_entry_damage_ratio(owner) * max(0.0, damage_scale) * blood_surge_multiplier, 0.1, slow_multiplier, slow_duration, role_id)
 	if hits > 0 and blood_surge_multiplier > 1.0:
 		PLAYER_COMBAT_RESULT_FLOW.consume_swordsman_blood_surge(owner)
 	owner._pop_attack_result_context_tag("suppress_greed_heal")
@@ -320,7 +329,7 @@ func _apply_entry_hit_talents(owner, hits: int) -> void:
 	owner.role_special_states["swordsman"] = state
 
 func _finish_entry_talent_segment(owner, role_id: String, segment_start: Vector2, segment_end: Vector2, damage_scale: float) -> void:
-	var entry_damage: float = owner._get_role_damage(role_id) * 1.5 * max(0.0, damage_scale)
+	var entry_damage: float = owner._get_role_damage(role_id) * _get_entry_damage_ratio(owner) * max(0.0, damage_scale)
 	if _has_talent(owner, "swordsman_entry_sheathe"):
 		owner._damage_enemies_in_radius(segment_end, 84.0, entry_damage * 0.45, 0.0, 1.0, 0.0, role_id)
 		owner._spawn_ring_effect(segment_end, 84.0, Color(1.0, 0.78, 0.38, 0.56), 6.0, 0.16)

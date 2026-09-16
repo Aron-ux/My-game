@@ -1,6 +1,7 @@
 extends RefCounted
 
 const PLAYER_MAGE_DARK_CONTRACT_FLOW := preload("res://scripts/player/player_mage_dark_contract_flow.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 const DARK_CONTRACT_VISUAL_SCRIPT := preload("res://scripts/player/mage_dark_contract_visual.gd")
 
 const SKILL_ID := "dark_contract"
@@ -25,15 +26,13 @@ func _has_talent(owner, talent_id: String) -> bool:
 
 
 func _get_projectile_speed(owner) -> float:
-	if _has_talent(owner, "mage_level_talent_dark_contract_1"):
-		return TALENT_1_PROJECTILE_SPEED
-	return BASE_PROJECTILE_SPEED
+	var speed: float = TALENT_1_PROJECTILE_SPEED if _has_talent(owner, "mage_level_talent_dark_contract_1") else BASE_PROJECTILE_SPEED
+	return speed + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_dark_contract_speed_bonus(owner)
 
 
 func _get_travel_distance(owner) -> float:
-	if _has_talent(owner, "mage_level_talent_dark_contract_1"):
-		return TALENT_1_TRAVEL_DISTANCE
-	return BASE_TRAVEL_DISTANCE
+	var distance: float = TALENT_1_TRAVEL_DISTANCE if _has_talent(owner, "mage_level_talent_dark_contract_1") else BASE_TRAVEL_DISTANCE
+	return distance + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_dark_contract_distance_bonus(owner)
 
 
 func update(owner, delta: float) -> void:

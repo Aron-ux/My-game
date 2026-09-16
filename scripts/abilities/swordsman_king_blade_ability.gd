@@ -1,6 +1,7 @@
 extends RefCounted
 
 const PLAYER_SWORDSMAN_KING_BLADE_FLOW := preload("res://scripts/player/player_swordsman_king_blade_flow.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 
 const SKILL_ID := "king_blade"
 const COOLDOWN := 24.0
@@ -59,23 +60,27 @@ func _perform_slash(owner) -> void:
 	if direction.length_squared() <= 0.001:
 		direction = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
 	direction = direction.normalized()
-	var target_position: Vector2 = origin + direction * (SLASH_LENGTH * 0.5)
+	var range_multiplier: float = PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_king_blade_range_multiplier(owner)
+	var slash_length: float = SLASH_LENGTH * range_multiplier
+	var slash_width: float = SLASH_WIDTH * range_multiplier
+	var target_position: Vector2 = origin + direction * (slash_length * 0.5)
 	var cast_data: Dictionary = PLAYER_SWORDSMAN_KING_BLADE_FLOW.resolve_cast(owner, origin, direction)
 	direction = cast_data.get("direction", direction)
 	target_position = cast_data.get("target_position", target_position)
 	owner.facing_direction = direction
 	# 收集 350 半径内的敌人，随机挑一个密集区域作为斩击目标
 	owner.facing_direction = direction
-	# 直线宽斩：从玩家位置沿方向延伸 SLASH_LENGTH，中心在玩家前方一半处
-	var center: Vector2 = origin + direction * (SLASH_LENGTH * 0.5)
-	var damage_ratio: float = 4.0 if _has_talent(owner, TALENT_KING_BLADE_1) else 6.0
-	var hits: int = PLAYER_SWORDSMAN_KING_BLADE_FLOW.apply_slash(owner, origin, direction, damage_ratio)
+	# 直线宽斩：从玩家位置沿方向延伸斩击长度，中心在玩家前方一半处
+	var center: Vector2 = origin + direction * (slash_length * 0.5)
+	var damage_ratio: float = (4.0 if _has_talent(owner, TALENT_KING_BLADE_1) else 6.0)
+	damage_ratio += PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_king_blade_damage_ratio_bonus(owner)
+	var hits: int = PLAYER_SWORDSMAN_KING_BLADE_FLOW.apply_slash(owner, origin, direction, damage_ratio, range_multiplier)
 	if owner.has_method("_register_attack_result"):
 		owner._register_attack_result("swordsman", hits, false)
 	if owner.has_method("_spawn_sword_omnislash_scene_effect"):
-		owner._spawn_sword_omnislash_scene_effect(center, direction, SLASH_LENGTH, SLASH_WIDTH)
+		owner._spawn_sword_omnislash_scene_effect(center, direction, slash_length, slash_width)
 	if owner.has_method("_spawn_ring_effect"):
-		owner._spawn_ring_effect(origin + direction * SLASH_LENGTH, 30.0, Color(1.0, 0.88, 0.5, 0.85), 4.0, 0.18)
+		owner._spawn_ring_effect(origin + direction * slash_length, 30.0, Color(1.0, 0.88, 0.5, 0.85), 4.0, 0.18)
 	if owner.has_method("_spawn_ring_effect"):
 		owner._spawn_ring_effect(target_position, 44.0, Color(1.0, 0.95, 0.7, 0.5), 5.0, 0.22)
 	if owner.has_method("_queue_camera_shake"):

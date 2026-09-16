@@ -2,13 +2,16 @@ extends RefCounted
 
 const ROLE_DATABASE := preload("res://scripts/player/roles/role_database.gd")
 const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
+const PLAYER_SKILL_LEVEL_SYSTEM := preload("res://scripts/player/player_skill_level_system.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 
 const OPTION_PREFIX := "role_build:"
 const CATEGORY_ROLE_BUILD := "role_build"
 const BUILD_LEVELS_KEY := "build_levels"
 const ROLE_SLOT_COUNT := 3
-const SKILL_OPTION_TOTAL_WEIGHT := 0.35
-const NON_SKILL_OPTION_TOTAL_WEIGHT := 0.65
+const UNLOCK_OPTION_WEIGHT := 0.60
+const SKILL_UPGRADE_OPTION_WEIGHT := 0.40
+const SKILL_UPGRADE_BUILD_PREFIX := "skill_up_"
 
 const BUILD_DEFINITIONS := {
 	"swordsman": [
@@ -151,6 +154,8 @@ static func apply_option_with_result(owner, option_id: String) -> Dictionary:
 		return {}
 	var role_id := str(payload[0])
 	var build_id := str(payload[1])
+	if build_id.begins_with(SKILL_UPGRADE_BUILD_PREFIX):
+		return _apply_skill_upgrade_option(owner, role_id, build_id)
 	var definition := get_definition(role_id, build_id)
 	if definition.is_empty():
 		return {}
@@ -176,6 +181,35 @@ static func apply_option_with_result(owner, option_id: String) -> Dictionary:
 		"build_id": build_id,
 		"title": display_title,
 		"unlock_skill": unlock_skill
+	}
+
+
+static func _apply_skill_upgrade_option(owner, role_id: String, build_id: String) -> Dictionary:
+	var progress_id := build_id.trim_prefix(SKILL_UPGRADE_BUILD_PREFIX)
+	if progress_id == "":
+		return {}
+	var result := PLAYER_SKILL_LEVEL_SYSTEM.add_skill_level(owner, role_id, progress_id, 1)
+	if result.is_empty():
+		return {}
+	var progress_title := str(result.get("progress_title", progress_id))
+	var level := int(result.get("level", 0))
+	if owner.has_method("_spawn_combat_tag"):
+		var color := Color(0.62, 0.92, 1.0, 1.0)
+		if bool(result.get("pending_talent", false)):
+			color = Color(0.92, 0.84, 0.44, 1.0)
+		owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -62.0), "%s Lv.%d" % [progress_title, level], color)
+	return {
+		"type": CATEGORY_ROLE_BUILD,
+		"role_id": role_id,
+		"build_id": build_id,
+		"skill_upgrade": true,
+		"skill_progress_id": progress_id,
+		"progress_id": progress_id,
+		"level": level,
+		"previous_level": int(result.get("previous_level", level - 1)),
+		"pending_talent": bool(result.get("pending_talent", false)),
+		"title": "%s Lv.%d" % [progress_title, level],
+		"unlock_skill": ""
 	}
 
 
@@ -476,42 +510,96 @@ static func _pick_role_option_excluding(owner, role_id: String, role_slot_index:
 		return _make_blank_role_option(role_id, role_slot_index)
 	var filtered: Array = _filter_options_by_excluded_keys(candidates, excluded_keys)
 	var pool: Array = filtered if not filtered.is_empty() else candidates
-	return _pick_weighted_role_option(pool)
+	var picked := _pick_weighted_role_option(pool)
+	if picked.is_empty():
+		return _make_blank_role_option(role_id, role_slot_index)
+	return picked
 
 
 static func _pick_weighted_role_option(options: Array) -> Dictionary:
-	var skill_options: Array = []
-	var non_skill_options: Array = []
+	var unlock_options: Array = []
+	var upgrade_options: Array = []
 	for option_value in options:
 		if not option_value is Dictionary:
 			continue
 		var option: Dictionary = option_value
-		if str(option.get("unlock_skill", "")) != "":
-			skill_options.append(option)
+		if bool(option.get("skill_upgrade", false)):
+			upgrade_options.append(option)
 		else:
-			non_skill_options.append(option)
+			unlock_options.append(option)
 
-	if skill_options.is_empty():
-		non_skill_options.shuffle()
-		return non_skill_options[0]
-	if non_skill_options.is_empty():
-		skill_options.shuffle()
-		return skill_options[0]
+	if unlock_options.is_empty():
+		if upgrade_options.is_empty():
+			return {}
+		upgrade_options.shuffle()
+		return upgrade_options[0]
+	if upgrade_options.is_empty():
+		unlock_options.shuffle()
+		return unlock_options[0]
 
-	if randf() < SKILL_OPTION_TOTAL_WEIGHT:
-		skill_options.shuffle()
-		return skill_options[0]
-	non_skill_options.shuffle()
-	return non_skill_options[0]
+	if randf() < UNLOCK_OPTION_WEIGHT:
+		unlock_options.shuffle()
+		return unlock_options[0]
+	upgrade_options.shuffle()
+	return upgrade_options[0]
 
 
 static func _build_role_options(owner, role_id: String, role_slot_index: int) -> Array:
 	var options: Array = []
 	for definition in _get_role_build_definitions(role_id):
+		if str(definition.get("unlock_skill", "")) == "":
+			continue
 		if not _is_definition_offerable(owner, definition):
 			continue
 		options.append(_make_role_option(owner, role_id, role_slot_index, definition))
+	for progress_value in PLAYER_SKILL_LEVEL_SYSTEM.get_upgradeable_progress_ids(owner, role_id):
+		options.append(_make_skill_upgrade_option(owner, role_id, role_slot_index, str(progress_value)))
 	return options
+
+
+static func _make_skill_upgrade_option(owner, role_id: String, role_slot_index: int, progress_id: String) -> Dictionary:
+	var level := PLAYER_SKILL_LEVEL_SYSTEM.get_skill_level(owner, role_id, progress_id)
+	if level <= 0:
+		return {}
+	var next_level: int = mini(PLAYER_SKILL_LEVEL_SYSTEM.MAX_SKILL_LEVEL, level + 1)
+	var skill_title := PLAYER_SKILL_LEVEL_SYSTEM.get_progress_title(progress_id)
+	var role_name := _get_role_name(owner, role_id)
+	var build_id := "%s%s" % [SKILL_UPGRADE_BUILD_PREFIX, progress_id]
+	var summary := "%s 等级 +1：%d 级 → %d 级。" % [skill_title, level, next_level]
+	var preview := PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_upgrade_preview_text(owner, role_id, progress_id)
+	if preview != "":
+		summary += "升级效果：%s。" % preview
+	elif next_level <= PLAYER_SKILL_LEVEL_SYSTEM.TALENT_PICK_LEVEL and level < PLAYER_SKILL_LEVEL_SYSTEM.TALENT_PICK_LEVEL:
+		summary += "达到 %d 级时开启天赋位选择。" % PLAYER_SKILL_LEVEL_SYSTEM.TALENT_PICK_LEVEL
+	var option := {
+		"id": "%s%s:%s" % [OPTION_PREFIX, role_id, build_id],
+		"offer_key": "%s:%s" % [role_id, build_id],
+		"option_category": CATEGORY_ROLE_BUILD,
+		"slot": "role_slot_%d" % (role_slot_index + 1),
+		"slot_label": role_name,
+		"role_slot_index": role_slot_index,
+		"role_id": role_id,
+		"role_name": role_name,
+		"build_id": build_id,
+		"skill_progress_id": progress_id,
+		"skill_upgrade": true,
+		"skill_level": level,
+		"skill_level_next": next_level,
+		"title": "%s等级+1" % skill_title,
+		"summary": summary,
+		"short_description": summary,
+		"description": summary,
+		"preview_description": summary,
+		"detail_description": summary,
+		"exact_description": summary,
+		"card_title": skill_title,
+		"hide_card_title": false,
+		"unlock_skill": "",
+		"build_card_scene": "stone",
+		"blessing_tier": 1,
+		"evolved": false
+	}
+	return _project_role_option(owner, option)
 
 
 static func _make_role_option(owner, role_id: String, role_slot_index: int, definition: Dictionary) -> Dictionary:

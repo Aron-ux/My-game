@@ -15,6 +15,8 @@ const PLAYER_LEVEL_FLOW := preload("res://scripts/player/player_level_flow.gd")
 const PLAYER_BLESSING_SYSTEM := preload("res://scripts/player/player_blessing_system.gd")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_talent_system.gd")
+const PLAYER_SKILL_LEVEL_SYSTEM := preload("res://scripts/player/player_skill_level_system.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 const PLAYER_BLESSING_SKILL_BRIDGE := preload("res://scripts/player/player_blessing_skill_bridge.gd")
 const PLAYER_UPGRADE_APPLIER := preload("res://scripts/player/player_upgrade_applier.gd")
 const PLAYER_REWARD_APPLIER := preload("res://scripts/player/player_reward_applier.gd")
@@ -302,6 +304,7 @@ var ruan_bone_count: int = 0
 var ruan_stone_levels: Dictionary = {}
 var equipped_ruan_stone: String = ""
 var ruan_stone_purchased: Array = []
+var ruan_stone_carry_limit: int = 1
 var ruan_stone_proc_events: Dictionary = {}
 var basic_attack_event_serial: int = 0
 var equipment_damage_multiplier_bonus: float = 0.0
@@ -913,19 +916,39 @@ func _has_skill_talent(talent_id: String) -> bool:
 	return PLAYER_SKILL_TALENT_SYSTEM.has_talent(self, talent_id)
 
 func get_pending_skill_talent_choices() -> Array:
+	var pending: Array = PLAYER_SKILL_LEVEL_SYSTEM.get_pending_talent_picks(self)
+	if not pending.is_empty():
+		return pending
 	return PLAYER_SKILL_TALENT_SYSTEM.get_pending_choices(self)
 
 func build_next_skill_talent_offer() -> Dictionary:
+	var offer := PLAYER_SKILL_LEVEL_SYSTEM.build_talent_offer(self)
+	if not offer.is_empty():
+		return offer
 	return PLAYER_SKILL_TALENT_SYSTEM.build_next_offer(self)
 
 func refresh_skill_talent_card(option_index: int, role_id: String = "") -> Array:
+	if PLAYER_SKILL_LEVEL_SYSTEM.has_pending_talent_pick(self):
+		return PLAYER_SKILL_LEVEL_SYSTEM.refresh_talent_card(self, option_index)
 	return PLAYER_SKILL_TALENT_SYSTEM.refresh_offer_card(self, option_index, role_id)
 
 func apply_skill_talent_choice(option_id: String, expected_progress_id: String = "") -> bool:
+	if PLAYER_SKILL_LEVEL_SYSTEM.is_skill_talent_option_id(option_id):
+		return PLAYER_SKILL_LEVEL_SYSTEM.apply_choice(self, option_id)
 	return PLAYER_SKILL_TALENT_SYSTEM.apply_choice(self, option_id, expected_progress_id)
 
+## 玩家等级天赋入口已停用：技能天赋改由技能等级达到 5 级时触发。
 func queue_level_talent_choice(_reached_level: int) -> void:
-	pending_level_talent_choices += 1
+	pass
+
+func get_skill_level(role_id: String, progress_id: String) -> int:
+	return PLAYER_SKILL_LEVEL_SYSTEM.get_skill_level(self, role_id, progress_id)
+
+func get_skill_level_summary(role_id: String) -> String:
+	return PLAYER_SKILL_LEVEL_SYSTEM.get_role_summary_text(self, role_id)
+
+func has_skill_level_talent(role_id: String, progress_id: String, slot: int) -> bool:
+	return PLAYER_SKILL_LEVEL_SYSTEM.has_talent_slot(self, role_id, progress_id, slot)
 
 func _clear_skill_talent_runtime_state(removed_ids: Array) -> void:
 	var swordsman_keys := {
@@ -1157,7 +1180,7 @@ func _get_gunner_flash_dodge_value(role_id: String = "") -> float:
 	var resolved_role_id: String = role_id if role_id != "" else str(_get_active_role().get("id", ""))
 	if resolved_role_id != "gunner" or str(_get_active_role().get("id", "")) != "gunner":
 		return 0.0
-	var value_per_stack := GUNNER_FLASH_DODGE_VALUE_PER_STACK + PLAYER_BUILD_SYSTEM.get_gunner_flash_dodge_bonus_per_stack(self)
+	var value_per_stack := GUNNER_FLASH_DODGE_VALUE_PER_STACK + PLAYER_BUILD_SYSTEM.get_gunner_flash_dodge_bonus_per_stack(self) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_flash_dodge_bonus_per_stack(self)
 	return float(PLAYER_GUNNER_FLASH_TALENT_FLOW.get_active_flash_stacks(self)) * value_per_stack
 
 func _lock_player_actions(duration: float) -> void:
@@ -1279,11 +1302,11 @@ func _clear_gunner_flash_trait_on_switch() -> void:
 func _get_gunner_flash_damage_multiplier() -> float:
 	if str(_get_active_role().get("id", "")) != "gunner":
 		return 1.0
-	var bonus_per_stack := GUNNER_FLASH_DAMAGE_PER_STACK + PLAYER_BUILD_SYSTEM.get_gunner_flash_damage_bonus_per_stack(self)
+	var bonus_per_stack := GUNNER_FLASH_DAMAGE_PER_STACK + PLAYER_BUILD_SYSTEM.get_gunner_flash_damage_bonus_per_stack(self) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_flash_damage_bonus_per_stack(self)
 	return 1.0 + float(PLAYER_GUNNER_FLASH_TALENT_FLOW.get_active_flash_stacks(self)) * bonus_per_stack
 
 func _get_gunner_flash_move_speed_multiplier() -> float:
-	var bonus_per_stack := GUNNER_FLASH_SPEED_PER_STACK + PLAYER_BUILD_SYSTEM.get_gunner_flash_speed_bonus_per_stack(self)
+	var bonus_per_stack := GUNNER_FLASH_SPEED_PER_STACK + PLAYER_BUILD_SYSTEM.get_gunner_flash_speed_bonus_per_stack(self) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_flash_speed_bonus_per_stack(self)
 	return 1.0 + float(PLAYER_GUNNER_FLASH_TALENT_FLOW.get_active_flash_stacks(self)) * bonus_per_stack
 
 func _get_gunner_hunt_dodge_value(role_id: String = "") -> float:
@@ -1307,7 +1330,7 @@ func _get_mage_arcane_charge_ultimate_damage_multiplier(role_id: String = "") ->
 	return PLAYER_MAGE_ARCANE_CHARGE_TALENT_FLOW.get_ultimate_damage_multiplier(self, resolved_role_id)
 
 func _get_gunner_safe_zone_radius() -> float:
-	return max(0.0, GUNNER_SAFE_ZONE_RADIUS + PLAYER_BUILD_SYSTEM.get_gunner_hunt_safe_radius_bonus(self))
+	return max(0.0, GUNNER_SAFE_ZONE_RADIUS + PLAYER_BUILD_SYSTEM.get_gunner_hunt_safe_radius_bonus(self) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_hunt_radius_bonus(self))
 
 func _get_gunner_flash_buff_slot() -> Dictionary:
 	if str(_get_active_role().get("id", "")) != "gunner":
@@ -1439,7 +1462,7 @@ func _get_mage_arcane_charge_share_ratio() -> float:
 	return _get_mage_arcane_charge_share_ratio_for_role(str(_get_active_role().get("id", "")))
 
 func _get_mage_arcane_charge_self_energy_multiplier_for_role(role_id: String) -> float:
-	var energy_per_stack := MAGE_ARCANE_CHARGE_SELF_ENERGY_PER_STACK + PLAYER_BUILD_SYSTEM.get_mage_arcane_charge_energy_bonus_per_stack(self)
+	var energy_per_stack := MAGE_ARCANE_CHARGE_SELF_ENERGY_PER_STACK + PLAYER_BUILD_SYSTEM.get_mage_arcane_charge_energy_bonus_per_stack(self) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_arcane_charge_energy_bonus_per_stack(self)
 	return 1.0 + float(_get_mage_arcane_charge_effective_stacks_for_role(role_id)) * energy_per_stack
 
 func _get_mage_arcane_charge_self_energy_multiplier() -> float:
@@ -1453,7 +1476,10 @@ func _is_mage_arcane_surplus_active() -> bool:
 
 func _get_mage_arcane_surplus_damage_multiplier(role_id: String = "") -> float:
 	var resolved_role_id: String = role_id if role_id != "" else str(_get_active_role().get("id", ""))
-	return PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.get_damage_multiplier(self, resolved_role_id)
+	var multiplier: float = PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.get_damage_multiplier(self, resolved_role_id)
+	if _is_mage_arcane_surplus_active() and PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.is_role_under_arcane_surplus(self, resolved_role_id):
+		multiplier += PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_arcane_surplus_damage_multiplier_bonus(self)
+	return multiplier
 
 func _get_mage_arcane_surplus_skill_cooldown_tick_multiplier(role_id: String = "") -> float:
 	var resolved_role_id: String = role_id if role_id != "" else str(_get_active_role().get("id", ""))
@@ -1462,12 +1488,12 @@ func _get_mage_arcane_surplus_skill_cooldown_tick_multiplier(role_id: String = "
 func _get_mage_arcane_surplus_team_ultimate_energy_bonus() -> float:
 	if not _is_mage_arcane_surplus_active():
 		return 0.0
-	return MAGE_ARCANE_SURPLUS_TEAM_ULTIMATE_ENERGY_BONUS
+	return MAGE_ARCANE_SURPLUS_TEAM_ULTIMATE_ENERGY_BONUS + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_arcane_surplus_ultimate_energy_bonus(self)
 
 func _get_mage_arcane_surplus_switch_energy_bonus() -> float:
 	if not _is_mage_arcane_surplus_active():
 		return 0.0
-	return MAGE_ARCANE_SURPLUS_SWITCH_ENERGY_BONUS
+	return MAGE_ARCANE_SURPLUS_SWITCH_ENERGY_BONUS + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_arcane_surplus_switch_energy_bonus(self)
 
 func _get_mage_arcane_charge_buff_slot() -> Dictionary:
 	var active_role_id: String = str(_get_active_role().get("id", ""))
@@ -1898,7 +1924,7 @@ func _get_gunner_distance_damage_multiplier(distance: float) -> float:
 		0.0,
 		_get_gunner_safe_zone_radius(),
 		PLAYER_BUILD_SYSTEM.get_gunner_hunt_inside_damage_bonus(self) + talent_inside_bonus,
-		PLAYER_BUILD_SYSTEM.get_gunner_hunt_outside_damage_bonus(self)
+		PLAYER_BUILD_SYSTEM.get_gunner_hunt_outside_damage_bonus(self) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_hunt_outside_damage_bonus(self)
 	)
 
 func _get_enemy_hit_radius(enemy: Node) -> float:
@@ -2465,6 +2491,7 @@ func configure_ruan_stones(profile: Dictionary) -> void:
 	ruan_stone_levels = {}
 	equipped_ruan_stone = ""
 	ruan_stone_purchased = (normalized.get("ruan_stone_purchased", []) as Array).duplicate()
+	ruan_stone_carry_limit = RUAN_STONE_SYSTEM.get_carry_limit(normalized)
 	ruan_stone_proc_events.clear()
 
 
@@ -2485,11 +2512,27 @@ func collect_ruan_bones(amount: int) -> int:
 
 
 func get_ruan_stone_level(stone_id: String) -> int:
-	return 1 if ruan_stone_purchased.has(stone_id) else 0
+	# 等级即“已携带份数”，同一物件可重复购买并加法叠加
+	var count := 0
+	for purchased_id in ruan_stone_purchased:
+		if str(purchased_id) == stone_id:
+			count += 1
+	return count
+
+
+func get_ruan_stone_carry_limit() -> int:
+	return max(1, ruan_stone_carry_limit)
+
+
+func get_ruan_stone_carried_count() -> int:
+	return ruan_stone_purchased.size()
 
 
 func get_equipped_ruan_stone() -> String:
 	return equipped_ruan_stone
+
+func get_ruan_stone_carry_summary() -> String:
+	return RUAN_STONE_SYSTEM.get_carried_summary_text(ruan_stone_purchased)
 
 func get_purchased_ruan_stones() -> Array:
 	return ruan_stone_purchased.duplicate()
@@ -2506,8 +2549,22 @@ func set_developer_bone_count(value: int) -> void:
 func set_developer_ruan_stone_level(stone_id: String, level: int) -> void:
 	if not RUAN_STONE_SYSTEM.STONE_IDS.has(stone_id):
 		return
-	ruan_stone_levels[stone_id] = max(0, level)
-	if equipped_ruan_stone == stone_id and get_ruan_stone_level(stone_id) <= 0:
+	var target_level: int = max(0, level)
+	ruan_stone_levels[stone_id] = target_level
+	# 等级即携带份数：开发者调整等级时同步携带列表，保证效果与显示一致
+	var current_count := get_ruan_stone_level(stone_id)
+	if target_level > current_count:
+		for _index in range(target_level - current_count):
+			ruan_stone_purchased.append(stone_id)
+	elif target_level < current_count:
+		var remove_count := current_count - target_level
+		for index in range(ruan_stone_purchased.size() - 1, -1, -1):
+			if remove_count <= 0:
+				break
+			if str(ruan_stone_purchased[index]) == stone_id:
+				ruan_stone_purchased.remove_at(index)
+				remove_count -= 1
+	if target_level <= 0 and equipped_ruan_stone == stone_id:
 		equipped_ruan_stone = ""
 
 

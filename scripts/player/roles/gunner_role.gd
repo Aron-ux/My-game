@@ -4,6 +4,7 @@ const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_GUNNER_FLASH_TALENT_FLOW := preload("res://scripts/player/player_gunner_flash_talent_flow.gd")
 const PLAYER_GUNNER_BASIC_TALENT_FLOW := preload("res://scripts/player/player_gunner_basic_talent_flow.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 
 const ULTIMATE_BULLET_HIT_SCAN_INTERVAL := 0.035
 const BASIC_COMBO_INTERVAL := 0.12
@@ -94,7 +95,7 @@ func _perform_attack_variant(owner, shot_direction: Vector2, effect_scale: float
 	var barrage_attribute_level: float = 0.0
 	shot_direction = shot_direction if shot_direction.length_squared() > 0.001 else Vector2.RIGHT
 	shot_direction = shot_direction.normalized()
-	var build_range_bonus: float = PLAYER_BUILD_SYSTEM.get_basic_attack_range_flat_bonus(owner, "gunner")
+	var build_range_bonus: float = PLAYER_BUILD_SYSTEM.get_basic_attack_range_flat_bonus(owner, "gunner") + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_basic_range_bonus(owner)
 	var effective_range: float = (float(role_data["range"]) + float(upgrade_data.get("range_bonus", 0.0)) + build_range_bonus) * owner._get_role_attribute_range_multiplier(role_data["id"]) * owner._get_role_equipment_skill_range_multiplier(role_data["id"])
 	var target_enemy: Node2D = owner._get_enemy_in_aim_cone(18.0, effective_range)
 	var main_damage: float = owner._get_role_damage(role_data["id"]) * max(0.0, effect_scale) * PLAYER_BUILD_SYSTEM.get_basic_attack_damage_multiplier(owner, "gunner")
@@ -115,8 +116,16 @@ func _perform_attack_variant(owner, shot_direction: Vector2, effect_scale: float
 				"speed_multiplier": 0.85,
 				"pierce_bonus": 4
 			}
-		if not _spawn_primary_batched_bullet_group(owner, shot_direction, main_damage, bullet_color, role_data, upgrade_data, focus_level, owner.global_position + shot_direction * 18.0, reprise_scales, main_overrides, damage_event_id):
+		var main_origin: Vector2 = owner.global_position + shot_direction * 18.0
+		if not _spawn_primary_batched_bullet_group(owner, shot_direction, main_damage, bullet_color, role_data, upgrade_data, focus_level, main_origin, reprise_scales, main_overrides, damage_event_id):
 			return
+		# 技能等级 3 / 6 / 9 级各获得一枚分裂弹：方向按 20° 交替偏移，伤害与主弹相同
+		var split_count: int = PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_basic_split_bullet_count(owner)
+		for split_index in range(split_count):
+			var split_angle: float = PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_basic_split_angle_degrees(split_index)
+			var split_direction: Vector2 = shot_direction.rotated(deg_to_rad(split_angle))
+			var split_origin: Vector2 = owner.global_position + split_direction * 18.0
+			_spawn_primary_batched_bullet_group(owner, split_direction, main_damage, bullet_color, role_data, upgrade_data, focus_level, split_origin, [], {}, damage_event_id)
 
 	if advance_chain:
 		owner.gunner_attack_chain = (owner.gunner_attack_chain + 1) % 4
@@ -277,12 +286,13 @@ func _get_basic_attack_projectile_speed_multiplier(owner) -> float:
 func _get_basic_bullet_speed(owner, role_data: Dictionary, focus_level: int) -> float:
 	var speed := (BASIC_BULLET_BASE_SPEED + BASIC_BULLET_FOCUS_SPEED_BONUS * focus_level) * _get_basic_attack_projectile_speed_multiplier(owner)
 	speed += PLAYER_GUNNER_BASIC_TALENT_FLOW.get_basic_speed_bonus(owner)
+	speed += PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_basic_bullet_speed_bonus(owner)
 	if _has_talent(owner, "gunner_basic_mobile_fire") and _is_owner_moving(owner):
 		speed *= GUNNER_MOBILE_FIRE_SPEED_MULTIPLIER
 	return speed
 
 func _get_basic_bullet_lifetime(owner, bullet_speed: float) -> float:
-	var travel_distance: float = BASIC_BULLET_TRAVEL_DISTANCE + PLAYER_BUILD_SYSTEM.get_basic_attack_range_flat_bonus(owner, "gunner")
+	var travel_distance: float = BASIC_BULLET_TRAVEL_DISTANCE + PLAYER_BUILD_SYSTEM.get_basic_attack_range_flat_bonus(owner, "gunner") + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_basic_range_bonus(owner)
 	if _has_talent(owner, "gunner_basic_mobile_fire") and _is_owner_moving(owner):
 		travel_distance += GUNNER_MOBILE_FIRE_RANGE_BONUS
 	return travel_distance / max(1.0, bullet_speed)

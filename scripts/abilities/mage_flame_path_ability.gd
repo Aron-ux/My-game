@@ -1,6 +1,7 @@
 extends RefCounted
 
 const SKILL_ID := "flame_path"
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 const COOLDOWN := 20.0
 const ACTIVE_DURATION := 8.0
 const PATH_DURATION := 15.0
@@ -47,7 +48,7 @@ func try_trigger(owner) -> bool:
 	path_node = Node2D.new()
 	path_node.name = "MageFlamePath"
 	path_node.set_script(preload("res://scripts/player/mage_flame_path.gd"))
-	path_node.configure(owner, float(owner._get_role_damage("mage")) * DAMAGE_PER_SECOND_RATIO)
+	path_node.configure(owner, float(owner._get_role_damage("mage")) * (DAMAGE_PER_SECOND_RATIO + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_flame_path_damage_per_second_bonus(owner)))
 	path_node.record_position(owner.global_position)
 	scene.add_child(path_node)
 	owner._spawn_ring_effect(owner.global_position, 48.0, Color(1.0, 0.34, 0.10, 0.5), 7.0, 0.18)
@@ -56,7 +57,7 @@ func try_trigger(owner) -> bool:
 func get_move_speed_multiplier(owner) -> float:
 	if active_remaining <= 0.0 or owner == null or str(owner._get_active_role().get("id", "")) != "mage":
 		return 1.0
-	var mult: float = MOVE_SPEED_MULTIPLIER
+	var mult: float = MOVE_SPEED_MULTIPLIER + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_flame_path_move_speed_bonus(owner)
 	if owner.has_method("_has_level_talent") and owner._has_level_talent("mage_level_talent_flame_path_2"):
 		mult += 0.30
 	return mult

@@ -5,6 +5,7 @@ const PLAYER_SCENE := preload("res://scenes/player.tscn")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_BLESSING_SYSTEM := preload("res://scripts/player/player_blessing_system.gd")
 const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_talent_system.gd")
+const PLAYER_SKILL_LEVEL_SYSTEM := preload("res://scripts/player/player_skill_level_system.gd")
 
 var failures: Array[String] = []
 var shared_blessing_count_line_before_role_preview := ""
@@ -49,16 +50,11 @@ func _run() -> void:
 
 
 func _seed_character_build(player: Node) -> void:
-	PLAYER_BUILD_SYSTEM.apply_option(player, "role_build:swordsman:basic_attack_damage")
-	PLAYER_BUILD_SYSTEM.apply_option(player, "role_build:swordsman:basic_attack_damage")
-	PLAYER_BUILD_SYSTEM.apply_option(player, "role_build:swordsman:basic_attack_damage")
-	while PLAYER_SKILL_TALENT_SYSTEM.get_skill_progress_level(player, "swordsman", "swordsman_basic") < 6:
-		PLAYER_BUILD_SYSTEM.apply_option(player, "role_build:swordsman:basic_attack_cooldown")
-	while PLAYER_SKILL_TALENT_SYSTEM.get_skill_progress_level(player, "swordsman", "swordsman_basic") < 9:
-		PLAYER_BUILD_SYSTEM.apply_option(player, "role_build:swordsman:basic_attack_cooldown")
-	PLAYER_BUILD_SYSTEM.apply_option(player, "role_build:swordsman:entry_damage")
-	PLAYER_BUILD_SYSTEM.apply_option(player, "role_build:swordsman:entry_damage")
-	PLAYER_BUILD_SYSTEM.apply_option(player, "role_build:gunner:entry_damage")
+	for _index in range(8):
+		PLAYER_SKILL_LEVEL_SYSTEM.add_skill_level(player, "swordsman", "swordsman_basic")
+	PLAYER_SKILL_LEVEL_SYSTEM.add_skill_level(player, "swordsman", "swordsman_entry")
+	PLAYER_SKILL_LEVEL_SYSTEM.add_skill_level(player, "swordsman", "swordsman_entry")
+	PLAYER_SKILL_LEVEL_SYSTEM.add_skill_level(player, "gunner", "gunner_entry")
 
 	for tier in range(1, PLAYER_BLESSING_SYSTEM.MAX_BLESSING_TIER + 1):
 		PLAYER_BLESSING_SYSTEM.apply_blessing(player, "divine_grace", tier)
@@ -105,8 +101,12 @@ func _check_skill_tree_content(panel: Node) -> void:
 	var detail := panel.find_child("SkillTreeDetail", true, false)
 	if selector_list == null or detail == null:
 		return
+	var expected_selector_count := 0
+	for progress_order_value in PLAYER_SKILL_TALENT_SYSTEM.ROLE_PROGRESS_ORDER.values():
+		if progress_order_value is Array:
+			expected_selector_count = maxi(expected_selector_count, progress_order_value.size())
 	_expect(
-		selector_list.get_child_count() == PLAYER_SKILL_TALENT_SYSTEM.ROLE_PROGRESS_ORDER["swordsman"].size(),
+		selector_list.get_child_count() == expected_selector_count,
 		"skill tree page should render one selector per role progress node"
 	)
 	for progress_id in PLAYER_SKILL_TALENT_SYSTEM.ROLE_PROGRESS_ORDER["swordsman"]:
@@ -121,16 +121,15 @@ func _check_skill_tree_content(panel: Node) -> void:
 
 	detail = panel.find_child("SkillTreeDetail", true, false)
 	var text := _collect_text(detail)
-	for title in ["普通攻击", "剑士普通攻击伤害倍率增加15％", "剑士普通攻击冷却减少15％"]:
+	for title in ["普通攻击", "技能等级：Lv.9 / 10", "天赋位 I", "天赋位 II"]:
 		_expect(text.contains(title), "basic attack tree should show %s" % title)
-	_expect(text.contains("构筑 Lv.9"), "completed basic attack tree should show build Lv.9")
 	_expect(
 		not text.contains("当前路径") and not text.contains("阶段 I") and not text.contains("质变后续升级"),
 		"skill build detail should no longer show the old three-stage path"
 	)
 	_expect(
-		_compact(text).contains("剑士普通攻击伤害倍率增加15％×3"),
-		"basic attack tree should keep the concrete ordinary build ×3 count"
+		_compact(text).contains("技能等级：Lv.9/10"),
+		"basic attack tree should keep the concrete skill level readout"
 	)
 	var header_instance_id := panel.find_child("SkillTreeHeader", true, false).get_instance_id()
 	var build_instance_id := panel.find_child("SkillTreeBuildDetails", true, false).get_instance_id()
@@ -172,7 +171,7 @@ func _check_locked_skill_copy(panel: Node) -> void:
 	selector.emit_signal("pressed")
 	await process_frame
 	var text := _collect_text(panel.find_child("SkillTreeDetail", true, false))
-	for expected in ["尚未解锁", "普通构筑未生效", "先解锁"]:
+	for expected in ["尚未解锁", "该技能不在升级卡池中", "先解锁"]:
 		_expect(text.contains(expected), "locked skill detail should say %s" % expected)
 	_expect(
 		not text.contains("阶段 I") and not text.contains("当前路径") and not text.contains("质变"),
@@ -189,8 +188,8 @@ func _check_pretrigger_skill_copy(panel: Node) -> void:
 	await process_frame
 	var text := _collect_text(panel.find_child("SkillTreeDetail", true, false))
 	_expect(
-		text.contains("构筑 Lv.1"),
-		"an unlocked level-1 skill should show its ordinary build level"
+		text.contains("技能 Lv.1 / 10"),
+		"an unlocked level-1 skill should show its skill level"
 	)
 	_expect(
 		not text.contains("阶段 I") and not text.contains("当前路径") and not text.contains("构筑 Lv.6 解锁"),
@@ -208,12 +207,12 @@ func _check_pending_skill_copy(panel: Node) -> void:
 	var text := _collect_text(panel.find_child("SkillTreeDetail", true, false))
 	_expect(text.contains("冲锋"), "moving to another skill should update the tree header")
 	_expect(
-		text.contains("构筑 Lv.3") and text.contains("冲锋伤害倍率增加15％"),
-		"moving to another skill should show ordinary build level and entries"
+		text.contains("技能 Lv.3 / 10"),
+		"moving to another skill should show its skill level"
 	)
 	_expect(
 		not text.contains("阶段 I 待选择") and not text.contains("当前路径") and not text.contains("二选一"),
-		"an unlocked build Lv.3 skill should not show removed pending path copy"
+		"an unlocked level-3 skill should not show removed pending path copy"
 	)
 
 
@@ -370,12 +369,12 @@ func _check_role_preview_does_not_switch_active_role(panel: Node, player: Node) 
 		and role_nav_list.get_child(0).get_instance_id() == first_role_card_id,
 		"role preview should update persistent role cards instead of rebuilding them"
 	)
-	var gunner_basic_selector := panel.find_child("SkillTreeSelector_gunner_basic", true, false) as Button
+	var gunner_entry_selector := panel.find_child("SkillTreeSelector_gunner_entry", true, false) as Button
 	_expect(
 		basic_selector != null
-		and gunner_basic_selector != null
-		and gunner_basic_selector.get_instance_id() == basic_selector.get_instance_id(),
-		"role preview should update the six persistent selector buttons in place"
+		and gunner_entry_selector != null
+		and gunner_entry_selector.get_instance_id() == basic_selector.get_instance_id(),
+		"role preview should update the persistent selector buttons in place"
 	)
 	var build_button := panel.find_child("BuildTabButton", true, false) as Button
 	if build_button != null:
@@ -390,8 +389,10 @@ func _check_role_preview_does_not_switch_active_role(panel: Node, player: Node) 
 		_expect(selector_text.contains("火箭弹幕"), "role preview should refresh the gunner ultimate content")
 		_expect(not selector_text.contains("冲锋"), "role preview should remove the previous role's skill content")
 		_expect(
-			detail_text.contains("普通攻击") and detail_text.contains("暂无普通构筑强化") and not detail_text.contains("冲锋伤害倍率增加15％"),
-			"role preview should preserve slot index 2 and show the gunner basic build"
+			detail_text.contains("枪火典礼")
+			and detail_text.contains("技能 Lv.2 / 10")
+			and not detail_text.contains("冲锋伤害倍率增加15％"),
+			"role preview should preserve slot index 2 and show the gunner entry skill, got %s" % detail_text.left(240)
 		)
 	var blessing_button := panel.find_child("BlessingTabButton", true, false) as Button
 	if blessing_button != null:
@@ -426,8 +427,8 @@ func _check_empty_states(panel: Node, player: Node) -> void:
 	var skill_detail := panel.find_child("SkillTreeDetail", true, false)
 	if skill_detail != null:
 		_expect(
-			_contains_any(_collect_text(skill_detail), ["暂无普通构筑强化", "暂无构筑强化", "尚无构筑强化"]),
-			"skill tree detail should show an empty ordinary-build state"
+			_contains_any(_collect_text(skill_detail), ["尚未解锁", "技能等级：Lv.1"]),
+			"skill tree detail should show the fresh-run skill state"
 		)
 	var blessing_button := panel.find_child("BlessingTabButton", true, false) as Button
 	if blessing_button != null:

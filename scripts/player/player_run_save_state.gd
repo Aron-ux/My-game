@@ -37,7 +37,7 @@ static func get_save_data(player) -> Dictionary:
 	var active_skill_talent: bool = str(player.active_upgrade_kind) == "skill_talent" or bool(active_offer_context.get("skill_talent_offer", false))
 	var active_skill_talent_context := _normalize_active_skill_talent_context(active_offer_context) if active_skill_talent else {}
 	var pending_level_talent_choices: int = max(0, int(player.get("pending_level_talent_choices")))
-	if player.level_up_active and active_skill_talent and pending_level_talent_choices <= 0:
+	if player.level_up_active and active_skill_talent and bool(active_offer_context.get("level_talent_offer", false)) and pending_level_talent_choices <= 0:
 		pending_level_talent_choices = 1
 	if player.level_up_active and not active_skill_talent:
 		pending_upgrade_count += 1
@@ -201,9 +201,9 @@ static func apply_save_data(player, data: Dictionary) -> void:
 	player.pending_level_ups = max(0, int(data.get("pending_level_ups", player.pending_level_ups)))
 	player.pending_level_talent_choices = max(0, int(data.get("pending_level_talent_choices", player.pending_level_talent_choices)))
 	player.active_upgrade_kind = "skill_talent" if str(data.get("active_upgrade_kind", "")) == "skill_talent" else ""
-	if player.active_upgrade_kind == "skill_talent" and player.pending_level_talent_choices <= 0:
-		player.pending_level_talent_choices = 1
 	var saved_skill_talent_context := _normalize_active_skill_talent_context(data.get("active_skill_talent_context", {}))
+	if player.active_upgrade_kind == "skill_talent" and bool(saved_skill_talent_context.get("level_talent_offer", false)) and player.pending_level_talent_choices <= 0:
+		player.pending_level_talent_choices = 1
 	player.current_blessing_offer = {
 		"context": saved_skill_talent_context
 	} if player.active_upgrade_kind == "skill_talent" and not saved_skill_talent_context.is_empty() else {}
@@ -345,12 +345,14 @@ static func _normalize_owned_magic_stones(value: Variant) -> Array:
 static func _normalize_active_skill_talent_context(value: Variant) -> Dictionary:
 	if value is not Dictionary:
 		return {}
-	if not bool((value as Dictionary).get("skill_talent_offer", false)) and not bool((value as Dictionary).get("level_talent_offer", false)):
+	var source: Dictionary = value
+	var is_level_talent: bool = bool(source.get("level_talent_offer", false))
+	if not bool(source.get("skill_talent_offer", false)) and not is_level_talent:
 		return {}
-	return {
+	var result := {
 		"offer_mode": PLAYER_SKILL_TALENT_SYSTEM.CATEGORY_SKILL_TALENT,
 		"skill_talent_offer": true,
-		"level_talent_offer": true,
+		"level_talent_offer": is_level_talent,
 		"role_build_offer": false,
 		"selection_count": 1,
 		"refresh_limit": 0,
@@ -358,6 +360,13 @@ static func _normalize_active_skill_talent_context(value: Variant) -> Dictionary
 		"refresh_unlimited": false,
 		"refresh_button_label": ""
 	}
+	var role_id := str(source.get("role_id", ""))
+	if role_id != "":
+		result["role_id"] = role_id
+	var progress_id := str(source.get("skill_progress_id", ""))
+	if progress_id != "":
+		result["skill_progress_id"] = progress_id
+	return result
 
 static func _apply_saved_role_health_data(player, saved_role_health_values: Variant, saved_current_health: float, saved_active_role_index: int) -> void:
 	player.role_health_values = player._build_role_health_state()

@@ -2,6 +2,7 @@ extends RefCounted
 
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
+const PLAYER_SKILL_LEVEL_SYSTEM := preload("res://scripts/player/player_skill_level_system.gd")
 
 const OPTION_PREFIX := "skill_talent:"
 const CATEGORY_SKILL_TALENT := "skill_talent"
@@ -119,74 +120,11 @@ const TRIGGER_LEVEL := 3
 const TRIGGER_LEVELS := [3, 6, 9]
 const TALENT_STAGE_COUNT := 3
 
-const ROLE_PROGRESS_ORDER := {
-	"swordsman": ["swordsman_trait", "swordsman_entry", "swordsman_basic", "swordsman_blade_storm", "swordsman_crescent_wave", "swordsman_knight_thrust", "swordsman_king_blade", "swordsman_judgement_sword", "swordsman_ultimate"],
-	"gunner": ["gunner_trait", "gunner_entry", "gunner_basic", "gunner_shrapnel", "gunner_infinite_reload", "gunner_explosive_round", "gunner_magic_grenade", "gunner_magic_eye", "gunner_ultimate"],
-	"mage": ["mage_trait", "mage_entry", "mage_basic", "mage_meta_field", "mage_surging_wave", "mage_flame_path", "mage_dark_contract", "mage_fireball", "mage_ultimate"],
-	"mechanic": ["mechanic_trait", "mechanic_entry", "mechanic_basic", "mechanic_drone", "mechanic_mine", "mechanic_emp_burst", "mechanic_tulip_turret", "mechanic_missile_volley", "mechanic_ultimate"]
-}
+const ROLE_PROGRESS_ORDER := PLAYER_SKILL_LEVEL_SYSTEM.ROLE_PROGRESS_ORDER
 
-const PROGRESS_TITLES := {
-	"swordsman_trait": "剑士特性",
-	"swordsman_entry": "冲锋",
-	"swordsman_basic": "普通攻击",
-	"swordsman_blade_storm": "剑刃风暴",
-	"swordsman_crescent_wave": "月牙剑气",
-	"swordsman_knight_thrust": "骑士突",
-	"swordsman_king_blade": "王者之剑",
-	"swordsman_judgement_sword": "审判之誓",
-	"swordsman_ultimate": "无敌斩",
-	"gunner_trait": "枪手特性",
-	"gunner_entry": "枪火典礼",
-	"gunner_basic": "普通攻击",
-	"gunner_shrapnel": "散弹",
-	"gunner_infinite_reload": "无限装填",
-	"gunner_explosive_round": "爆破弹",
-	"gunner_magic_grenade": "魔法榴弹",
-	"gunner_magic_eye": "魔眼聚合",
-	"gunner_ultimate": "火箭弹幕",
-	"mage_trait": "术师特性",
-	"mage_entry": "密集雷群",
-	"mage_basic": "范围轰炸",
-	"mage_meta_field": "梅塔领域",
-	"mage_surging_wave": "波涛汹涌",
-	"mage_flame_path": "火焰之径",
-	"mage_dark_contract": "黑暗契约",
-	"mage_fireball": "火球术",
-	"mage_ultimate": "奥数轰炸",
-	"mechanic_trait": "机械师特性",
-	"mechanic_entry": "紧急部署",
-	"mechanic_basic": "机械蜘蛛",
-	"mechanic_drone": "守卫机器人",
-	"mechanic_mine": "感应地雷",
-	"mechanic_emp_burst": "磁滞力场",
-	"mechanic_tulip_turret": "定点机炮",
-	"mechanic_missile_volley": "重型炮台",
-	"mechanic_ultimate": "机械全开·郁金香齐射"
-}
+const PROGRESS_TITLES := PLAYER_SKILL_LEVEL_SYSTEM.PROGRESS_TITLES
 
-const UNLOCKABLE_PROGRESS := {
-	"swordsman_blade_storm": "blade_storm",
-	"swordsman_crescent_wave": "crescent_wave",
-	"swordsman_knight_thrust": "knight_thrust",
-	"swordsman_king_blade": "king_blade",
-	"swordsman_judgement_sword": "judgement_sword",
-	"gunner_shrapnel": "shrapnel_field",
-	"gunner_infinite_reload": "infinite_reload",
-	"gunner_explosive_round": "explosive_round",
-	"gunner_magic_grenade": "magic_grenade",
-	"gunner_magic_eye": "magic_eye",
-	"mage_meta_field": "meta_field",
-	"mage_surging_wave": "surging_wave",
-	"mage_flame_path": "flame_path",
-	"mage_dark_contract": "dark_contract",
-	"mage_fireball": "fireball",
-	"mechanic_drone": "drone",
-	"mechanic_mine": "mine",
-	"mechanic_emp_burst": "emp_burst",
-	"mechanic_tulip_turret": "tulip_turret",
-	"mechanic_missile_volley": "missile_volley",
-}
+const UNLOCKABLE_PROGRESS := PLAYER_SKILL_LEVEL_SYSTEM.UNLOCKABLE_PROGRESS
 
 const SKILL_PROGRESS_BY_SKILL_ID := {
 	"swordsman_basic_attack": "swordsman_basic",
@@ -1026,20 +964,7 @@ static func is_talent_option_id(option_id: String) -> bool:
 
 
 static func get_skill_progress_level(owner, role_id: String, progress_id: String) -> int:
-	if owner == null or not ROLE_PROGRESS_ORDER.get(role_id, []).has(progress_id):
-		return 0
-	var required_skill := str(UNLOCKABLE_PROGRESS.get(progress_id, ""))
-	if required_skill != "" and not PLAYER_BLESSING_SKILL_STATE.is_skill_unlocked(owner, required_skill):
-		return 0
-	var level := 1
-	for definition_value in PLAYER_BUILD_SYSTEM.BUILD_DEFINITIONS.get(role_id, []):
-		if definition_value is not Dictionary:
-			continue
-		var definition: Dictionary = definition_value
-		if str(definition.get("skill_progress_id", "")) != progress_id or str(definition.get("unlock_skill", "")) != "":
-			continue
-		level += PLAYER_BUILD_SYSTEM.get_count(owner, role_id, str(definition.get("id", "")))
-	return level
+	return PLAYER_SKILL_LEVEL_SYSTEM.get_skill_level(owner, role_id, progress_id)
 
 
 static func get_pending_choices(owner) -> Array:
@@ -1693,7 +1618,7 @@ static func normalize_role_special_states(value: Variant) -> Dictionary:
 		var level_talents := _normalize_level_talent_ids(role_id, role_state.get(LEVEL_TALENTS_KEY, []))
 		role_state[LEVEL_TALENTS_KEY] = level_talents
 		role_state[LEVEL_TALENT_GROUP_LOCKS_KEY] = _normalize_level_talent_group_locks(role_id, role_state.get(LEVEL_TALENT_GROUP_LOCKS_KEY, {}), level_talents)
-		states[role_id] = role_state
+		states[role_id] = PLAYER_SKILL_LEVEL_SYSTEM.normalize_role_state(str(role_id), role_state)
 	return states
 
 static func _normalize_selected_talents(progress_id: String, value: Variant) -> Array:

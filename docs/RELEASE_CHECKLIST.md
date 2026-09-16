@@ -58,7 +58,8 @@ Use this before any public build, demo handoff, or store upload.
 - [ ] Display settings persist.
 - [ ] Keybind editing in main-menu Settings still works after closing/reopening the panel.
 - [ ] Role-build levels and role special state persist across continue-game save/load.
-- [ ] `pending_level_talent_choices`, active talent context, `level_talents`, and `level_talent_group_locks` persist across continue-game save/load; legacy `skill_talents` remains empty after normalization.
+- [ ] `role_special_states[role_id].skill_levels` and `.skill_talent_slots` persist across continue-game save/load, and a skill reaching level 5 still shows its pending two-slot talent pick after reloading.
+- [ ] `pending_level_talent_choices`, active talent context, `level_talents`, and `level_talent_group_locks` still round-trip for legacy saves; the player-level talent entry no longer queues new picks, and legacy `skill_talents` remains empty after normalization.
 - [ ] Blessing levels, retained attribute-training state, skill blessing levels, and equipment persist across continue-game save/load.
 - [ ] Achievement unlock state persists.
 

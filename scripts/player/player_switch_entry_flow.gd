@@ -1,6 +1,7 @@
 extends RefCounted
 
 const PLAYER_GUNNER_ENTRY_TALENT_FLOW := preload("res://scripts/player/player_gunner_entry_talent_flow.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 
 const GUNNER_ENTRY_WAVE_BULLET_COUNT := 8
 const GUNNER_ENTRY_WAVE_BATCH_SIZE := 4
@@ -50,7 +51,7 @@ static func _spawn_gunner_entry_bullet(owner, role_id: String, direction: Vector
 	var pierce_count := int(overrides.get("pierce", GUNNER_ENTRY_BULLET_PIERCE_COUNT))
 	if _has_talent(owner, "gunner_entry_piercing"):
 		pierce_count += 4
-	var speed := float(overrides.get("speed", GUNNER_ENTRY_BULLET_SPEED))
+	var speed := float(overrides.get("speed", _get_gunner_entry_bullet_speed(owner)))
 	var lifetime := float(overrides.get("lifetime", GUNNER_ENTRY_BULLET_LIFETIME))
 	var damage_event_id := _create_gunner_damage_event_id(owner, "gunner_entry")
 	if owner.has_method("_spawn_batched_directional_bullet"):
@@ -110,6 +111,7 @@ static func spawn_gunner_entry_wave_batch(owner, role_id: String, wave_index: in
 	var angle_offset: float = (TAU / float(bullet_count)) * 0.5 * float(wave_index)
 	var end_index: int = min(start_index + GUNNER_ENTRY_WAVE_BATCH_SIZE, bullet_count)
 	var pierce_count := GUNNER_ENTRY_BULLET_PIERCE_COUNT + (4 if _has_talent(owner, "gunner_entry_piercing") else 0)
+	var entry_bullet_speed: float = _get_gunner_entry_bullet_speed(owner)
 	for bullet_index in range(start_index, end_index):
 		var shot_angle: float = TAU * float(bullet_index) / float(bullet_count) + angle_offset
 		var direction := Vector2.RIGHT.rotated(shot_angle)
@@ -123,7 +125,7 @@ static func spawn_gunner_entry_wave_batch(owner, role_id: String, wave_index: in
 					GUNNER_ENTRY_DAMAGE_SOURCE_ID,
 					owner.global_position,
 					{
-						"speed": GUNNER_ENTRY_BULLET_SPEED,
+						"speed": entry_bullet_speed,
 						"lifetime": GUNNER_ENTRY_BULLET_LIFETIME,
 						"hit_radius": GUNNER_ENTRY_BULLET_HIT_RADIUS,
 						"visual_radius": 3.4,
@@ -143,7 +145,7 @@ static func spawn_gunner_entry_wave_batch(owner, role_id: String, wave_index: in
 				Color(1.0, 0.55, 0.32, 1.0),
 				GUNNER_ENTRY_DAMAGE_SOURCE_ID,
 				owner.global_position,
-				GUNNER_ENTRY_BULLET_SPEED,
+				entry_bullet_speed,
 				GUNNER_ENTRY_BULLET_LIFETIME,
 				GUNNER_ENTRY_BULLET_HIT_RADIUS,
 				3.4,
@@ -162,7 +164,7 @@ static func spawn_gunner_entry_wave_batch(owner, role_id: String, wave_index: in
 		else:
 			var bullet = owner._spawn_directional_bullet(direction, _get_gunner_entry_bullet_damage(owner, role_id, damage_scale), Color(1.0, 0.55, 0.32, 1.0), GUNNER_ENTRY_DAMAGE_SOURCE_ID, owner.global_position)
 			if bullet != null:
-				bullet.speed = GUNNER_ENTRY_BULLET_SPEED
+				bullet.speed = entry_bullet_speed
 				bullet.lifetime = GUNNER_ENTRY_BULLET_LIFETIME
 				bullet.hit_radius = GUNNER_ENTRY_BULLET_HIT_RADIUS
 				bullet.enemy_hit_radius_scale = 0.42
@@ -185,8 +187,12 @@ static func spawn_gunner_entry_wave_batch(owner, role_id: String, wave_index: in
 static func _get_gunner_entry_bullet_damage(owner, role_id: String, damage_scale: float = 1.0) -> float:
 	if owner == null or not is_instance_valid(owner):
 		return 0.0
-	var entry_ratio: float = GUNNER_ENTRY_BULLET_DAMAGE_MULTIPLIER + PLAYER_GUNNER_ENTRY_TALENT_FLOW.get_entry_damage_ratio_bonus(owner)
+	var entry_ratio: float = GUNNER_ENTRY_BULLET_DAMAGE_MULTIPLIER + PLAYER_GUNNER_ENTRY_TALENT_FLOW.get_entry_damage_ratio_bonus(owner) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_entry_damage_ratio_bonus(owner)
 	return owner._get_role_damage(role_id) * entry_ratio * max(0.0, damage_scale)
+
+
+static func _get_gunner_entry_bullet_speed(owner) -> float:
+	return GUNNER_ENTRY_BULLET_SPEED + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_entry_bullet_speed_bonus(owner)
 
 
 static func _create_gunner_damage_event_id(owner, prefix: String) -> String:

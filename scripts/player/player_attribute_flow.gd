@@ -3,6 +3,7 @@ extends RefCounted
 const PLAYER_STATE_FACTORY := preload("res://scripts/player/player_state_factory.gd")
 const ROLE_ATTRIBUTE_RULES := preload("res://scripts/player/roles/role_attribute_rules.gd")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 
 const COMMON_PROSPERITY_KEY := "common_prosperity"
 const COMMON_PROSPERITY_TRAIT_GAIN := 0.35
@@ -117,6 +118,7 @@ static func get_swordsman_trait_heal_proc_chance(owner) -> float:
 static func get_mage_kill_energy_proc_chance(owner) -> float:
 	var proc_chance: float = ROLE_ATTRIBUTE_RULES.get_mage_trait_kill_energy_proc_chance(get_attribute_level(owner, ROLE_ATTRIBUTE_RULES.ATTR_MAGE))
 	proc_chance += PLAYER_BUILD_SYSTEM.get_mage_arcane_charge_proc_chance_bonus(owner)
+	proc_chance += PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_arcane_charge_proc_chance_bonus(owner)
 	if owner != null and owner.has_method("_get_mage_arcane_charge_level_talent_proc_chance_bonus"):
 		proc_chance += float(owner._get_mage_arcane_charge_level_talent_proc_chance_bonus())
 	proc_chance = clamp(proc_chance, 0.0, 1.0)

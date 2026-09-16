@@ -2,6 +2,7 @@ extends RefCounted
 
 const PLAYER_GUNNER_EXPLOSIVE_ROUND_FLOW := preload("res://scripts/player/player_gunner_explosive_round_flow.gd")
 const EXPLOSIVE_ROUND_VISUAL_SCRIPT := preload("res://scripts/player/gunner_explosive_round_visual.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 
 const SKILL_ID := "explosive_round"
 const COOLDOWN := 8.0
@@ -14,20 +15,14 @@ const TALENT_EXPLOSIVE_ROUND_2 := "gunner_level_talent_explosive_round_2"
 var cooldown_remaining: float = 0.0
 var active_projectiles: Array[Dictionary] = []
 var pending_saved_projectiles: Array[Dictionary] = []
-var second_shot_remaining: float = 0.0
-var second_shot_direction: Vector2 = Vector2.RIGHT
+var pending_shots: Array[Dictionary] = []
+var shot_timer: float = 0.0
 var pending_kill_blasts: Array[Dictionary] = []
 
 func update(owner, delta: float) -> void:
 	cooldown_remaining = max(0.0, cooldown_remaining - delta)
 	_process_pending_kill_blasts(owner)
-	if second_shot_remaining > 0.0:
-		if owner == null or not is_instance_valid(owner) or bool(owner.get("is_dead")):
-			second_shot_remaining = 0.0
-		else:
-			second_shot_remaining = max(0.0, second_shot_remaining - delta)
-			if second_shot_remaining <= 0.0:
-				_spawn_projectile(owner, second_shot_direction)
+	_update_pending_shots(owner, delta)
 	for index in range(active_projectiles.size() - 1, -1, -1):
 		var data: Dictionary = active_projectiles[index]
 		var projectile: Node2D = data.get("node", null) as Node2D
@@ -47,8 +42,27 @@ func update(owner, delta: float) -> void:
 				projectile.queue_free()
 			active_projectiles.remove_at(index)
 
+func _update_pending_shots(owner, delta: float) -> void:
+	if pending_shots.is_empty():
+		return
+	if owner == null or not is_instance_valid(owner) or bool(owner.get("is_dead")):
+		pending_shots.clear()
+		shot_timer = 0.0
+		cooldown_remaining = COOLDOWN
+		return
+	shot_timer = max(0.0, shot_timer - delta)
+	if shot_timer > 0.0:
+		return
+	var entry: Dictionary = pending_shots.pop_front()
+	_spawn_projectile(owner, entry.get("direction", Vector2.RIGHT))
+	if pending_shots.is_empty():
+		# 最后一发发射完毕后爆破弹才进入冷却
+		cooldown_remaining = COOLDOWN
+	else:
+		shot_timer = max(0.0, float((pending_shots[0] as Dictionary).get("delay", SECOND_SHOT_INTERVAL)))
+
 func can_trigger(owner, role_id: String) -> bool:
-	return owner != null and is_instance_valid(owner) and role_id == "gunner" and not bool(owner.get("is_dead")) and not bool(owner.get("level_up_active")) and second_shot_remaining <= 0.0 and _is_unlocked(owner) and cooldown_remaining <= 0.0
+	return owner != null and is_instance_valid(owner) and role_id == "gunner" and not bool(owner.get("is_dead")) and not bool(owner.get("level_up_active")) and pending_shots.is_empty() and _is_unlocked(owner) and cooldown_remaining <= 0.0
 
 func try_trigger(owner) -> bool:
 	if not can_trigger(owner, "gunner"):
@@ -58,11 +72,22 @@ func try_trigger(owner) -> bool:
 		direction = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
 	direction = direction.normalized()
 	owner.facing_direction = direction
-	cooldown_remaining = COOLDOWN
+	cooldown_remaining = 0.0
+	pending_shots.clear()
 	_spawn_projectile(owner, direction)
+	# 技能等级 3 / 6 / 9 级各额外发射一发，间隔 0.2 秒，方向与主弹一致
+	var extra_count: int = PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_explosive_round_extra_shot_count(owner)
+	for _index in range(extra_count):
+		pending_shots.append({
+			"direction": direction,
+			"delay": PLAYER_SKILL_LEVEL_EFFECT_FLOW.EXPLOSIVE_ROUND_EXTRA_SHOT_INTERVAL
+		})
 	if _has_talent(owner, TALENT_EXPLOSIVE_ROUND_2):
-		second_shot_remaining = SECOND_SHOT_INTERVAL
-		second_shot_direction = direction
+		pending_shots.append({"direction": direction, "delay": SECOND_SHOT_INTERVAL})
+	if pending_shots.is_empty():
+		cooldown_remaining = COOLDOWN
+	else:
+		shot_timer = float((pending_shots[0] as Dictionary).get("delay", SECOND_SHOT_INTERVAL))
 	return true
 
 func _spawn_projectile(owner, direction: Vector2) -> void:
@@ -124,17 +149,42 @@ func get_save_data() -> Dictionary:
 			"direction": [direction.x, direction.y],
 			"elapsed": max(0.0, float(data.get("elapsed", 0.0)))
 		})
+	var shots: Array[Dictionary] = []
+	for entry in pending_shots:
+		var pending_direction: Vector2 = entry.get("direction", Vector2.RIGHT)
+		shots.append({
+			"direction": [pending_direction.x, pending_direction.y],
+			"delay": max(0.0, float(entry.get("delay", SECOND_SHOT_INTERVAL)))
+		})
 	return {
 		"cooldown_remaining": cooldown_remaining,
-		"second_shot_remaining": second_shot_remaining,
-		"second_shot_direction": [second_shot_direction.x, second_shot_direction.y],
+		"shot_timer": shot_timer,
+		"pending_shots": shots,
 		"projectiles": projectiles
 	}
 
 func apply_save_data(data: Dictionary) -> void:
 	cooldown_remaining = clamp(float(data.get("cooldown_remaining", 0.0)), 0.0, COOLDOWN)
-	second_shot_remaining = max(0.0, float(data.get("second_shot_remaining", 0.0)))
-	second_shot_direction = _decode_vector2(data.get("second_shot_direction", []), Vector2.RIGHT).normalized()
+	shot_timer = max(0.0, float(data.get("shot_timer", 0.0)))
+	pending_shots.clear()
+	var saved_shots: Variant = data.get("pending_shots", [])
+	if saved_shots is Array:
+		for saved_shot in saved_shots:
+			if saved_shot is not Dictionary:
+				continue
+			pending_shots.append({
+				"direction": _decode_vector2((saved_shot as Dictionary).get("direction", []), Vector2.RIGHT).normalized(),
+				"delay": max(0.0, float((saved_shot as Dictionary).get("delay", SECOND_SHOT_INTERVAL)))
+			})
+	if pending_shots.is_empty():
+		# 旧存档兼容：second_shot_remaining 表示天赋 II 的待发第二发
+		var legacy_remaining: float = max(0.0, float(data.get("second_shot_remaining", 0.0)))
+		if legacy_remaining > 0.0:
+			pending_shots.append({
+				"direction": _decode_vector2(data.get("second_shot_direction", []), Vector2.RIGHT).normalized(),
+				"delay": legacy_remaining
+			})
+			shot_timer = legacy_remaining
 	_clear_projectiles()
 	pending_saved_projectiles.clear()
 	var saved_projectiles: Variant = data.get("projectiles", [])

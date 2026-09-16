@@ -3,13 +3,14 @@ extends RefCounted
 const PLAYER_AUTHORED_EFFECTS := preload("res://scripts/player/player_authored_effects.gd")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_talent_system.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 const COOLDOWN := 32.0
 const MANUAL_STOP_COOLDOWN := 0.5
 const MANUAL_ACTIVE_REMAINING := 1.0
 const BASE_DURATION := 4.0
 const TIER_TWO_DURATION := 4.0
 const TIER_THREE_DURATION := 4.0
-const TICK_INTERVAL := 0.1
+const TICK_INTERVAL := 0.25
 const MAX_CATCH_UP_TICKS := 6
 const MAX_PENDING_BEAM_HIT_RESOLVES_PER_FRAME := 8
 const MAX_VISUALS := 7
@@ -316,10 +317,10 @@ func _trigger_tick(owner) -> void:
 		aim_direction = aim_direction.rotated(deg_to_rad(14.0) * sin(TAU * sweep_elapsed / 0.7))
 	owner.facing_direction = aim_direction
 	var range_multiplier: float = _get_range_multiplier(owner) * float(owner._get_role_attribute_range_multiplier("gunner")) * owner._get_equipment_skill_range_multiplier()
-	var beam_length: float = (BEAM_LENGTH + PLAYER_BUILD_SYSTEM.get_infinite_reload_range_bonus(owner) + _get_level_talent_range_bonus(owner)) * range_multiplier
+	var beam_length: float = (BEAM_LENGTH + PLAYER_BUILD_SYSTEM.get_infinite_reload_range_bonus(owner) + _get_level_talent_range_bonus(owner) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_infinite_reload_range_bonus(owner)) * range_multiplier
 	var hit_width: float = BEAM_THICKNESS * BASE_WIDTH_MULTIPLIER * _get_width_multiplier(owner)
 	var base_origin: Vector2 = owner.global_position + aim_direction * 20.0
-	var damage_amount: float = float(owner._get_role_damage("gunner")) * BASE_DAMAGE_RATIO * _get_damage_multiplier(owner)
+	var damage_amount: float = float(owner._get_role_damage("gunner")) * (BASE_DAMAGE_RATIO + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_infinite_reload_damage_ratio_bonus(owner)) * _get_damage_multiplier(owner)
 	var combo_scales: Array[float] = _get_combo_scales(owner)
 	var damage_scale: float = _get_combined_damage_scale(combo_scales)
 	if axis_talent:
@@ -622,7 +623,7 @@ func get_move_speed_multiplier(owner) -> float:
 		multiplier = TIER_THREE_MOVE_SPEED_MULTIPLIER
 	elif tier >= 2:
 		multiplier = TIER_TWO_MOVE_SPEED_MULTIPLIER
-	return multiplier + PLAYER_BUILD_SYSTEM.get_infinite_reload_move_speed_multiplier_bonus(owner)
+	return multiplier + PLAYER_BUILD_SYSTEM.get_infinite_reload_move_speed_multiplier_bonus(owner) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_infinite_reload_move_speed_bonus(owner)
 
 func _get_damage_multiplier(owner) -> float:
 	var tier: int = _get_tier(owner)

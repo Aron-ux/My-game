@@ -1,6 +1,7 @@
 extends RefCounted
 
 const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_talent_system.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 
 const TALENT_EXECUTION_1 := "gunner_level_talent_execution_1"
 const TALENT_EXECUTION_2 := "gunner_level_talent_execution_2"
@@ -92,7 +93,7 @@ static func clamp_base_flash_stacks(owner) -> void:
 static func get_total_flash_stacks(owner) -> int:
 	if owner == null:
 		return 0
-	return clampi(_get_base_flash_stacks(owner) + get_persistent_flash_stacks(owner), 0, FLASH_MAX_STACKS + DODGE_PERSISTENT_STACK_MAX)
+	return clampi(_get_base_flash_stacks(owner) + get_persistent_flash_stacks(owner), 0, get_base_flash_stack_capacity(owner) + DODGE_PERSISTENT_STACK_MAX)
 
 
 static func get_active_flash_stacks(owner) -> int:
@@ -111,7 +112,7 @@ static func get_persistent_flash_stacks(owner) -> int:
 
 
 static func get_base_flash_stack_capacity(owner) -> int:
-	return FLASH_MAX_STACKS
+	return FLASH_MAX_STACKS + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_flash_max_stack_bonus(owner)
 
 
 static func get_flat_dodge_chance_bonus(owner, role_id: String) -> float:

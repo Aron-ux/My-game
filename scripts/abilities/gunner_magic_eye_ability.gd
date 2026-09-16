@@ -2,6 +2,7 @@ extends RefCounted
 
 const PLAYER_GUNNER_MAGIC_EYE_FLOW := preload("res://scripts/player/player_gunner_magic_eye_flow.gd")
 const MAGIC_EYE_VISUAL_SCRIPT := preload("res://scripts/player/gunner_magic_eye_visual.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 
 const SKILL_ID := "magic_eye"
 const COOLDOWN := 16.0
@@ -66,11 +67,11 @@ func try_trigger(owner) -> bool:
 
 
 func get_shot_damage_ratio(owner) -> float:
-	return SHOT_DAMAGE_RATIO + (SHOT_DAMAGE_RATIO_BONUS if _has_talent(owner, TALENT_MAGIC_EYE_1) else 0.0)
+	return SHOT_DAMAGE_RATIO + (SHOT_DAMAGE_RATIO_BONUS if _has_talent(owner, TALENT_MAGIC_EYE_1) else 0.0) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_eye_damage_ratio_bonus(owner)
 
 
 func get_armor_shred(owner) -> float:
-	return ARMOR_SHRED_PER_HIT + (ARMOR_SHRED_BONUS if _has_talent(owner, TALENT_MAGIC_EYE_2) else 0.0)
+	return ARMOR_SHRED_PER_HIT + (ARMOR_SHRED_BONUS if _has_talent(owner, TALENT_MAGIC_EYE_2) else 0.0) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_eye_armor_shred_bonus(owner)
 
 
 func get_shot_count(owner) -> int:

@@ -9,6 +9,7 @@ const PLAYER_BLESSING_SYSTEM := preload("res://scripts/player/player_blessing_sy
 const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_talent_system.gd")
+const PLAYER_SKILL_LEVEL_SYSTEM := preload("res://scripts/player/player_skill_level_system.gd")
 const SURVIVORS_THEME := preload("res://scripts/ui/theme/survivors_ui_theme.gd")
 const ARCHIVE_ORNAMENT_LAYER := preload("res://scripts/ui/hud/archive_ornament_layer.gd")
 const WHITE_KEY_SHADER := preload("res://shaders/white_key.gdshader")
@@ -755,27 +756,25 @@ func _refresh_equipment_list(role_id: String) -> void:
 	for child in equipment_list.get_children():
 		equipment_list.remove_child(child)
 		child.queue_free()
-	var stone_id: String = str(cached_player.get_equipped_ruan_stone()) if cached_player.has_method("get_equipped_ruan_stone") else ""
-	var stone_level: int = int(cached_player.get_ruan_stone_level(stone_id)) if stone_id != "" and cached_player.has_method("get_ruan_stone_level") else 0
-	var stone_definition: Dictionary = RUAN_STONE_SYSTEM.get_definition(stone_id)
-	var stone_title: String = str(stone_definition.get("title", "未装备"))
-	var stone_effect: String = RUAN_STONE_SYSTEM.get_effect_text(stone_id, stone_level) if stone_level > 0 else "在阮狗处装备已拥有的石头"
+	var carried_count: int = int(cached_player.get_ruan_stone_carried_count()) if cached_player.has_method("get_ruan_stone_carried_count") else 0
+	var carry_limit: int = max(1, int(cached_player.get_ruan_stone_carry_limit())) if cached_player.has_method("get_ruan_stone_carry_limit") else 1
+	var stone_summary: String = str(cached_player.get_ruan_stone_carry_summary()) if cached_player.has_method("get_ruan_stone_carry_summary") else "未携带"
 	var stone_button := Button.new()
 	stone_button.name = "RuanStoneSlot"
-	stone_button.text = "全队 · 阮石槽\n%s%s\n%s" % [
-		stone_title,
-		" Lv.%d" % stone_level if stone_level > 0 else "",
-		stone_effect
+	stone_button.text = "全队 · 阮石携带 %d/%d\n%s" % [
+		carried_count,
+		carry_limit,
+		stone_summary
 	]
-	stone_button.tooltip_text = "全队共享，不可赠与\n骨头：%d\n%s" % [
+	stone_button.tooltip_text = "全队共享，不可赠与；购买即生效，同一物件可重复携带并加法叠加\n上限 = 档案最高解锁 N\n骨头：%d\n%s" % [
 		cached_player.get_ruan_bone_count() if cached_player.has_method("get_ruan_bone_count") else 0,
-		stone_effect
+		stone_summary
 	]
 	stone_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	stone_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	stone_button.custom_minimum_size = Vector2(210.0, 58.0)
 	stone_button.focus_mode = Control.FOCUS_NONE
-	_apply_archive_button_style(stone_button, stone_level > 0, false, false)
+	_apply_archive_button_style(stone_button, carried_count > 0, false, false)
 	equipment_list.add_child(stone_button)
 	var equipment_levels: Dictionary = cached_player._get_role_equipment_levels(role_id) if cached_player.has_method("_get_role_equipment_levels") else {}
 	var has_any := false
@@ -885,7 +884,7 @@ func _refresh_skill_build_list(role_id: String) -> void:
 		button.text = "%s\n%s\n%s" % [
 			_get_skill_slot_label(progress_id, index),
 			str(display.get("name", PLAYER_SKILL_TALENT_SYSTEM.PROGRESS_TITLES.get(progress_id, progress_id))),
-			"尚未解锁" if level <= 0 else "构筑 Lv.%d" % level
+			"尚未解锁" if level <= 0 else "技能 Lv.%d / %d" % [level, PLAYER_SKILL_LEVEL_SYSTEM.MAX_SKILL_LEVEL]
 		]
 		button.tooltip_text = button.text
 		button.button_pressed = index == selected_skill_tree_index
@@ -967,8 +966,8 @@ func _build_skill_tree_detail_shell() -> void:
 
 func _refresh_skill_tree_detail(role_id: String, progress_id: String) -> void:
 	var display := PLAYER_SKILL_TALENT_SYSTEM.get_display(cached_player, role_id, progress_id)
-	var level := PLAYER_SKILL_TALENT_SYSTEM.get_skill_progress_level(cached_player, role_id, progress_id)
-	var build_entries := _get_projected_build_entries(role_id, progress_id)
+	var level := PLAYER_SKILL_LEVEL_SYSTEM.get_skill_level(cached_player, role_id, progress_id)
+	var granted_slots := PLAYER_SKILL_LEVEL_SYSTEM.get_granted_talent_slots(cached_player, role_id, progress_id)
 
 	var header := skill_tree_detail.get_node("SkillTreeHeader") as PanelContainer
 	var title_label := header.get_node("Content/Title") as Label
@@ -978,7 +977,15 @@ func _refresh_skill_tree_detail(role_id: String, progress_id: String) -> void:
 		_get_skill_slot_label(progress_id, selected_skill_tree_index),
 		str(display.get("name", PLAYER_SKILL_TALENT_SYSTEM.PROGRESS_TITLES.get(progress_id, progress_id)))
 	]
-	state_label.text = "尚未解锁 · 普通构筑未生效" if level <= 0 else "构筑 Lv.%d · 普通构筑强化" % level
+	if level <= 0:
+		state_label.text = "尚未解锁 · 该技能不在升级卡池中"
+	else:
+		state_label.text = "技能 Lv.%d / %d · 天赋位 %d / %d" % [
+			level,
+			PLAYER_SKILL_LEVEL_SYSTEM.MAX_SKILL_LEVEL,
+			granted_slots.size(),
+			PLAYER_SKILL_LEVEL_SYSTEM.TALENT_SLOT_COUNT
+		]
 
 	var build_panel := skill_tree_detail.get_node("SkillTreeBuildDetails") as PanelContainer
 	var requirement_label := build_panel.get_node("Content/Requirement") as Label
@@ -987,27 +994,45 @@ func _refresh_skill_tree_detail(role_id: String, progress_id: String) -> void:
 	build_panel.modulate = Color(0.72, 0.75, 0.82, 0.78) if level <= 0 else Color.WHITE
 	requirement_label.text = "解锁条件：%s" % _get_skill_unlock_requirement(progress_id) if level <= 0 else ""
 	requirement_label.visible = requirement_label.text != ""
-	var build_lines: Array[String] = []
-	if build_entries.is_empty():
-		build_lines.append("暂无普通构筑强化。天赋选择不计入此列表。")
-	else:
-		for entry in build_entries:
-			var title := str(entry.get("title", entry.get("build_id", "")))
-			var summary := _get_projected_build_summary(entry, str(display.get("upgrade_note", "")))
-			build_lines.append("• %s ×%d" % [title, int(entry.get("count", 0))])
-			if summary != "" and summary != title:
-				build_lines.append("  %s" % summary)
-	build_entries_label.text = "\n".join(build_lines)
-	build_entries_label.custom_minimum_size.y = 54.0 if build_entries.is_empty() else 0.0
+	build_entries_label.text = "\n".join(_get_skill_level_lines(role_id, progress_id, level, granted_slots))
+	build_entries_label.custom_minimum_size.y = 0.0
 	if level <= 0:
-		upgrade_note.text = "先解锁该技能；解锁后获得的普通构筑才会推进其构筑等级。"
+		upgrade_note.text = "先解锁该技能；解锁后它才会在升级卡牌里刷出等级 +1 的升级卡。"
 		upgrade_note.modulate = SURVIVORS_THEME.COLOR_TEXT_MUTED
-	elif build_entries.is_empty():
-		upgrade_note.text = "继续获得该技能的普通构筑会在这里累计显示。"
+	elif level >= PLAYER_SKILL_LEVEL_SYSTEM.MAX_SKILL_LEVEL:
+		upgrade_note.text = "该技能已满级，升级卡池中不再出现它。"
+		upgrade_note.modulate = SURVIVORS_THEME.COLOR_TEXT_MUTED
+	elif level >= PLAYER_SKILL_LEVEL_SYSTEM.TALENT_PICK_LEVEL:
+		upgrade_note.text = "天赋位在 %d 级开启，满 %d 级自动获得另一个天赋位。大招不参与技能升级卡。" % [
+			PLAYER_SKILL_LEVEL_SYSTEM.TALENT_PICK_LEVEL,
+			PLAYER_SKILL_LEVEL_SYSTEM.TALENT_AUTO_LEVEL
+		]
 		upgrade_note.modulate = SURVIVORS_THEME.COLOR_TEXT_MUTED
 	else:
-		upgrade_note.text = "等级天赋已从旧技能路径迁移；这里仅显示普通构筑。"
+		upgrade_note.text = "该技能在升级卡池中会刷出「%s等级+1」，达到 %d 级时开启天赋位选择。" % [
+			str(display.get("base_name", PLAYER_SKILL_TALENT_SYSTEM.PROGRESS_TITLES.get(progress_id, progress_id))),
+			PLAYER_SKILL_LEVEL_SYSTEM.TALENT_PICK_LEVEL
+		]
 		upgrade_note.modulate = SURVIVORS_THEME.COLOR_TEXT_MUTED
+
+
+func _get_skill_level_lines(role_id: String, progress_id: String, level: int, granted_slots: Array) -> Array[String]:
+	var lines: Array[String] = []
+	if level <= 0:
+		lines.append("尚未解锁：大招以外的主动技能需要先通过「获得技能」卡解锁。")
+		return lines
+	var picked_slot := PLAYER_SKILL_LEVEL_SYSTEM.get_picked_talent_slot(cached_player, role_id, progress_id)
+	lines.append("技能等级：Lv.%d / %d" % [level, PLAYER_SKILL_LEVEL_SYSTEM.MAX_SKILL_LEVEL])
+	for slot in range(1, PLAYER_SKILL_LEVEL_SYSTEM.TALENT_SLOT_COUNT + 1):
+		var roman := "I" if slot == 1 else "II"
+		if granted_slots.has(slot):
+			var source_text := "%d 级时选择" % PLAYER_SKILL_LEVEL_SYSTEM.TALENT_PICK_LEVEL if slot == picked_slot else "%d 级自动获得" % PLAYER_SKILL_LEVEL_SYSTEM.TALENT_AUTO_LEVEL
+			lines.append("• 天赋位 %s：已获得 · %s · 效果尚未实装" % [roman, source_text])
+		elif level >= PLAYER_SKILL_LEVEL_SYSTEM.TALENT_PICK_LEVEL:
+			lines.append("• 天赋位 %s：待选择" % roman)
+		else:
+			lines.append("• 天赋位 %s：%d 级开启" % [roman, PLAYER_SKILL_LEVEL_SYSTEM.TALENT_PICK_LEVEL])
+	return lines
 
 func _get_projected_build_entries(role_id: String, progress_id: String) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
@@ -1028,7 +1053,7 @@ func _get_stage_roman(stage_number: int) -> String:
 	return ["I", "II", "III"][clampi(stage_number, 1, 3) - 1]
 
 func _get_skill_slot_label(progress_id: String, slot_index: int = -1) -> String:
-	if progress_id.ends_with("_trait"):
+	if progress_id.ends_with("_trait") or progress_id == "gunner_hunt":
 		return "特性"
 	if progress_id.ends_with("_entry"):
 		return "入场"

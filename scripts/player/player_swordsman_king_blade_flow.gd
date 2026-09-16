@@ -46,15 +46,17 @@ static func resolve_cast(owner, origin: Vector2, facing: Vector2) -> Dictionary:
 	}
 
 
-static func apply_slash(owner, origin: Vector2, direction: Vector2, damage_ratio: float = DAMAGE_RATIO) -> int:
+static func apply_slash(owner, origin: Vector2, direction: Vector2, damage_ratio: float = DAMAGE_RATIO, range_multiplier: float = 1.0) -> int:
 	if owner == null or not is_instance_valid(owner):
 		return 0
 	var axis := direction.normalized()
 	if axis.length_squared() <= 0.001:
 		axis = Vector2.RIGHT
-	var center: Vector2 = origin + axis * (SLASH_LENGTH * 0.5)
+	var slash_length: float = SLASH_LENGTH * max(0.1, range_multiplier)
+	var slash_width: float = SLASH_WIDTH * max(0.1, range_multiplier)
+	var center: Vector2 = origin + axis * (slash_length * 0.5)
 	var damage: float = float(owner._get_role_damage("swordsman")) * damage_ratio
-	return int(owner._damage_enemies_in_oriented_rect(center, axis, SLASH_LENGTH, SLASH_WIDTH, damage, 0.0, 1.0, 0.0, make_damage_source_id()))
+	return int(owner._damage_enemies_in_oriented_rect(center, axis, slash_length, slash_width, damage, 0.0, 1.0, 0.0, make_damage_source_id()))
 
 
 static func on_king_blade_killed(owner, source_role_id: String, resolved_source_role_id: String = "") -> void:

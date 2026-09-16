@@ -4,6 +4,7 @@ const CRESCENT_SCENE := preload("res://effects/sword/fan/fan.tscn")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_COMBAT_RESULT_FLOW := preload("res://scripts/player/player_combat_result_flow.gd")
 const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 
 const SKILL_ID := "crescent_wave"
 const COOLDOWN := 6.0
@@ -80,8 +81,12 @@ func try_trigger(owner) -> bool:
 	owner.facing_direction = base_direction.normalized()
 	owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -68.0), "\u6708\u7259\u5251\u6c14", Color(0.54, 0.92, 1.0, 1.0))
 	var directions: Array[Vector2] = _get_cast_directions(owner, owner.facing_direction)
+	var level_extra_wave_count: int = PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_crescent_wave_extra_wave_count(owner)
+	if level_extra_wave_count > 0:
+		for _index in range(level_extra_wave_count):
+			directions.append(owner.facing_direction.normalized())
 	var combo_scales: Array[float] = _get_combo_scales(owner)
-	_cast_direction_group(owner, directions, 1.0)
+	_cast_direction_group(owner, directions, 1.0, level_extra_wave_count)
 	_schedule_combos(owner, [owner.facing_direction], combo_scales)
 	if _has_talent(owner, "swordsman_crescent_afterimage"):
 		var afterimage_direction: Vector2 = owner.facing_direction
@@ -170,8 +175,13 @@ func _schedule_combos(owner, directions: Array[Vector2], combo_scales: Array[flo
 	, COMBO_INTERVAL)
 
 
-func _cast_direction_group(owner, directions: Array[Vector2], damage_scale: float) -> void:
+func _cast_direction_group(owner, directions: Array[Vector2], damage_scale: float, level_extra_wave_count: int = 0) -> void:
+	var extra_start: int = maxi(0, directions.size() - maxi(0, level_extra_wave_count))
 	for index in range(directions.size()):
+		if level_extra_wave_count > 0 and index >= extra_start:
+			# 技能等级追加的剑气：同方向、体积不变、伤害为第一道的 75%，不附带斩击
+			_cast_once(owner, directions[index], damage_scale * PLAYER_SKILL_LEVEL_EFFECT_FLOW.CRESCENT_WAVE_EXTRA_WAVE_DAMAGE_SCALE, false)
+			continue
 		var twin_moon: bool = _has_talent(owner, "swordsman_crescent_twin_moons") and index == 1
 		_cast_once(owner, directions[index], damage_scale * (0.55 if twin_moon else 1.0), not twin_moon)
 
@@ -185,7 +195,7 @@ func _cast_once(owner, direction: Vector2, damage_scale: float, include_slash: b
 	var wave_width: float = (FULL_MOON_WAVE_WIDTH if full_moon else WAVE_WIDTH) * visual_hit_multiplier
 	var wave_length: float = (FULL_MOON_WAVE_LENGTH if full_moon else WAVE_LENGTH) * _get_range_multiplier(owner)
 	var slash_center: Vector2 = owner.global_position + direction * (slash_length * 0.42)
-	var damage_ratio_bonus: float = PLAYER_BUILD_SYSTEM.get_crescent_wave_damage_ratio_bonus(owner)
+	var damage_ratio_bonus: float = _get_damage_ratio_bonus(owner)
 	var blood_surge_multiplier := PLAYER_COMBAT_RESULT_FLOW.get_swordsman_blood_surge_multiplier(owner)
 	var base_damage: float = _get_damage(owner) * blood_surge_multiplier
 	var slash_damage: float = base_damage * (SLASH_DAMAGE_RATIO + damage_ratio_bonus) * damage_scale
@@ -227,7 +237,7 @@ func _cast_slash_only(owner, direction: Vector2, damage_scale: float) -> void:
 	var slash_width: float = SLASH_WIDTH * visual_hit_multiplier
 	var slash_length: float = SLASH_LENGTH * visual_hit_multiplier
 	var slash_center: Vector2 = owner.global_position + direction * (slash_length * 0.42)
-	var damage_ratio_bonus: float = PLAYER_BUILD_SYSTEM.get_crescent_wave_damage_ratio_bonus(owner)
+	var damage_ratio_bonus: float = _get_damage_ratio_bonus(owner)
 	var blood_surge_multiplier := PLAYER_COMBAT_RESULT_FLOW.get_swordsman_blood_surge_multiplier(owner)
 	var slash_damage: float = _get_damage(owner) * blood_surge_multiplier * (SLASH_DAMAGE_RATIO + damage_ratio_bonus) * damage_scale
 	var slash_hits := _perform_slash_hit(owner, direction, slash_center, slash_length, slash_width, visual_hit_multiplier, slash_damage)
@@ -258,7 +268,7 @@ func _cast_afterimage(owner, direction: Vector2) -> void:
 	var visual_hit_multiplier: float = width_multiplier * VISUAL_AND_HIT_SCALE
 	var wave_width: float = (FULL_MOON_WAVE_WIDTH if full_moon else WAVE_WIDTH) * visual_hit_multiplier
 	var wave_length: float = (FULL_MOON_WAVE_LENGTH if full_moon else WAVE_LENGTH) * _get_range_multiplier(owner) * 0.60
-	var damage_ratio_bonus: float = PLAYER_BUILD_SYSTEM.get_crescent_wave_damage_ratio_bonus(owner)
+	var damage_ratio_bonus: float = _get_damage_ratio_bonus(owner)
 	var damage_amount: float = _get_damage(owner) * (WAVE_DAMAGE_RATIO + damage_ratio_bonus) * 0.45
 	var origin: Vector2 = owner.global_position + direction * 24.0
 	_spawn_crescent_projectile(owner, origin, direction, wave_length, wave_width, visual_hit_multiplier, damage_amount, false, false)
@@ -550,7 +560,11 @@ func _get_wave_speed(owner) -> float:
 		var current_scene: Node = owner.get_tree().current_scene
 		if current_scene != null and current_scene.has_method("_get_difficulty_projectile_speed_bonus"):
 			difficulty_speed_bonus = max(0.0, float(current_scene._get_difficulty_projectile_speed_bonus()))
-	return speed + PLAYER_BUILD_SYSTEM.get_crescent_wave_speed_bonus(owner) + difficulty_speed_bonus
+	return speed + PLAYER_BUILD_SYSTEM.get_crescent_wave_speed_bonus(owner) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_crescent_wave_speed_bonus(owner) + difficulty_speed_bonus
+
+
+func _get_damage_ratio_bonus(owner) -> float:
+	return PLAYER_BUILD_SYSTEM.get_crescent_wave_damage_ratio_bonus(owner) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_crescent_wave_damage_ratio_bonus(owner)
 
 
 func _has_talent(owner, talent_id: String) -> bool:

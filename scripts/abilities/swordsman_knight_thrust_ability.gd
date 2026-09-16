@@ -2,6 +2,7 @@ extends RefCounted
 
 const PLAYER_SWORDSMAN_KNIGHT_THRUST_FLOW := preload("res://scripts/player/player_swordsman_knight_thrust_flow.gd")
 const PLAYER_RESOURCE_FLOW := preload("res://scripts/player/player_resource_flow.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 
 const SKILL_ID := "knight_thrust"
 const COOLDOWN := 7.0
@@ -18,17 +19,24 @@ const TALENT_KNIGHT_THRUST_2 := "swordsman_level_talent_knight_thrust_2"
 var cooldown_remaining: float = 0.0
 var combo_remaining: float = 0.0
 var combo_direction: Vector2 = Vector2.RIGHT
+var combo_queue: Array[Dictionary] = []
+var combo_hit_registry: Dictionary = {}
 
 func update(owner, delta: float) -> void:
 	cooldown_remaining = max(0.0, cooldown_remaining - delta)
-	if combo_remaining <= 0.0:
+	if combo_queue.is_empty():
 		return
 	if owner == null or not is_instance_valid(owner) or bool(owner.get("is_dead")):
+		combo_queue.clear()
 		combo_remaining = 0.0
 		return
 	combo_remaining = max(0.0, combo_remaining - delta)
-	if combo_remaining <= 0.0:
-		_perform_strike(owner, combo_direction)
+	if combo_remaining > 0.0:
+		return
+	var entry: Dictionary = combo_queue.pop_front()
+	_perform_strike(owner, combo_direction, float(entry.get("scale", 1.0)))
+	if not combo_queue.is_empty():
+		combo_remaining = float(entry.get("interval", COMBO_INTERVAL))
 
 func can_trigger(owner, role_id: String) -> bool:
 	return owner != null and is_instance_valid(owner) and role_id == "swordsman" and not bool(owner.get("is_dead")) and not bool(owner.get("level_up_active")) and _is_unlocked(owner) and cooldown_remaining <= 0.0
@@ -43,25 +51,41 @@ func try_trigger(owner) -> bool:
 	direction = direction.normalized()
 	owner.facing_direction = direction
 	combo_direction = direction
+	combo_queue.clear()
+	combo_remaining = 0.0
+	# 本次技能所有突刺共享命中登记，连击命中已命中过的敌人不再重复提供临时血量
+	combo_hit_registry.clear()
 	var hits: int = _perform_strike(owner, direction)
 	if _has_talent(owner, TALENT_KNIGHT_THRUST_2) and hits > 0:
 		var missing_health: float = max(0.0, owner.max_health - owner.current_health)
 		PLAYER_RESOURCE_FLOW.heal(owner, missing_health * 0.10)
 	if _has_talent(owner, TALENT_KNIGHT_THRUST_1):
-		combo_remaining = COMBO_INTERVAL
+		combo_queue.append({"scale": 1.0, "interval": COMBO_INTERVAL})
+	# 技能等级 3 / 6 / 9 级各追加一道连击突刺，间隔 0.5 秒，伤害为初始倍率的 60%
+	for _index in range(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_knight_thrust_extra_strike_count(owner)):
+		combo_queue.append({
+			"scale": PLAYER_SKILL_LEVEL_EFFECT_FLOW.KNIGHT_THRUST_EXTRA_STRIKE_DAMAGE_SCALE,
+			"interval": PLAYER_SKILL_LEVEL_EFFECT_FLOW.KNIGHT_THRUST_EXTRA_STRIKE_INTERVAL
+		})
+	if not combo_queue.is_empty():
+		combo_remaining = float((combo_queue[0] as Dictionary).get("interval", COMBO_INTERVAL))
 	return true
 
-func _perform_strike(owner, direction: Vector2) -> int:
+func _perform_strike(owner, direction: Vector2, damage_scale: float = 1.0) -> int:
 	var has_talent_1 := _has_talent(owner, TALENT_KNIGHT_THRUST_1)
 	var has_talent_2 := _has_talent(owner, TALENT_KNIGHT_THRUST_2)
+	var damage_ratio_bonus: float = (0.8 if has_talent_2 else 0.0) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_knight_thrust_damage_ratio_bonus(owner)
+	var temporary_health_bonus: float = (10.0 if has_talent_1 else 0.0) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_knight_thrust_temp_health_bonus(owner)
 	var hits: int = PLAYER_SWORDSMAN_KNIGHT_THRUST_FLOW.apply(
 		owner,
 		direction,
 		THRUST_LENGTH_BONUS if has_talent_1 else 0.0,
-		0.8 if has_talent_2 else 0.0,
+		damage_ratio_bonus,
 		1,
 		has_talent_2,
-		10.0 if has_talent_1 else 0.0
+		temporary_health_bonus,
+		combo_hit_registry,
+		damage_scale
 	)
 	var base_length: float = THRUST_LENGTH + (THRUST_LENGTH_BONUS if has_talent_1 else 0.0)
 	var angles: Array[float] = [0.0]
@@ -76,7 +100,7 @@ func _perform_strike(owner, direction: Vector2) -> int:
 			owner._spawn_thrust_effect(owner.global_position, owner.global_position + thrust_direction * length, Color(1.0, 0.84, 0.42, 0.92), width, 0.2, true)
 		if owner.has_method("_spawn_ring_effect"):
 			owner._spawn_ring_effect(owner.global_position + thrust_direction * length, 24.0 * scale, Color(1.0, 0.9, 0.6, 0.6), 4.0, 0.14)
-	if owner.has_method("_queue_camera_shake"):
+	if hits > 0 and owner.has_method("_queue_camera_shake"):
 		owner._queue_camera_shake(9.5, 0.16)
 	return hits
 

@@ -1,6 +1,7 @@
 extends RefCounted
 
 const PLAYER_MAGE_FIREBALL_FLOW := preload("res://scripts/player/player_mage_fireball_flow.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 const FIRE_GROUND_VISUAL_SCRIPT := preload("res://scripts/player/mage_fire_ground_visual.gd")
 
 const SKILL_ID := "fireball"
@@ -44,7 +45,16 @@ func _get_blast_damage_ratio(owner) -> float:
 	var r: float = BASE_BLAST_DAMAGE_RATIO
 	if _has_talent(owner, "mage_level_talent_fireball_1"):
 		r += TALENT_1_DAMAGE_BONUS
+	r += PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_fireball_damage_ratio_bonus(owner)
 	return r
+
+
+func _get_ground_burn_ratio(owner) -> float:
+	return GROUND_BURN_CURRENT_HEALTH_RATIO + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_fireball_burn_ratio_bonus(owner)
+
+
+func _get_ground_duration(owner) -> float:
+	return GROUND_DURATION + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_fireball_ground_duration_bonus(owner)
 
 
 func update(owner, delta: float) -> void:
@@ -63,7 +73,7 @@ func update(owner, delta: float) -> void:
 		active_fire_fields[index] = data
 		while tick_elapsed >= GROUND_TICK_INTERVAL:
 			tick_elapsed -= GROUND_TICK_INTERVAL
-			PLAYER_MAGE_FIREBALL_FLOW.apply_burn_tick(owner, data.get("center", Vector2.ZERO), data.get("radius", BASE_BLAST_RADIUS), GROUND_BURN_CURRENT_HEALTH_RATIO)
+			PLAYER_MAGE_FIREBALL_FLOW.apply_burn_tick(owner, data.get("center", Vector2.ZERO), data.get("radius", BASE_BLAST_RADIUS), _get_ground_burn_ratio(owner))
 		data["tick_elapsed"] = tick_elapsed
 		active_fire_fields[index] = data
 		if remaining <= 0.0:
@@ -132,7 +142,7 @@ func _resolve_pending_impact(owner) -> void:
 		"node": ground,
 		"center": center,
 		"radius": blast_radius,
-		"remaining": GROUND_DURATION,
+		"remaining": _get_ground_duration(owner),
 		"tick_elapsed": 0.0
 	})
 

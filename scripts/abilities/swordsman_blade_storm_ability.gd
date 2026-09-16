@@ -4,6 +4,7 @@ const SWORD_TORNADO_EFFECT_SCENE := preload("res://effects/sword/tornado/tornado
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_COMBAT_RESULT_FLOW := preload("res://scripts/player/player_combat_result_flow.gd")
 const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 
 const COOLDOWN := 22.0
 const BASE_DURATION := 2.7
@@ -330,6 +331,7 @@ func _get_damage(owner) -> float:
 		ratio = TIER_THREE_DAMAGE_RATIO + PLAYER_BUILD_SYSTEM.get_blade_storm_damage_ratio_bonus(owner)
 	elif tier >= 2:
 		ratio = BASE_DAMAGE_RATIO * 1.18 + PLAYER_BUILD_SYSTEM.get_blade_storm_damage_ratio_bonus(owner)
+	ratio += PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_blade_storm_damage_ratio_bonus(owner)
 	return float(owner._get_role_damage("swordsman")) * ratio
 
 func _get_duration(owner) -> float:
@@ -366,7 +368,7 @@ func _get_range_multiplier(owner) -> float:
 	return range_multiplier
 
 func _get_radius(owner) -> float:
-	return BASE_RADIUS * _get_size_multiplier(owner) * _get_range_multiplier(owner)
+	return BASE_RADIUS * _get_size_multiplier(owner) * _get_range_multiplier(owner) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_blade_storm_radius_bonus(owner)
 
 func _get_extra_storm_count(owner) -> int:
 	return min(4, _get_trick_bonus(owner)) if owner != null else 0

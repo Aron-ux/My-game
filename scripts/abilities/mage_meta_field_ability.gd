@@ -3,6 +3,7 @@ extends RefCounted
 const FIELD_EFFECT_SCENE := preload("res://effects/wizard/field/field.tscn")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_MAGE_META_FIELD_TALENT_FLOW := preload("res://scripts/player/player_mage_meta_field_talent_flow.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 
 const SKILL_ID := "meta_field"
 const COOLDOWN := 0.0
@@ -372,6 +373,7 @@ func _get_radius(owner) -> float:
 	if _has_talent(owner, "mage_meta_expansion"):
 		radius *= pow(1.12, float(clampi(expansion_tick_count, 0, 3)))
 	radius *= PLAYER_MAGE_META_FIELD_TALENT_FLOW.get_radius_multiplier(owner)
+	radius += PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_meta_field_radius_bonus(owner)
 	return radius
 
 
@@ -413,7 +415,7 @@ func _get_damage_reduction_value(owner) -> float:
 		value = TIER_THREE_DAMAGE_REDUCTION_VALUE
 	elif tier >= 2:
 		value = TIER_TWO_DAMAGE_REDUCTION_VALUE
-	return value + PLAYER_BUILD_SYSTEM.get_meta_field_damage_reduction_value_bonus(owner)
+	return value + PLAYER_BUILD_SYSTEM.get_meta_field_damage_reduction_value_bonus(owner) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_meta_field_reduction_value_bonus(owner)
 
 
 func _get_damage(owner) -> float:

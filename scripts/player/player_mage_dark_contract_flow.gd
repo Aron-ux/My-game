@@ -2,6 +2,7 @@ extends RefCounted
 
 const PLAYER_DAMAGE_RESOLVER := preload("res://scripts/player/player_damage_resolver.gd")
 const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_talent_system.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 
 ## 法师主动技能「黑暗契约」的来源识别工具。
 
@@ -38,15 +39,22 @@ static func has_level_talent(owner, talent_id: String) -> bool:
 
 
 static func get_attract_radius(owner) -> float:
-	if has_level_talent(owner, "mage_level_talent_dark_contract_1"):
-		return TALENT_1_ATTRACT_RADIUS
-	return BASE_ATTRACT_RADIUS
+	var radius: float = TALENT_1_ATTRACT_RADIUS if has_level_talent(owner, "mage_level_talent_dark_contract_1") else BASE_ATTRACT_RADIUS
+	return radius + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_dark_contract_attract_radius_bonus(owner)
 
 
 static func get_attract_speed(owner) -> float:
 	if has_level_talent(owner, "mage_level_talent_dark_contract_1"):
 		return TALENT_1_ATTRACT_SPEED
 	return BASE_ATTRACT_SPEED
+
+
+static func get_collide_damage_ratio(owner) -> float:
+	return COLLIDE_DAMAGE_RATIO + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_dark_contract_damage_ratio_bonus(owner)
+
+
+static func get_blast_damage_ratio(owner) -> float:
+	return BLAST_DAMAGE_RATIO + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_dark_contract_damage_ratio_bonus(owner)
 
 
 static func apply_sphere_tick(owner, data: Dictionary, position: Vector2, delta: float) -> Dictionary:
@@ -74,7 +82,7 @@ static func apply_sphere_tick(owner, data: Dictionary, position: Vector2, delta:
 			var enemy_id: int = enemy_node.get_instance_id()
 			if not collided_ids.has(enemy_id):
 				collided_ids[enemy_id] = true
-				var damage: float = float(owner._get_role_damage("mage")) * COLLIDE_DAMAGE_RATIO
+				var damage: float = float(owner._get_role_damage("mage")) * get_collide_damage_ratio(owner)
 				owner._deal_damage_to_enemy(enemy_node, damage, make_damage_source_id(), 0.0, 2.0, 1.0, 0.0, position)
 		if distance_squared <= attract_distance_squared and distance_squared > 0.001:
 			var distance: float = sqrt(distance_squared)
@@ -125,5 +133,5 @@ static func apply_linger_tick(owner, data: Dictionary, position: Vector2, delta:
 static func apply_explosion(owner, position: Vector2) -> void:
 	if owner == null or not is_instance_valid(owner):
 		return
-	var damage: float = float(owner._get_role_damage("mage")) * BLAST_DAMAGE_RATIO
+	var damage: float = float(owner._get_role_damage("mage")) * get_blast_damage_ratio(owner)
 	owner._damage_enemies_in_radius(position, BLAST_RADIUS, damage, 0.0, 1.0, 0.0, make_damage_source_id())

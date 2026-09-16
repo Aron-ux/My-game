@@ -1,6 +1,7 @@
 extends RefCounted
 
 const PLAYER_DAMAGE_RESOLVER := preload("res://scripts/player/player_damage_resolver.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 
 const IMPACT_DAMAGE_RATIO := 2.80
 const BLAST_DAMAGE_RATIO := 1.60
@@ -46,7 +47,11 @@ static func has_talent(owner, talent_id: String) -> bool:
 
 
 static func get_blast_cone_radius(owner) -> float:
-	return BLAST_CONE_RADIUS + (TALENT_1_CONE_RADIUS_BONUS if has_talent(owner, TALENT_EXPLOSIVE_ROUND_1) else 0.0)
+	return BLAST_CONE_RADIUS + (TALENT_1_CONE_RADIUS_BONUS if has_talent(owner, TALENT_EXPLOSIVE_ROUND_1) else 0.0) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_explosive_round_cone_radius_bonus(owner)
+
+
+static func get_damage_ratio_bonus(owner) -> float:
+	return PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_explosive_round_damage_ratio_bonus(owner)
 
 
 static func find_enemy_between(owner, start: Vector2, end: Vector2):
@@ -76,16 +81,17 @@ static func apply_explosion(owner, center: Vector2, direction: Vector2, hit_enem
 	if owner == null or not is_instance_valid(owner):
 		return
 	var talent_1: bool = has_talent(owner, TALENT_EXPLOSIVE_ROUND_1)
+	var level_ratio_bonus: float = PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_explosive_round_damage_ratio_bonus(owner)
 	var damage: float = float(owner._get_role_damage(SOURCE_ROLE_ID))
 	if hit_enemy != null and is_instance_valid(hit_enemy):
 		if talent_1:
 			# 爆破弹 I：命中伤害提升 50%（线性 +0.5）并变为半径 100 的范围伤害（命中目标也在圈内）。
-			var impact_ratio: float = IMPACT_DAMAGE_RATIO + TALENT_1_IMPACT_RATIO_BONUS
+			var impact_ratio: float = IMPACT_DAMAGE_RATIO + TALENT_1_IMPACT_RATIO_BONUS + level_ratio_bonus
 			owner._damage_enemies_in_ellipse(center, TALENT_1_IMPACT_RADIUS, TALENT_1_IMPACT_RADIUS, damage * impact_ratio, 0.0, 1.0, 0.0, make_damage_source_id())
 		else:
-			owner._deal_damage_to_enemy(hit_enemy, damage * IMPACT_DAMAGE_RATIO, SOURCE_ROLE_ID, 0.0, 2.0, 1.0, 0.0, center)
+			owner._deal_damage_to_enemy(hit_enemy, damage * (IMPACT_DAMAGE_RATIO + level_ratio_bonus), SOURCE_ROLE_ID, 0.0, 2.0, 1.0, 0.0, center)
 	var cone_radius: float = BLAST_CONE_RADIUS + (TALENT_1_CONE_RADIUS_BONUS if talent_1 else 0.0)
-	var cone_ratio: float = BLAST_DAMAGE_RATIO + (TALENT_1_BLAST_RATIO_BONUS if talent_1 else 0.0)
+	var cone_ratio: float = BLAST_DAMAGE_RATIO + (TALENT_1_BLAST_RATIO_BONUS if talent_1 else 0.0) + level_ratio_bonus
 	owner._damage_enemies_in_cone(center, direction, cone_radius, BLAST_CONE_ANGLE, damage * cone_ratio, 0.0, 1.0, 0.0, make_damage_source_id())
 
 

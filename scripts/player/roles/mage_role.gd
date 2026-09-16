@@ -5,6 +5,7 @@ const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.g
 const PLAYER_MAGE_BASIC_TALENT_FLOW := preload("res://scripts/player/player_mage_basic_talent_flow.gd")
 const PLAYER_MAGE_ULTIMATE_TALENT_FLOW := preload("res://scripts/player/player_mage_ultimate_talent_flow.gd")
 const PLAYER_MAGE_ENTRY_TALENT_FLOW := preload("res://scripts/player/player_mage_entry_talent_flow.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 
 const MAGE_ATTACK_EFFECT_SCALE := 0.8
 const BASIC_COMBO_INTERVAL := 0.16
@@ -259,6 +260,11 @@ func _build_attack_contexts(owner, basic_source_id: String) -> Array:
 	if PLAYER_MAGE_BASIC_TALENT_FLOW.has_level_talent(owner, PLAYER_MAGE_BASIC_TALENT_FLOW.TALENT_BASIC_ATTACK_2):
 		centers.append(PLAYER_MAGE_BASIC_TALENT_FLOW.pick_secondary_lightning_center(owner, bombard_center))
 		center_scales.append(1.0)
+	# 技能等级 2 / 4 / 6 / 8 / 10 级各追加一道雷击，落点沿用随机敌人密集处规则
+	var extra_lightning_count: int = PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_basic_extra_lightning_count(owner)
+	for _extra_index in range(extra_lightning_count):
+		centers.append(PLAYER_MAGE_BASIC_TALENT_FLOW.pick_secondary_lightning_center(owner, bombard_center))
+		center_scales.append(1.0)
 	var primary_context_count := centers.size()
 	var targets: Array = owner._get_enemy_targets(quantity_scales.size(), false)
 	for target_index in range(targets.size()):
@@ -303,7 +309,7 @@ func _build_attack_context(owner, role_data: Dictionary, upgrade_data: Dictionar
 	radius *= owner._get_role_attribute_range_multiplier("mage")
 	radius *= owner._get_mage_arcane_focus_range_multiplier(arcane_focus_level)
 	radius *= _get_basic_attack_range_multiplier(owner)
-	var damage_amount: float = owner._get_role_damage(role_data["id"]) * 1.0 * max(0.0, effect_scale) * PLAYER_BUILD_SYSTEM.get_basic_attack_damage_multiplier(owner, "mage")
+	var damage_amount: float = owner._get_role_damage(role_data["id"]) * (1.0 + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_basic_damage_ratio_bonus(owner)) * max(0.0, effect_scale) * PLAYER_BUILD_SYSTEM.get_basic_attack_damage_multiplier(owner, "mage")
 	if target_enemy != null:
 		damage_amount *= owner._get_priority_target_bonus(target_enemy)
 	radius *= MAGE_ATTACK_EFFECT_SCALE
@@ -331,6 +337,7 @@ func _get_basic_attack_range_multiplier(owner) -> float:
 	if owner != null and owner.has_method("_get_basic_attack_range_multiplier"):
 		multiplier *= float(owner._get_basic_attack_range_multiplier("mage_basic_attack"))
 	multiplier *= PLAYER_BUILD_SYSTEM.get_basic_attack_range_multiplier(owner, "mage")
+	multiplier *= PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_basic_range_multiplier(owner)
 	return multiplier
 
 func _get_arcane_surplus_duration(owner) -> float:

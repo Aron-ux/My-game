@@ -3,6 +3,7 @@ extends RefCounted
 const SHRAPNEL_SCENE := preload("res://effects/gun/shrapnel/shrapnel.tscn")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_talent_system.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 const FIELD_TEXTURE := preload("res://effects/gun/shrapnel/散弹圈.png")
 const SHRAPNEL_TEXTURES := [
 	preload("res://effects/gun/shrapnel/1.png"),
@@ -726,11 +727,12 @@ func _get_reprise_field_scales(owner) -> Array[float]:
 
 
 func _get_base_field_count(owner, mobile: bool) -> int:
+	var level_extra: int = PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_shrapnel_extra_field_count(owner)
 	if _has_level_talent(owner, LEVEL_TALENT_SHRAPNEL_1):
-		return LEVEL_TALENT_SHRAPNEL_1_FIELD_COUNT
+		return LEVEL_TALENT_SHRAPNEL_1_FIELD_COUNT + level_extra
 	if mobile:
-		return 1
-	return DEFAULT_FIELD_COUNT
+		return 1 + level_extra
+	return DEFAULT_FIELD_COUNT + level_extra
 
 
 func _get_cooldown(owner) -> float:
@@ -797,7 +799,7 @@ func _get_damage(owner) -> float:
 		ratio = TIER_TWO_DAMAGE_RATIO
 	if _has_level_talent(owner, LEVEL_TALENT_SHRAPNEL_2):
 		ratio += LEVEL_TALENT_SHRAPNEL_2_DAMAGE_RATIO_BONUS
-	var damage: float = float(owner._get_role_damage("gunner")) * (ratio + PLAYER_BUILD_SYSTEM.get_shrapnel_damage_ratio_bonus(owner))
+	var damage: float = float(owner._get_role_damage("gunner")) * (ratio + PLAYER_BUILD_SYSTEM.get_shrapnel_damage_ratio_bonus(owner) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_shrapnel_damage_ratio_bonus(owner))
 	return damage
 
 

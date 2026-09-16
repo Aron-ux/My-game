@@ -104,13 +104,9 @@ static func delay_level_up_requests(owner, duration: float) -> void:
 	owner.level_up_delay_remaining = max(owner.level_up_delay_remaining, duration)
 
 
-static func handle_reached_level(owner, reached_level: int) -> void:
+## 玩家等级天赋已停用：升级只累积普通升级次数，天赋由技能等级达到 5 级时触发。
+static func handle_reached_level(owner, _reached_level: int) -> void:
 	owner.pending_level_ups += 1
-	if reached_level > 0 and reached_level % 3 == 0:
-		if owner.has_method("queue_level_talent_choice"):
-			owner.queue_level_talent_choice(reached_level)
-		else:
-			owner.pending_level_talent_choices = max(0, int(owner.get("pending_level_talent_choices"))) + 1
 
 
 static func try_request_level_up(owner) -> void:

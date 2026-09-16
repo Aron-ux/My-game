@@ -8,6 +8,7 @@ const PLAYER_TARGETING := preload("res://scripts/player/player_targeting.gd")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_GUNNER_FLASH_TALENT_FLOW := preload("res://scripts/player/player_gunner_flash_talent_flow.gd")
 const PLAYER_ABILITY_FLOW := preload("res://scripts/player/player_ability_flow.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 
 const EXPERIENCE_GAIN_MULTIPLIER := 2.43
 const EXPERIENCE_FRACTION_CARRY_KEY := "__experience_fraction_carry"
@@ -485,7 +486,7 @@ static func _try_trigger_swordsman_death_defiance(owner) -> bool:
 	owner.current_health = 1.0
 	if owner.has_method("_save_active_role_health"):
 		owner._save_active_role_health()
-	var invulnerability_duration: float = SWORDSMAN_DEATH_DEFIANCE_INVULNERABILITY + PLAYER_BUILD_SYSTEM.get_swordsman_knight_glory_duration_bonus(owner)
+	var invulnerability_duration: float = SWORDSMAN_DEATH_DEFIANCE_INVULNERABILITY + PLAYER_BUILD_SYSTEM.get_swordsman_knight_glory_duration_bonus(owner) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_knight_glory_invulnerability_bonus(owner)
 	owner.swordsman_death_defiance_will_remaining = invulnerability_duration
 	owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, invulnerability_duration)
 	owner.hurt_cooldown_remaining = owner.hurt_cooldown
@@ -525,7 +526,7 @@ static func _try_trigger_swordsman_last_guard(owner) -> bool:
 	owner.swordsman_death_defiance_cooldown_remaining = owner.SWORDSMAN_DEATH_DEFIANCE_COOLDOWN
 	owner.swordsman_death_defiance_will_remaining = 0.0
 	owner._try_switch_role(swordsman_index, true, true)
-	owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, SWORDSMAN_DEATH_DEFIANCE_INVULNERABILITY + PLAYER_BUILD_SYSTEM.get_swordsman_knight_glory_duration_bonus(owner))
+	owner.switch_invulnerability_remaining = max(owner.switch_invulnerability_remaining, SWORDSMAN_DEATH_DEFIANCE_INVULNERABILITY + PLAYER_BUILD_SYSTEM.get_swordsman_knight_glory_duration_bonus(owner) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_knight_glory_invulnerability_bonus(owner))
 	if owner.has_method("_spawn_forced_combat_tag"):
 		owner._spawn_forced_combat_tag(owner.global_position + Vector2(0.0, -42.0), "最后的换防", Color(1.0, 0.72, 0.32, 1.0))
 	owner._play_player_hurt_feedback()

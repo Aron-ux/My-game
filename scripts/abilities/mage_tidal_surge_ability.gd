@@ -4,6 +4,7 @@ const MAGE_GATHERING_EFFECT_SCENE := preload("res://effects/wizard/wave/gatherin
 const MAGE_WAVE_EFFECT_SCENE := preload("res://effects/wizard/wave/wave.tscn")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_MAGE_SURGING_WAVE_TALENT_FLOW := preload("res://scripts/player/player_mage_surging_wave_talent_flow.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 
 const TIER_ONE_COOLDOWN := 20.0
 const TIER_TWO_COOLDOWN := 16.0
@@ -359,6 +360,7 @@ func _get_lifetime(owner) -> float:
 		lifetime += float(owner._get_blessing_skill_duration_flat_bonus(SURGE_SKILL_ID))
 	lifetime += PLAYER_BUILD_SYSTEM.get_surging_wave_duration_bonus(owner)
 	lifetime += PLAYER_MAGE_SURGING_WAVE_TALENT_FLOW.get_lifetime_bonus(owner)
+	lifetime += PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_surging_wave_duration_bonus(owner)
 	return lifetime
 
 func _get_damage_multiplier(owner) -> float:
@@ -368,7 +370,7 @@ func _get_damage_multiplier(owner) -> float:
 		multiplier = 2.0
 	elif tier >= 2:
 		multiplier = 1.5
-	return multiplier + PLAYER_BUILD_SYSTEM.get_surging_wave_damage_multiplier_bonus(owner)
+	return multiplier + PLAYER_BUILD_SYSTEM.get_surging_wave_damage_multiplier_bonus(owner) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_surging_wave_damage_ratio_bonus(owner)
 
 func _has_talent(owner, talent_id: String) -> bool:
 	if cast_talent_snapshot_valid:

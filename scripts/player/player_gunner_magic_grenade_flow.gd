@@ -2,6 +2,7 @@ extends RefCounted
 
 const PLAYER_DAMAGE_RESOLVER := preload("res://scripts/player/player_damage_resolver.gd")
 const PLAYER_TARGETING := preload("res://scripts/player/player_targeting.gd")
+const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 
 ## 枪手主动技能「魔法榴弹」的来源识别与专属暴击加成。
 
@@ -37,11 +38,11 @@ static func has_talent(owner, talent_id: String) -> bool:
 
 
 static func get_grenade_count(owner) -> int:
-	return GRENADE_COUNT + (TALENT_2_GRENADE_BONUS if has_talent(owner, TALENT_MAGIC_GRENADE_2) else 0)
+	return GRENADE_COUNT + (TALENT_2_GRENADE_BONUS if has_talent(owner, TALENT_MAGIC_GRENADE_2) else 0) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_grenade_extra_count(owner)
 
 
 static func get_damage_ratio(owner) -> float:
-	return DAMAGE_RATIO + (TALENT_1_DAMAGE_RATIO_BONUS if has_talent(owner, TALENT_MAGIC_GRENADE_1) else 0.0)
+	return DAMAGE_RATIO + (TALENT_1_DAMAGE_RATIO_BONUS if has_talent(owner, TALENT_MAGIC_GRENADE_1) else 0.0) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_grenade_damage_ratio_bonus(owner)
 
 
 static func get_blast_radius(owner) -> float:
@@ -51,7 +52,7 @@ static func get_blast_radius(owner) -> float:
 static func get_critical_chance_bonus(owner, source_role_id: String) -> float:
 	if source_role_id == "" or not is_magic_grenade_source(source_role_id):
 		return 0.0
-	return CRIT_CHANCE_BONUS + (TALENT_1_CRIT_BONUS if has_talent(owner, TALENT_MAGIC_GRENADE_1) else 0.0)
+	return CRIT_CHANCE_BONUS + (TALENT_1_CRIT_BONUS if has_talent(owner, TALENT_MAGIC_GRENADE_1) else 0.0) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_grenade_crit_bonus(owner)
 
 
 static func collect_targets(owner, origin: Vector2, facing: Vector2) -> Array:
