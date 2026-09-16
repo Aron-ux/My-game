@@ -83,11 +83,11 @@ func try_trigger(owner) -> bool:
 		owner._queue_camera_shake(14.0, 0.26)
 	# 巨剑插地留场：留场时间随冲击波数量延长，最后一道冲击波在巨剑消失时释放
 	sword_position = center
-	_spawn_sword_visual(owner, center)
 	var shockwave_count: int = maxi(1, PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_judgement_sword_shockwave_count(owner))
 	active_remaining = SHOCKWAVE_DELAY * float(shockwave_count)
 	shockwave_timer = _get_shockwave_delay(owner)
 	shockwaves_remaining = shockwave_count
+	_spawn_sword_visual(owner, center)
 	return true
 
 
@@ -176,6 +176,8 @@ func _spawn_sword_visual(owner, center: Vector2) -> void:
 	if scene == null:
 		return
 	if owner.has_method("_spawn_sketch_sprite_effect"):
+		# 巨剑视觉时长跟随实际留场时间：追加冲击波会延长留场，视觉不能按基础 2s 提前消失
+		var visual_duration: float = max(SWORD_DURATION, active_remaining)
 		sword_visual = owner._spawn_sketch_sprite_effect(
 			center,
 			0.0,
@@ -183,7 +185,7 @@ func _spawn_sword_visual(owner, center: Vector2) -> void:
 			SWORD_AREA_TEXTURE_SIZE,
 			SWORD_AREA_VISIBLE_BOUNDS,
 			SWORD_AREA_VISIBLE_SIZE,
-			SWORD_DURATION,
+			visual_duration,
 			Color.WHITE,
 			20,
 			true,

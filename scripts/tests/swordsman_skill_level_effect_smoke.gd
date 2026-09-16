@@ -127,10 +127,12 @@ func _check_upgrade_card_text() -> void:
 			basic_option = option
 			break
 	_expect(not basic_option.is_empty(), "swordsman basic upgrade card should be offered")
-	_expect(str(basic_option.get("title", "")) == "普通攻击等级+1", "upgrade card title should state the level gain")
+	var title := str(basic_option.get("title", ""))
+	_expect(title.contains("升级") and title.contains("普通攻击"), "upgrade card title should name the skill, got %s" % title)
+	_expect(str(basic_option.get("card_title", "")).contains("普通攻击"), "upgrade card card_title should name the skill, got %s" % str(basic_option.get("card_title", "")))
+	_expect_equal(int(basic_option.get("skill_level", 0)), 3, "upgrade card should expose the current skill level")
+	_expect_equal(int(basic_option.get("skill_level_next", 0)), 4, "upgrade card should expose the next skill level")
 	var summary := str(basic_option.get("summary", ""))
-	_expect(summary.contains("3 级 → 4 级"), "upgrade card summary should show the level transition, got %s" % summary)
-	_expect(summary.contains("升级效果："), "upgrade card summary should include the upgrade effect, got %s" % summary)
 	_expect(summary.contains("追加一道 60% 伤害的斩击"), "level 4 upgrade card should preview the milestone slash, got %s" % summary)
 	owner.free()
 

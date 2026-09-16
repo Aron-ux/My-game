@@ -108,10 +108,11 @@ func _check_upgrade_card_text() -> void:
 			basic_option = option
 			break
 	_expect(not basic_option.is_empty(), "法师普攻 upgrade card should be offered for the mage slot")
-	_expect(str(basic_option.get("title", "")) == "范围轰炸等级+1", "法师普攻 upgrade card title should state the level gain")
-	_expect(str(basic_option.get("card_title", "")) == "范围轰炸", "法师普攻 upgrade card should use the skill name as card title")
+	var basic_title := str(basic_option.get("title", ""))
+	_expect(basic_title.contains("升级") and basic_title.contains("范围轰炸"), "法师普攻 upgrade card title should name the skill, got %s" % basic_title)
+	_expect(str(basic_option.get("card_title", "")).contains("范围轰炸"), "法师普攻 upgrade card should use the skill name as card title")
+	_expect_equal(int(basic_option.get("skill_level", 0)), 3, "法师普攻 upgrade card should expose the current skill level")
 	var summary := str(basic_option.get("summary", ""))
-	_expect(summary.contains("3 级 → 4 级"), "法师普攻 upgrade summary should show the level transition, got %s" % summary)
 	_expect(summary.contains("追加一道雷击"), "法师普攻 level 4 upgrade summary should preview the extra lightning, got %s" % summary)
 	owner.free()
 

@@ -126,36 +126,38 @@ func _check_role_build_skill_gating() -> void:
 	var trait_upgrade := _find_role_build_option(before_unlock, "skill_up_swordsman_trait")
 	if not bool(trait_upgrade.get("skill_upgrade", false)):
 		failures.append("trait upgrade card should be flagged as a skill upgrade, got %s" % str(trait_upgrade))
-	if str(trait_upgrade.get("card_title", "")) != "剑士特性":
+	if not str(trait_upgrade.get("card_title", "")).contains("剑士特性"):
 		failures.append("trait upgrade card should show the trait name as card title, got %s" % str(trait_upgrade))
 	if str(trait_upgrade.get("build_card_scene", "")) != "stone":
 		failures.append("trait upgrade card should use stone card scene, got %s" % str(trait_upgrade))
-	if not str(trait_upgrade.get("summary", "")).contains("等级 +1"):
-		failures.append("trait upgrade summary should state the level gain, got %s" % str(trait_upgrade))
+	if str(trait_upgrade.get("summary", "")) == "":
+		failures.append("trait upgrade summary should describe the per-level gain, got %s" % str(trait_upgrade))
+	if int(trait_upgrade.get("skill_level_next", 0)) != int(trait_upgrade.get("skill_level", 0)) + 1:
+		failures.append("trait upgrade card should expose the next skill level, got %s" % str(trait_upgrade))
 	if str(trait_upgrade.get("skill_progress_id", "")) != "swordsman_trait":
 		failures.append("trait upgrade card should point at swordman_trait, got %s" % str(trait_upgrade))
 	var basic_upgrade := _find_role_build_option(before_unlock, "skill_up_swordsman_basic")
-	if str(basic_upgrade.get("card_title", "")) != "普通攻击":
+	if not str(basic_upgrade.get("card_title", "")).contains("普通攻击"):
 		failures.append("basic attack upgrade card should show 普通攻击 as card title, got %s" % str(basic_upgrade))
 	var entry_upgrade := _find_role_build_option(before_unlock, "skill_up_swordsman_entry")
-	if str(entry_upgrade.get("card_title", "")) != "冲锋":
+	if not str(entry_upgrade.get("card_title", "")).contains("冲锋"):
 		failures.append("entry upgrade card should show 冲锋 as card title, got %s" % str(entry_upgrade))
 	for build_id in ["skill_up_swordsman_blade_storm", "skill_up_swordsman_crescent_wave", "skill_up_swordsman_ultimate"]:
 		if _has_role_build_option(before_unlock, str(build_id)):
 			failures.append("%s should not be offered before its skill is available" % str(build_id))
 	var gunner_options: Array = PlayerBuildSystem._build_role_options(owner, "gunner", 1)
 	var gunner_trait_upgrade := _find_role_build_option(gunner_options, "skill_up_gunner_trait")
-	if str(gunner_trait_upgrade.get("card_title", "")) != "瞬杀":
+	if not str(gunner_trait_upgrade.get("card_title", "")).contains("瞬杀"):
 		failures.append("gunner trait upgrade card should show 瞬杀 as card title, got %s" % str(gunner_trait_upgrade))
 	var gunner_hunt_upgrade := _find_role_build_option(gunner_options, "skill_up_gunner_hunt")
-	if str(gunner_hunt_upgrade.get("card_title", "")) != "猎杀":
+	if not str(gunner_hunt_upgrade.get("card_title", "")).contains("猎杀"):
 		failures.append("gunner hunt upgrade card should show 猎杀 as card title, got %s" % str(gunner_hunt_upgrade))
 	var gunner_basic_upgrade := _find_role_build_option(gunner_options, "skill_up_gunner_basic")
-	if str(gunner_basic_upgrade.get("card_title", "")) != "普通攻击":
+	if not str(gunner_basic_upgrade.get("card_title", "")).contains("普通攻击"):
 		failures.append("gunner basic upgrade card should show 普通攻击 as card title, got %s" % str(gunner_basic_upgrade))
 	var mage_options: Array = PlayerBuildSystem._build_role_options(owner, "mage", 2)
 	var mage_trait_upgrade := _find_role_build_option(mage_options, "skill_up_mage_trait")
-	if str(mage_trait_upgrade.get("card_title", "")) != "术师特性":
+	if not str(mage_trait_upgrade.get("card_title", "")).contains("术师特性"):
 		failures.append("mage trait upgrade card should show 术师特性 as card title, got %s" % str(mage_trait_upgrade))
 	var unlock_option := _find_role_build_option(before_unlock, "unlock_blade_storm")
 	if bool(unlock_option.get("hide_card_title", true)) or str(unlock_option.get("card_title", "")) != "剑刃风暴":
@@ -170,13 +172,14 @@ func _check_role_build_skill_gating() -> void:
 	if _has_role_build_option(after_unlock, "unlock_blade_storm"):
 		failures.append("blade storm unlock should not be offered after the skill is owned")
 	var skill_build_option := _find_role_build_option(after_unlock, "skill_up_swordsman_blade_storm")
-	if str(skill_build_option.get("card_title", "")) != "剑刃风暴":
+	if not str(skill_build_option.get("card_title", "")).contains("剑刃风暴"):
 		failures.append("skill upgrade build should show skill name as card title, got %s" % str(skill_build_option))
 	if str(skill_build_option.get("build_card_scene", "")) != "stone":
 		failures.append("skill upgrade role build should use stone card scene, got %s" % str(skill_build_option))
 	if not PlayerBuildSystem.apply_option(owner, "role_build:swordsman:skill_up_swordsman_blade_storm"):
 		failures.append("skill upgrade build should apply")
-	if PlayerSkillLevelSystem.get_skill_level(owner, "swordsman", "swordsman_blade_storm") != 2:		failures.append("applying a skill upgrade card should raise the skill to level 2")
+	if PlayerSkillLevelSystem.get_skill_level(owner, "swordsman", "swordsman_blade_storm") != 2:
+		failures.append("applying a skill upgrade card should raise the skill to level 2")
 	if str(skill_build_option.get("unlock_skill", "")) != "":
 		failures.append("skill upgrade build should not unlock anything, got %s" % str(skill_build_option))
 func _check_level_based_tier_weights() -> void:

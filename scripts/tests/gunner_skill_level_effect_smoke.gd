@@ -129,10 +129,11 @@ func _check_upgrade_card_text() -> void:
 			hunt_option = option
 			break
 	_expect(not hunt_option.is_empty(), "猎杀 upgrade card should be offered for the gunner slot")
-	_expect(str(hunt_option.get("title", "")) == "猎杀等级+1", "猎杀 upgrade card title should state the level gain")
-	_expect(str(hunt_option.get("card_title", "")) == "猎杀", "猎杀 upgrade card should use the skill name as card title")
+	var hunt_title := str(hunt_option.get("title", ""))
+	_expect(hunt_title.contains("升级") and hunt_title.contains("猎杀"), "猎杀 upgrade card title should name the skill, got %s" % hunt_title)
+	_expect(str(hunt_option.get("card_title", "")).contains("猎杀"), "猎杀 upgrade card should use the skill name as card title")
+	_expect_equal(int(hunt_option.get("skill_level", 0)), 4, "猎杀 upgrade card should expose the current skill level")
 	var summary := str(hunt_option.get("summary", ""))
-	_expect(summary.contains("4 级 → 5 级"), "猎杀 upgrade summary should show the level transition, got %s" % summary)
 	_expect(summary.contains("猎杀圈半径 -5"), "猎杀 upgrade summary should preview the effect, got %s" % summary)
 	owner.free()
 

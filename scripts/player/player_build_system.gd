@@ -567,6 +567,7 @@ static func _make_skill_upgrade_option(owner, role_id: String, role_slot_index: 
 	var build_id := "%s%s" % [SKILL_UPGRADE_BUILD_PREFIX, progress_id]
 	var summary := "%s 等级 +1：%d 级 → %d 级。" % [skill_title, level, next_level]
 	var preview := PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_upgrade_preview_text(owner, role_id, progress_id)
+	var upgrade_description := ("每级提升%s" % preview) if preview != "" else "每级提升该技能效果。"
 	if preview != "":
 		summary += "升级效果：%s。" % preview
 	elif next_level <= PLAYER_SKILL_LEVEL_SYSTEM.TALENT_PICK_LEVEL and level < PLAYER_SKILL_LEVEL_SYSTEM.TALENT_PICK_LEVEL:
@@ -585,14 +586,14 @@ static func _make_skill_upgrade_option(owner, role_id: String, role_slot_index: 
 		"skill_upgrade": true,
 		"skill_level": level,
 		"skill_level_next": next_level,
-		"title": "%s等级+1" % skill_title,
-		"summary": summary,
-		"short_description": summary,
-		"description": summary,
-		"preview_description": summary,
-		"detail_description": summary,
-		"exact_description": summary,
-		"card_title": skill_title,
+		"title": "升级：%s" % skill_title,
+		"summary": upgrade_description,
+		"short_description": upgrade_description,
+		"description": upgrade_description,
+		"preview_description": upgrade_description,
+		"detail_description": upgrade_description,
+		"exact_description": upgrade_description,
+		"card_title": "升级：%s" % skill_title,
 		"hide_card_title": false,
 		"unlock_skill": "",
 		"build_card_scene": "stone",

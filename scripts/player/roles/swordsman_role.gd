@@ -81,9 +81,24 @@ func _apply_basic_talent_followup(owner, base_direction: Vector2, blood_surge_mu
 		total_hits += _perform_attack_variant(owner, base_direction.rotated(PI * 0.5), 0.35, false, false, false, blood_surge_multiplier, basic_source_id)
 		total_hits += _perform_attack_variant(owner, base_direction.rotated(-PI * 0.5), 0.35, false, false, false, blood_surge_multiplier, basic_source_id)
 	# 技能等级 2 / 4 / 6 / 8 级各追加一道同方向斩击，每道为第一道斩击的 60% 伤害
-	for _extra_index in range(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_basic_attack_extra_slash_count(owner)):
-		total_hits += _perform_attack_variant(owner, base_direction, PLAYER_SKILL_LEVEL_EFFECT_FLOW.BASIC_ATTACK_EXTRA_SLASH_DAMAGE_SCALE, false, false, false, blood_surge_multiplier, basic_source_id)
+	# 依次发射而不是同帧重叠，否则视觉上完全看不出多了一道
+	var extra_slash_count: int = PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_basic_attack_extra_slash_count(owner)
+	if extra_slash_count > 0:
+		_schedule_level_extra_slashes(owner, base_direction, extra_slash_count, blood_surge_multiplier, basic_source_id)
 	return total_hits
+
+func _schedule_level_extra_slashes(owner, base_direction: Vector2, count: int, blood_surge_multiplier: float, basic_source_id: String) -> void:
+	var interval: float = PLAYER_SKILL_LEVEL_EFFECT_FLOW.BASIC_ATTACK_EXTRA_SLASH_INTERVAL
+	var slash_scale: float = PLAYER_SKILL_LEVEL_EFFECT_FLOW.BASIC_ATTACK_EXTRA_SLASH_DAMAGE_SCALE
+	var callback := func(_index: int) -> void:
+		if owner == null or not is_instance_valid(owner) or bool(owner.get("is_dead")):
+			return
+		_perform_attack_variant(owner, base_direction, slash_scale, false, false, false, blood_surge_multiplier, basic_source_id)
+	if owner != null and owner.has_method("_schedule_repeating_sequence"):
+		owner._schedule_repeating_sequence(interval, count, callback, interval)
+		return
+	for index in range(count):
+		callback.call(index)
 
 func _perform_combo_segment(owner, base_direction: Vector2, combo_scale: float, allow_trick_variants: bool = true, allow_followthrough: bool = true, blood_surge_multiplier: float = -1.0, basic_source_id: String = "") -> int:
 	var consumes_blood_surge := blood_surge_multiplier < 0.0

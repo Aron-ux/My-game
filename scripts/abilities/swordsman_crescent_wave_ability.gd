@@ -177,13 +177,31 @@ func _schedule_combos(owner, directions: Array[Vector2], combo_scales: Array[flo
 
 func _cast_direction_group(owner, directions: Array[Vector2], damage_scale: float, level_extra_wave_count: int = 0) -> void:
 	var extra_start: int = maxi(0, directions.size() - maxi(0, level_extra_wave_count))
+	var extra_scheduled: int = 0
 	for index in range(directions.size()):
 		if level_extra_wave_count > 0 and index >= extra_start:
 			# 技能等级追加的剑气：同方向、体积不变、伤害为第一道的 75%，不附带斩击
-			_cast_once(owner, directions[index], damage_scale * PLAYER_SKILL_LEVEL_EFFECT_FLOW.CRESCENT_WAVE_EXTRA_WAVE_DAMAGE_SCALE, false)
+			# 依次发射而不是同帧重叠，否则视觉上完全看不出多了一道
+			_schedule_level_extra_wave(owner, directions[index], damage_scale, extra_scheduled)
+			extra_scheduled += 1
 			continue
 		var twin_moon: bool = _has_talent(owner, "swordsman_crescent_twin_moons") and index == 1
 		_cast_once(owner, directions[index], damage_scale * (0.55 if twin_moon else 1.0), not twin_moon)
+
+
+func _schedule_level_extra_wave(owner, direction: Vector2, damage_scale: float, extra_index: int) -> void:
+	var interval: float = PLAYER_SKILL_LEVEL_EFFECT_FLOW.CRESCENT_WAVE_EXTRA_WAVE_INTERVAL
+	var wave_scale: float = damage_scale * PLAYER_SKILL_LEVEL_EFFECT_FLOW.CRESCENT_WAVE_EXTRA_WAVE_DAMAGE_SCALE
+	var cast_direction := direction.normalized()
+	var callback := func(_index: int) -> void:
+		if owner == null or not is_instance_valid(owner) or bool(owner.get("is_dead")):
+			return
+		_cast_once(owner, cast_direction, wave_scale, false)
+	if owner != null and owner.has_method("_schedule_repeating_sequence"):
+		var delay: float = interval * float(maxi(1, extra_index + 1))
+		owner._schedule_repeating_sequence(delay, 1, callback, delay)
+		return
+	callback.call(0)
 
 
 func _cast_once(owner, direction: Vector2, damage_scale: float, include_slash: bool = true) -> void:
