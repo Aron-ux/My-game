@@ -116,9 +116,9 @@ const MAGIC_GRENADE_CRIT_PER_LEVEL := 0.05
 const MAGIC_GRENADE_EXTRA_FIRST_LEVEL := 2
 const MAGIC_GRENADE_EXTRA_STEP := 2
 const MAGIC_GRENADE_EXTRA_MAX := 4
-# 魔眼聚合：每级 +2% 每次伤害、+2.5 击中减伤值
+# 魔眼聚合：每级 +2% 每次伤害、+0.75 护甲降低量
 const MAGIC_EYE_DAMAGE_RATIO_PER_LEVEL := 0.02
-const MAGIC_EYE_ARMOR_SHRED_PER_LEVEL := 2.5
+const MAGIC_EYE_ARMOR_SHRED_PER_LEVEL := 0.75
 # 枪火典礼：每级 +10% 每颗子弹伤害、+10 弹道速度
 const GUNNER_ENTRY_DAMAGE_RATIO_PER_LEVEL := 0.10
 const GUNNER_ENTRY_BULLET_SPEED_PER_LEVEL := 10.0
@@ -595,7 +595,7 @@ static func _get_gunner_upgrade_preview(owner, progress_id: String) -> String:
 			parts.append("暴击率 +5%")
 		GUNNER_MAGIC_EYE:
 			parts.append("每次伤害 +2%")
-			parts.append("击中减伤值 +2.5")
+			parts.append("命中降低护甲额外 +0.75")
 		_:
 			return ""
 	var milestone_text := _get_gunner_milestone_preview_text(progress_id, next_level)

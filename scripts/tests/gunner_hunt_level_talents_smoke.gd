@@ -181,8 +181,5 @@ class HuntOwner:
 		var resolved_role_id: String = role_id if role_id != "" else active_role_id
 		return GunnerHuntTalentFlow.get_damage_multiplier(self, resolved_role_id)
 
-	func _is_last_stand_active() -> bool:
-		return false
-
 	func _has_elite_relic(_relic_id: String) -> bool:
 		return false

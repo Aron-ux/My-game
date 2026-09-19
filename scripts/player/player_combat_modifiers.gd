@@ -37,16 +37,6 @@ static func get_priority_target_bonus(owner, enemy: Node) -> float:
 	return multiplier
 
 
-static func is_last_stand_active(owner) -> bool:
-	if owner == null or not owner.has_method("_has_elite_relic"):
-		return false
-	if not owner._has_elite_relic("elite_last_stand"):
-		return false
-	if owner.max_health <= 0.0:
-		return false
-	return owner.current_health / owner.max_health <= 0.4
-
-
 static func get_effective_damage_taken_multiplier(owner) -> float:
 	if owner == null:
 		return 1.0
@@ -164,8 +154,6 @@ static func _get_passive_damage_reduction_value(owner) -> float:
 
 static func _get_active_temporary_damage_reduction_value(owner) -> float:
 	var value: float = 0.0
-	if is_last_stand_active(owner):
-		value += damage_reduction_value_from_multiplier(0.82)
 	var guard_cover_remaining: Variant = owner.get("guard_cover_remaining")
 	if guard_cover_remaining != null and float(guard_cover_remaining) > 0.0:
 		value += damage_reduction_value_from_multiplier(_get_float_property(owner, "guard_cover_damage_multiplier", 1.0))

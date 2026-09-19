@@ -16,6 +16,7 @@ func _init() -> void:
 func _run() -> void:
 	_check_progress_lines()
 	_check_flat_bonuses()
+	_check_magic_eye_armor()
 	_check_milestone_counts()
 	_check_preview_text()
 	_check_upgrade_card_text()
@@ -26,6 +27,29 @@ func _run() -> void:
 		for failure in failures:
 			push_error(failure)
 		quit(1)
+
+
+func _check_magic_eye_armor() -> void:
+	var owner := _make_owner()
+	var ability = preload("res://scripts/abilities/gunner_magic_eye_ability.gd").new()
+	var flow = preload("res://scripts/player/player_gunner_magic_eye_flow.gd")
+	var enemy := MagicEyeEnemyStub.new()
+	_set_level(owner, "gunner_magic_eye", 1)
+	_expect_approx(ability.get_armor_shred(owner), 5.0, "level 1 eye shreds 5 armor")
+	flow._shred_enemy_armor(enemy, ability.get_armor_shred(owner))
+	flow._shred_enemy_armor(enemy, ability.get_armor_shred(owner))
+	_expect_approx(enemy.armor, -7.0, "eye stacks armor shred below zero")
+	_expect_approx(enemy.damage_reduction_value, 17.0, "base eye must not change legacy reduction")
+	_set_level(owner, "gunner_magic_eye", 10)
+	_expect_approx(ability.get_armor_shred(owner), 11.75, "level 10 eye shreds 11.75 armor")
+	enemy.free()
+	owner.free()
+
+
+class MagicEyeEnemyStub:
+	extends Node
+	var armor: float = 3.0
+	var damage_reduction_value: float = 17.0
 
 
 func _check_progress_lines() -> void:
@@ -65,7 +89,7 @@ func _check_flat_bonuses() -> void:
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_grenade_damage_ratio_bonus(owner), 0.40, "魔法榴弹 level 5 should add 40% damage")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_grenade_crit_bonus(owner), 0.20, "魔法榴弹 level 5 should add 20% crit chance")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_eye_damage_ratio_bonus(owner), 0.06, "魔眼 level 4 should add 6% damage")
-	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_eye_armor_shred_bonus(owner), 7.5, "魔眼 level 4 should add 7.5 armor shred")
+	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_eye_armor_shred_bonus(owner), 2.25, "魔眼 level 4 should add 2.25 armor shred")
 	owner.free()
 
 

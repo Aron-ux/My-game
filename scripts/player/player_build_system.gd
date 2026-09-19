@@ -66,7 +66,6 @@ const BUILD_DEFINITIONS := {
 		{"id": "basic_attack_damage", "title": "法师普通攻击伤害倍率+20％", "summary": "法师普通攻击伤害倍率+20％", "card_title": "普通攻击", "skill_progress_id": "mage_basic"},
 		{"id": "basic_attack_range", "title": "法师普通攻击范围增加8％", "summary": "法师普通攻击范围增加8％", "card_title": "普通攻击", "skill_progress_id": "mage_basic"},
 		{"id": "meta_field_slow", "title": "梅塔领域造成的减速+8％", "summary": "梅塔领域造成的减速+8％", "requires_skill": "meta_field", "skill_progress_id": "mage_meta_field"},
-		{"id": "meta_field_reduction_value", "title": "梅塔领域提供的减伤值+15", "summary": "梅塔领域提供的减伤值+15", "requires_skill": "meta_field", "skill_progress_id": "mage_meta_field"},
 		{"id": "meta_field_radius", "title": "梅塔领域范围+8％", "summary": "梅塔领域范围+8％", "requires_skill": "meta_field", "skill_progress_id": "mage_meta_field"},
 		{"id": "meta_field_damage", "title": "梅塔领域伤害倍率+3％", "summary": "梅塔领域伤害倍率+3％", "requires_skill": "meta_field", "skill_progress_id": "mage_meta_field"},
 		{"id": "surging_wave_cooldown", "title": "波涛汹涌冷却时间-15％", "summary": "波涛汹涌冷却时间-15％", "requires_skill": "surging_wave", "skill_progress_id": "mage_surging_wave"},
@@ -414,10 +413,6 @@ static func get_mage_ultimate_bombard_count_bonus(owner) -> int:
 
 static func get_meta_field_slow_bonus(owner) -> float:
 	return 0.08 * float(get_count(owner, "mage", "meta_field_slow"))
-
-
-static func get_meta_field_damage_reduction_value_bonus(owner) -> float:
-	return 15.0 * float(get_count(owner, "mage", "meta_field_reduction_value"))
 
 
 static func get_meta_field_radius_multiplier(owner) -> float:

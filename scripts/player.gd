@@ -1157,9 +1157,6 @@ func _trigger_rearguard_attack(role_id: String, origin: Vector2, level: int) -> 
 func _get_priority_target_bonus(enemy: Node) -> float:
 	return PLAYER_COMBAT_MODIFIERS.get_priority_target_bonus(self, enemy)
 
-func _is_last_stand_active() -> bool:
-	return PLAYER_COMBAT_MODIFIERS.is_last_stand_active(self)
-
 func _get_effective_damage_taken_multiplier() -> float:
 	return PLAYER_COMBAT_MODIFIERS.get_effective_damage_taken_multiplier(self)
 

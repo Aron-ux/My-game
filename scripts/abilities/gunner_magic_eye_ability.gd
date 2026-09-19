@@ -11,7 +11,7 @@ const SHOT_INTERVAL := 0.4
 const SHOT_DAMAGE_RATIO := 0.80
 const BEAM_LENGTH := 450.0
 const BEAM_WIDTH := 64.0
-const ARMOR_SHRED_PER_HIT := 30.0
+const ARMOR_SHRED_PER_HIT := 5.0
 
 const TALENT_MAGIC_EYE_1 := "gunner_level_talent_magic_eye_1"
 const TALENT_MAGIC_EYE_2 := "gunner_level_talent_magic_eye_2"
@@ -71,7 +71,7 @@ func get_shot_damage_ratio(owner) -> float:
 
 
 func get_armor_shred(owner) -> float:
-	return ARMOR_SHRED_PER_HIT + (ARMOR_SHRED_BONUS if _has_talent(owner, TALENT_MAGIC_EYE_2) else 0.0) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_eye_armor_shred_bonus(owner)
+	return ARMOR_SHRED_PER_HIT + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_eye_armor_shred_bonus(owner)
 
 
 func get_shot_count(owner) -> int:
@@ -84,7 +84,7 @@ func get_cooldown_slot(owner = null) -> Dictionary:
 		"remaining": clamp(cooldown_remaining, 0.0, COOLDOWN),
 		"duration": COOLDOWN,
 		"color": Color(0.32, 0.66, 1.0, 1.0),
-		"description": "向前方释放持续的蓝色加农炮，对前方敌人造成 5 次 80% 伤害，每次命中使敌人减伤值降低 30 点。魔眼聚合 I：每次伤害+50%、持续时间+1.2s。魔眼聚合 II：每次命中减伤值+30。"
+		"description": "向前方释放持续的蓝色加农炮，对前方敌人造成 5 次 80% 伤害，每次命中使敌人护甲降低 5 点；每升一级，每次伤害倍率增加 2 个百分点，护甲降低量额外增加 0.75 点。"
 	}
 
 
@@ -119,7 +119,8 @@ func restore_effect_if_active(owner) -> void:
 func _fire_shot(owner) -> void:
 	var center: Vector2 = owner.global_position + locked_direction * (BEAM_LENGTH * 0.5)
 	var damage: float = float(owner._get_role_damage("gunner")) * get_shot_damage_ratio(owner)
-	var damage_taken: int = PLAYER_GUNNER_MAGIC_EYE_FLOW.fire_shot(owner, locked_direction, BEAM_LENGTH, BEAM_WIDTH, damage, get_armor_shred(owner))
+	var legacy_talent_shred: float = ARMOR_SHRED_BONUS if _has_talent(owner, TALENT_MAGIC_EYE_2) else 0.0
+	var damage_taken: int = PLAYER_GUNNER_MAGIC_EYE_FLOW.fire_shot(owner, locked_direction, BEAM_LENGTH, BEAM_WIDTH, damage, get_armor_shred(owner), legacy_talent_shred)
 	if owner.has_method("_register_attack_result"):
 		owner._register_attack_result("gunner", damage_taken, false)
 	if beam_visual != null and is_instance_valid(beam_visual) and beam_visual.has_method("fire_pulse"):

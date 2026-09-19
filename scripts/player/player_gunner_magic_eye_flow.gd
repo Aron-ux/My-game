@@ -3,7 +3,7 @@ extends RefCounted
 const PLAYER_DAMAGE_RESOLVER := preload("res://scripts/player/player_damage_resolver.gd")
 
 
-static func fire_shot(owner, direction: Vector2, length: float, width: float, damage: float, armor_shred: float) -> int:
+static func fire_shot(owner, direction: Vector2, length: float, width: float, damage: float, armor_shred: float, legacy_talent_shred: float = 0.0) -> int:
 	if owner == null or not is_instance_valid(owner):
 		return 0
 	var center: Vector2 = owner.global_position + direction * (length * 0.5)
@@ -24,6 +24,8 @@ static func fire_shot(owner, direction: Vector2, length: float, width: float, da
 		var killed: bool = owner._deal_damage_to_enemy(enemy, damage, "gunner", 0.0, 2.0, 1.0, 0.0, owner.global_position)
 		if not killed and float(enemy.get("current_health")) > 0.0:
 			_shred_enemy_armor(enemy, armor_shred)
+			if legacy_talent_shred > 0.0 and enemy.get("damage_reduction_value") != null:
+				enemy.damage_reduction_value = float(enemy.damage_reduction_value) - legacy_talent_shred
 	return hit_count
 
 
@@ -37,6 +39,6 @@ static func is_inside_beam(enemy_position: Vector2, center: Vector2, direction: 
 
 
 static func _shred_enemy_armor(enemy, value: float) -> void:
-	if enemy == null or not is_instance_valid(enemy) or enemy.get("damage_reduction_value") == null:
+	if enemy == null or not is_instance_valid(enemy) or enemy.get("armor") == null:
 		return
-	enemy.damage_reduction_value = float(enemy.damage_reduction_value) - value
+	enemy.armor = float(enemy.armor) - value

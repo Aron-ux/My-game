@@ -130,8 +130,6 @@ static func get_role_move_speed(owner, role_id: String) -> float:
 	var mechanic_field = owner.get("mechanic_emp_burst_ability") if owner != null else null
 	if mechanic_field != null and mechanic_field.has_method("get_field_haste_multiplier"):
 		move_speed *= float(mechanic_field.get_field_haste_multiplier())
-	if owner._is_last_stand_active():
-		move_speed *= 1.18
 	if owner.frenzy_remaining > 0.0 and owner.frenzy_stacks > 0:
 		move_speed *= 1.0 + 0.02 * owner.frenzy_stacks
 	move_speed *= owner.enemy_move_slow_multiplier
@@ -341,8 +339,6 @@ static func get_role_damage(owner, role_id: String) -> float:
 		var damage_amount: float = (current_role_base_damage + PLAYER_RUAN_STONE_STAT_FLOW.get_attack_bonus(owner)) * max(0.01, 1.0 + blessing_damage_percent) * max(0.01, base_global_multiplier + role_equipment_bonus) * (1.0 + PLAYER_RUAN_STONE_STAT_FLOW.get_damage_bonus(owner))
 		if owner.switch_power_remaining > 0.0 and owner.switch_power_role_id == role_id:
 			damage_amount *= owner.switch_power_damage_multiplier
-		if owner._is_last_stand_active():
-			damage_amount *= 1.22
 		if owner._has_elite_relic("elite_chain_overload") and role_id == str(owner._get_active_role().get("id", "")):
 			damage_amount *= 0.92
 		if owner.standby_entry_remaining > 0.0 and owner.standby_entry_role_id == role_id:

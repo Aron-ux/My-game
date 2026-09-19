@@ -36,7 +36,6 @@ static func is_elite_upgrade(option_id: String) -> bool:
 		"elite_overcharge_reserve",
 		"elite_mirror_finisher",
 		"elite_fixed_axis_core",
-		"elite_last_stand",
 		"elite_execution_pact",
 		"elite_reactor",
 		"elite_chain_overload",

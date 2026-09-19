@@ -514,7 +514,6 @@ func _check_strengthened_role_build_values() -> void:
 		[PlayerBuildSystem.get_basic_attack_range_multiplier(owner, "mage"), 1.08, "mage basic range"],
 		[PlayerBuildSystem.get_mage_ultimate_bombard_count_bonus(owner), 3.0, "mage ultimate bombard count"],
 		[PlayerBuildSystem.get_meta_field_slow_bonus(owner), 0.08, "meta field slow"],
-		[PlayerBuildSystem.get_meta_field_damage_reduction_value_bonus(owner), 15.0, "meta field reduction"],
 		[PlayerBuildSystem.get_meta_field_radius_multiplier(owner), 1.08, "meta field radius"],
 		[PlayerBuildSystem.get_meta_field_damage_ratio_bonus(owner), 0.03, "meta field damage"],
 		[PlayerBuildSystem.get_surging_wave_cooldown_multiplier(owner), 0.85, "surging wave cooldown"],

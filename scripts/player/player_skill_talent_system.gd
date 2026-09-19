@@ -730,37 +730,31 @@ const TALENT_BUILD_PROJECTIONS := {
 	},
 	"mage_meta_transfer": {
 		"meta_field_slow": "先按普通减速结算，再乘转移减速×0.50",
-		"meta_field_reduction_value": "本节点固定不提供减伤；本次减伤构筑仍作用非转移领域",
 		"meta_field_radius": "先扩大领域范围，再乘跟随范围×0.75",
 		"meta_field_damage": "先结算领域伤害，再乘跟随伤害×0.50"
 	},
 	"mage_meta_collapse": {
 		"meta_field_slow": "坍缩爆发读取当前减速构筑；减速为控制效果，不改变本节点爆发伤害",
-		"meta_field_reduction_value": "切换立即结束并爆发，不提供领域减伤",
 		"meta_field_radius": "坍缩范围继承当前领域范围",
 		"meta_field_damage": "坍缩读取当前每跳伤害并乘2倍；普通伤害升级先结算"
 	},
 	"mage_meta_expansion": {
 		"meta_field_slow": "扩张不提高减速；减速按每跳普通值结算",
-		"meta_field_reduction_value": "扩张不提高减伤；减伤按普通值结算",
 		"meta_field_radius": "范围升级决定初始半径，之后每跳再扩张12%最多3次",
 		"meta_field_damage": "扩张不提高伤害；每跳伤害继承普通伤害升级"
 	},
 	"mage_meta_stasis": {
 		"meta_field_slow": "减速普通强化与凝滞+12个百分点相加，最高95%；转移后再×0.50",
-		"meta_field_reduction_value": "减伤升级独立生效；凝滞固定不改变减伤值",
 		"meta_field_radius": "本节点固定不改变范围；本次范围构筑仍作用领域，凝滞只强化减速",
 		"meta_field_damage": "本节点固定不改变伤害；本次伤害构筑仍作用领域每跳"
 	},
 	"mage_meta_inner_ring": {
 		"meta_field_slow": "本节点固定不改变拉回距离；本次减速构筑仍作用领域",
-		"meta_field_reduction_value": "本节点固定不改变拉回距离；本次减伤构筑仍作用领域",
 		"meta_field_radius": "范围升级同步扩大领域与内环（内环=当前领域60%）",
 		"meta_field_damage": "内环不造成独立伤害；本次伤害构筑强化领域每跳，拉回距离固定"
 	},
 	"mage_meta_guard_pulse": {
 		"meta_field_slow": "回复4%为本节点固定值；本次减速构筑仍作用领域",
-		"meta_field_reduction_value": "回复仍为最大生命4%固定值；本次减伤构筑继续作用领域期间",
 		"meta_field_radius": "回复4%固定值不随范围增长；本次范围构筑仍扩大领域覆盖",
 		"meta_field_damage": "回复4%固定值不随伤害增长；本次伤害构筑仍强化领域每跳"
 	},
