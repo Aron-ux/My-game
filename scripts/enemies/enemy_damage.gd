@@ -1,5 +1,6 @@
 extends RefCounted
 const ARMOR_RULES := preload("res://scripts/combat/armor_rules.gd")
+const HEAVY_ARMOR := preload("res://scripts/enemies/enemy_heavy_armor_form.gd")
 
 const ENEMY_SKULLTOMB_BEHAVIOR := preload("res://scripts/enemies/enemy_skulltomb_behavior.gd")
 const ENEMY_BOSS_STATE := preload("res://scripts/enemies/enemy_boss_state.gd")
@@ -20,13 +21,21 @@ static func apply_damage(enemy, amount: float, show_feedback: bool = true, is_cr
 	var previous_health: float = float(enemy.current_health)
 	# Damage order: total damage -> defense (armor) -> damage reduction -> HP.
 	var armor_value: Variant = enemy.get("armor")
-	var armored_damage: float = ARMOR_RULES.apply_damage(amount, float(armor_value) if armor_value != null else 0.0)
+	var effective_armor: float = float(armor_value) if armor_value != null else 0.0
+	var fury_shred: Variant = enemy.get("fury_armor_shred")
+	effective_armor -= float(fury_shred) if fury_shred != null else 0.0
+	if HEAVY_ARMOR.is_active(enemy):
+		effective_armor += HEAVY_ARMOR.ARMOR_BONUS
+	var armored_damage: float = ARMOR_RULES.apply_damage(amount, effective_armor)
 	var damage_reduction_rate := PLAYER_COMBAT_MODIFIERS.calculate_damage_reduction_rate(PLAYER_GUNNER_BASIC_TALENT_FLOW.get_effective_damage_reduction_value(enemy))
 	var damage_reduction_multiplier: float = max(0.0, 1.0 - damage_reduction_rate)
+	var base_reduction: Variant = enemy.get("damage_reduction_rate")
+	damage_reduction_multiplier *= max(0.0, 1.0 - (float(base_reduction) if base_reduction != null else 0.0))
 	damage_reduction_multiplier *= max(0.0, ENEMY_GLUTTON_SKILL_BEHAVIOR.get_damage_taken_multiplier(enemy))
 	# Vulnerability state is retained for status/UI compatibility, but has no damage effect.
 	var adjusted_damage: float = armored_damage * damage_reduction_multiplier
 	enemy.current_health -= adjusted_damage
+	HEAVY_ARMOR.reflect_damage(enemy, minf(maxf(0.0, previous_health), maxf(0.0, adjusted_damage)))
 	var shield_broken := _should_start_boss_shield_break_intro(enemy, previous_health)
 	var killed: bool = enemy.current_health <= 0.0 and not shield_broken
 	if show_feedback:

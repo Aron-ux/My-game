@@ -8,9 +8,12 @@ script = ExtResource("1_profile")
 archetype = "smallboss_turret"
 behavior = "rose"
 boss_name = "地瑰灵"
-max_health = 3360.0
+max_health = 2800.0
+attack = 80.0
+armor = -20.0
+damage_reduction_rate = 0.0
 speed = 0.0
-touch_damage = 16.0
+touch_damage = 120.0
 contact_radius = 54.0
 body_collision_radius = 58.0
 reward_tier = 4
@@ -22,7 +25,6 @@ extra = {
 "preferred_distance": 0.0,
 "shot_interval": 1.0,
 "projectile_speed": 352.0,
-"projectile_damage": 16.5,
 "projectile_lifetime": 4.4,
 "projectile_spread": 0.14,
 "projectile_count": 3,

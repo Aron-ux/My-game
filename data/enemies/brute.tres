@@ -7,9 +7,12 @@
 script = ExtResource("1_profile")
 archetype = "brute"
 behavior = "chaser"
-max_health = 57.344
-speed = 72.0
-touch_damage = 24.0
+max_health = 60.0
+attack = 15.0
+armor = 20.0
+damage_reduction_rate = 0.0
+speed = 60.0
+touch_damage = 22.5
 contact_radius = 40.0
 body_collision_radius = 44.0
 reward_tier = 2

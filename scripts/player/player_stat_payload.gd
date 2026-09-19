@@ -183,12 +183,26 @@ static func _build_team_role_statuses(owner, active_role_id: String, include_des
 
 static func _build_buff_status_slots(owner) -> Array:
 	var slots: Array = []
-	if owner != null and float(owner.get("healing_block_remaining")) > 0.0:
-		var healing_remaining: float = float(owner.get("healing_block_remaining"))
+	var blindness = preload("res://scripts/player/player_blindness.gd").get_effect(owner) if owner != null else null
+	if blindness != null and blindness.remaining > 0.0:
+		slots.append({
+			"id": "blindness",
+			"name": "目盲",
+			"description": "只能看见自身半径160范围，持续1.5秒；每10秒最多触发一次。",
+			"text": "盲",
+			"color": Color(0.5, 0.3, 0.7, 1.0),
+			"base_color": Color(0.15, 0.08, 0.22, 1.0),
+			"remaining": blindness.remaining,
+			"duration": 1.5,
+			"cooldown": false
+		})
+	var domain_remaining: float = preload("res://scripts/enemies/skulltomb_domain_effect.gd").get_remaining(owner) if owner != null else 0.0
+	if owner != null and (float(owner.get("healing_block_remaining")) > 0.0 or domain_remaining > 0.0):
+		var healing_remaining: float = maxf(float(owner.get("healing_block_remaining")), domain_remaining)
 		slots.append({
 			"id": "healing_block",
 			"name": "禁疗",
-			"description": "无法回复生命。",
+			"description": "死亡领域内无法回复生命，移动速度降低10%。" if domain_remaining > 0.0 else "无法回复生命。",
 			"text": "疗",
 			"icon_id": "healing_block",
 			"color": Color(0.88, 0.08, 0.06, 0.96),
@@ -202,7 +216,7 @@ static func _build_buff_status_slots(owner) -> Array:
 		slots.append({
 			"id": "aging",
 			"name": "衰老",
-			"description": "守墓人附近每秒流失当前生命值5%。",
+			"description": "引渡人周围750范围内，每秒受到当前生命值12%＋最大生命值0.5%的伤害；计算减伤，不计算护甲。",
 			"text": "衰",
 			"icon_id": "aging",
 			"color": Color(0.50, 0.18, 0.56, 0.96),

@@ -5,7 +5,7 @@ const ENEMY_DROPS := preload("res://scripts/enemies/enemy_drops.gd")
 const ENEMY_SPATIAL_GRID := preload("res://scripts/enemies/enemy_spatial_grid.gd")
 const ENEMY_GLUTTON_SKILL_BEHAVIOR := preload("res://scripts/enemies/enemy_glutton_skill_behavior.gd")
 
-const ABSORB_INTERVAL := 0.18
+const ABSORB_INTERVAL := 1.0
 const GEM_GRID_CELL_SIZE := 128.0
 const AURA_EXECUTE_HITS := 6
 const AURA_QUERY_PADDING := 96.0
@@ -24,7 +24,7 @@ static func update(enemy, delta: float) -> void:
 	enemy.glutton_absorb_elapsed += delta
 	if enemy.glutton_absorb_elapsed < ABSORB_INTERVAL:
 		return
-	enemy.glutton_absorb_elapsed = 0.0
+	enemy.glutton_absorb_elapsed = fmod(enemy.glutton_absorb_elapsed, ABSORB_INTERVAL)
 	absorb_nearby_pickups(enemy)
 
 

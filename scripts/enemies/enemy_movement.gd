@@ -11,6 +11,8 @@ static func compute_velocity(enemy, delta: float) -> Vector2:
 	var direction_to_target: Vector2 = enemy._cached_direction_to_target
 	var move_direction := direction_to_target
 	var move_speed: float = enemy.speed * enemy.slow_multiplier
+	if preload("res://scripts/enemies/enemy_heavy_armor_form.gd").is_active(enemy):
+		move_speed *= 0.5
 
 	if enemy._is_boss:
 		return compute_boss_velocity(enemy, direction_to_target, distance_to_target, delta)
@@ -33,6 +35,8 @@ static func compute_velocity(enemy, delta: float) -> Vector2:
 
 	var has_active_dash: bool = (enemy._is_dasher and enemy.dash_remaining > 0.0) or (enemy.behavior_id == "skulltomb" and enemy.dash_remaining > 0.0)
 	if has_active_dash:
+		if preload("res://scripts/enemies/enemy_dasher_charge.gd").is_active(enemy):
+			return enemy.dash_direction.normalized() * preload("res://scripts/enemies/enemy_dasher_charge.gd").SPEED
 		move_direction = enemy.dash_direction
 		move_speed *= enemy.dash_speed_multiplier
 		if enemy.behavior_id == "skulltomb":
@@ -49,6 +53,8 @@ static func compute_velocity(enemy, delta: float) -> Vector2:
 	if enemy._is_swarm:
 		move_speed *= 1.1
 	move_speed *= max(0.0, float(enemy.skull_soldier_speed_multiplier))
+	if str(enemy.get("archetype_id")) == "dasher" and float(enemy.get("elite_charge_haste_remaining")) > 0.0:
+		move_speed *= 1.1
 
 	return move_direction * move_speed * GLOBAL_UNIT_MOVE_SPEED_SCALE
 

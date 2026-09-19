@@ -1307,57 +1307,37 @@ func _build_stats_text(role_data: Dictionary) -> String:
 	var max_health: float = float(cached_player._get_role_max_health(role_id)) if cached_player.has_method("_get_role_max_health") else float(cached_player.get("max_health")) - float(active_bonus.get("max_health_bonus", 0.0)) + float(bonus.get("max_health_bonus", 0.0))
 	var current_health: float = float(cached_player._get_role_current_health(role_id)) if cached_player.has_method("_get_role_current_health") else float(cached_player.get("current_health"))
 	var current_health_text := "%.0f / %.0f" % [current_health, max_health]
-	var energy_gain: float = 1.0
-	if cached_player.has_method("_get_role_total_ultimate_energy_gain_multiplier"):
-		energy_gain = float(cached_player._get_role_total_ultimate_energy_gain_multiplier(role_id))
-	var pickup_radius: float = float(cached_player.get("pickup_radius"))
-	if cached_player.has_method("_get_attribute_pickup_range_bonus"):
-		pickup_radius += float(cached_player._get_attribute_pickup_range_bonus())
+	var armor: float = float(cached_player.get_role_armor(role_id)) if cached_player.has_method("get_role_armor") else float(role_data.get("armor", 0.0))
 	var dodge_chance: float = float(cached_player._get_role_dodge_chance(role_id)) if cached_player.has_method("_get_role_dodge_chance") else 0.0
+	var reduction: float = float(cached_player._get_role_damage_reduction_rate(role_id)) if cached_player.has_method("_get_role_damage_reduction_rate") else 0.0
+	var critical_chance: float = float(cached_player._get_role_critical_chance(role_id)) if cached_player.has_method("_get_role_critical_chance") else 0.0
+	var critical_damage: float = float(cached_player._get_critical_damage_multiplier(role_id)) if cached_player.has_method("_get_critical_damage_multiplier") else 1.0
+	var flat_attack: float = float(role_data.get("damage", 0.0))
+	if cached_player.has_method("_get_blazing_sun_flat_base_damage"):
+		flat_attack += float(cached_player._get_blazing_sun_flat_base_damage(role_id))
+	if cached_player.has_method("_get_king_blade_flat_base_damage"):
+		flat_attack += float(cached_player._get_king_blade_flat_base_damage(role_id))
+	flat_attack += preload("res://scripts/player/player_ruan_stone_stat_flow.gd").get_attack_bonus(cached_player)
+	var damage_bonus: float = damage / flat_attack - 1.0 if flat_attack > 0.0 else 0.0
 	var health_regen: float = float(bonus.get("regen_per_second", 0.0))
 	if cached_player.has_method("_get_attribute_health_regen_per_second"):
 		health_regen += float(cached_player._get_attribute_health_regen_per_second())
-	var mana_regen: float = float(cached_player._get_attribute_mana_regen_per_second()) if cached_player.has_method("_get_attribute_mana_regen_per_second") else 0.0
-	var damage_reduction_rate: float = float(cached_player._get_role_damage_reduction_rate(role_id)) if cached_player.has_method("_get_role_damage_reduction_rate") else 0.0
-	var damage_reduction_label: String = "\u51cf\u4f24" if damage_reduction_rate >= 0.0 else "\u6613\u4f24"
-	var damage_reduction_color: String = "#74f0a7" if damage_reduction_rate >= 0.0 else "#ff9b74"
-	var swordsman_trait_level: float = float(cached_player._get_attribute_level("swordsman_trait")) if cached_player.has_method("_get_attribute_level") else 0.0
-	var gunner_trait_level: float = float(cached_player._get_attribute_level("gunner_trait")) if cached_player.has_method("_get_attribute_level") else 0.0
-	var mage_trait_level: float = float(cached_player._get_attribute_level("mage_trait")) if cached_player.has_method("_get_attribute_level") else 0.0
+	health_regen += max_health * PLAYER_BLESSING_SYSTEM.get_divine_grace_regen_ratio_per_tick(cached_player) / PLAYER_BLESSING_SYSTEM.DIVINE_GRACE_REGEN_INTERVAL
+	var cooldown_multiplier: float = float(bonus.get("cooldown_multiplier", 1.0))
+	if cached_player.has_method("_get_mage_arcane_charge_skill_cooldown_multiplier"):
+		cooldown_multiplier *= float(cached_player._get_mage_arcane_charge_skill_cooldown_multiplier(role_id))
 	var lines: Array[String] = []
-	lines.append("[color=#f3d35a][b]核心属性[/b][/color]")
-	lines.append("护甲        [color=#ffffff]%.1f[/color]" % (float(cached_player.get_role_armor(role_id)) if cached_player.has_method("get_role_armor") else 0.0))
-	lines.append("生命        [color=#ffffff]%s[/color]" % current_health_text)
-	lines.append("大招能量    [color=#ffffff]%.0f / %.0f[/color]    回能 [color=#74f0a7]x%.2f +%.2f/s[/color]" % [
-		float(cached_player._get_role_mana(role_id)) if cached_player.has_method("_get_role_mana") else 0.0,
-		float(cached_player.get("max_mana")),
-		energy_gain,
-		mana_regen
-	])
-	lines.append("攻击力      [color=#ffffff]%.1f[/color]    普攻间隔 [color=#ffffff]%.2fs[/color]" % [
-		damage,
-		float(cached_player._get_effective_attack_interval(role_id)) if cached_player.has_method("_get_effective_attack_interval") else 0.0
-	])
-	lines.append("移动速度    [color=#ffffff]%.1f[/color]    拾取范围 [color=#ffffff]%.1f[/color]" % [move_speed, pickup_radius])
-	lines.append("范围倍率    [color=#74f0a7]x%.2f[/color]    冷却倍率 [color=#74f0a7]x%.2f[/color]" % [
-		float(bonus.get("skill_range_multiplier", 1.0)),
-		float(bonus.get("cooldown_multiplier", 1.0))
-	])
-	lines.append("\u95ea\u907f        [color=#74f0a7]%.1f%%[/color]    \u56de\u8840 [color=#74f0a7]%.1f/s[/color]    %s [color=%s]%.1f%%[/color]" % [
-		dodge_chance * 100.0,
-		health_regen,
-		damage_reduction_label,
-		damage_reduction_color,
-		abs(damage_reduction_rate) * 100.0
-	])
-	lines.append("")
-	lines.append("[color=#f3d35a][b]英雄特性[/b][/color]")
-	lines.append("剑士 Lv.%s    枪手 Lv.%s    法师 Lv.%s" % [
-		_format_panel_attribute_level(swordsman_trait_level),
-		_format_panel_attribute_level(gunner_trait_level),
-		_format_panel_attribute_level(mage_trait_level)
-	])
-	lines.append("[color=#bfc8dc]特性影响对应英雄的核心机制与定位加成。[/color]")
+	lines.append("生命值      [color=#ffffff]%s[/color]" % current_health_text)
+	lines.append("攻击力      [color=#ffffff]%.1f[/color]" % damage)
+	lines.append("护甲        [color=#ffffff]%.1f[/color]" % armor)
+	lines.append("移动速度    [color=#ffffff]%.1f[/color]" % move_speed)
+	lines.append("闪避率      [color=#74f0a7]%.1f%%[/color]" % (dodge_chance * 100.0))
+	lines.append("减伤率      [color=#74f0a7]%.1f%%[/color]" % (reduction * 100.0))
+	lines.append("暴击率      [color=#74f0a7]%.1f%%[/color]" % (critical_chance * 100.0))
+	lines.append("暴击伤害    [color=#74f0a7]%.1f%%[/color]" % (critical_damage * 100.0))
+	lines.append("增伤        [color=#74f0a7]%.1f%%[/color]" % (damage_bonus * 100.0))
+	lines.append("生命回复    [color=#74f0a7]%.2f/秒[/color]" % health_regen)
+	lines.append("冷却缩减    [color=#74f0a7]%.1f%%[/color]" % ((1.0 - cooldown_multiplier) * 100.0))
 	return "\n".join(lines)
 
 func _format_panel_attribute_level(level: float) -> String:

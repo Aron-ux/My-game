@@ -119,6 +119,7 @@ static func get_save_data(player) -> Dictionary:
 		"ultimate_cost_multiplier": player.ultimate_cost_multiplier,
 		"damage_taken_multiplier": player.damage_taken_multiplier,
 		"passive_damage_reduction_value": player.passive_damage_reduction_value,
+		"blindness": preload("res://scripts/player/player_blindness.gd").save_state(player),
 		"equipment_damage_multiplier_bonus": player.equipment_damage_multiplier_bonus,
 		"equipment_speed_bonus": player.equipment_speed_bonus,
 		"equipment_max_health_bonus": player.equipment_max_health_bonus,
@@ -539,6 +540,7 @@ static func _apply_stat_save_data(player, data: Dictionary) -> void:
 	player.background_interval_multiplier = float(data.get("background_interval_multiplier", player.background_interval_multiplier))
 	player.ultimate_cost_multiplier = float(data.get("ultimate_cost_multiplier", player.ultimate_cost_multiplier))
 	player.damage_taken_multiplier = float(data.get("damage_taken_multiplier", player.damage_taken_multiplier))
+	preload("res://scripts/player/player_blindness.gd").restore_state(player, data.get("blindness", {}))
 	if data.has("passive_damage_reduction_value"):
 		player.passive_damage_reduction_value = float(data.get("passive_damage_reduction_value", player.passive_damage_reduction_value))
 	elif data.has("damage_taken_multiplier") and not is_equal_approx(player.damage_taken_multiplier, 1.0):

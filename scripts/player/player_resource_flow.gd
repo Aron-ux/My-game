@@ -143,7 +143,7 @@ static func heal(owner, amount: float) -> void:
 	if owner.has_method("_save_active_role_health"):
 		owner._save_active_role_health()
 	owner.health_changed.emit(owner.current_health, owner.max_health)
-	owner.pending_heal_combat_text = float(owner.get("pending_heal_combat_text", 0.0)) + actual_heal_amount
+	owner.pending_heal_combat_text += actual_heal_amount
 	var displayed_heal: float = floor(owner.pending_heal_combat_text)
 	if displayed_heal < 1.0:
 		return

@@ -29,6 +29,7 @@ func _run() -> void:
 	await process_frame
 
 	_check_stable_nodes(panel)
+	_check_core_stats(panel, player)
 	await _check_skill_tree_content(panel)
 	await _check_archive_ctrl_tab_focus(panel)
 	await _check_blessing_content(panel)
@@ -47,6 +48,17 @@ func _run() -> void:
 		for failure in failures:
 			push_error(failure)
 		quit(1)
+
+
+func _check_core_stats(panel: Node, player: Node) -> void:
+	var labels := ["生命值", "攻击力", "护甲", "移动速度", "闪避率", "减伤率", "暴击率", "暴击伤害", "增伤", "生命回复", "冷却缩减"]
+	for role in player.roles:
+		var text: String = panel._build_stats_text(role)
+		var lines := text.split("\n")
+		_expect(lines.size() == labels.size(), "core stats should have exactly 11 rows")
+		for index in range(min(lines.size(), labels.size())):
+			_expect(lines[index].begins_with(labels[index]), "core stats should keep requested order")
+		_expect(not text.contains("普攻间隔") and not text.contains("拾取范围"), "extra stats should not remain in core rows")
 
 
 func _seed_character_build(player: Node) -> void:

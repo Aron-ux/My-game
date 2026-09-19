@@ -7,9 +7,12 @@
 script = ExtResource("1_profile")
 archetype = "swarm"
 behavior = "swarm"
-max_health = 10.24
-speed = 162.0
-touch_damage = 16.0
+max_health = 20.0
+attack = 10.0
+armor = -10.0
+damage_reduction_rate = 0.0
+speed = 200.0
+touch_damage = 15.0
 contact_radius = 24.0
 body_collision_radius = 30.0
 reward_tier = 1

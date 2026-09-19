@@ -28,6 +28,7 @@ static func spawn_configured_enemy_at_position(main: Node, kind: String, archety
 	else:
 		enemy.current_health = enemy.max_health
 	enemy.speed *= speed_multiplier
+	enemy.attack *= damage_multiplier
 	enemy.touch_damage *= damage_multiplier
 	enemy.projectile_damage *= damage_multiplier * GLOBAL_ENEMY_PROJECTILE_DAMAGE_MULTIPLIER
 	if enemy.has_signal("defeated"):

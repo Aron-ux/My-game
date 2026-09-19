@@ -113,8 +113,8 @@ static func _apply_flame(owner, origin_position: Vector2, origin_max_health: flo
 
 
 static func _apply_fury(enemy: Node, values: Dictionary) -> void:
-	if enemy.has_method("apply_vulnerability"):
-		enemy.apply_vulnerability(float(values.get("vulnerability_ratio", 0.0)), float(values.get("duration", 0.0)))
+	if enemy.has_method("apply_fury_armor_shred"):
+		enemy.apply_fury_armor_shred(float(values.get("armor_shred", 0.0)), float(values.get("duration", 0.0)))
 
 
 static func _nearest_neighbor(origin: Node2D, visited: Dictionary) -> Node2D:

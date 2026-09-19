@@ -1,6 +1,7 @@
 extends SceneTree
 
 const DamageResolver := preload("res://scripts/player/player_damage_resolver.gd")
+const StoneStats := preload("res://scripts/player/player_ruan_stone_stat_flow.gd")
 
 
 func _init() -> void:
@@ -13,6 +14,14 @@ func _run() -> void:
 	current_scene = scene
 	var owner := StoneOwner.new()
 	scene.add_child(owner)
+	owner.ruan_stone_purchased = ["ground_branch"]
+	assert(is_equal_approx(StoneStats.get_attack_bonus(owner), 1.0))
+	assert(is_equal_approx(StoneStats.get_damage_reduction_rate(owner), 0.05))
+	assert(is_zero_approx(StoneStats.get_damage_bonus(owner)))
+	owner.ruan_stone_purchased = ["ground_branch", "ground_branch", "broken_sword", "broken_sword"]
+	assert(is_equal_approx(StoneStats.get_attack_bonus(owner), 6.0))
+	assert(is_equal_approx(StoneStats.get_damage_reduction_rate(owner), 0.10))
+	assert(is_equal_approx(StoneStats.get_damage_bonus(owner), 0.04))
 	var enemies: Array[StoneEnemy] = []
 	for index in range(4):
 		var enemy := StoneEnemy.new()
@@ -54,7 +63,8 @@ func _run() -> void:
 	owner.ruan_stone_levels = {"fury": 1}
 	DamageResolver.deal_damage_to_enemy(owner, enemies[0], 10.0, "swordsman_basic:event_fury")
 	assert(is_equal_approx(enemies[0].vulnerability_at_last_hit, 0.0))
-	assert(is_equal_approx(enemies[0].vulnerability_bonus, 0.06))
+	assert(is_equal_approx(enemies[0].fury_armor_shred, 5.0))
+	assert(is_equal_approx(enemies[0].vulnerability_bonus, 0.0))
 
 	_reset(enemies)
 	owner.ruan_stone_proc_events.clear()
@@ -193,6 +203,7 @@ class StoneEnemy:
 	var slow_multiplier := 1.0
 	var slow_duration := 0.0
 	var vulnerability_bonus := 0.0
+	var fury_armor_shred := 0.0
 	var vulnerability_at_last_hit := 0.0
 
 	func take_damage(amount: float, _critical: bool = false) -> bool:
@@ -214,6 +225,9 @@ class StoneEnemy:
 	func apply_vulnerability(value: float, _duration: float) -> void:
 		vulnerability_bonus = max(vulnerability_bonus, value)
 
+	func apply_fury_armor_shred(value: float, _duration: float) -> void:
+		fury_armor_shred = maxf(fury_armor_shred, value)
+
 
 class StoneOwner:
 	extends Node2D
@@ -222,6 +236,9 @@ class StoneOwner:
 	var ruan_stone_purchased: Array = []
 	var ruan_stone_proc_events: Dictionary = {}
 	var stone_rings := 0
+
+	func get_purchased_ruan_stones() -> Array:
+		return ruan_stone_purchased
 
 	func _spawn_ring_effect(_center: Vector2, _radius: float, _color: Color, _width: float, _duration: float) -> void:
 		stone_rings += 1

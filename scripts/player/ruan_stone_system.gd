@@ -12,11 +12,11 @@ const DEFINITIONS := {
 	STONE_FROST: {"title": "冰石", "summary": "普攻大幅减速敌人。"},
 	STONE_POISON: {"title": "毒石", "summary": "普攻附加持续毒伤。"},
 	STONE_FLAME: {"title": "炎石", "summary": "普攻击杀敌人时引爆尸骸。"},
-	STONE_FURY: {"title": "烈石", "summary": "普攻附加伤害加深。"}
-	,"broken_sword": {"title": "冒险者破剑", "summary": "攻击力 +2，伤害 +5%。"}
+	STONE_FURY: {"title": "烈石", "summary": "普攻使目标护甲降低5点，持续2秒；重复命中刷新时间。"}
+	,"broken_sword": {"title": "冒险者破剑", "summary": "攻击力 +2，增伤 +2%。"}
 	,"keen_fragment": {"title": "基恩碎片", "summary": "远程攻击距离 +25，近战攻击范围 +25%。"}
 	,"tattered_cloak": {"title": "残破披风", "summary": "移动速度 +10，闪避率 +10%（每件独立计算）。"}
-	,"ground_branch": {"title": "地上的树枝", "summary": "减伤 +7%，所有角色伤害 +8%。"}
+	,"ground_branch": {"title": "地上的树枝", "summary": "减伤率 +5%，攻击力 +1。"}
 	,"guild_token": {"title": "工会令牌碎片", "summary": "每 10 秒回复 20 点生命。"}
 	,"broken_magic_stone": {"title": "残破的魔石", "summary": "经验获取效率 +10%。"}
 	,"rusted_dagger": {"title": "生锈的匕首", "summary": "暴击率 +8%，暴击伤害 +8%。"}
@@ -174,7 +174,7 @@ static func _scale_effect_values(stone_id: String, base: Dictionary, count: int)
 		STONE_FLAME:
 			scaled["damage_ratio"] = float(base.get("damage_ratio", 0.0)) * float(count)
 		STONE_FURY:
-			scaled["vulnerability_ratio"] = float(base.get("vulnerability_ratio", 0.0)) * float(count)
+			scaled["armor_shred"] = float(base.get("armor_shred", 0.0)) * float(count)
 		_:
 			# 属性/百分比类物件：所有增量按数量线性相加
 			for key_value in base.keys():
@@ -219,13 +219,13 @@ static func get_effect_values(stone_id: String, level: int) -> Dictionary:
 			}
 		STONE_FURY:
 			return {
-				"vulnerability_ratio": 0.06 + 0.005 * upgrades,
-				"duration": 2.0 + 0.05 * upgrades
+				"armor_shred": 5.0,
+				"duration": 2.0
 			}
-		"broken_sword": return {"attack_bonus": 2.0, "damage_bonus": 0.05}
+		"broken_sword": return {"attack_bonus": 2.0, "damage_bonus": 0.02}
 		"keen_fragment": return {"range_bonus": 25.0, "melee_range_multiplier": 1.25}
 		"tattered_cloak": return {"speed_bonus": 10.0, "dodge_chance": 0.10}
-		"ground_branch": return {"damage_reduction_rate": 0.07, "damage_bonus": 0.08}
+		"ground_branch": return {"damage_reduction_rate": 0.05, "attack_bonus": 1.0}
 		"guild_token": return {"heal_interval": 10.0, "heal_amount": 20.0}
 		"broken_magic_stone": return {"experience_multiplier": 1.10}
 		"rusted_dagger": return {"critical_chance_bonus": 0.08, "critical_damage_bonus": 0.08}
@@ -269,7 +269,7 @@ static func get_effect_text(stone_id: String, level: int) -> String:
 		STONE_FLAME:
 			return "普攻击杀爆炸：%d范围，造成死者最大生命%s%%伤害" % [int(values["radius"]), _percent(values["damage_ratio"])]
 		STONE_FURY:
-			return "伤害加深%s%%，持续%s秒" % [_percent(values["vulnerability_ratio"]), _decimal(values["duration"])]
+			return "普攻使目标护甲降低%s点，持续%s秒；重复命中刷新时间" % [_number(values["armor_shred"]), _decimal(values["duration"])]
 	return ""
 
 

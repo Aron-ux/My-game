@@ -116,6 +116,7 @@ class TargetStub:
 class SplitShooterStub:
 	extends Node2D
 
+	var attack: float = 3.0
 	var target: Node2D
 	var projectile_scene: PackedScene = ENEMY_BULLET_SCENE
 	var _cached_direction_to_target: Vector2 = Vector2.RIGHT

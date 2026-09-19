@@ -16,6 +16,15 @@ var sprite: AnimatedSprite2D
 var shadow: Sprite2D
 var hit_lock_remaining: float = 0.0
 var last_moving_state: bool = false
+var silver_material: ShaderMaterial
+
+
+func set_heavy_armor(active: bool) -> void:
+	_ensure_sprite()
+	if active and silver_material == null:
+		silver_material = ShaderMaterial.new()
+		silver_material.shader = preload("res://shaders/heavy_armor_silver.gdshader")
+	sprite.material = silver_material if active else null
 
 
 func _ready() -> void:

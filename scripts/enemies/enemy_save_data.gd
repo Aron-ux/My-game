@@ -15,6 +15,14 @@ static func get_save_data(enemy) -> Dictionary:
 		"current_health": enemy.current_health,
 		"damage_reduction_value": enemy.damage_reduction_value,
 		"armor": enemy.armor,
+		"fury_armor_shred": enemy.fury_armor_shred,
+		"fury_armor_shred_remaining": enemy.fury_armor_shred_remaining,
+		"attack": enemy.attack,
+		"damage_reduction_rate": enemy.damage_reduction_rate,
+		"stalwart_body_cooldown": enemy.stalwart_body_cooldown,
+		"basic_shot_timer": enemy.basic_shot_timer,
+		"heavy_armor_remaining": enemy.heavy_armor_remaining,
+		"heavy_armor_cooldown": enemy.heavy_armor_cooldown,
 		"speed": enemy.speed,
 		"touch_damage": enemy.touch_damage,
 		"contact_radius": enemy.contact_radius,
@@ -60,6 +68,8 @@ static func get_save_data(enemy) -> Dictionary:
 		"dash_timer": enemy.dash_timer,
 		"dash_windup_remaining": enemy.dash_windup_remaining,
 		"dash_remaining": enemy.dash_remaining,
+		"dash_distance_remaining": enemy.dash_distance_remaining,
+		"elite_charge_haste_remaining": enemy.elite_charge_haste_remaining,
 		"dash_direction": [enemy.dash_direction.x, enemy.dash_direction.y],
 		"strafe_sign": enemy.strafe_sign,
 		"glutton_absorb_radius": enemy.glutton_absorb_radius,
@@ -84,6 +94,16 @@ static func get_save_data(enemy) -> Dictionary:
 		"skulltomb_charge_windup_remaining": enemy.skulltomb_charge_windup_remaining,
 		"skulltomb_charge_target_position": [enemy.skulltomb_charge_target_position.x, enemy.skulltomb_charge_target_position.y],
 		"skulltomb_aging_aura_elapsed": enemy.skulltomb_aging_aura_elapsed,
+		"skulltomb_domain": {
+			"remaining": enemy.skulltomb_area_remaining,
+			"center": [enemy.skulltomb_area_center.x, enemy.skulltomb_area_center.y],
+			"cast_center": [enemy.skulltomb_summon_target_center.x, enemy.skulltomb_summon_target_center.y],
+			"radius": enemy.skulltomb_area_radius,
+			"check_elapsed": enemy.skulltomb_area_damage_elapsed,
+			"pending_spawns": enemy.skulltomb_pending_spawns.duplicate(true),
+			"spawn_elapsed": enemy.skulltomb_spawn_elapsed,
+			"spawn_vertex": enemy.skulltomb_spawn_vertex_index
+		},
 		"skull_soldier_speed_multiplier": enemy.skull_soldier_speed_multiplier,
 		"skull_soldier_speed_timer": enemy.skull_soldier_speed_timer,
 		"skull_damage_immune_timer": enemy.skull_damage_immune_timer,
@@ -147,6 +167,14 @@ static func apply_save_data(enemy, data: Dictionary, target_node: Node2D) -> voi
 	enemy.current_health = float(data.get("current_health", enemy.max_health))
 	enemy.damage_reduction_value = float(data.get("damage_reduction_value", 0.0))
 	enemy.armor = float(data.get("armor", 0.0))
+	enemy.fury_armor_shred_remaining = clampf(float(data.get("fury_armor_shred_remaining", 0.0)), 0.0, 2.0)
+	enemy.fury_armor_shred = maxf(0.0, float(data.get("fury_armor_shred", 0.0))) if enemy.fury_armor_shred_remaining > 0.0 else 0.0
+	enemy.attack = max(0.0, float(data.get("attack", enemy.attack)))
+	enemy.damage_reduction_rate = clampf(float(data.get("damage_reduction_rate", 0.0)), 0.0, 1.0)
+	enemy.stalwart_body_cooldown = clampf(float(data.get("stalwart_body_cooldown", 0.0)), 0.0, 1.0)
+	enemy.basic_shot_timer = maxf(0.0, float(data.get("basic_shot_timer", 2.6)))
+	enemy.heavy_armor_remaining = clampf(float(data.get("heavy_armor_remaining", 0.0)), 0.0, 3.0)
+	enemy.heavy_armor_cooldown = clampf(float(data.get("heavy_armor_cooldown", 20.0)), 0.0, 20.0)
 	enemy.speed = float(data.get("speed", enemy.speed))
 	enemy.touch_damage = float(data.get("touch_damage", enemy.touch_damage))
 	enemy.contact_radius = float(data.get("contact_radius", enemy.contact_radius))
@@ -200,6 +228,8 @@ static func apply_save_data(enemy, data: Dictionary, target_node: Node2D) -> voi
 	enemy.dash_timer = float(data.get("dash_timer", enemy.dash_interval))
 	enemy.dash_windup_remaining = float(data.get("dash_windup_remaining", 0.0))
 	enemy.dash_remaining = float(data.get("dash_remaining", 0.0))
+	enemy.dash_distance_remaining = clampf(float(data.get("dash_distance_remaining", enemy.dash_remaining * 250.0)), 0.0, 500.0)
+	enemy.elite_charge_haste_remaining = clampf(float(data.get("elite_charge_haste_remaining", 0.0)), 0.0, 3.0)
 	var dash_direction_data = data.get("dash_direction", [1.0, 0.0])
 	if dash_direction_data.size() >= 2:
 		enemy.dash_direction = Vector2(float(dash_direction_data[0]), float(dash_direction_data[1])).normalized()
@@ -289,6 +319,9 @@ static func apply_save_data(enemy, data: Dictionary, target_node: Node2D) -> voi
 	ENEMY_PROFILE_RESTORE.restore_profile_resources(enemy)
 	enemy._ensure_status_visuals()
 	enemy._apply_visuals(enemy.display_color)
+	preload("res://scripts/enemies/enemy_heavy_armor_form.gd").sync_visual(enemy)
+	if enemy.behavior_id == "skulltomb":
+		preload("res://scripts/enemies/enemy_skulltomb_behavior.gd").restore_domain(enemy, data.get("skulltomb_domain", {}))
 	if enemy.enemy_kind == "boss":
 		enemy._ensure_boss_helpers()
 		if enemy.boss_phase_transition_target > 0 or enemy.boss_phase_three_intro_remaining > 0.0:

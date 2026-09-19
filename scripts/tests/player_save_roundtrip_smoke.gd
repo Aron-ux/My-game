@@ -4,6 +4,7 @@ const PLAYER_SCENE := preload("res://scenes/player.tscn")
 const PLAYER_BLESSING_SYSTEM := preload("res://scripts/player/player_blessing_system.gd")
 
 const EXACT_KEYS := [
+	"blindness",
 	"position",
 	"level",
 	"experience",
@@ -187,6 +188,7 @@ func _check_legacy_role_balance_migration(player: Node) -> void:
 
 
 func _seed_run_state(player: Node) -> void:
+	preload("res://scripts/player/player_blindness.gd").restore_state(player, {"remaining": 1.0, "cooldown_remaining": 9.5})
 	player.global_position = Vector2(123.0, -45.0)
 	player.level = 16
 	player.experience = 47

@@ -1208,7 +1208,7 @@ func apply_healing_block(duration: float) -> void:
 	healing_block_remaining = max(healing_block_remaining, max(0.0, duration))
 
 func is_healing_blocked() -> bool:
-	return healing_block_remaining > 0.0
+	return healing_block_remaining > 0.0 or preload("res://scripts/enemies/skulltomb_domain_effect.gd").get_remaining(self) > 0.0
 
 func apply_aging(duration: float) -> void:
 	if _is_status_immune():
@@ -2295,6 +2295,9 @@ func grant_developer_level_up() -> void:
 
 func take_damage(amount: float) -> void:
 	PLAYER_SURVIVAL_FLOW.take_damage(self, amount)
+
+func take_damage_ignoring_armor(amount: float) -> void:
+	PLAYER_SURVIVAL_FLOW.take_damage(self, amount, null, true)
 
 func apply_enemy_slow(multiplier: float, duration: float) -> void:
 	PLAYER_SURVIVAL_FLOW.apply_enemy_slow(self, multiplier, duration)

@@ -8,9 +8,12 @@ script = ExtResource("1_profile")
 archetype = "shooter"
 behavior = "shooter"
 boss_name = "远程怪"
-max_health = 24.576
-speed = 68.0
-touch_damage = 18.0
+max_health = 20.0
+attack = 25.0
+armor = -10.0
+damage_reduction_rate = 0.0
+speed = 50.0
+touch_damage = 37.5
 contact_radius = 34.0
 body_collision_radius = 40.6
 reward_tier = 1
@@ -24,7 +27,6 @@ extra = {
 "projectile_visual_style": "solid_circle",
 "shot_interval": 2.6,
 "projectile_speed": 220.0,
-"projectile_damage": 12.0,
 "projectile_lifetime": 4.2,
 "projectile_spread": 0.0,
 "projectile_count": 1

@@ -38,8 +38,17 @@ static func reset(enemy, randomize_timers: bool) -> void:
 		enemy.boss_orbit_sign = 1.0
 
 	enemy.acceleration_remaining = 0.0
+	enemy.basic_shot_timer = 0.0
+	if str(enemy.archetype_id) == "shotgunner":
+		var basic_interval: float = preload("res://scripts/enemies/enemy_shotgunner_attacks.gd").get_basic_interval()
+		enemy.basic_shot_timer = randf_range(0.15, basic_interval) if randomize_timers else basic_interval
+		enemy.shot_timer = enemy.shot_interval
 	enemy.dash_windup_remaining = 0.0
 	enemy.dash_remaining = 0.0
+	enemy.dash_distance_remaining = 0.0
+	enemy.elite_charge_haste_remaining = 0.0
+	if preload("res://scripts/enemies/enemy_dasher_charge.gd").uses_fixed_charge(enemy):
+		enemy.dash_timer = enemy.dash_interval
 	enemy.boss_sine_stream_remaining = 0.0
 	enemy.boss_sine_stream_timer = 0.0
 	enemy.boss_pattern_rotation = randf() * TAU if randomize_timers else 0.0

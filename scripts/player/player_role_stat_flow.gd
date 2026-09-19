@@ -132,7 +132,7 @@ static func get_role_move_speed(owner, role_id: String) -> float:
 		move_speed *= float(mechanic_field.get_field_haste_multiplier())
 	if owner.frenzy_remaining > 0.0 and owner.frenzy_stacks > 0:
 		move_speed *= 1.0 + 0.02 * owner.frenzy_stacks
-	move_speed *= owner.enemy_move_slow_multiplier
+	move_speed *= minf(minf(owner.enemy_move_slow_multiplier, preload("res://scripts/enemies/elite_charge_ground.gd").get_slow_multiplier(owner)), preload("res://scripts/enemies/skulltomb_domain_effect.gd").get_slow_multiplier(owner))
 	return move_speed
 
 

@@ -4,6 +4,9 @@ const ENEMY_DIRECTOR := preload("res://scripts/enemy/enemy_director.gd")
 const ENEMY_BOSS_STATE := preload("res://scripts/enemies/enemy_boss_state.gd")
 
 static func apply_profile(enemy, kind: String, profile: Dictionary) -> void:
+	enemy.heavy_armor_remaining = 0.0
+	enemy.heavy_armor_cooldown = 20.0
+	preload("res://scripts/enemies/enemy_heavy_armor_form.gd").sync_visual(enemy)
 	enemy.enemy_kind = kind
 	enemy.archetype_id = str(profile.get("archetype", enemy.archetype_id))
 	enemy.behavior_id = str(profile.get("behavior", enemy.behavior_id))
@@ -12,6 +15,9 @@ static func apply_profile(enemy, kind: String, profile: Dictionary) -> void:
 	enemy.max_health = float(profile.get("max_health", enemy.max_health))
 	enemy.damage_reduction_value = float(profile.get("damage_reduction_value", 0.0))
 	enemy.armor = float(profile.get("armor", 0.0))
+	enemy.attack = max(0.0, float(profile.get("attack", enemy.attack)))
+	enemy.damage_reduction_rate = clampf(float(profile.get("damage_reduction_rate", 0.0)), 0.0, 1.0)
+	enemy.stalwart_body_cooldown = 0.0
 	enemy.current_health = enemy.max_health
 	enemy.boss_shield_max_health = max(0.0, float(profile.get("boss_shield_max_health", 0.0)))
 	if kind == "boss":
@@ -74,8 +80,9 @@ static func apply_profile(enemy, kind: String, profile: Dictionary) -> void:
 	enemy.rebirth_slow_multiplier = float(profile.get("rebirth_slow_multiplier", 0.5))
 	enemy.rebirth_slow_duration = float(profile.get("rebirth_slow_duration", 6.0))
 	enemy.skulltomb_summon_interval = float(profile.get("skulltomb_summon_interval", 20.0))
-	enemy.skulltomb_aging_aura_radius = max(0.0, float(profile.get("skulltomb_aging_aura_radius", 300.0)))
-	enemy.skulltomb_aging_aura_current_health_drain_ratio = clamp(float(profile.get("skulltomb_aging_aura_current_health_drain_ratio", 0.05)), 0.0, 1.0)
+	enemy.skulltomb_aging_aura_radius = max(0.0, float(profile.get("skulltomb_aging_aura_radius", 750.0)))
+	enemy.skulltomb_aging_aura_current_health_drain_ratio = clamp(float(profile.get("skulltomb_aging_aura_current_health_drain_ratio", 0.12)), 0.0, 1.0)
+	enemy.skulltomb_aging_aura_max_health_damage_ratio = clampf(float(profile.get("skulltomb_aging_aura_max_health_damage_ratio", 0.005)), 0.0, 1.0)
 	enemy.skulltomb_summon_timer = enemy.skulltomb_summon_interval
 	enemy.skulltomb_summon_windup = float(profile.get("skulltomb_summon_windup", 0.7))
 	enemy.skulltomb_summon_windup_remaining = 0.0
@@ -90,7 +97,7 @@ static func apply_profile(enemy, kind: String, profile: Dictionary) -> void:
 	enemy.skulltomb_charge_push_distance = float(profile.get("skulltomb_charge_push_distance", 116.0))
 	enemy.skulltomb_min_soldiers = int(profile.get("skulltomb_min_soldiers", 10))
 	enemy.skulltomb_buff_duration = float(profile.get("skulltomb_buff_duration", 5.0))
-	enemy.skulltomb_death_player_slow_multiplier = float(profile.get("skulltomb_death_player_slow_multiplier", 0.5))
+	enemy.skulltomb_death_player_slow_multiplier = float(profile.get("skulltomb_death_player_slow_multiplier", 0.25))
 	enemy.skulltomb_death_player_slow_duration = float(profile.get("skulltomb_death_player_slow_duration", 5.0))
 	enemy.skulltomb_death_soldier_speed_multiplier = float(profile.get("skulltomb_death_soldier_speed_multiplier", 1.2))
 	enemy.skulltomb_death_shot_frequency_multiplier = float(profile.get("skulltomb_death_shot_frequency_multiplier", 1.3))

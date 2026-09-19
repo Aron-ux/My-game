@@ -44,7 +44,7 @@ func _run() -> void:
 	_expect(RUAN_STONES.equip(profile, "thunder"), "拥有后无法装备。")
 	_expect(not RUAN_STONES.equip(profile, "poison") and RUAN_STONES.get_equipped(profile) == "thunder", "未拥有石头可装备或失败装备覆盖当前选择。")
 	_expect(RUAN_STONES.get_effect_text("flame", 1).contains("最大生命8%"), "炎石效果文本错误。")
-	_expect(RUAN_STONES.get_effect_text("fury", 1).contains("6%"), "烈石效果文本错误。")
+	_expect(RUAN_STONES.get_effect_text("fury", 1).contains("护甲降低5点"), "烈石效果文本错误。")
 	# 取消购买（退款）：逐件移除并退还骨头，退到 0 后不再可退
 	_expect(int(profile.get("bones", 0)) == 0, "退款前骨头数量不符合预期。")
 	var refunded := RUAN_STONES.refund(profile, "thunder")

@@ -29,7 +29,18 @@ static func prepare_for_pool(enemy) -> void:
 	enemy.slow_timer = 0.0
 	enemy.damage_reduction_value = 0.0
 	enemy.armor = 0.0
+	enemy.attack = 0.0
+	enemy.damage_reduction_rate = 0.0
+	enemy.stalwart_body_cooldown = 0.0
+	enemy.basic_shot_timer = 0.0
+	enemy.dash_distance_remaining = 0.0
+	enemy.elite_charge_haste_remaining = 0.0
+	enemy.heavy_armor_remaining = 0.0
+	enemy.heavy_armor_cooldown = 20.0
+	preload("res://scripts/enemies/enemy_heavy_armor_form.gd").sync_visual(enemy)
 	enemy.vulnerability_bonus = 0.0
+	enemy.fury_armor_shred = 0.0
+	enemy.fury_armor_shred_remaining = 0.0
 	enemy.vulnerability_timer = 0.0
 	enemy.bleed_damage_per_second = 0.0
 	enemy.bleed_timer = 0.0

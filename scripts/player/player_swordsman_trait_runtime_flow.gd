@@ -245,6 +245,7 @@ static func _heal_all_roles_by_missing_health(owner, ratio: float) -> void:
 static func _cleanse_negative_statuses(owner) -> void:
 	if owner == null:
 		return
+	preload("res://scripts/player/player_blindness.gd").cleanse(owner)
 	if owner.get("healing_block_remaining") != null:
 		owner.healing_block_remaining = 0.0
 	if owner.get("aging_remaining") != null:

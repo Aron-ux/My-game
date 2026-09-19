@@ -329,9 +329,10 @@ static func check_enemy_contact_damage(owner) -> void:
 
 	var hurtbox_center: Vector2 = owner.get_hurtbox_center()
 	var hurtbox_radius: float = owner.get_hurtbox_radius()
-	var touch_damage: float = owner._get_touching_enemy_damage(hurtbox_center, hurtbox_radius, 36.0)
+	var hit: Dictionary = preload("res://scripts/player/player_damage_resolver.gd").get_touching_enemy_hit(owner, hurtbox_center, hurtbox_radius, 36.0)
+	var touch_damage: float = float(hit.get("damage", 0.0))
 	if touch_damage > 0.0:
-		owner.take_damage(touch_damage)
+		take_damage(owner, touch_damage, hit.get("enemy"))
 
 
 static func gain_experience(owner, amount: int) -> void:
@@ -393,7 +394,7 @@ static func grant_developer_level_up(owner) -> void:
 	owner._try_request_level_up()
 
 
-static func take_damage(owner, amount: float) -> void:
+static func take_damage(owner, amount: float, source_enemy: Node = null, ignore_armor: bool = false) -> void:
 	if DEVELOPER_MODE.should_ignore_damage():
 		return
 	if owner.is_dead or owner.switch_invulnerability_remaining > 0.0:
@@ -415,7 +416,7 @@ static func take_damage(owner, amount: float) -> void:
 		return
 
 	var armor: float = float(owner.get_role_armor()) if owner.has_method("get_role_armor") else 0.0
-	var armored_damage: float = ARMOR_RULES.apply_damage(amount, armor)
+	var armored_damage: float = amount if ignore_armor else ARMOR_RULES.apply_damage(amount, armor)
 	var damage_reduction_multiplier: float = owner._get_effective_damage_taken_multiplier() * _get_swordsman_talent_damage_taken_multiplier(owner)
 	if owner._get_active_role()["id"] == "swordsman":
 		var nearby_enemy_count: int = owner._count_enemies_in_radius(owner.get_hurtbox_center(), 62.0)
@@ -431,6 +432,7 @@ static func take_damage(owner, amount: float) -> void:
 		if not owner.has_method("_consume_temporary_health") and owner.has_method("_save_active_role_temporary_health"):
 			owner._save_active_role_temporary_health()
 	owner.current_health = max(0.0, owner.current_health - remaining_damage)
+	preload("res://scripts/player/player_blindness.gd").on_enemy_damage(owner, source_enemy, adjusted_damage)
 	if adjusted_damage > 0.0 and owner.get("gunner_role") != null and owner.gunner_role.has_method("handle_damage_taken"):
 		owner.gunner_role.handle_damage_taken(owner)
 	if adjusted_damage > 0.0 and owner.has_method("_break_gunner_flash_trait"):

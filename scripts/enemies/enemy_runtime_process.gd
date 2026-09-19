@@ -28,6 +28,9 @@ static func physics_process(enemy, delta: float) -> void:
 	enemy.ENEMY_TURRET_BOMBARD.update_bombards(current_scene, delta)
 	if enemy.pooled_inactive:
 		return
+	enemy.ENEMY_STALWART_BODY.tick(enemy, delta)
+	enemy.elite_charge_haste_remaining = maxf(0.0, enemy.elite_charge_haste_remaining - delta)
+	preload("res://scripts/enemies/enemy_heavy_armor_form.gd").tick(enemy, delta)
 	if bool(enemy._is_glutton) or enemy.behavior_id == "skulltomb" or enemy.secondary_behavior_id == "skulltomb":
 		enemy.ENEMY_OCCLUSION_SORT.update_scene_from_occluder(enemy)
 	if enemy.status_root != null or enemy.boss_visual_instance != null or enemy.hit_flash_remaining > 0.0 or enemy._has_status_visual_pressure():
@@ -71,10 +74,11 @@ static func physics_process(enemy, delta: float) -> void:
 		return
 	enemy.velocity = enemy._compute_velocity(motion_delta)
 	var skulltomb_charging: bool = enemy.behavior_id == "skulltomb" and enemy.dash_remaining > 0.0
-	if not skulltomb_charging:
+	var dasher_charging: bool = preload("res://scripts/enemies/enemy_dasher_charge.gd").is_active(enemy)
+	if not skulltomb_charging and not dasher_charging:
 		enemy.velocity += enemy.ENEMY_BODY_SEPARATION.get_separation_velocity(enemy) * 2.6
 	enemy._apply_direct_motion(motion_delta)
-	if not skulltomb_charging:
+	if not skulltomb_charging and not dasher_charging:
 		enemy.ENEMY_BODY_SEPARATION.apply_body_collision_separation(enemy)
 	if bool(enemy._is_glutton):
 		enemy.ENEMY_GLUTTON_SKILL_BEHAVIOR.enforce_cast_position_lock(enemy)

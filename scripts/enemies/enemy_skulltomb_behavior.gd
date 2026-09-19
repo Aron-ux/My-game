@@ -77,21 +77,12 @@ static func _update_aging_aura(enemy, delta: float) -> void:
 static func _apply_aging_aura_tick(enemy) -> void:
 	if enemy.target == null or not is_instance_valid(enemy.target):
 		return
-	var current_health: float = max(0.0, float(enemy.target.get("current_health")))
-	if current_health <= 1.0:
-		return
-	var drain_ratio: float = clamp(float(enemy.skulltomb_aging_aura_current_health_drain_ratio), 0.0, 1.0)
-	var next_health: float = max(1.0, current_health * (1.0 - drain_ratio))
-	if is_equal_approx(next_health, current_health):
-		return
-	enemy.target.set("current_health", next_health)
-	if enemy.target.has_method("_save_active_role_health"):
-		enemy.target._save_active_role_health()
-	var target_max_health: float = max(1.0, float(enemy.target.get("max_health")))
-	if enemy.target.has_signal("health_changed"):
-		enemy.target.health_changed.emit(next_health, target_max_health)
-	if enemy.target.has_method("_update_player_health_bar") and enemy.target.has_method("_get_active_role"):
-		enemy.target._update_player_health_bar(enemy.target._get_active_role())
+	var current_health: float = maxf(0.0, float(enemy.target.get("current_health")))
+	var max_health: float = maxf(0.0, float(enemy.target.get("max_health")))
+	var damage: float = current_health * enemy.skulltomb_aging_aura_current_health_drain_ratio + max_health * enemy.skulltomb_aging_aura_max_health_damage_ratio
+	if enemy.target.has_method("take_damage_ignoring_armor"):
+		enemy.target.take_damage_ignoring_armor(damage)
+
 
 static func handle_lethal_damage(enemy) -> bool:
 	if enemy.rebirth_lives_remaining <= 0:
@@ -292,23 +283,22 @@ static func _finish_summon(enemy) -> void:
 	if scene == null:
 		return
 	_start_summon_area(enemy)
-	var soldier_count := _count_skull_soldiers(scene)
-	var missing_count: int = max(0, enemy.skulltomb_min_soldiers - soldier_count)
 	enemy.skulltomb_pending_spawns.clear()
 	enemy.skulltomb_spawn_elapsed = 0.0
 	enemy.skulltomb_spawn_vertex_index = 0
-	for index in range(missing_count):
-		enemy.skulltomb_pending_spawns.append({
-			"type": "soldier",
-			"index": index
-		})
-	for index in range(10):
-		enemy.skulltomb_pending_spawns.append({
-			"type": "shooter",
-			"index": index
-		})
+	_queue_missing_soldiers(enemy, scene)
 	_apply_summon_buffs(scene, enemy.skulltomb_buff_duration)
 	enemy._spawn_status_burst(SUMMON_COLOR, 38.0 + enemy.scale.x * 8.0)
+
+
+static func _queue_missing_soldiers(enemy, scene: Node) -> void:
+	var pending_count := 0
+	for pending in enemy.skulltomb_pending_spawns:
+		if str(pending.get("type", "")) == "soldier":
+			pending_count += 1
+	var missing_count: int = maxi(0, enemy.skulltomb_min_soldiers - _count_skull_soldiers(scene) - pending_count)
+	for index in range(missing_count):
+		enemy.skulltomb_pending_spawns.append({"type": "soldier", "index": index})
 
 
 static func _update_pending_spawns(enemy, delta: float) -> void:
@@ -360,9 +350,6 @@ static func _apply_death_buffs(enemy) -> void:
 	if enemy.target != null and is_instance_valid(enemy.target) and enemy.target.has_method("apply_enemy_slow"):
 		enemy.target.apply_enemy_slow(enemy.skulltomb_death_player_slow_multiplier, enemy.skulltomb_death_player_slow_duration)
 	for other in _get_runtime_enemies(scene):
-		if _is_skull_soldier(other):
-			other.skull_soldier_speed_multiplier = max(float(other.skull_soldier_speed_multiplier), enemy.skulltomb_death_soldier_speed_multiplier)
-			other.skull_soldier_speed_timer = max(float(other.skull_soldier_speed_timer), enemy.skulltomb_death_player_slow_duration)
 		if _is_skull_shot(other):
 			other.skullshot_attack_frequency_multiplier = max(float(other.skullshot_attack_frequency_multiplier), enemy.skulltomb_death_shot_frequency_multiplier)
 			other.skullshot_attack_frequency_timer = max(float(other.skullshot_attack_frequency_timer), enemy.skulltomb_death_player_slow_duration)
@@ -425,16 +412,35 @@ static func _get_vertex_spawn_position(enemy, vertex_index: int) -> Vector2:
 
 
 static func _start_summon_area(enemy) -> void:
+	var cast_center: Vector2 = enemy.skulltomb_summon_target_center
 	_clear_summon_area(enemy)
-	if enemy.skulltomb_summon_target_center != Vector2.ZERO:
-		enemy.skulltomb_area_center = enemy.skulltomb_summon_target_center
-	elif enemy.skulltomb_area_center == Vector2.ZERO:
-		enemy.skulltomb_area_center = _get_death_space_center(enemy)
+	enemy.skulltomb_area_center = cast_center
 	enemy.skulltomb_summon_target_center = Vector2.ZERO
 	enemy.skulltomb_area_radius = SUMMON_AREA_RADIUS
 	enemy.skulltomb_area_remaining = SUMMON_AREA_DURATION
 	enemy.skulltomb_area_damage_elapsed = 0.0
 	_spawn_summon_area_visual(enemy)
+	preload("res://scripts/enemies/skulltomb_domain_effect.gd").register(enemy)
+
+static func restore_domain(enemy, data: Dictionary) -> void:
+	_clear_summon_area(enemy)
+	var center: Array = data.get("center", [0.0, 0.0])
+	var cast_center: Array = data.get("cast_center", [0.0, 0.0])
+	enemy.skulltomb_area_center = Vector2(float(center[0]), float(center[1]))
+	enemy.skulltomb_summon_target_center = Vector2(float(cast_center[0]), float(cast_center[1]))
+	enemy.skulltomb_area_remaining = clampf(float(data.get("remaining", 0.0)), 0.0, SUMMON_AREA_DURATION)
+	enemy.skulltomb_area_radius = maxf(0.0, float(data.get("radius", SUMMON_AREA_RADIUS)))
+	enemy.skulltomb_area_damage_elapsed = maxf(0.0, float(data.get("check_elapsed", 0.0)))
+	enemy.skulltomb_pending_spawns.assign(data.get("pending_spawns", []))
+	enemy.skulltomb_spawn_elapsed = maxf(0.0, float(data.get("spawn_elapsed", 0.0)))
+	enemy.skulltomb_spawn_vertex_index = int(data.get("spawn_vertex", 0))
+	if enemy.rebirth_timer > 0.0:
+		_hide_profile_visual(enemy)
+		_spawn_tomb(enemy)
+		_spawn_death_ring(enemy)
+	elif enemy.skulltomb_area_remaining > 0.0:
+		_spawn_summon_area_visual(enemy)
+		preload("res://scripts/enemies/skulltomb_domain_effect.gd").register(enemy)
 
 
 static func _update_summon_area(enemy, delta: float) -> void:
@@ -444,16 +450,13 @@ static func _update_summon_area(enemy, delta: float) -> void:
 	if enemy.skulltomb_area_remaining <= 0.0:
 		_clear_summon_area(enemy)
 		return
-	if enemy.target == null or not is_instance_valid(enemy.target) or enemy.target is not Node2D:
-		enemy.skulltomb_area_damage_elapsed = 0.0
-		return
 	enemy.skulltomb_area_damage_elapsed += delta
-	if enemy.skulltomb_area_damage_elapsed < AGING_AURA_TICK_INTERVAL:
-		return
-	enemy.skulltomb_area_damage_elapsed -= AGING_AURA_TICK_INTERVAL
-	var status_duration: float = float(enemy.skulltomb_area_remaining) + 0.12
-	if enemy.target.has_method("apply_healing_block"):
-		enemy.target.apply_healing_block(status_duration)
+	if enemy.skulltomb_area_damage_elapsed >= 1.0:
+		enemy.skulltomb_area_damage_elapsed = fmod(enemy.skulltomb_area_damage_elapsed, 1.0)
+		var scene := _get_current_scene(enemy)
+		if scene != null:
+			_queue_missing_soldiers(enemy, scene)
+
 
 static func _spawn_summon_area_visual(enemy) -> void:
 	var scene := _get_current_scene(enemy)
@@ -536,6 +539,8 @@ static func clear_runtime_effects_after_defeat(enemy) -> void:
 
 
 static func _clear_summon_area(enemy) -> void:
+	preload("res://scripts/enemies/skulltomb_domain_effect.gd").unregister(enemy)
+	enemy.skulltomb_pending_spawns.clear()
 	if enemy.skulltomb_area_instance != null and is_instance_valid(enemy.skulltomb_area_instance):
 		var collision := enemy.skulltomb_area_instance.get_node_or_null("SkulltombAreaCollision") as CollisionObject2D
 		if collision != null:
@@ -600,7 +605,7 @@ static func _get_scene_damage_multiplier(scene: Node) -> float:
 static func _count_skull_soldiers(scene: Node) -> int:
 	var count := 0
 	for enemy in _get_runtime_enemies(scene):
-		if _is_skull_soldier(enemy):
+		if _is_skull_soldier(enemy) and float(enemy.get("current_health")) > 0.0 and not bool(enemy.get("pooled_inactive")):
 			count += 1
 	return count
 

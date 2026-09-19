@@ -36,6 +36,13 @@ const ENEMY_SKULLTOMB_BEHAVIOR := preload("res://scripts/enemies/enemy_skulltomb
 @export var max_health: float = 20.0
 @export var damage_reduction_value: float = 0.0
 @export var armor: float = 0.0
+@export var attack: float = 10.0
+@export var damage_reduction_rate: float = 0.0
+var stalwart_body_cooldown: float = 0.0
+var basic_shot_timer: float = 0.0
+var heavy_armor_remaining: float = 0.0
+var heavy_armor_cooldown: float = 20.0
+const ENEMY_STALWART_BODY := preload("res://scripts/enemies/enemy_stalwart_body.gd")
 @export var touch_damage: float = 10.0
 @export var contact_radius: float = 36.0
 @export var body_collision_radius: float = -1.0
@@ -50,6 +57,8 @@ var current_health: float
 var slow_multiplier: float = 1.0
 var slow_timer: float = 0.0
 var vulnerability_bonus: float = 0.0
+var fury_armor_shred: float = 0.0
+var fury_armor_shred_remaining: float = 0.0
 var vulnerability_timer: float = 0.0
 var bleed_damage_per_second: float = 0.0
 var bleed_timer: float = 0.0
@@ -93,6 +102,8 @@ var dash_windup_duration: float = 0.42
 var dash_timer: float = 0.0
 var dash_windup_remaining: float = 0.0
 var dash_remaining: float = 0.0
+var dash_distance_remaining: float = 0.0
+var elite_charge_haste_remaining: float = 0.0
 var dash_direction: Vector2 = Vector2.RIGHT
 
 var strafe_sign: float = 1.0
@@ -146,11 +157,12 @@ var skulltomb_summon_interval: float = 20.0
 var skulltomb_summon_timer: float = 0.0
 var skulltomb_summon_windup: float = 0.7
 var skulltomb_summon_windup_remaining: float = 0.0
-var skulltomb_aging_aura_radius: float = 300.0
-var skulltomb_aging_aura_current_health_drain_ratio: float = 0.05
+var skulltomb_aging_aura_radius: float = 750.0
+var skulltomb_aging_aura_current_health_drain_ratio: float = 0.12
+var skulltomb_aging_aura_max_health_damage_ratio: float = 0.005
 var skulltomb_min_soldiers: int = 10
 var skulltomb_buff_duration: float = 5.0
-var skulltomb_death_player_slow_multiplier: float = 0.5
+var skulltomb_death_player_slow_multiplier: float = 0.25
 var skulltomb_death_player_slow_duration: float = 5.0
 var skulltomb_death_soldier_speed_multiplier: float = 1.2
 var skulltomb_death_shot_frequency_multiplier: float = 1.3
@@ -333,7 +345,7 @@ func get_boss_ui_payload() -> Dictionary:
 		}
 	elif behavior_id == "skulltomb" and float(skulltomb_area_remaining) > 0.0:
 		payload["status"] = {
-			"label": "亡者领域",
+			"label": "死亡领域",
 			"remaining": float(skulltomb_area_remaining),
 			"duration": ENEMY_SKULLTOMB_BEHAVIOR.SUMMON_AREA_DURATION
 		}
@@ -390,6 +402,9 @@ func _compute_velocity(delta: float) -> Vector2:
 	return ENEMY_MOVEMENT.compute_velocity(self, delta)
 
 func _apply_direct_motion(delta: float) -> void:
+	if preload("res://scripts/enemies/enemy_dasher_charge.gd").is_active(self):
+		preload("res://scripts/enemies/enemy_dasher_charge.gd").move(self, delta)
+		return
 	if velocity.length_squared() <= 0.001:
 		return
 	global_position += velocity * delta
@@ -442,6 +457,9 @@ func _update_bleed(delta: float) -> void:
 func take_damage(amount: float, is_critical: bool = false) -> bool:
 	return ENEMY_DAMAGE.take_damage(self, amount, is_critical)
 
+func try_stalwart_body_damage() -> float:
+	return ENEMY_STALWART_BODY.try_trigger(self)
+
 func take_batched_damage(amount: float, is_critical: bool = false) -> bool:
 	return ENEMY_DAMAGE.apply_damage(self, amount, false, is_critical)
 
@@ -464,6 +482,13 @@ func apply_slow_silent(multiplier: float, duration: float) -> void:
 
 func apply_vulnerability(bonus: float, duration: float) -> void:
 	ENEMY_STATUS_EFFECTS.apply_vulnerability(self, bonus, duration)
+
+func apply_fury_armor_shred(amount: float, duration: float) -> void:
+	if amount <= 0.0 or duration <= 0.0:
+		return
+	fury_armor_shred = maxf(fury_armor_shred, amount)
+	fury_armor_shred_remaining = duration
+	_spawn_status_burst(Color(1.0, 0.4, 0.2, 0.5), 22.0)
 
 func apply_bleed(damage_per_second: float, duration: float) -> void:
 	ENEMY_STATUS_EFFECTS.apply_bleed(self, damage_per_second, duration)

@@ -41,6 +41,10 @@ static func update_rebirth_timer(enemy, delta: float) -> void:
 	_update_rebirth_trait(enemy, delta)
 
 static func _update_shooter_trait(enemy, delta: float) -> void:
+	if str(enemy.archetype_id) == "shotgunner":
+		var shotgun_attacks := preload("res://scripts/enemies/enemy_shotgunner_attacks.gd")
+		shotgun_attacks.update(enemy, delta, _get_non_boss_ranged_interval(enemy, shotgun_attacks.get_basic_interval()))
+		return
 	if enemy.shot_interval <= 0.0:
 		return
 	var shot_interval: float = _get_non_boss_ranged_interval(enemy, enemy.shot_interval) / max(0.01, float(enemy.skullshot_attack_frequency_multiplier))
@@ -64,12 +68,18 @@ static func _update_accelerator_trait(enemy, delta: float) -> void:
 
 static func _update_dash_trait(enemy, delta: float) -> void:
 	if enemy.dash_remaining > 0.0:
-		enemy.dash_remaining = max(0.0, enemy.dash_remaining - delta)
+		# Fixed-distance charges consume their duration while moving, so the last
+		# movement step can be clipped exactly to the remaining distance.
+		if not preload("res://scripts/enemies/enemy_dasher_charge.gd").uses_fixed_charge(enemy):
+			enemy.dash_remaining = max(0.0, enemy.dash_remaining - delta)
 		return
 	if enemy.dash_windup_remaining > 0.0:
 		enemy.dash_windup_remaining = max(0.0, enemy.dash_windup_remaining - delta)
 		if enemy.dash_windup_remaining <= 0.0:
 			enemy.dash_remaining = max(enemy.dash_remaining, enemy.dash_duration)
+			if preload("res://scripts/enemies/enemy_dasher_charge.gd").uses_fixed_charge(enemy):
+				enemy.dash_distance_remaining = preload("res://scripts/enemies/enemy_dasher_charge.gd").MAX_DISTANCE
+			preload("res://scripts/enemies/enemy_dasher_charge.gd").grant_charge_haste(enemy)
 			enemy._spawn_dash_trail(enemy.dash_direction, 42.0 + enemy.scale.x * 8.0)
 		return
 	if enemy.dash_interval <= 0.0:

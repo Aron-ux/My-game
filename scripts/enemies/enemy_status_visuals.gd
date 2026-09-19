@@ -4,9 +4,6 @@ const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
 const PERFORMANCE_COUNTERS := preload("res://scripts/game/performance_counters.gd")
 const INVULNERABILITY_VISUAL_TINT := preload("res://scripts/visual/invulnerability_visual_tint.gd")
 
-const ELITE_DASH_TRAIL_DAMAGE := 12.0
-const ELITE_DASH_TRAIL_DURATION := 3.4
-const ELITE_DASH_TRAIL_TICK := 0.45
 const ENEMY_GEOMETRY := preload("res://scripts/enemies/enemy_geometry.gd")
 const STATUS_VISUAL_BUDGET_PER_FRAME := 18
 const LOW_FPS_STATUS_VISUAL_BUDGET_PER_FRAME := 8
@@ -26,7 +23,6 @@ static var status_burst_pool: Array[Line2D] = []
 static var dash_trail_pool: Array[Line2D] = []
 static var active_status_bursts: Array[Dictionary] = []
 static var active_dash_trails: Array[Dictionary] = []
-static var active_dash_trail_hazards: Array[Dictionary] = []
 static var temporary_animation_frame: int = -1
 
 static func update_temporary_animations(delta: float) -> void:
@@ -38,7 +34,6 @@ static func update_temporary_animations(delta: float) -> void:
 	temporary_animation_frame = current_frame
 	_update_active_status_bursts(delta)
 	_update_active_dash_trails(delta)
-	_update_active_dash_trail_hazards(delta)
 
 static func ensure_status_visuals(enemy) -> void:
 	if enemy.status_root != null:
@@ -125,6 +120,8 @@ static func update_status_visuals(enemy) -> void:
 		enemy.dash_warning_rect.visible = enemy._is_dasher and enemy.dash_windup_remaining > 0.0
 		if enemy.dash_warning_rect.visible:
 			var dash_length: float = max(56.0, enemy.speed * max(enemy.dash_duration, 0.2) * max(enemy.dash_speed_multiplier, 1.0))
+			if preload("res://scripts/enemies/enemy_dasher_charge.gd").uses_fixed_charge(enemy):
+				dash_length = preload("res://scripts/enemies/enemy_dasher_charge.gd").MAX_DISTANCE
 			var dash_width: float = max(24.0, enemy.contact_radius * 0.9)
 			enemy.dash_warning_rect.position = enemy.dash_direction * (dash_length * 0.52)
 			enemy.dash_warning_rect.rotation = enemy.dash_direction.angle()
@@ -417,92 +414,12 @@ static func spawn_dash_trail_hazard(enemy, direction_vector: Vector2, length: fl
 	var current_scene: Node = _get_enemy_current_scene(enemy)
 	if current_scene == null:
 		return
-	var root := Node2D.new()
-	root.global_position = enemy.global_position + direction_vector * length * 0.42
-	root.rotation = direction_vector.angle()
-	root.z_index = 11
-	current_scene.add_child(root)
-
-	var fill := Polygon2D.new()
-	var half_length: float = max(32.0, length * 0.6)
-	var half_width: float = max(10.0, enemy.contact_radius * 0.3)
-	fill.color = Color(0.92, 0.16, 0.1, 0.28)
-	fill.polygon = PackedVector2Array([
-		Vector2(-half_length, -half_width),
-		Vector2(half_length, -half_width),
-		Vector2(half_length, half_width),
-		Vector2(-half_length, half_width)
-	])
-	root.add_child(fill)
-
-	var outline := Line2D.new()
-	outline.width = 3.0
-	outline.default_color = Color(1.0, 0.38, 0.22, 0.82)
-	outline.points = PackedVector2Array([
-		Vector2(-half_length, -half_width),
-		Vector2(half_length, -half_width),
-		Vector2(half_length, half_width),
-		Vector2(-half_length, half_width),
-		Vector2(-half_length, -half_width)
-	])
-	root.add_child(outline)
-
-	var area := Area2D.new()
-	area.collision_layer = 0
-	area.collision_mask = 1
-	area.monitoring = true
-	area.monitorable = true
-	root.add_child(area)
-
-	var collision := CollisionShape2D.new()
-	var shape := RectangleShape2D.new()
-	shape.size = Vector2(half_length * 2.0, half_width * 2.0)
-	collision.shape = shape
-	area.add_child(collision)
-
-	var bodies: Array[Node] = []
-	area.body_entered.connect(func(body: Node) -> void:
-		if bodies.has(body):
-			return
-		bodies.append(body)
-		if body.has_method("take_damage"):
-			body.take_damage(ELITE_DASH_TRAIL_DAMAGE)
-	)
-	area.body_exited.connect(func(body: Node) -> void:
-		bodies.erase(body)
-	)
-
-	active_dash_trail_hazards.append({
-		"root": root,
-		"bodies": bodies,
-		"elapsed": 0.0,
-		"duration": ELITE_DASH_TRAIL_DURATION,
-		"tick_elapsed": 0.0
-	})
-
-static func _update_active_dash_trail_hazards(delta: float) -> void:
-	for index in range(active_dash_trail_hazards.size() - 1, -1, -1):
-		var data: Dictionary = active_dash_trail_hazards[index]
-		var root_node: Variant = data.get("root", null)
-		if root_node == null or not is_instance_valid(root_node) or not (root_node is Node):
-			active_dash_trail_hazards.remove_at(index)
-			continue
-		var elapsed: float = float(data.get("elapsed", 0.0)) + delta
-		var duration: float = max(0.001, float(data.get("duration", ELITE_DASH_TRAIL_DURATION)))
-		var tick_elapsed: float = float(data.get("tick_elapsed", 0.0)) + delta
-		if tick_elapsed >= ELITE_DASH_TRAIL_TICK:
-			tick_elapsed = fmod(tick_elapsed, ELITE_DASH_TRAIL_TICK)
-			var bodies: Array = data.get("bodies", [])
-			for body in bodies:
-				if is_instance_valid(body) and body.has_method("take_damage"):
-					body.take_damage(ELITE_DASH_TRAIL_DAMAGE)
-		if elapsed >= duration:
-			active_dash_trail_hazards.remove_at(index)
-			(root_node as Node).queue_free()
-			continue
-		data["elapsed"] = elapsed
-		data["tick_elapsed"] = tick_elapsed
-		active_dash_trail_hazards[index] = data
+	var hazard := preload("res://scripts/enemies/elite_charge_ground.gd").new()
+	# Double both dimensions of the previous rectangular ground area.
+	hazard.size = Vector2(maxf(32.0, length * 0.6) * 4.0, maxf(10.0, enemy.contact_radius * 0.3) * 4.0)
+	current_scene.add_child(hazard)
+	hazard.global_position = enemy.global_position + direction_vector * length * 0.42
+	hazard.rotation = direction_vector.angle()
 
 static func _get_enemy_current_scene(enemy) -> Node:
 	if enemy == null or not is_instance_valid(enemy):

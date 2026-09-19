@@ -4,6 +4,10 @@ const STATUS_VISUAL_REFRESH_EPSILON := 0.08
 const NORMAL_STATUS_VISUAL_REFRESH_EPSILON := 0.35
 
 static func tick_timers(enemy, delta: float) -> void:
+	if enemy.fury_armor_shred_remaining > 0.0:
+		enemy.fury_armor_shred_remaining = maxf(0.0, enemy.fury_armor_shred_remaining - delta)
+		if enemy.fury_armor_shred_remaining == 0.0:
+			enemy.fury_armor_shred = 0.0
 	if enemy.slow_timer > 0.0:
 		enemy.slow_timer = max(0.0, enemy.slow_timer - delta)
 		if enemy.slow_timer == 0.0:

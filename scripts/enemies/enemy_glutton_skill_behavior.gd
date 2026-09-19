@@ -11,21 +11,24 @@ const SKILL_WOOD_SPIKE := "wood_spike"
 const THINK_MIN_INTERVAL := 2.6
 const THINK_MAX_INTERVAL := 4.2
 const WARNING_DURATION := 0.85
-const WAR_STOMP_DURATION := 7.0
-const WAR_STOMP_COOLDOWN := 13.0
-const WAR_STOMP_CAST_LOCK_DURATION := 2.0
+const WAR_STOMP_DURATION := 6.0
+const WAR_STOMP_COOLDOWN := 16.0
+const WAR_STOMP_CAST_LOCK_DURATION := 3.0
 const TREE_ATTACK_CAST_DURATION := 0.62
 const WAR_STOMP_CAST_SHAKE_STRENGTH := 7.5
 const WAR_STOMP_CAST_SHAKE_DURATION := 0.12
 const WAR_STOMP_CAST_SHAKE_INTERVAL := 0.08
-const WAR_STOMP_SPEED_MULTIPLIER := 1.15
-const WAR_STOMP_DAMAGE_REDUCTION := 0.3
+const WAR_STOMP_SPEED_MULTIPLIER := 1.1
+const WAR_STOMP_DAMAGE_REDUCTION := 0.1
+const WAR_STOMP_DAMAGE_RATIO := 0.8
+const TWINE_DAMAGE_RATIO := 0.2
+const WOOD_SPIKE_DAMAGE_RATIO := 0.8
 const BASE_GROWTH_MULTIPLIER := 0.9
 const WAR_STOMP_GROWTH_MULTIPLIER := 1.5
 const WAR_STOMP_HEART_HEAL_RATIO := 0.02
 const WAR_STOMP_KILL_HEAL_CHANCE := 0.10
 const WAR_STOMP_KILL_HEAL_RATIO := 0.01
-const WAR_STOMP_TICK_INTERVAL := 0.20
+const WAR_STOMP_TICK_INTERVAL := 1.0
 const WAR_STOMP_MONSTER_EXECUTE_HITS := 6
 const WAR_STOMP_PLAYER_SHADOW_RATIO := 1.2
 const WAR_STOMP_MONSTER_SHADOW_RATIO := 1.2
@@ -260,7 +263,7 @@ static func _start_war_stomp(enemy) -> void:
 	enemy.glutton_war_stomp_remaining = WAR_STOMP_DURATION
 	enemy.glutton_war_stomp_cast_lock_remaining = WAR_STOMP_CAST_LOCK_DURATION
 	enemy.glutton_war_stomp_cast_shake_elapsed = WAR_STOMP_CAST_SHAKE_INTERVAL
-	enemy.glutton_war_stomp_tick_elapsed = WAR_STOMP_TICK_INTERVAL
+	enemy.glutton_war_stomp_tick_elapsed = 0.0
 	enemy.glutton_war_stomp_hit_registry.clear()
 	_play_tree_attack(enemy, WAR_STOMP_CAST_LOCK_DURATION)
 	_spawn_stomp_indicator(enemy)
@@ -348,10 +351,11 @@ static func _tick_war_stomp(enemy, delta: float) -> void:
 		_update_stomp_indicator(enemy)
 		return
 	_update_stomp_indicator(enemy)
-	enemy.glutton_war_stomp_remaining = max(0.0, float(enemy.glutton_war_stomp_remaining) - delta)
-	enemy.glutton_war_stomp_tick_elapsed += delta
-	if enemy.glutton_war_stomp_tick_elapsed >= WAR_STOMP_TICK_INTERVAL:
-		enemy.glutton_war_stomp_tick_elapsed = 0.0
+	var active_delta: float = minf(delta, enemy.glutton_war_stomp_remaining)
+	enemy.glutton_war_stomp_remaining = max(0.0, float(enemy.glutton_war_stomp_remaining) - active_delta)
+	enemy.glutton_war_stomp_tick_elapsed += active_delta
+	while enemy.glutton_war_stomp_tick_elapsed >= WAR_STOMP_TICK_INTERVAL:
+		enemy.glutton_war_stomp_tick_elapsed -= WAR_STOMP_TICK_INTERVAL
 		_resolve_war_stomp_tick(enemy)
 	if enemy.glutton_war_stomp_remaining <= 0.0:
 		enemy.glutton_war_stomp_hit_registry.clear()
@@ -383,9 +387,7 @@ static func _resolve_skill_impact(enemy, skill_id: String, shapes: Array) -> voi
 			for shape in shapes:
 				_spawn_twine_circle(enemy, shape)
 				_register_twine_hitbox(enemy, shape)
-				if _damage_player_in_shape(enemy, shape, 0.0, true):
-					enemy.glutton_entangle_damage_remaining = TWINE_LOCK_DURATION
-					enemy.glutton_entangle_damage_elapsed = 0.0
+				_resolve_twine_hitbox(enemy, enemy.glutton_active_twine_hitboxes.size() - 1)
 		SKILL_WOOD_SPIKE:
 			for shape in shapes:
 				_spawn_wood_spike(enemy, shape)
@@ -395,7 +397,7 @@ static func _resolve_war_stomp_tick(enemy) -> void:
 	_ensure_stomp_indicator(enemy)
 	var shape: Dictionary = _get_scaled_shadow_shape(enemy, WAR_STOMP_MONSTER_SHADOW_RATIO)
 	_kill_or_damage_monsters_for_stomp(enemy, shape)
-	_damage_player_in_shape(enemy, _get_scaled_shadow_shape(enemy, WAR_STOMP_PLAYER_SHADOW_RATIO), float(enemy.touch_damage), false)
+	_damage_player_in_shape(enemy, _get_scaled_shadow_shape(enemy, WAR_STOMP_PLAYER_SHADOW_RATIO), float(enemy.attack) * WAR_STOMP_DAMAGE_RATIO, false)
 
 
 static func _kill_or_damage_monsters_for_stomp(enemy, shape: Dictionary) -> void:
@@ -408,7 +410,7 @@ static func _kill_or_damage_monsters_for_stomp(enemy, shape: Dictionary) -> void
 		var other_id: int = other.get_instance_id()
 		var hit_count: int = int(enemy.glutton_war_stomp_hit_registry.get(other_id, 0)) + 1
 		enemy.glutton_war_stomp_hit_registry[other_id] = hit_count
-		var damage: float = float(enemy.glutton_aura_damage)
+		var damage: float = float(enemy.attack) * WAR_STOMP_DAMAGE_RATIO
 		if hit_count >= WAR_STOMP_MONSTER_EXECUTE_HITS:
 			damage = _get_execute_damage(other, damage)
 		var will_kill: bool = _will_kill_enemy(other, damage)
@@ -440,12 +442,13 @@ static func _damage_player_in_shape(enemy, shape: Dictionary, damage: float, loc
 static func _tick_entangle_damage(enemy, delta: float) -> void:
 	if enemy.glutton_entangle_damage_remaining <= 0.0:
 		return
-	enemy.glutton_entangle_damage_remaining = max(0.0, float(enemy.glutton_entangle_damage_remaining) - delta)
-	enemy.glutton_entangle_damage_elapsed += delta
+	var active_delta: float = minf(delta, enemy.glutton_entangle_damage_remaining)
+	enemy.glutton_entangle_damage_remaining = max(0.0, float(enemy.glutton_entangle_damage_remaining) - active_delta)
+	enemy.glutton_entangle_damage_elapsed += active_delta
 	while enemy.glutton_entangle_damage_elapsed >= TWINE_DAMAGE_TICK_INTERVAL:
 		enemy.glutton_entangle_damage_elapsed -= TWINE_DAMAGE_TICK_INTERVAL
 		if enemy.target != null and is_instance_valid(enemy.target) and enemy.target.has_method("take_damage"):
-			enemy.target.take_damage(float(enemy.touch_damage) * 0.5)
+			enemy.target.take_damage(float(enemy.attack) * TWINE_DAMAGE_RATIO)
 
 
 static func _register_twine_hitbox(enemy, shape: Dictionary) -> void:
@@ -493,6 +496,9 @@ static func _lock_player_in_twine_shape(enemy, shape: Dictionary) -> bool:
 		enemy.target._lock_player_actions(TWINE_LOCK_DURATION)
 	if enemy.target.has_method("_start_entangled_status"):
 		enemy.target._start_entangled_status(TWINE_LOCK_DURATION)
+	if enemy.glutton_entangle_damage_remaining <= 0.0:
+		enemy.glutton_entangle_damage_elapsed = 0.0
+	enemy.glutton_entangle_damage_remaining = TWINE_LOCK_DURATION
 	return true
 
 
@@ -537,7 +543,7 @@ static func _resolve_wood_spike_hitbox(enemy, hitbox_index: int) -> void:
 	if bool(hitbox.get("hit_player", false)):
 		return
 	var shape: Dictionary = hitbox.get("shape", {})
-	if _damage_player_in_shape(enemy, shape, float(enemy.touch_damage), false):
+	if _damage_player_in_shape(enemy, shape, float(enemy.attack) * WOOD_SPIKE_DAMAGE_RATIO, false):
 		hitbox["hit_player"] = true
 		enemy.glutton_active_wood_spike_hitboxes[hitbox_index] = hitbox
 
@@ -582,7 +588,7 @@ static func _affect_monsters_with_wood_spike(enemy, shape: Dictionary) -> void:
 		if knockback_direction.length_squared() <= 0.001:
 			knockback_direction = Vector2.RIGHT.rotated(randf() * TAU)
 		other.global_position += knockback_direction.normalized() * WOOD_SPIKE_MONSTER_KNOCKBACK_DISTANCE
-		other.take_damage(float(enemy.touch_damage) * WOOD_SPIKE_MONSTER_DAMAGE_MULTIPLIER)
+		other.take_damage(float(enemy.attack) * WOOD_SPIKE_DAMAGE_RATIO * WOOD_SPIKE_MONSTER_DAMAGE_MULTIPLIER)
 
 
 static func _spawn_wood_spike_blocker(enemy, shape: Dictionary) -> StaticBody2D:

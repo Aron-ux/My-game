@@ -41,9 +41,17 @@ static func _fire_shooter_pattern_now(enemy, split_volley_id: int = 0) -> bool:
 	var spread_step: float = enemy.projectile_spread
 	var offset_center: float = float(count - 1) * 0.5
 	var spawned_count := 0
+	var shot_damage: float = enemy.projectile_damage
+	if str(enemy.archetype_id) in ["shooter", "elite_splitshot"]:
+		shot_damage = enemy.attack
+	elif str(enemy.archetype_id) == "shotgunner":
+		shot_damage = enemy.attack * 2.0
 	for index in range(count):
 		var shot_direction: Vector2 = aim_direction.rotated((float(index) - offset_center) * spread_step)
 		var extra_config: Dictionary = {}
+		if str(enemy.archetype_id) == "shotgunner":
+			# Shotgun speed is authored in world units, unlike legacy bullets.
+			extra_config["speed"] = enemy.projectile_speed + _get_difficulty_projectile_speed_bonus(_get_enemy_current_scene(enemy))
 		if enemy.projectile_split_count > 0 and enemy.projectile_split_after > 0.0:
 			extra_config = {
 				"split_volley_id": split_volley_id,
@@ -64,7 +72,7 @@ static func _fire_shooter_pattern_now(enemy, split_volley_id: int = 0) -> bool:
 			start_position,
 			shot_direction,
 			enemy.projectile_speed,
-			enemy.projectile_damage,
+			shot_damage,
 			enemy.projectile_lifetime,
 			get_projectile_color(enemy),
 			"straight",

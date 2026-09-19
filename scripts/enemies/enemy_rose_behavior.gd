@@ -68,7 +68,7 @@ static func _update_normal_attack(enemy, delta: float) -> void:
 		return
 	enemy.shot_timer += ATTACK_INTERVAL
 	_play_attack_visual(enemy)
-	_fire_three_bullets(enemy, enemy.global_position, _get_aim_direction(enemy), enemy.projectile_speed, enemy.projectile_damage, enemy.projectile_lifetime, 1.0)
+	_fire_three_bullets(enemy, enemy.global_position, _get_aim_direction(enemy), enemy.projectile_speed, enemy.attack, enemy.projectile_lifetime, 1.0)
 
 
 static func _update_split(enemy, delta: float) -> void:
@@ -199,7 +199,7 @@ static func _finish_split_sequence(scene: Node, data: Dictionary) -> void:
 			impact_center + direction * 10.0,
 			direction,
 			enemy.projectile_speed * 0.86,
-			enemy.projectile_damage * 0.72,
+			enemy.attack,
 			SPLIT_CHILD_LIFETIME,
 			0.58
 		)
@@ -217,7 +217,7 @@ static func _finish_bombard_sequence(data: Dictionary) -> void:
 		var target_center := _get_target_center(enemy)
 		var target_radius := _get_target_radius(enemy)
 		if impact_center.distance_to(target_center) <= enemy.turret_bombard_radius + target_radius and enemy.target.has_method("take_damage"):
-			enemy.target.take_damage(enemy.projectile_damage * 1.25)
+			enemy.target.take_damage(enemy.attack)
 	for index in range(max(6, enemy.turret_bombard_projectiles)):
 		var direction := Vector2.RIGHT.rotated(TAU * float(index) / float(max(1, enemy.turret_bombard_projectiles)))
 		_spawn_projectile(
@@ -225,7 +225,7 @@ static func _finish_bombard_sequence(data: Dictionary) -> void:
 			impact_center + direction * 12.0,
 			direction,
 			max(280.0, enemy.projectile_speed * 1.05) * BOMBARD_SPEED_MULTIPLIER,
-			enemy.projectile_damage,
+			enemy.attack,
 			3.8 * BOMBARD_LIFETIME_MULTIPLIER,
 			1.0
 		)
@@ -268,7 +268,7 @@ static func _schedule_minion_spawn(scene: Node, enemy, position: Vector2, delay:
 		var minion := ROSE_MINION.new()
 		minion.global_position = position
 		scene.add_child(minion)
-		minion.configure(enemy, enemy.target, enemy.projectile_scene, enemy.scale, enemy.projectile_damage, enemy.projectile_speed, enemy.projectile_lifetime)
+		minion.configure(enemy, enemy.target, enemy.projectile_scene, enemy.scale, enemy.attack, enemy.projectile_speed, enemy.projectile_lifetime)
 	)
 
 

@@ -334,6 +334,10 @@ static func count_enemies_in_radius(owner, center: Vector2, radius: float) -> in
 	return count
 
 static func get_touching_enemy_damage(owner, center: Vector2, radius: float, query_padding: float = 36.0) -> float:
+	return float(get_touching_enemy_hit(owner, center, radius, query_padding).get("damage", 0.0))
+
+
+static func get_touching_enemy_hit(owner, center: Vector2, radius: float, query_padding: float = 36.0) -> Dictionary:
 	var candidates: Array = _get_candidate_enemies_for_circle(owner, center, radius + max(query_padding, BOSS_TOUCH_DAMAGE_QUERY_PADDING))
 	for enemy in candidates:
 		if not _is_live_enemy(enemy) or enemy is not Node2D:
@@ -351,13 +355,23 @@ static func get_touching_enemy_damage(owner, center: Vector2, radius: float, que
 			if touch_shape.is_empty():
 				touch_shape = _get_fallback_touch_damage_shape(enemy as Node2D, contact_radius)
 			if _is_center_inside_enemy_touch_shape(center, radius, touch_shape):
-				return touch_damage
+				if enemy.has_method("try_stalwart_body_damage"):
+					var passive_damage: float = enemy.try_stalwart_body_damage()
+					if passive_damage > 0.0:
+						return {"damage": passive_damage, "enemy": enemy}
+					continue
+				return {"damage": touch_damage, "enemy": enemy}
 			continue
 		contact_radius *= ENEMY_TOUCH_DAMAGE_RADIUS_SCALE
 		var combined_radius: float = contact_radius + radius
 		if center.distance_squared_to((enemy as Node2D).global_position) <= combined_radius * combined_radius:
-			return touch_damage
-	return 0.0
+			if enemy.has_method("try_stalwart_body_damage"):
+				var passive_damage: float = enemy.try_stalwart_body_damage()
+				if passive_damage > 0.0:
+					return {"damage": passive_damage, "enemy": enemy}
+				continue
+			return {"damage": touch_damage, "enemy": enemy}
+	return {}
 
 static func _uses_shadow_touch_damage_shape(enemy: Node) -> bool:
 	if enemy == null:

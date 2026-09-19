@@ -7,6 +7,8 @@ extends Resource
 @export var boss_name: String = ""
 @export var max_health: float = 20.0
 @export var armor: float = 0.0
+@export var attack: float = 10.0
+@export var damage_reduction_rate: float = 0.0
 @export var speed: float = 80.0
 @export var touch_damage: float = 10.0
 @export var contact_radius: float = 36.0
@@ -25,6 +27,8 @@ func to_dictionary() -> Dictionary:
 		"behavior": behavior,
 		"max_health": max_health,
 		"armor": armor,
+		"attack": attack,
+		"damage_reduction_rate": damage_reduction_rate,
 		"speed": speed,
 		"touch_damage": touch_damage,
 		"contact_radius": contact_radius,

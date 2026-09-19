@@ -24,12 +24,12 @@ static func _stacked_values(owner, stone_id: String) -> Dictionary:
 
 
 static func get_damage_bonus(owner) -> float:
-	return float(_stacked_values(owner, "broken_sword").get("damage_bonus", 0.0)) \
-		+ float(_stacked_values(owner, "ground_branch").get("damage_bonus", 0.0))
+	return float(_stacked_values(owner, "broken_sword").get("damage_bonus", 0.0))
 
 
 static func get_attack_bonus(owner) -> float:
-	return float(_stacked_values(owner, "broken_sword").get("attack_bonus", 0.0))
+	return float(_stacked_values(owner, "broken_sword").get("attack_bonus", 0.0)) \
+		+ float(_stacked_values(owner, "ground_branch").get("attack_bonus", 0.0))
 
 
 static func get_speed_bonus(owner) -> float:

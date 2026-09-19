@@ -364,9 +364,9 @@ func _check_general_blessing_stats() -> void:
 			failures.append("divine grace should add shared max health percent")
 		if not is_equal_approx(PlayerBlessingSystem.get_role_stat_bonus(owner, role_id, "move_speed_percent"), 0.04):
 			failures.append("tailwind should add shared move speed percent")
-		if not is_equal_approx(PlayerBlessingSystem.get_role_stat_bonus(owner, role_id, "damage"), 0.115):
+		if not is_equal_approx(PlayerBlessingSystem.get_role_stat_bonus(owner, role_id, "damage"), 0.05):
 			failures.append("blazing sun should add shared percent damage")
-		if not is_equal_approx(PlayerBlessingSystem.get_blazing_sun_flat_base_damage(owner, role_id), 2.0):
+		if not is_equal_approx(PlayerBlessingSystem.get_blazing_sun_flat_base_damage(owner, role_id), 10.0):
 			failures.append("blazing sun tier III should add flat base damage")
 		if not is_equal_approx(PlayerBlessingSystem.get_role_stat_bonus(owner, role_id, "switch_energy_gain"), 0.11):
 			failures.append("support tier IV should add switch energy gain")
@@ -414,10 +414,10 @@ func _check_general_blessing_descriptions_match_current_design() -> void:
 			4: "IV级：角色移动速度+8％，角色闪避率+24％"
 		},
 		"blazing_sun": {
-			1: "I级：造成伤害增加5.5％",
-			2: "II级：造成伤害增加8.5％",
-			3: "III级：造成伤害增加11.5％，角色基础伤害+2",
-			4: "IV级：造成伤害增加14.5％，角色基础伤害+4"
+			1: "I级：攻击力+2",
+			2: "II级：攻击力+5",
+			3: "III级：攻击力+10，增伤+5％",
+			4: "IV级：攻击力+15，增伤+10％"
 		},
 		"burst": {
 			1: "I级：暴击率增加5％",
