@@ -30,6 +30,7 @@ func _run() -> void:
 	_check_four_tier_caps()
 	_check_general_blessing_descriptions_match_current_design()
 	_check_general_blessing_stats()
+	_check_reduction_sources()
 	_check_strengthened_role_build_values()
 	_check_strengthened_survivability_baseline()
 	_check_tailwind_move_speed_bonus_visible_to_role_stat_flow()
@@ -334,6 +335,21 @@ func _check_four_tier_caps() -> void:
 			failures.append("tier %d should be unlimited, expected 8 got %d" % [int(tier), level])
 
 
+func _check_reduction_sources() -> void:
+	var owner := _OwnerStub.new()
+	for tier in range(1, 5):
+		PlayerBlessingSystem.apply_option(owner, "blessing:unyielding:%d" % tier)
+	PlayerBlessingSystem.apply_option(owner, "blessing:unyielding:2")
+	var rates := PlayerBlessingSystem.get_damage_reduction_rates(owner)
+	var multiplier := 1.0
+	for rate in rates:
+		multiplier *= 1.0 - rate
+	if rates.size() != 5 or not is_equal_approx(multiplier, 0.95 * 0.90 * 0.85 * 0.80 * 0.90):
+		failures.append("unyielding copies must remain independent sources")
+	if not is_zero_approx(PlayerBlessingSystem.get_role_stat_bonus(owner, "swordsman", "damage_reduction")):
+		failures.append("unyielding must not contribute legacy reduction values")
+
+
 func _check_general_blessing_stats() -> void:
 	var owner := _OwnerStub.new()
 	PlayerBlessingSystem.apply_option(owner, "blessing:divine_grace:1")
@@ -360,8 +376,8 @@ func _check_general_blessing_stats() -> void:
 			failures.append("burst tier III should add critical chance")
 		if not is_equal_approx(PlayerBlessingSystem.get_role_stat_bonus(owner, role_id, "critical_damage_bonus"), 0.05):
 			failures.append("burst tier III should add critical damage")
-		if not is_equal_approx(PlayerBlessingSystem.get_role_stat_bonus(owner, role_id, "damage_reduction"), 18.0):
-			failures.append("unyielding tier II should add damage reduction value")
+		if not is_equal_approx(PlayerBlessingSystem.get_role_stat_bonus(owner, role_id, "damage_reduction_rate"), 0.10):
+			failures.append("unyielding tier II should provide 10 percent reduction")
 	if not is_equal_approx(PlayerBlessingSystem.get_greed_heal_ratio(owner), 0.06):
 		failures.append("greed tier IV should provide 6 percent max health heal ratio")
 	if not is_equal_approx(PlayerBlessingSystem.get_greed_max_health_heal_ratio(owner), 0.06):
@@ -394,8 +410,8 @@ func _check_general_blessing_descriptions_match_current_design() -> void:
 		"tailwind": {
 			1: "I级：角色移动速度+2％",
 			2: "II级：角色移动速度+4％",
-			3: "III级：角色移动速度+6％，角色闪避+6",
-			4: "IV级：角色移动速度+8％，角色闪避+12"
+			3: "III级：角色移动速度+6％，角色闪避率+12％",
+			4: "IV级：角色移动速度+8％，角色闪避率+24％"
 		},
 		"blazing_sun": {
 			1: "I级：造成伤害增加5.5％",
@@ -410,10 +426,10 @@ func _check_general_blessing_descriptions_match_current_design() -> void:
 			4: "IV级：暴击率增加15％，暴击伤害增加10％"
 		},
 		"unyielding": {
-			1: "I级：角色减伤+10",
-			2: "II级：角色减伤+18",
-			3: "III级：角色减伤+26",
-			4: "IV级：角色减伤+34"
+			1: "I级：角色减伤5%",
+			2: "II级：角色减伤10%",
+			3: "III级：角色减伤15%",
+			4: "IV级：角色减伤20%"
 		},
 		"greed": {
 			1: "I级：角色攻击造成伤害时，最多4次命中各有10％概率回复1％最大生命值，触发后冷却0.2秒",
@@ -444,9 +460,9 @@ func _check_strengthened_survivability_baseline() -> void:
 		if not is_equal_approx(actual, float(expected_health[role_id])):
 			failures.append("%s base max health should be %.0f, got %.2f" % [str(role_id), float(expected_health[role_id]), actual])
 	var gunner_data := RoleDatabase.get_role_data_by_id("gunner")
-	if not is_equal_approx(float(gunner_data.get("base_damage_reduction_value", 0.0)), -40.0):
-		failures.append("gunner base damage reduction value should be -40")
-	if not is_equal_approx(RoleAttributeRules.get_role_base_damage_reduction_value("gunner"), -40.0):
+	if not is_equal_approx(float(gunner_data.get("base_damage_reduction_rate", 0.0)), 0.0):
+		failures.append("gunner base damage reduction value should be 0")
+	if not is_equal_approx(RoleAttributeRules.get_role_base_damage_reduction_rate("gunner"), 0.0):
 		failures.append("gunner fallback damage reduction value should stay synchronized")
 
 

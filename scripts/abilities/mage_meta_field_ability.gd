@@ -11,12 +11,7 @@ const PERMANENT_ACTIVE_REMAINING := 1.0
 const TIER_ONE_SLOW := 0.50
 const TIER_TWO_SLOW := 0.40
 const TIER_THREE_SLOW := 0.20
-const TIER_ONE_DAMAGE_REDUCTION := 0.50
-const TIER_TWO_DAMAGE_REDUCTION := 0.50
-const TIER_THREE_DAMAGE_REDUCTION := 0.50
-const TIER_ONE_DAMAGE_REDUCTION_VALUE := 320.0
-const TIER_TWO_DAMAGE_REDUCTION_VALUE := 320.0
-const TIER_THREE_DAMAGE_REDUCTION_VALUE := 320.0
+const BASE_ARMOR_BONUS := 25.0
 const TIER_ONE_DAMAGE_RATIO := 0.10
 const TIER_TWO_DAMAGE_RATIO := 0.28
 const TIER_THREE_DAMAGE_RATIO := 0.38
@@ -149,7 +144,7 @@ func get_cooldown_slot(owner = null) -> Dictionary:
 		"remaining": clamp(cooldown_remaining, 0.0, duration),
 		"duration": duration,
 		"color": Color(0.58, 0.86, 1.0, 1.0),
-		"description": "\u672f\u5e08\u5468\u56f4\u5c55\u5f00\u51cf\u901f\u548c\u6301\u7eed\u4f24\u5bb3\u9886\u57df\uff0c\u81ea\u8eab\u83b7\u5f97\u51cf\u4f24\u548c\u56fa\u5b9a\u56de\u8840\u3002"
+		"description": "术师周围展开减速和持续伤害领域，开启期间护甲提升25点，每升一级额外提升2.5点护甲。"
 	}
 
 
@@ -182,24 +177,14 @@ func restore_effect_if_active(owner) -> void:
 		_ensure_effect(owner)
 
 
-func get_damage_taken_multiplier(owner) -> float:
-	if active_remaining <= 0.0:
-		return 1.0
-	var active_role_id := str(owner._get_active_role().get("id", "")) if owner != null and owner.has_method("_get_active_role") else ""
-	if active_role_id != "mage" and not PLAYER_MAGE_META_FIELD_TALENT_FLOW.should_persist_in_background(owner):
-		return 1.0
-	var effect_ratio := 1.0 if active_role_id == "mage" else PLAYER_MAGE_META_FIELD_TALENT_FLOW.BACKGROUND_EFFECT_RATIO
-	return 1.0 - _get_damage_reduction(owner) * effect_ratio
-
-
-func get_damage_reduction_value(owner) -> float:
+func get_armor_bonus(owner) -> float:
 	if active_remaining <= 0.0:
 		return 0.0
 	var active_role_id := str(owner._get_active_role().get("id", "")) if owner != null and owner.has_method("_get_active_role") else ""
 	if active_role_id != "mage" and not PLAYER_MAGE_META_FIELD_TALENT_FLOW.should_persist_in_background(owner):
 		return 0.0
 	var effect_ratio := 1.0 if active_role_id == "mage" else PLAYER_MAGE_META_FIELD_TALENT_FLOW.BACKGROUND_EFFECT_RATIO
-	return _get_damage_reduction_value(owner) * effect_ratio
+	return (BASE_ARMOR_BONUS + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_meta_field_armor_bonus(owner)) * effect_ratio
 
 
 func _trigger_tick(owner) -> void:
@@ -397,25 +382,6 @@ func _get_slow_multiplier(owner) -> float:
 	else:
 		slow_effect *= _get_level_talent_effect_ratio(owner)
 	return 1.0 - slow_effect
-
-
-func _get_damage_reduction(owner) -> float:
-	var tier: int = _get_tier(owner)
-	if tier >= 3:
-		return TIER_THREE_DAMAGE_REDUCTION
-	if tier >= 2:
-		return TIER_TWO_DAMAGE_REDUCTION
-	return TIER_ONE_DAMAGE_REDUCTION
-
-
-func _get_damage_reduction_value(owner) -> float:
-	var tier: int = _get_tier(owner)
-	var value: float = TIER_ONE_DAMAGE_REDUCTION_VALUE
-	if tier >= 3:
-		value = TIER_THREE_DAMAGE_REDUCTION_VALUE
-	elif tier >= 2:
-		value = TIER_TWO_DAMAGE_REDUCTION_VALUE
-	return value + PLAYER_BUILD_SYSTEM.get_meta_field_damage_reduction_value_bonus(owner) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_meta_field_reduction_value_bonus(owner)
 
 
 func _get_damage(owner) -> float:

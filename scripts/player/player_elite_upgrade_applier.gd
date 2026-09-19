@@ -1,16 +1,10 @@
 extends RefCounted
 
-const PLAYER_COMBAT_MODIFIERS := preload("res://scripts/player/player_combat_modifiers.gd")
-
-
 static func apply_elite_upgrade(owner, option_id: String) -> void:
+	if not is_elite_upgrade(option_id):
+		return
 	owner._unlock_elite_relic(option_id)
 	match option_id:
-		"elite_behemoth":
-			owner.max_health += 45.0
-			owner.current_health = min(owner.max_health, owner.current_health + 45.0)
-			owner.passive_damage_reduction_value += PLAYER_COMBAT_MODIFIERS.damage_reduction_value_from_rate(0.08)
-			owner.health_changed.emit(owner.current_health, owner.max_health)
 		"elite_gale":
 			owner.speed += 30.0
 			owner.pickup_radius += 12.0
@@ -38,7 +32,6 @@ static func apply_elite_upgrade(owner, option_id: String) -> void:
 
 static func is_elite_upgrade(option_id: String) -> bool:
 	return option_id in [
-		"elite_behemoth",
 		"elite_gale",
 		"elite_overcharge_reserve",
 		"elite_mirror_finisher",

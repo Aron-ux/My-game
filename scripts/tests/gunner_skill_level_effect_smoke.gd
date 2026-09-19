@@ -49,7 +49,7 @@ func _check_flat_bonuses() -> void:
 	_set_level(owner, "gunner_magic_eye", 4)
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_flash_damage_bonus_per_stack(owner), 0.025, "瞬杀 level 6 should add 2.5% damage per stack")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_flash_speed_bonus_per_stack(owner), 0.025, "瞬杀 level 6 should add 2.5% move speed per stack")
-	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_flash_dodge_bonus_per_stack(owner), 10.0, "瞬杀 level 6 should add 10 dodge per stack")
+	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_flash_dodge_chance_bonus_per_stack(owner), 0.0175, "level 6 adds 1.75 percent dodge chance per stack after five upgrades")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_hunt_radius_bonus(owner), -15.0, "猎杀 level 4 should shrink the circle by 15")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_hunt_outside_damage_bonus(owner), 0.03, "猎杀 level 4 should add 3% outside damage")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_entry_damage_ratio_bonus(owner), 0.20, "枪火典礼 level 3 should add 20% bullet damage")

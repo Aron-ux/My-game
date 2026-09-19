@@ -56,7 +56,7 @@ static func apply_upgrades(owner, option_ids: Array) -> void:
 
 
 static func _apply_final_core(owner, option_id: String) -> bool:
-	if not ["final_body_core", "final_combat_core", "final_skill_core"].has(option_id):
+	if option_id != "final_skill_core":
 		return false
 	var role_id: String = str(owner._get_active_role().get("id", ""))
 	var role_data: Dictionary = owner.role_upgrade_levels.get(role_id, {})

@@ -77,10 +77,10 @@ const GUNNER_EXPLOSIVE_ROUND := "gunner_explosive_round"
 const GUNNER_MAGIC_GRENADE := "gunner_magic_grenade"
 const GUNNER_MAGIC_EYE := "gunner_magic_eye"
 
-# 瞬杀：每级每层 +0.5% 增伤、+0.5% 移速、+2 闪避值；2/4/6/8/10 级最大层数 +1
+# 瞬杀：每级每层 +0.5% 增伤、+0.5% 移速、+0.35% 闪避率；2/4/6/8/10 级最大层数 +1
 const FLASH_DAMAGE_PER_STACK_PER_LEVEL := 0.005
 const FLASH_SPEED_PER_STACK_PER_LEVEL := 0.005
-const FLASH_DODGE_PER_STACK_PER_LEVEL := 2.0
+const FLASH_DODGE_CHANCE_PER_STACK_PER_LEVEL := 0.0035
 const FLASH_MAX_STACK_FIRST_LEVEL := 2
 const FLASH_MAX_STACK_STEP := 2
 const FLASH_MAX_STACK_MAX := 5
@@ -144,8 +144,8 @@ const MAGE_BASIC_DAMAGE_RATIO_PER_LEVEL := 0.10
 const MAGE_BASIC_EXTRA_LIGHTNING_FIRST_LEVEL := 2
 const MAGE_BASIC_EXTRA_LIGHTNING_STEP := 2
 const MAGE_BASIC_EXTRA_LIGHTNING_MAX := 5
-# 梅塔领域：每级 +10 减伤值、+7.5 半径
-const META_FIELD_REDUCTION_VALUE_PER_LEVEL := 10.0
+# 梅塔领域：每级 +2.5 护甲、+7.5 半径
+const META_FIELD_ARMOR_PER_LEVEL := 2.5
 const META_FIELD_RADIUS_PER_LEVEL := 7.5
 # 波涛汹涌：每级 +10% 伤害倍率（绝对加法）、+0.2s 持续时间
 const SURGING_WAVE_DAMAGE_RATIO_PER_LEVEL := 0.10
@@ -199,8 +199,8 @@ static func get_mage_basic_extra_lightning_count(owner) -> int:
 	return _mage_milestone_count(owner, MAGE_BASIC, MAGE_BASIC_EXTRA_LIGHTNING_FIRST_LEVEL, MAGE_BASIC_EXTRA_LIGHTNING_STEP, MAGE_BASIC_EXTRA_LIGHTNING_MAX)
 
 
-static func get_mage_meta_field_reduction_value_bonus(owner) -> float:
-	return _mage_levels_above_first(owner, MAGE_META_FIELD) * META_FIELD_REDUCTION_VALUE_PER_LEVEL
+static func get_mage_meta_field_armor_bonus(owner) -> float:
+	return _mage_levels_above_first(owner, MAGE_META_FIELD) * META_FIELD_ARMOR_PER_LEVEL
 
 
 static func get_mage_meta_field_radius_bonus(owner) -> float:
@@ -272,8 +272,8 @@ static func get_gunner_flash_speed_bonus_per_stack(owner) -> float:
 	return _gunner_levels_above_first(owner, GUNNER_EXECUTION) * FLASH_SPEED_PER_STACK_PER_LEVEL
 
 
-static func get_gunner_flash_dodge_bonus_per_stack(owner) -> float:
-	return _gunner_levels_above_first(owner, GUNNER_EXECUTION) * FLASH_DODGE_PER_STACK_PER_LEVEL
+static func get_gunner_flash_dodge_chance_bonus_per_stack(owner) -> float:
+	return _gunner_levels_above_first(owner, GUNNER_EXECUTION) * FLASH_DODGE_CHANCE_PER_STACK_PER_LEVEL
 
 
 static func get_gunner_flash_max_stack_bonus(owner) -> int:
@@ -571,7 +571,7 @@ static func _get_gunner_upgrade_preview(owner, progress_id: String) -> String:
 		GUNNER_EXECUTION:
 			parts.append("每层增伤 +0.5%")
 			parts.append("每层移速 +0.5%")
-			parts.append("每层闪避值 +2")
+			parts.append("每层闪避率 +0.35%")
 		GUNNER_HUNT:
 			parts.append("猎杀圈半径 -5")
 			parts.append("圈外伤害 +1%")
@@ -644,7 +644,7 @@ static func _get_mage_upgrade_preview(owner, progress_id: String) -> String:
 			parts.append("雷击范围 +10%")
 			parts.append("伤害倍率 +10%")
 		MAGE_META_FIELD:
-			parts.append("减伤值 +10")
+			parts.append("护甲 +2.5")
 			parts.append("领域半径 +7.5")
 		MAGE_SURGING_WAVE:
 			parts.append("伤害倍率 +10%")

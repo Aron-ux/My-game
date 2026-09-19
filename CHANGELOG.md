@@ -5,6 +5,7 @@
 Entries within each section are newest first. Earlier experiments remain recorded for history and may be superseded by a newer entry above them; they are not all simultaneous current behavior.
 
 ### Fixed
+- 统一玩家与敌人的受伤结算顺序：总伤害 → 护甲防御 → 减伤 → 扣血；易伤乘区暂不参与伤害结算，敌方的战吼减伤与玩家剑士近身减伤均在减伤阶段结算。
 - 技能等级追加的弹道看不出效果：剑士普通攻击与月牙剑气在 2/4/6/8 级追加的斩击/剑气此前与第一道同帧、同方向、同位置发射，视觉上完全重叠，玩家看不到“多了一道”。现在改为依次发射（普通攻击每道间隔 0.15s，月牙剑气每道间隔 0.35s），方向与体积不变、伤害倍率不变。
 - 审判之誓追加冲击波后巨剑提前消失：巨剑精灵的显示时长写死为基础 `SWORD_DURATION`（2s），追加冲击波把留场时间延长到「道数 × 2s」后，视觉仍在 2s 时消失。现在视觉时长跟随实际留场时间，并且留场时间在创建视觉之前就已结算。
 - Infinite reload hotkey without its talent: the hotkey branch required the `无限装填 I` talent, so a manual-release infinite reload silently did nothing for players without that talent. It is now treated as a normal single-cast skill (hotkey casts it when set to manual), while talent builds keep the toggle on/off behavior.

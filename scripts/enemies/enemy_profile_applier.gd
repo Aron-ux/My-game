@@ -11,6 +11,7 @@ static func apply_profile(enemy, kind: String, profile: Dictionary) -> void:
 	enemy.profile_visual_scene = profile.get("visual_scene", null) as PackedScene
 	enemy.max_health = float(profile.get("max_health", enemy.max_health))
 	enemy.damage_reduction_value = float(profile.get("damage_reduction_value", 0.0))
+	enemy.armor = float(profile.get("armor", 0.0))
 	enemy.current_health = enemy.max_health
 	enemy.boss_shield_max_health = max(0.0, float(profile.get("boss_shield_max_health", 0.0)))
 	if kind == "boss":

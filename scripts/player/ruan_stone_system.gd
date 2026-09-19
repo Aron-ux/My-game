@@ -15,13 +15,13 @@ const DEFINITIONS := {
 	STONE_FURY: {"title": "烈石", "summary": "普攻附加伤害加深。"}
 	,"broken_sword": {"title": "冒险者破剑", "summary": "攻击力 +2，伤害 +5%。"}
 	,"keen_fragment": {"title": "基恩碎片", "summary": "远程攻击距离 +25，近战攻击范围 +25%。"}
-	,"tattered_cloak": {"title": "残破披风", "summary": "移动速度 +10，闪避值 +20。"}
-	,"ground_branch": {"title": "地上的树枝", "summary": "减伤值 +20，所有角色伤害 +8%。"}
+	,"tattered_cloak": {"title": "残破披风", "summary": "移动速度 +10，闪避率 +10%（每件独立计算）。"}
+	,"ground_branch": {"title": "地上的树枝", "summary": "减伤 +7%，所有角色伤害 +8%。"}
 	,"guild_token": {"title": "工会令牌碎片", "summary": "每 10 秒回复 20 点生命。"}
 	,"broken_magic_stone": {"title": "残破的魔石", "summary": "经验获取效率 +10%。"}
 	,"rusted_dagger": {"title": "生锈的匕首", "summary": "暴击率 +8%，暴击伤害 +8%。"}
 	,"used_potion": {"title": "喝过的魔瓶", "summary": "每秒恢复 1 点生命和 1 点大招能量。"}
-	,"broken_chestplate": {"title": "残破胸甲", "summary": "生命 +30，减伤值 +20。"}
+	,"broken_chestplate": {"title": "残破胸甲", "summary": "生命 +30，减伤 +7%。"}
 	,"unknown_spellbook": {"title": "不知名魔法书残页", "summary": "大招伤害 +20%，其他技能冷却减少 5%。"}
 	,"useless_pendant": {"title": "无用挂件", "summary": "每秒回复1点大招能量，大招伤害增加10%。"}
 }
@@ -224,13 +224,13 @@ static func get_effect_values(stone_id: String, level: int) -> Dictionary:
 			}
 		"broken_sword": return {"attack_bonus": 2.0, "damage_bonus": 0.05}
 		"keen_fragment": return {"range_bonus": 25.0, "melee_range_multiplier": 1.25}
-		"tattered_cloak": return {"speed_bonus": 10.0, "dodge_bonus": 20.0}
-		"ground_branch": return {"damage_reduction_bonus": 20.0, "damage_bonus": 0.08}
+		"tattered_cloak": return {"speed_bonus": 10.0, "dodge_chance": 0.10}
+		"ground_branch": return {"damage_reduction_rate": 0.07, "damage_bonus": 0.08}
 		"guild_token": return {"heal_interval": 10.0, "heal_amount": 20.0}
 		"broken_magic_stone": return {"experience_multiplier": 1.10}
 		"rusted_dagger": return {"critical_chance_bonus": 0.08, "critical_damage_bonus": 0.08}
 		"used_potion": return {"heal_per_second": 1.0, "energy_per_second": 1.0}
-		"broken_chestplate": return {"max_health_bonus": 30.0, "damage_reduction_bonus": 20.0}
+		"broken_chestplate": return {"max_health_bonus": 30.0, "damage_reduction_rate": 0.07}
 		"unknown_spellbook": return {"ultimate_damage_bonus": 0.20, "cooldown_multiplier": 0.95}
 		"useless_pendant": return {"energy_per_second": 1.0, "ultimate_damage_bonus": 0.10}
 	return {}

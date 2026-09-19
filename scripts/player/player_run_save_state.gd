@@ -127,7 +127,7 @@ static func get_save_data(player) -> Dictionary:
 		"equipment_health_regen_per_second": player.equipment_health_regen_per_second,
 		"equipment_low_health_threshold": player.equipment_low_health_threshold,
 		"equipment_low_health_damage_taken_multiplier": player.equipment_low_health_damage_taken_multiplier,
-		"equipment_low_health_damage_reduction_value": player.equipment_low_health_damage_reduction_value,
+		"equipment_low_health_damage_reduction_rate": player.equipment_low_health_damage_reduction_rate,
 		"equipment_skill_range_multiplier": player.equipment_skill_range_multiplier,
 		"equipment_cooldown_multiplier": player.equipment_cooldown_multiplier,
 		"role_switch_cooldown_bonus": player.role_switch_cooldown_bonus,
@@ -551,7 +551,7 @@ static func _apply_stat_save_data(player, data: Dictionary) -> void:
 	player.equipment_health_regen_per_second = float(data.get("equipment_health_regen_per_second", player.equipment_health_regen_per_second))
 	player.equipment_low_health_threshold = float(data.get("equipment_low_health_threshold", player.equipment_low_health_threshold))
 	player.equipment_low_health_damage_taken_multiplier = float(data.get("equipment_low_health_damage_taken_multiplier", player.equipment_low_health_damage_taken_multiplier))
-	player.equipment_low_health_damage_reduction_value = float(data.get("equipment_low_health_damage_reduction_value", player.equipment_low_health_damage_reduction_value))
+	player.equipment_low_health_damage_reduction_rate = float(data.get("equipment_low_health_damage_reduction_rate", data.get("equipment_low_health_damage_reduction_value", player.equipment_low_health_damage_reduction_rate)))
 	player.equipment_skill_range_multiplier = float(data.get("equipment_skill_range_multiplier", player.equipment_skill_range_multiplier))
 	player.equipment_cooldown_multiplier = float(data.get("equipment_cooldown_multiplier", player.equipment_cooldown_multiplier))
 	player.role_switch_cooldown_bonus = float(data.get("role_switch_cooldown_bonus", player.role_switch_cooldown_bonus))

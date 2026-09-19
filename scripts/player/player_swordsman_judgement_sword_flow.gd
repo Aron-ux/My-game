@@ -14,7 +14,7 @@ static func apply_impact(owner, center: Vector2, damage: float, radius: float) -
 	return int(owner._damage_enemies_in_radius(center, radius, damage, 0.0, 1.0, 0.0, "swordsman"))
 
 
-static func release_shockwave(owner, center: Vector2, damage: float, armor_shred: float, heal_ratio: float = 0.0) -> int:
+static func release_shockwave(owner, center: Vector2, damage: float, armor_shred: float, heal_ratio: float = 0.0, damage_reduction_shred: float = 0.0) -> int:
 	if owner == null or not is_instance_valid(owner) or not owner.has_method("_get_live_enemies"):
 		return 0
 	var hit_count := 0
@@ -27,6 +27,7 @@ static func release_shockwave(owner, center: Vector2, damage: float, armor_shred
 		hit_count += 1
 		if not hit_killed and float(enemy.get("current_health")) > 0.0:
 			_shred_enemy_armor(enemy, armor_shred)
+			_shred_enemy_damage_reduction(enemy, damage_reduction_shred)
 	if heal_ratio > 0.0:
 		_heal_active_role_missing_health(owner, heal_ratio)
 	return hit_count
@@ -44,6 +45,14 @@ static func _heal_active_role_missing_health(owner, ratio: float) -> void:
 
 
 static func _shred_enemy_armor(enemy, value: float) -> void:
+	if enemy == null or not is_instance_valid(enemy) or enemy.get("armor") == null:
+		return
+	enemy.armor = float(enemy.armor) - value
+
+
+static func _shred_enemy_damage_reduction(enemy, value: float) -> void:
+	if value <= 0.0:
+		return
 	if enemy == null or not is_instance_valid(enemy) or enemy.get("damage_reduction_value") == null:
 		return
 	enemy.damage_reduction_value = float(enemy.damage_reduction_value) - value

@@ -219,32 +219,32 @@ const DEFINITIONS := {
 		"stat": "move_speed_percent",
 		"tier_values": {1: 0.02, 2: 0.04, 3: 0.06, 4: 0.08},
 		"extra_stats": {
-			"dodge": {3: 0.06, 4: 0.12}
+			"dodge_chance": {3: 0.12, 4: 0.24}
 		},
 		"display_title": "乘风",
 		"display_descriptions": {
 			1: "I级：角色移动速度+2％",
 			2: "II级：角色移动速度+4％",
-			3: "III级：角色移动速度+6％，角色闪避+6",
-			4: "IV级：角色移动速度+8％，角色闪避+12"
+			3: "III级：角色移动速度+6％，角色闪避率+12％",
+			4: "IV级：角色移动速度+8％，角色闪避率+24％"
 		},
 		"display_card_summaries": {
 			1: "移速+2%",
 			2: "移速+4%",
-			3: "移速+6%，闪避率+6%",
-			4: "移速+8%，闪避率+12%"
+			3: "移速+6%，闪避率+12%",
+			4: "移速+8%，闪避率+24%"
 		},
 		"descriptions": {
 			1: "I级：角色移动速度+2％",
 			2: "II级：角色移动速度+4％",
-			3: "III级：角色移动速度+6％，角色闪避+6",
-			4: "IV级：角色移动速度+8％，角色闪避+12"
+			3: "III级：角色移动速度+6％，角色闪避率+12％",
+			4: "IV级：角色移动速度+8％，角色闪避率+24％"
 		},
 		"card_summaries": {
 			1: "移速+2%",
 			2: "移速+4%",
-			3: "移速+6%，闪避率+6%",
-			4: "移速+8%，闪避率+12%"
+			3: "移速+6%，闪避率+12%",
+			4: "移速+8%，闪避率+24%"
 		}
 	},
 	"blazing_sun": {
@@ -570,26 +570,26 @@ const DEFINITIONS := {
 		"title": "不屈",
 		"category": CATEGORY_GENERAL_BLESSING,
 		"binding": ROLE_BOUND,
-		"stat": "damage_reduction",
-		"tier_values": {1: 10.0, 2: 18.0, 3: 26.0, 4: 34.0},
+		"stat": "damage_reduction_rate",
+		"tier_values": {1: 0.05, 2: 0.10, 3: 0.15, 4: 0.20},
 		"display_title": "不屈",
 		"display_descriptions": {
-			1: "I级：角色减伤+10",
-			2: "II级：角色减伤+18",
-			3: "III级：角色减伤+26",
-			4: "IV级：角色减伤+34"
+			1: "I级：角色减伤5%",
+			2: "II级：角色减伤10%",
+			3: "III级：角色减伤15%",
+			4: "IV级：角色减伤20%"
 		},
 		"display_card_summaries": {
-			1: "减伤值+10",
-			2: "减伤值+18",
-			3: "减伤值+26",
-			4: "减伤值+34"
+			1: "减伤5%",
+			2: "减伤10%",
+			3: "减伤15%",
+			4: "减伤20%"
 		},
 		"descriptions": {
-			1: "I级：角色减伤+10",
-			2: "II级：角色减伤+18",
-			3: "III级：角色减伤+26",
-			4: "IV级：角色减伤+34"
+			1: "I级：角色减伤5%",
+			2: "II级：角色减伤10%",
+			3: "III级：角色减伤15%",
+			4: "IV级：角色减伤20%"
 		}
 	},
 	"tide_rain": {
@@ -796,6 +796,21 @@ static func grant_random_blessings(owner, tier: int, count: int, rng: RandomNumb
 static func get_role_stat_bonus(owner, _role_id: String, stat: String) -> float:
 	var levels: Dictionary = _get_shared_role_levels(owner)
 	return _sum_stat_bonus(levels, stat)
+
+
+static func get_damage_reduction_rates(owner) -> Array[float]:
+	var rates: Array[float] = []
+	var levels: Dictionary = _get_shared_role_levels(owner)
+	for blessing_id in levels.keys():
+		var definition: Dictionary = DEFINITIONS.get(str(blessing_id), {})
+		if str(definition.get("stat", "")) != "damage_reduction_rate":
+			continue
+		var tier_values: Dictionary = definition.get("tier_values", {})
+		var blessing_levels: Dictionary = levels.get(blessing_id, {})
+		for tier in blessing_levels.keys():
+			for _index in range(maxi(0, int(blessing_levels[tier]))):
+				rates.append(float(tier_values.get(int(tier), 0.0)))
+	return rates
 
 
 static func get_blazing_sun_flat_base_damage(owner, _role_id: String = "") -> float:
@@ -1282,7 +1297,7 @@ static func _sum_stat_bonus(levels: Dictionary, stat: String) -> float:
 			var tier := int(tier_value)
 			var count: int = int(blessing_levels.get(tier_value, 0))
 			var value: float = float(stat_tier_values.get(tier, 0.0))
-			if bool(definition.get("nonlinear", false)) and stat != "dodge":
+			if stat == "dodge_chance" or (bool(definition.get("nonlinear", false)) and stat != "dodge"):
 				uses_nonlinear = true
 				for _index in range(max(0, count)):
 					survival_multiplier *= max(0.0, 1.0 - value)

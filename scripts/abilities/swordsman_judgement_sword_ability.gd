@@ -92,7 +92,7 @@ func try_trigger(owner) -> bool:
 
 
 func get_cooldown_slot(owner = null) -> Dictionary:
-	var description := "指定地点降下巨剑，对击中的敌人造成 200% 伤害；巨剑落地 2 秒后释放一道全图冲击波，造成 100% 伤害，并使受到冲击的敌人减伤值降低 20 点。"
+	var description := "指定地点降下巨剑，对击中的敌人造成 200% 伤害；巨剑落地 2 秒后释放一道全图冲击波，造成 100% 伤害，并使受到冲击的敌人护甲降低 20 点。"
 	if owner != null and _has_talent(owner, TALENT_JUDGEMENT_SWORD_1):
 		description += " 审判之誓 I：落地伤害增加 100%，冲击波提前 1 秒释放，伤害增加 50%，并额外降低 10 点减伤值。"
 	if owner != null and _has_talent(owner, TALENT_JUDGEMENT_SWORD_2):
@@ -141,10 +141,11 @@ func _release_shockwave(owner) -> void:
 	var has_talent_1 := _has_talent(owner, TALENT_JUDGEMENT_SWORD_1)
 	var shockwave_ratio: float = SHOCKWAVE_DAMAGE_RATIO + (SHOCKWAVE_DAMAGE_TALENT_BONUS if has_talent_1 else 0.0)
 	shockwave_ratio += PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_judgement_sword_shockwave_ratio_bonus(owner)
-	var armor_shred: float = ARMOR_SHRED_PER_SHOCKWAVE + (ARMOR_SHRED_TALENT_BONUS if has_talent_1 else 0.0)
+	var armor_shred: float = ARMOR_SHRED_PER_SHOCKWAVE
+	var damage_reduction_shred: float = ARMOR_SHRED_TALENT_BONUS if has_talent_1 else 0.0
 	var heal_ratio: float = SHOCKWAVE_HEAL_MISSING_HEALTH_RATIO if _has_talent(owner, TALENT_JUDGEMENT_SWORD_2) else 0.0
 	var damage: float = float(owner._get_role_damage("swordsman")) * shockwave_ratio
-	PLAYER_SWORDSMAN_JUDGEMENT_SWORD_FLOW.release_shockwave(owner, sword_position, damage, armor_shred, heal_ratio)
+	PLAYER_SWORDSMAN_JUDGEMENT_SWORD_FLOW.release_shockwave(owner, sword_position, damage, armor_shred, heal_ratio, damage_reduction_shred)
 	if owner.has_method("_spawn_ring_effect"):
 		owner._spawn_ring_effect(sword_position, FULL_MAP_RADIUS, Color(1.0, 0.9, 0.6, 0.55), 4.0, 0.6)
 	if owner.has_method("_spawn_burst_effect"):

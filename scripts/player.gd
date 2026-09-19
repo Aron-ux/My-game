@@ -142,7 +142,7 @@ const GUNNER_FLASH_MAX_STACKS := 10
 const GUNNER_FLASH_DAMAGE_PER_STACK := 0.03
 const GUNNER_FLASH_SPEED_PER_STACK := 0.03
 const GUNNER_FLASH_COOLDOWN := 15.0
-const GUNNER_FLASH_DODGE_VALUE_PER_STACK := 4.0
+const GUNNER_FLASH_DODGE_CHANCE_PER_STACK := 0.015
 const GUNNER_SAFE_ZONE_RADIUS := 115.0
 const GUNNER_SAFE_ZONE_FILL_COLOR := Color(0.24, 0.58, 1.0, 0.10)
 const GUNNER_SAFE_ZONE_OUTLINE_COLOR := Color(0.38, 0.72, 1.0, 0.42)
@@ -316,7 +316,7 @@ var equipment_dodge_chance: float = 0.0
 var equipment_health_regen_per_second: float = 0.0
 var equipment_low_health_threshold: float = 0.0
 var equipment_low_health_damage_taken_multiplier: float = 1.0
-var equipment_low_health_damage_reduction_value: float = 0.0
+var equipment_low_health_damage_reduction_rate: float = 0.0
 var equipment_skill_range_multiplier: float = 1.0
 var equipment_cooldown_multiplier: float = 1.0
 var attribute_training_levels: Dictionary = {}
@@ -645,13 +645,17 @@ func _get_role_dodge_chance(role_id: String = "") -> float:
 	var resolved_role_id: String = role_id if role_id != "" else _get_active_role_id()
 	return PLAYER_EQUIPMENT_FLOW.get_role_dodge_chance(self, resolved_role_id)
 
-func _get_role_base_damage_reduction_value(role_id: String = "") -> float:
+func _get_role_base_damage_reduction_rate(role_id: String = "") -> float:
 	var resolved_role_id: String = role_id if role_id != "" else _get_active_role_id()
-	return PLAYER_COMBAT_MODIFIERS.get_role_base_damage_reduction_value(self, resolved_role_id)
+	return PLAYER_COMBAT_MODIFIERS.get_role_base_damage_reduction_rate(self, resolved_role_id)
 
 func _get_role_damage_reduction_value(role_id: String = "") -> float:
 	var resolved_role_id: String = role_id if role_id != "" else _get_active_role_id()
 	return PLAYER_COMBAT_MODIFIERS.get_role_damage_reduction_value(self, resolved_role_id)
+
+func get_role_armor(role_id: String = "") -> float:
+	var resolved_role_id: String = role_id if role_id != "" else _get_active_role_id()
+	return PLAYER_COMBAT_MODIFIERS.get_role_armor(self, resolved_role_id)
 
 func _get_role_damage_reduction_rate(role_id: String = "") -> float:
 	var resolved_role_id: String = role_id if role_id != "" else _get_active_role_id()
@@ -1162,8 +1166,8 @@ func _get_effective_damage_taken_multiplier() -> float:
 func _get_equipment_low_health_damage_taken_multiplier() -> float:
 	return PLAYER_EQUIPMENT_FLOW.get_low_health_damage_taken_multiplier(self)
 
-func _get_equipment_low_health_damage_reduction_value() -> float:
-	return PLAYER_EQUIPMENT_FLOW.get_low_health_damage_reduction_value(self)
+func _get_equipment_low_health_damage_reduction_rate() -> float:
+	return PLAYER_EQUIPMENT_FLOW.get_low_health_damage_reduction_rate(self)
 
 func _get_equipment_skill_range_multiplier() -> float:
 	return PLAYER_EQUIPMENT_FLOW.get_skill_range_multiplier(self) * _get_role_attribute_range_multiplier(str(_get_active_role().get("id", "")))
@@ -1181,8 +1185,14 @@ func _get_gunner_flash_dodge_value(role_id: String = "") -> float:
 	var resolved_role_id: String = role_id if role_id != "" else str(_get_active_role().get("id", ""))
 	if resolved_role_id != "gunner" or str(_get_active_role().get("id", "")) != "gunner":
 		return 0.0
-	var value_per_stack := GUNNER_FLASH_DODGE_VALUE_PER_STACK + PLAYER_BUILD_SYSTEM.get_gunner_flash_dodge_bonus_per_stack(self) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_flash_dodge_bonus_per_stack(self)
+	var value_per_stack := PLAYER_BUILD_SYSTEM.get_gunner_flash_dodge_bonus_per_stack(self)
 	return float(PLAYER_GUNNER_FLASH_TALENT_FLOW.get_active_flash_stacks(self)) * value_per_stack
+
+func _get_gunner_flash_dodge_chance(role_id: String = "") -> float:
+	var resolved_role_id: String = role_id if role_id != "" else str(_get_active_role().get("id", ""))
+	if resolved_role_id != "gunner" or str(_get_active_role().get("id", "")) != "gunner":
+		return 0.0
+	return GUNNER_FLASH_DODGE_CHANCE_PER_STACK + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_flash_dodge_chance_bonus_per_stack(self)
 
 func _lock_player_actions(duration: float) -> void:
 	player_action_lock_remaining = max(player_action_lock_remaining, max(0.0, duration))

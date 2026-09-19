@@ -4,6 +4,8 @@ const PLAYER_SKILL_LEVEL_SYSTEM := preload("res://scripts/player/player_skill_le
 const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
+const META_FIELD := preload("res://scripts/abilities/mage_meta_field_ability.gd")
+const COMBAT_MODIFIERS := preload("res://scripts/player/player_combat_modifiers.gd")
 
 var failures: Array[String] = []
 
@@ -14,6 +16,7 @@ func _init() -> void:
 
 func _run() -> void:
 	_check_flat_bonuses()
+	_check_field_armor()
 	_check_milestone_counts()
 	_check_preview_text()
 	_check_upgrade_card_text()
@@ -24,6 +27,23 @@ func _run() -> void:
 		for failure in failures:
 			push_error(failure)
 		quit(1)
+
+
+func _check_field_armor() -> void:
+	var owner := _make_owner()
+	var field = META_FIELD.new()
+	owner.mage_meta_field_ability = field
+	_expect_approx(COMBAT_MODIFIERS.get_role_armor(owner, "mage"), 0.0, "Inactive field grants no armor")
+	field.active_remaining = 1.0
+	_expect_approx(COMBAT_MODIFIERS.get_role_armor(owner, "mage"), 25.0, "Level 1 field grants 25 armor")
+	_set_level(owner, "mage_meta_field", 3)
+	_expect_approx(COMBAT_MODIFIERS.get_role_armor(owner, "mage"), 30.0, "Level 3 field grants 30 armor")
+	_expect_approx(COMBAT_MODIFIERS.get_role_armor(owner, "swordsman"), 0.0, "Inactive role gets no field armor")
+	_expect(not field.has_method("get_damage_reduction_rate"), "Field must not supply damage reduction")
+	_expect(not field.has_method("get_damage_reduction_value"), "Field must not supply legacy damage reduction")
+	field.stop()
+	_expect_approx(COMBAT_MODIFIERS.get_role_armor(owner, "mage"), 0.0, "Stopping field removes armor")
+	owner.free()
 
 
 func _check_flat_bonuses() -> void:
@@ -43,7 +63,7 @@ func _check_flat_bonuses() -> void:
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_arcane_surplus_damage_multiplier_bonus(owner), 0.045, "奥法盈余 level 4 should add 4.5% damage")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_basic_range_multiplier(owner), 1.40, "法师普攻 level 5 should scale radius by 1.40")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_basic_damage_ratio_bonus(owner), 0.40, "法师普攻 level 5 should add 40% damage ratio")
-	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_meta_field_reduction_value_bonus(owner), 20.0, "梅塔领域 level 3 should add 20 damage reduction value")
+	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_meta_field_armor_bonus(owner), 5.0, "梅塔领域 level 3 should add 5 armor")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_meta_field_radius_bonus(owner), 15.0, "梅塔领域 level 3 should add 15 radius")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_surging_wave_damage_ratio_bonus(owner), 0.30, "波涛汹涌 level 4 should add 30% damage ratio")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_surging_wave_duration_bonus(owner), 0.60, "波涛汹涌 level 4 should add 0.6s duration")
@@ -165,6 +185,10 @@ class MageLevelOwnerStub:
 	var blessing_skill_state: Dictionary = {}
 	var current_blessing_offer: Dictionary = {}
 	var global_position := Vector2.ZERO
+	var mage_meta_field_ability: Variant = null
+
+	func _get_active_role() -> Dictionary:
+		return {"id": "mage"}
 
 	func _spawn_combat_tag(_position: Vector2, _text: String, _color: Color) -> void:
 		pass

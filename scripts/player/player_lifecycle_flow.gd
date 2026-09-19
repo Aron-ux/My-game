@@ -40,7 +40,7 @@ static func ready(owner) -> void:
 	owner.equipment_health_regen_per_second = 0.0
 	owner.equipment_low_health_threshold = 0.0
 	owner.equipment_low_health_damage_taken_multiplier = 1.0
-	owner.equipment_low_health_damage_reduction_value = 0.0
+	owner.equipment_low_health_damage_reduction_rate = 0.0
 	owner.equipment_skill_range_multiplier = 1.0
 	owner.equipment_cooldown_multiplier = 1.0
 	owner.player_action_lock_remaining = 0.0

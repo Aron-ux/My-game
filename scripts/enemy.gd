@@ -35,6 +35,7 @@ const ENEMY_SKULLTOMB_BEHAVIOR := preload("res://scripts/enemies/enemy_skulltomb
 @export var speed: float = 80.0
 @export var max_health: float = 20.0
 @export var damage_reduction_value: float = 0.0
+@export var armor: float = 0.0
 @export var touch_damage: float = 10.0
 @export var contact_radius: float = 36.0
 @export var body_collision_radius: float = -1.0
@@ -439,10 +440,10 @@ func _update_bleed(delta: float) -> void:
 	ENEMY_STATUS_EFFECTS.tick_bleed(self, delta)
 
 func take_damage(amount: float, is_critical: bool = false) -> bool:
-	return ENEMY_DAMAGE.take_damage(self, amount * ENEMY_GLUTTON_SKILL_BEHAVIOR.get_damage_taken_multiplier(self), is_critical)
+	return ENEMY_DAMAGE.take_damage(self, amount, is_critical)
 
 func take_batched_damage(amount: float, is_critical: bool = false) -> bool:
-	return ENEMY_DAMAGE.apply_damage(self, amount * ENEMY_GLUTTON_SKILL_BEHAVIOR.get_damage_taken_multiplier(self), false, is_critical)
+	return ENEMY_DAMAGE.apply_damage(self, amount, false, is_critical)
 
 func activate_pooled_enemy() -> void:
 	batch_simulation_enabled = false

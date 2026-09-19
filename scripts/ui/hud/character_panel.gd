@@ -1326,6 +1326,7 @@ func _build_stats_text(role_data: Dictionary) -> String:
 	var mage_trait_level: float = float(cached_player._get_attribute_level("mage_trait")) if cached_player.has_method("_get_attribute_level") else 0.0
 	var lines: Array[String] = []
 	lines.append("[color=#f3d35a][b]核心属性[/b][/color]")
+	lines.append("护甲        [color=#ffffff]%.1f[/color]" % (float(cached_player.get_role_armor(role_id)) if cached_player.has_method("get_role_armor") else 0.0))
 	lines.append("生命        [color=#ffffff]%s[/color]" % current_health_text)
 	lines.append("大招能量    [color=#ffffff]%.0f / %.0f[/color]    回能 [color=#74f0a7]x%.2f +%.2f/s[/color]" % [
 		float(cached_player._get_role_mana(role_id)) if cached_player.has_method("_get_role_mana") else 0.0,

@@ -86,10 +86,6 @@ static func get_attribute_dodge_value(owner) -> float:
 
 
 static func get_role_attribute_dodge_value(owner, role_id: String) -> float:
-	if owner == null:
-		return 0.0
-	if role_id == "gunner":
-		return ROLE_ATTRIBUTE_RULES.get_gunner_trait_dodge_value(get_attribute_level(owner, ROLE_ATTRIBUTE_RULES.ATTR_GUNNER))
 	return 0.0
 
 

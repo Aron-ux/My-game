@@ -29,11 +29,10 @@ const SWORDSMAN_BASE_DODGE_CHANCE := 0.03
 const GUNNER_BASE_DODGE_CHANCE := 0.15
 const MAGE_BASE_DODGE_CHANCE := 0.03
 const MECHANIC_BASE_DODGE_CHANCE := 0.03
-const SWORDSMAN_BASE_DAMAGE_REDUCTION_VALUE := 20.0
-const GUNNER_BASE_DAMAGE_REDUCTION_VALUE := -40.0
-const MAGE_BASE_DAMAGE_REDUCTION_VALUE := 0.0
-const MECHANIC_BASE_DAMAGE_REDUCTION_VALUE := 0.0
-const GUNNER_TRAIT_DODGE_VALUE_PER_LEVEL := 2.0
+const SWORDSMAN_BASE_DAMAGE_REDUCTION_RATE := 0.0
+const GUNNER_BASE_DAMAGE_REDUCTION_RATE := 0.0
+const MAGE_BASE_DAMAGE_REDUCTION_RATE := 0.0
+const MECHANIC_BASE_DAMAGE_REDUCTION_RATE := 0.0
 const MAGE_TRAIT_KILL_ENERGY_BASE_CHANCE := 0.10
 const MAGE_TRAIT_KILL_ENERGY_CHANCE_PER_LEVEL := 0.02
 const MAGE_TRAIT_KILL_ENERGY_MULTIPLIER := 3.0
@@ -108,21 +107,17 @@ static func get_role_base_dodge_chance(role_id: String) -> float:
 	return 0.0
 
 
-static func get_role_base_damage_reduction_value(role_id: String) -> float:
+static func get_role_base_damage_reduction_rate(role_id: String) -> float:
 	match role_id:
 		"swordsman":
-			return SWORDSMAN_BASE_DAMAGE_REDUCTION_VALUE
+			return SWORDSMAN_BASE_DAMAGE_REDUCTION_RATE
 		"gunner":
-			return GUNNER_BASE_DAMAGE_REDUCTION_VALUE
+			return GUNNER_BASE_DAMAGE_REDUCTION_RATE
 		"mage":
-			return MAGE_BASE_DAMAGE_REDUCTION_VALUE
+			return MAGE_BASE_DAMAGE_REDUCTION_RATE
 		"mechanic":
-			return MECHANIC_BASE_DAMAGE_REDUCTION_VALUE
+			return MECHANIC_BASE_DAMAGE_REDUCTION_RATE
 	return 0.0
-
-
-static func get_gunner_trait_dodge_value(level: float) -> float:
-	return max(0.0, get_effective_level(level) * GUNNER_TRAIT_DODGE_VALUE_PER_LEVEL)
 
 
 static func get_mage_trait_mana_regen_per_second(_level: float) -> float:
@@ -160,11 +155,9 @@ static func get_role_attribute_description(_role_id: String, attribute_key: Stri
 				SWORDSMAN_TRAIT_MAX_ROLL_HITS
 			]
 		ATTR_GUNNER:
-			return "枪手特性提升到 Lv.%s：枪手基础闪避率 %.0f%%，每级提供 %.0f 闪避值；枪手拥有半径115的猎杀安全区，圈内敌人承受枪手伤害降至40%%。未受伤时每2秒叠加1层瞬杀，最多10层，每层提升3%%伤害、3%%移速和4闪避值，受伤后清空并进入15s CD。当前特性提供：%.0f 闪避值。" % [
+			return "枪手特性提升到 Lv.%s：枪手基础闪避率 %.0f%%；枪手拥有半径115的猎杀安全区，圈内敌人承受枪手伤害降至40%%。未受伤时每2秒叠加1层瞬杀，最多10层，每层提升3%%伤害、3%%移速和1.5%%闪避率，受伤后清空并进入15s CD。" % [
 				_format_level(level),
-				get_role_base_dodge_chance("gunner") * 100.0,
-				GUNNER_TRAIT_DODGE_VALUE_PER_LEVEL,
-				get_gunner_trait_dodge_value(level)
+				get_role_base_dodge_chance("gunner") * 100.0
 			]
 		ATTR_MAGE:
 			return "法师特性提升到 Lv.%s：每次击杀有 %.1f%% 概率获得 1 层奥数充能。奥数充能每层提供 2%% 法师自身大招回能效率，并将法师自身获得的大招能量的 10%% 同步给另外两名角色，最多 10 层；切人后，奥数充能不会立刻消失，而是由下一名登场角色继承法师当前层数，并持续同等秒数。法师释放登场技后会立刻进入 5s 奥法盈余，释放大招则会在演出结束后进入 5s 奥法盈余：全员大招回能效率 +20%%、切人回能效率 +20%%；若自然结束时当前站场角色仍为法师，则额外获得 3 层奥数充能。本次提升：击杀获得奥数充能概率 +%.1f%%。" % [

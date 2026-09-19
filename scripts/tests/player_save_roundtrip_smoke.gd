@@ -114,7 +114,7 @@ const APPROX_KEYS := [
 	"equipment_health_regen_per_second",
 	"equipment_low_health_threshold",
 	"equipment_low_health_damage_taken_multiplier",
-	"equipment_low_health_damage_reduction_value",
+	"equipment_low_health_damage_reduction_rate",
 	"equipment_skill_range_multiplier",
 	"equipment_cooldown_multiplier",
 	"role_switch_cooldown_bonus"
@@ -172,7 +172,7 @@ func _check_legacy_role_balance_migration(player: Node) -> void:
 				role["base_health"] = 100.0
 			"gunner":
 				role["base_health"] = 50.0
-				role["base_damage_reduction_value"] = -80.0
+				role["base_damage_reduction_rate"] = 0.0
 			"mage":
 				role["base_health"] = 50.0
 	var normalized_roles: Array = player._normalize_loaded_roles(legacy_roles)
@@ -182,7 +182,7 @@ func _check_legacy_role_balance_migration(player: Node) -> void:
 		var role_id := str(role.get("id", ""))
 		if expected_health.has(role_id) and not is_equal_approx(float(role.get("base_health", 0.0)), float(expected_health[role_id])):
 			failures.append("%s legacy save should use current base health" % role_id)
-		if role_id == "gunner" and not is_equal_approx(float(role.get("base_damage_reduction_value", 0.0)), -40.0):
+		if role_id == "gunner" and not is_equal_approx(float(role.get("base_damage_reduction_rate", 0.0)), 0.0):
 			failures.append("gunner legacy save should use current base damage reduction")
 
 

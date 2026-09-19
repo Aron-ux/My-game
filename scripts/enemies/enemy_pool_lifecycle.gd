@@ -28,6 +28,7 @@ static func prepare_for_pool(enemy) -> void:
 	enemy.slow_multiplier = 1.0
 	enemy.slow_timer = 0.0
 	enemy.damage_reduction_value = 0.0
+	enemy.armor = 0.0
 	enemy.vulnerability_bonus = 0.0
 	enemy.vulnerability_timer = 0.0
 	enemy.bleed_damage_per_second = 0.0
