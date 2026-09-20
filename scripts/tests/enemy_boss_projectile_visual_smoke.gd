@@ -74,11 +74,15 @@ func _check_legacy_danmaku(scene: Node2D) -> void:
 	bullet._update_danmaku_motion()
 	var expected_position: Vector2 = bullet.position
 	var old_styles := {
-		"boss_danmaku_butterfly": "boss_danmaku_shard",
-		"boss_danmaku_petal": "boss_danmaku_splinter",
-		"boss_danmaku_rice": "boss_danmaku_spike",
-		"boss_danmaku_orb": "boss_danmaku_void_orb",
-		"boss_danmaku_arrow": "boss_danmaku_spike"
+		"boss_danmaku_butterfly": "boss_danmaku_shadow_orb",
+		"boss_danmaku_petal": "boss_danmaku_violet_orb",
+		"boss_danmaku_rice": "boss_danmaku_violet_orb",
+		"boss_danmaku_orb": "boss_danmaku_violet_orb",
+		"boss_danmaku_arrow": "boss_danmaku_violet_orb",
+		"boss_danmaku_shard": "boss_danmaku_shadow_orb",
+		"boss_danmaku_splinter": "boss_danmaku_violet_orb",
+		"boss_danmaku_spike": "boss_danmaku_violet_orb",
+		"boss_danmaku_void_orb": "boss_danmaku_shadow_orb"
 	}
 	for old_style in old_styles:
 		var saved: Dictionary = JSON.parse_string(JSON.stringify(bullet.get_save_data()))
@@ -90,8 +94,11 @@ func _check_legacy_danmaku(scene: Node2D) -> void:
 			failures.append("legacy save must migrate %s to the dark-stone skin" % old_style)
 		if not is_equal_approx(bullet.damage, 64.0) or not is_equal_approx(bullet.hit_radius, 6.8) or not is_equal_approx(bullet.travel_time, 0.7) or bullet.position.distance_to(expected_position) > 0.001:
 			failures.append("reskin must preserve saved damage, collision and trajectory state")
-		if bullet.get_node("Polygon2D").color.v > 0.35 or bullet.get_node("Outline").color.v < 0.8:
-			failures.append("dark stone needs a dark body and visible luminous edge")
+		if bullet.get_node("BossCore").color.v < 0.8:
+			failures.append("purple and black orbs need visible round cores")
+		for point in bullet.get_node("Polygon2D").polygon:
+			if not is_equal_approx(point.length(), 8.0):
+				failures.append("every old shard/needle skin must become the original circular silhouette")
 		if bullet.get_save_data().visual_style != old_styles[old_style]:
 			failures.append("the next save must persist the migrated style")
 	bullet.reset_projectile({"visual_style": "solid_circle", "visual_color": Color(0.2, 0.8, 0.3), "motion_mode": "straight"})

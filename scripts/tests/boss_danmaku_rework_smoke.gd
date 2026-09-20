@@ -51,7 +51,7 @@ func _run() -> void:
 		for bullet in scene.active.values():
 			check(is_equal_approx(bullet.damage, 64.0), "all danmaku bullets use 80% attack")
 			check(is_equal_approx(bullet.lifetime, 10.0), "danmaku bullets remain for ten seconds")
-			check(bullet.get_node("Polygon2D").color.v < 0.35 and bullet.get_node("Outline").color.v > 0.8, "dark stone bullets need a dark body and a clearly visible rim")
+			check(bullet.get_node("Polygon2D").color.v > 0.5 and bullet.get_node("BossCore").color.v > 0.8, "purple orbs need a visible body and brighter round core")
 		var sample = scene.active.values()[1]
 		sample.travel_time = 1.2
 		sample._update_danmaku_motion()

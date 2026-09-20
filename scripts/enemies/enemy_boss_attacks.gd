@@ -253,7 +253,7 @@ static func _fire_aimed_volley(enemy) -> void:
 			enemy.projectile_damage * 0.48,
 			5.2,
 			Color(0.62, 0.38, 1.0), "straight",
-			{"size_scale": 1.0, "hit_radius": 7.0, "visual_style": "boss_danmaku_spike"}
+			{"size_scale": 1.0, "hit_radius": 7.0, "visual_style": "boss_danmaku_violet_orb"}
 		)
 
 static func _pull_target_to_orbit_ball(enemy, delta: float) -> void:

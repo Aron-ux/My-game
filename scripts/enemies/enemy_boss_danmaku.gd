@@ -26,7 +26,7 @@ static func fire_wave(enemy) -> void:
 		var frequency := 0.0
 		var hue := 0.0
 		var origin: Vector2 = enemy.global_position
-		var style := "boss_danmaku_void_orb"
+		var style := "boss_danmaku_violet_orb"
 		var mode := "danmaku"
 		var config: Dictionary = {}
 		match pattern:
@@ -35,7 +35,7 @@ static func fire_wave(enemy) -> void:
 				speed += 40.0 * cos(spoke * 6.0)
 				angular = 0.13
 				hue = 0.73 + wave * 0.01
-				style = "boss_danmaku_splinter"
+				style = "boss_danmaku_violet_orb"
 			1:
 				angle += side * wave * 0.30 * spin
 				speed += 16.0
@@ -55,7 +55,7 @@ static func fire_wave(enemy) -> void:
 				speed = 96.0 + float(index % 3) * 30.0 + 24.0 * cos(spoke * 3.0 + wave * 0.35)
 				angular = side * 0.065
 				hue = 0.76 + wave * 0.008
-				style = "boss_danmaku_shard"
+				style = "boss_danmaku_shadow_orb" if wave % 2 == 0 else "boss_danmaku_violet_orb"
 			4:
 				# Four layered fans with wide seams between them. Each cast
 				# snapshots its orientation; subsequent waves do not home.
@@ -67,7 +67,7 @@ static func fire_wave(enemy) -> void:
 				speed = 116.0 + wave * 17.0
 				angular = 0.035
 				hue = 0.73 - fan * 0.025
-				style = "boss_danmaku_splinter"
+				style = "boss_danmaku_violet_orb"
 			5:
 				# Opposed emitters weave straight diagonal lanes. No curved
 				# orbit here; the crossings migrate as the fans sweep.
@@ -78,7 +78,7 @@ static func fire_wave(enemy) -> void:
 				angle = base - side * 0.48 + offset * 2.0 + wave * 0.075 * spin
 				speed = 150.0 + wave * 9.0
 				hue = 0.66 if side < 0 else 0.80
-				style = "boss_danmaku_spike"
+				style = "boss_danmaku_violet_orb"
 			6:
 				# Long lateral S-curves from a compact row, with alternating
 				# flight directions, rather than radial sine rings.
@@ -86,16 +86,16 @@ static func fire_wave(enemy) -> void:
 				angle = base + (PI if wave % 2 else 0.0) + side * 0.18
 				speed = 112.0 + absf(sin(spoke)) * 70.0
 				hue = 0.64 + wave * 0.02
-				style = "boss_danmaku_shard"
+				style = "boss_danmaku_shadow_orb" if wave % 2 == 0 else "boss_danmaku_violet_orb"
 				mode = "danmaku_drift"
 				config = {"sine_amplitude": 80.0 + wave * 8.0, "sine_frequency": 0.24, "sine_phase": spoke}
 			7:
-				# Crystals decelerate into a suspended fracture ring,
+				# Orbs decelerate into a suspended fracture ring,
 				# then accelerate out along tangents. Analytic save-safe path.
 				angle += wave * 0.09 * spin
 				speed = 180.0 + 35.0 * cos(spoke * 5.0)
 				hue = 0.76 + wave * 0.008
-				style = "boss_danmaku_splinter"
+				style = "boss_danmaku_violet_orb"
 				mode = "danmaku_bloom"
 				config = {
 					"danmaku_brake_time": 2.4, "danmaku_hold_time": 0.65,
@@ -103,7 +103,7 @@ static func fire_wave(enemy) -> void:
 					"danmaku_release_speed": 175.0 + wave * 8.0
 				}
 			8:
-				# Alternating violet/blue shard curtains: staggered broad
+				# Alternating violet/shadow orb curtains: staggered broad
 				# fans and speed layers produce moving gaps across each wave.
 				var fan := index % 3
 				var lane := index / 3
@@ -113,9 +113,9 @@ static func fire_wave(enemy) -> void:
 				speed = 120.0 + wave * 19.0
 				angular = 0.045 if wave % 2 else -0.045
 				hue = 0.77 if wave % 2 else 0.65
-				style = "boss_danmaku_shard"
+				style = "boss_danmaku_shadow_orb" if wave % 2 == 0 else "boss_danmaku_violet_orb"
 			9:
-				# Crystal fragments pour from both sides in bent fans.
+				# Energy orbs pour from both sides in bent fans.
 				var lane := index / 2
 				var lanes := maxi(2, (count + 1) / 2)
 				var offset := float(lane) / float(lanes - 1) - 0.5
@@ -124,7 +124,7 @@ static func fire_wave(enemy) -> void:
 				speed = 110.0 + wave * 19.0
 				angular = -side * 0.16
 				hue = 0.72 + wave * 0.014
-				style = "boss_danmaku_splinter"
+				style = "boss_danmaku_violet_orb"
 			10:
 				# Two offset lobed vortex fronts turn against each other.
 				origin += Vector2(0, side * 110.0).rotated(base)
@@ -132,9 +132,9 @@ static func fire_wave(enemy) -> void:
 				speed = 145.0 + 46.0 * cos(spoke * 5.0)
 				angular = side * 0.16
 				hue = 0.62 if side < 0 else 0.78
-				style = "boss_danmaku_splinter"
+				style = "boss_danmaku_violet_orb"
 			11:
-				# Thin paired spear fans alternate with broad shard
+				# Thin paired orb streams alternate with broad
 				# curtains. Aim is captured once when the cast begins.
 				var fan := index % 2
 				var lane := index / 2
@@ -145,7 +145,7 @@ static func fire_wave(enemy) -> void:
 				speed = 225.0 if needle else 135.0 + wave * 9.0
 				angular = 0.0 if needle else side * 0.06
 				hue = 0.61 if needle else 0.72 + fan * 0.08
-				style = "boss_danmaku_spike" if needle else "boss_danmaku_shard"
+				style = "boss_danmaku_violet_orb" if needle else "boss_danmaku_shadow_orb"
 		speed += float(enemy.boss_phase - 1) * 6.0
 		var direction := Vector2.RIGHT.rotated(angle)
 		var defaults := {

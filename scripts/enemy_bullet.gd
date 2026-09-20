@@ -14,11 +14,15 @@ const PLAYER_RELEVANCE_DISTANCE := 1900.0
 const PLAYER_FULL_UPDATE_DISTANCE := 720.0
 const REMOTE_UPDATE_INTERVAL := 0.05
 const LEGACY_DANMAKU_STYLES := {
-	"boss_danmaku_butterfly": "boss_danmaku_shard",
-	"boss_danmaku_petal": "boss_danmaku_splinter",
-	"boss_danmaku_rice": "boss_danmaku_spike",
-	"boss_danmaku_orb": "boss_danmaku_void_orb",
-	"boss_danmaku_arrow": "boss_danmaku_spike"
+	"boss_danmaku_butterfly": "boss_danmaku_shadow_orb",
+	"boss_danmaku_petal": "boss_danmaku_violet_orb",
+	"boss_danmaku_rice": "boss_danmaku_violet_orb",
+	"boss_danmaku_orb": "boss_danmaku_violet_orb",
+	"boss_danmaku_arrow": "boss_danmaku_violet_orb",
+	"boss_danmaku_shard": "boss_danmaku_shadow_orb",
+	"boss_danmaku_splinter": "boss_danmaku_violet_orb",
+	"boss_danmaku_spike": "boss_danmaku_violet_orb",
+	"boss_danmaku_void_orb": "boss_danmaku_shadow_orb"
 }
 
 @export var speed: float = 260.0
@@ -791,11 +795,11 @@ func _apply_boss_projectile_visual(polygon: Polygon2D) -> void:
 		return
 	if visual_style == "boss_turning_hex":
 		_clear_extra_visual("Outline")
-		polygon.color = Color(0.16, 0.05, 0.24, 1.0)
+		polygon.color = Color(0.28, 0.09, 0.42, 1.0)
 		polygon.polygon = ENEMY_GEOMETRY.build_circle_points(9.0, 20)
 		polygon.scale = Vector2.ONE * size_scale
 		return
-	polygon.color = Color(0.16, 0.05, 0.24, 1.0)
+	polygon.color = Color(0.28, 0.09, 0.42, 1.0)
 	polygon.polygon = ENEMY_GEOMETRY.build_circle_points(8.0, 20)
 	polygon.scale = Vector2.ONE * size_scale
 
@@ -819,26 +823,8 @@ func _apply_boss_projectile_visual(polygon: Polygon2D) -> void:
 		add_child(core)
 
 func _get_danmaku_shape() -> PackedVector2Array:
-	if visual_shape_cache.has(visual_style):
-		return visual_shape_cache[visual_style] as PackedVector2Array
-	var shape := ENEMY_GEOMETRY.build_circle_points(8.0, 20)
-	if visual_style == "boss_danmaku_shard":
-		shape = PackedVector2Array([
-			Vector2(14, -2), Vector2(7, -11), Vector2(1, -9), Vector2(-5, -13),
-			Vector2(-11, -5), Vector2(-7, 0), Vector2(-12, 6), Vector2(-4, 12),
-			Vector2(2, 7), Vector2(9, 9), Vector2(7, 3)
-		])
-	elif visual_style == "boss_danmaku_splinter":
-		shape = PackedVector2Array([
-			Vector2(14, 0), Vector2(3, -7), Vector2(-10, -4),
-			Vector2(-7, 2), Vector2(-2, 8), Vector2(5, 4)
-		])
-	elif visual_style == "boss_danmaku_spike":
-		shape = PackedVector2Array([Vector2(16, 0), Vector2(-3, -4), Vector2(-11, -1), Vector2(-7, 0), Vector2(-11, 2), Vector2(-2, 5)])
-	elif visual_style == "boss_danmaku_void_orb":
-		shape = ENEMY_GEOMETRY.build_circle_points(8.0, 8)
-	visual_shape_cache[visual_style] = shape
-	return shape
+	# Match the original boss_dark_orb silhouette; geometry helper caches it.
+	return ENEMY_GEOMETRY.build_circle_points(8.0, 20)
 
 
 func _apply_danmaku_visual(polygon: Polygon2D) -> void:
@@ -846,11 +832,13 @@ func _apply_danmaku_visual(polygon: Polygon2D) -> void:
 	# Migrate visuals only: keep damage, motion, elapsed time and hit radius.
 	if LEGACY_DANMAKU_STYLES.has(visual_style):
 		visual_style = LEGACY_DANMAKU_STYLES[visual_style]
-		visual_color = Color.from_hsv(0.65 if visual_color.b > visual_color.r else 0.77, 0.65, 1.0)
+	# Old blue/pink palettes and newly authored waves share the Boss's purple.
+	visual_color = Color.from_hsv(clampf(visual_color.h, 0.72, 0.80), 0.65, 1.0)
 	_clear_extra_visual("Ring")
 	var shape := _get_danmaku_shape()
+	var shadow := visual_style == "boss_danmaku_shadow_orb"
 	polygon.polygon = shape
-	polygon.color = visual_color.darkened(0.72)
+	polygon.color = visual_color.darkened(0.90 if shadow else 0.38)
 	polygon.scale = Vector2.ONE * size_scale
 	for part in ["Outline", "Glow", "BossCore"]:
 		var layer := get_node_or_null(part) as Polygon2D
@@ -862,17 +850,16 @@ func _apply_danmaku_visual(polygon: Polygon2D) -> void:
 		match part:
 			"Outline":
 				layer.z_index = -1
-				layer.color = visual_color.lerp(Color.WHITE, 0.18)
+				layer.color = visual_color.darkened(0.30) if shadow else Color(0.04, 0.01, 0.07, 0.98)
 				layer.scale = Vector2.ONE * size_scale * 1.2
 			"Glow":
 				layer.z_index = -2
-				layer.color = Color(visual_color.r, visual_color.g, visual_color.b, 0.16)
+				layer.color = Color(visual_color.r, visual_color.g, visual_color.b, 0.20)
 				layer.scale = Vector2.ONE * size_scale * 1.8
 			"BossCore":
 				layer.z_index = 1
-				layer.color = visual_color.lerp(Color.WHITE, 0.85)
-				layer.polygon = PackedVector2Array([Vector2(9, -1), Vector2(0, -3), Vector2(1, 0), Vector2(-7, 2), Vector2(-1, 3), Vector2(4, 1), Vector2(2, -1)])
-				layer.scale = Vector2.ONE * size_scale * (0.65 if visual_style == "boss_danmaku_void_orb" else 1.0)
+				layer.color = visual_color.lerp(Color.WHITE, 0.35 if shadow else 0.65)
+				layer.scale = Vector2.ONE * size_scale * 0.42
 
 func _get_boss_hex_shape() -> PackedVector2Array:
 	var shape_key := "boss_hex"
