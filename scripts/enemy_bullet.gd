@@ -14,6 +14,10 @@ const PLAYER_RELEVANCE_DISTANCE := 1900.0
 const PLAYER_FULL_UPDATE_DISTANCE := 720.0
 const REMOTE_UPDATE_INTERVAL := 0.05
 const LEGACY_DANMAKU_STYLES := {
+	"boss_dark_orb": "boss_danmaku_violet_orb",
+	"boss_dark_core_orb": "boss_danmaku_shadow_orb",
+	"boss_turning_hex": "boss_danmaku_violet_orb",
+	"boss_dark_triangle": "boss_danmaku_shadow_orb",
 	"boss_danmaku_butterfly": "boss_danmaku_shadow_orb",
 	"boss_danmaku_petal": "boss_danmaku_violet_orb",
 	"boss_danmaku_rice": "boss_danmaku_violet_orb",
@@ -765,62 +769,8 @@ func _apply_rose_flower_visual(polygon: Polygon2D) -> void:
 
 
 func _apply_boss_projectile_visual(polygon: Polygon2D) -> void:
-	if visual_style.begins_with("boss_danmaku_"):
-		_apply_danmaku_visual(polygon)
-		return
-	_clear_extra_visual("Glow")
-	_clear_extra_visual("Ring")
-	_clear_extra_visual("BossCore")
-	if visual_style == "boss_dark_triangle":
-		var outline := get_node_or_null("Outline") as Polygon2D
-		if outline == null:
-			outline = Polygon2D.new()
-			outline.name = "Outline"
-			add_child(outline)
-		polygon.color = Color(0.16, 0.05, 0.24, 1.0)
-		polygon.polygon = PackedVector2Array([
-			Vector2(14.0, 0.0),
-			Vector2(-10.0, -5.0),
-			Vector2(-10.0, 5.0)
-		])
-		polygon.scale = Vector2.ONE * size_scale
-		outline.z_index = -1
-		outline.color = Color(0.0, 0.0, 0.0, 0.9)
-		outline.polygon = PackedVector2Array([
-			Vector2(16.0, 0.0),
-			Vector2(-12.0, -7.0),
-			Vector2(-12.0, 7.0)
-		])
-		outline.scale = Vector2.ONE * size_scale
-		return
-	if visual_style == "boss_turning_hex":
-		_clear_extra_visual("Outline")
-		polygon.color = Color(0.28, 0.09, 0.42, 1.0)
-		polygon.polygon = ENEMY_GEOMETRY.build_circle_points(9.0, 20)
-		polygon.scale = Vector2.ONE * size_scale
-		return
-	polygon.color = Color(0.28, 0.09, 0.42, 1.0)
-	polygon.polygon = ENEMY_GEOMETRY.build_circle_points(8.0, 20)
-	polygon.scale = Vector2.ONE * size_scale
+	_apply_danmaku_visual(polygon)
 
-	var outline := get_node_or_null("Outline") as Polygon2D
-	if outline == null:
-		outline = Polygon2D.new()
-		outline.name = "Outline"
-		add_child(outline)
-	outline.z_index = -1
-	outline.color = Color(0.0, 0.0, 0.0, 0.9)
-	outline.polygon = ENEMY_GEOMETRY.build_circle_points(8.0, 20)
-	outline.scale = Vector2.ONE * size_scale * 1.2
-
-	if visual_style == "boss_dark_core_orb":
-		var core := Polygon2D.new()
-		core.name = "BossCore"
-		core.z_index = 1
-		core.color = Color(1.0, 1.0, 1.0, 0.96)
-		core.polygon = ENEMY_GEOMETRY.build_circle_points(4.0, 16)
-		core.scale = Vector2.ONE * size_scale
-		add_child(core)
 
 func _get_danmaku_shape() -> PackedVector2Array:
 	# Match the original boss_dark_orb silhouette; geometry helper caches it.

@@ -5,9 +5,11 @@ const VISUALS := preload("res://scripts/enemies/enemy_boss_visuals.gd")
 const PROJECTILES := preload("res://scripts/enemies/enemy_projectiles.gd")
 const THEMES := ["污染迸发", "暗流回旋", "魔核过载", "裂隙脉冲", "蚀晶风暴", "深渊倾泻"]
 const THEME_PATTERNS := [[4, 0, 9], [1, 5, 10], [2, 11, 8], [3, 6, 8], [9, 4, 7], [6, 7, 11]]
-const PHASE_OPENING_THEMES := [0, 3, 5]
+const PHASE_THEMES := [[0], [0, 1, 3], [0, 1, 2, 3, 4, 5]]
+const PHASE_OPENING_THEMES := [0, 1, 5]
 const PREVIEW_DURATION := 1.5
-const RECOVERY_DURATION := 2.0
+const RECOVERY_DURATION := 4.0
+const RECOVERY_ARMOR_PENALTY := 50.0
 const LASER_WARNING_DURATION := 1.2
 const CLEAR_FADE_DURATION := 0.45
 
@@ -18,8 +20,20 @@ static func reset(enemy, theme: int = 0) -> void:
 	enemy.boss_orbit_bomb_shot_timer = 1.0
 
 
+static func get_available_themes(enemy) -> Array:
+	if _shielded(enemy):
+		return []
+	return PHASE_THEMES[clampi(enemy.boss_phase - 1, 0, 2)]
+
+
+static func get_armor_modifier(enemy) -> float:
+	return -RECOVERY_ARMOR_PENALTY if str(enemy.boss_routine.get("stage", "")) == "recovery" and not _shielded(enemy) else 0.0
+
+
 static func get_duration(enemy, stage: String) -> float:
 	match stage:
+		"finishing":
+			return 0.0
 		"basic":
 			return 8.0 if enemy.boss_phase >= 3 else 12.0
 		"preview":
@@ -37,9 +51,13 @@ static func get_status(enemy) -> Dictionary:
 	var label := "常规战斗"
 	if enemy.boss_shield_break_visual_intro_active:
 		return {"label": "护盾破碎", "remaining": enemy.boss_phase_three_intro_remaining, "duration": 5.0}
+	if stage == "basic" and _shielded(enemy):
+		return {"label": "护盾完整 · 常规战斗", "countdown": false}
 	var theme := posmod(int(state.get("theme", 0)), THEMES.size())
 	var title: String = THEMES[theme]
 	match stage:
+		"finishing":
+			return {"label": "弹幕 · %s · 收尾" % title, "countdown": false}
 		"preview":
 			label = "即将发动 · %s" % title
 		"performance":
@@ -51,7 +69,7 @@ static func get_status(enemy) -> Dictionary:
 				label += " · 激光预警"
 				return {"label": label, "remaining": maxf(0.0, _warning_start(enemy) + LASER_WARNING_DURATION - float(state.elapsed)), "duration": LASER_WARNING_DURATION}
 		"recovery":
-			label = "能量平息"
+			label = "能量平息 · 护甲降低50"
 	return {"label": label, "remaining": maxf(0.0, duration - float(state.get("elapsed", 0.0))), "duration": duration}
 
 
@@ -80,6 +98,14 @@ static func update(enemy, delta: float) -> void:
 	# stage, so pause/resume and speed changes cannot skip a preview/recovery.
 	while remaining > 0.000001:
 		var stage := str(enemy.boss_routine.stage)
+		if stage == "finishing":
+			var tail_step := minf(remaining, 0.05)
+			_update_finishing(enemy, tail_step)
+			enemy.boss_routine.elapsed = float(enemy.boss_routine.elapsed) + tail_step
+			remaining -= tail_step
+			if _finished(enemy):
+				advance_stage(enemy)
+			continue
 		var duration := get_duration(enemy, stage)
 		var available := maxf(0.0, duration - float(enemy.boss_routine.elapsed))
 		if available <= 0.000001:
@@ -101,11 +127,24 @@ static func update(enemy, delta: float) -> void:
 
 static func advance_stage(enemy) -> void:
 	var old_stage := str(enemy.boss_routine.stage)
+	# Keep the last cast and its projectiles alive until their natural end.
+	if old_stage == "performance":
+		enemy.boss_routine.stage = "finishing"
+		enemy.boss_routine.elapsed = 0.0
+		return
+	if old_stage == "finishing" and not _finished(enemy):
+		return
+	if old_stage == "basic" and _shielded(enemy):
+		enemy.boss_routine.elapsed = 0.0
+		return
 	stop_attacks(enemy)
 	enemy.boss_routine.elapsed = 0.0
 	enemy.boss_routine.events = 0
 	match old_stage:
 		"basic":
+			var available := get_available_themes(enemy)
+			if int(enemy.boss_routine.theme) not in available:
+				enemy.boss_routine.theme = available[0]
 			enemy.boss_routine.stage = "preview"
 			PROJECTILES.clear_projectiles_from_source(enemy, CLEAR_FADE_DURATION)
 			VISUALS.update_boss_spell_preview(enemy, 0.0, int(enemy.boss_routine.theme))
@@ -113,11 +152,29 @@ static func advance_stage(enemy) -> void:
 			enemy.boss_routine.stage = "performance"
 			enemy.boss_sine_cooldown = 0.0
 			enemy.boss_orbit_bomb_shot_timer = 0.0
-		"performance":
+		"finishing":
 			enemy.boss_routine.stage = "recovery"
-			PROJECTILES.clear_projectiles_from_source(enemy, CLEAR_FADE_DURATION)
 		_:
-			reset(enemy, int(enemy.boss_routine.theme) + 1)
+			var available := get_available_themes(enemy)
+			var next := (available.find(int(enemy.boss_routine.theme)) + 1) % maxi(1, available.size())
+			reset(enemy, int(available[next]) if not available.is_empty() else 0)
+
+
+static func _update_finishing(enemy, delta: float) -> void:
+	ATTACKS.update_danmaku_stream(enemy, delta)
+	ATTACKS.update_lasers(enemy, delta)
+	if enemy.boss_peacock_charge_remaining > 0.0:
+		ATTACKS.update_peacock_attack(enemy, delta)
+	if enemy.boss_aimed_shots_remaining > 0 or enemy.boss_orbit_pull_remaining > 0.0:
+		ATTACKS.update_orbit_bomb(enemy, delta, true, false)
+
+
+static func _finished(enemy) -> bool:
+	if enemy.boss_danmaku_wave < ATTACKS.DANMAKU_WAVES or enemy.boss_aimed_shots_remaining > 0:
+		return false
+	if enemy.boss_laser_remaining > 0.0 or enemy.boss_peacock_charge_remaining > 0.0 or enemy.boss_orbit_pull_remaining > 0.0:
+		return false
+	return not PROJECTILES.has_projectiles_from_source(enemy)
 
 
 static func _shielded(enemy) -> bool:
@@ -217,18 +274,26 @@ static func _update_performance(enemy, delta: float) -> void:
 
 
 static func restore(enemy, saved: Variant) -> void:
-	if not saved is Dictionary or str(saved.get("stage", "")) not in ["basic", "preview", "performance", "recovery"]:
+	if not saved is Dictionary or str(saved.get("stage", "")) not in ["basic", "preview", "performance", "finishing", "recovery"]:
 		stop_attacks(enemy)
 		reset(enemy)
 		return
 	var stage := str(saved.stage)
 	enemy.boss_routine = {
 		"stage": stage,
-		"elapsed": clampf(float(saved.get("elapsed", 0.0)), 0.0, get_duration(enemy, stage)),
+		"elapsed": maxf(0.0, float(saved.get("elapsed", 0.0))) if stage == "finishing" else clampf(float(saved.get("elapsed", 0.0)), 0.0, get_duration(enemy, stage)),
 		"theme": posmod(int(saved.get("theme", 0)), THEMES.size()),
 		"events": int(saved.get("events", 0)),
 		"laser_aim": float(saved.get("laser_aim", 0.0))
 	}
+	# Old shielded saves may contain a performance from the previous rules.
+	if _shielded(enemy) and stage != "basic":
+		stop_attacks(enemy)
+		reset(enemy)
+		return
+	var available := get_available_themes(enemy)
+	if stage in ["basic", "preview"] and not available.is_empty() and int(enemy.boss_routine.theme) not in available:
+		enemy.boss_routine.theme = available[0]
 	if stage in ["preview", "recovery"]:
 		stop_attacks(enemy)
 	if stage == "preview":

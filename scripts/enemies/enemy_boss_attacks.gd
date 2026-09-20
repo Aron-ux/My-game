@@ -199,7 +199,7 @@ static func start_orbit_bomb(enemy) -> void:
 	enemy._ensure_boss_orbit_ball()
 	enemy._spawn_status_burst(Color(0.05, 0.0, 0.08, 0.28), 42.0 + enemy.scale.x * 8.0)
 
-static func update_orbit_bomb(enemy, delta: float, fire_aimed: bool = true) -> void:
+static func update_orbit_bomb(enemy, delta: float, fire_aimed: bool = true, start_new_burst: bool = true) -> void:
 	enemy._ensure_boss_orbit_ball()
 	if enemy.boss_orbit_pull_remaining <= 0.0:
 		enemy.boss_orbit_bomb_angle = wrapf(enemy.boss_orbit_bomb_angle + ORBIT_ROTATION_SPEED * delta, 0.0, TAU)
@@ -210,7 +210,7 @@ static func update_orbit_bomb(enemy, delta: float, fire_aimed: bool = true) -> v
 			enemy.boss_orbit_ball.rotation = -enemy.status_visual_time * 1.26
 	_update_orbit_pull(enemy, delta)
 	if fire_aimed:
-		_update_orbit_aimed_burst(enemy, delta)
+		_update_orbit_aimed_burst(enemy, delta, start_new_burst)
 
 static func _update_orbit_pull(enemy, delta: float) -> void:
 	if enemy.boss_orbit_pull_remaining > 0.0:
@@ -221,13 +221,14 @@ static func _update_orbit_pull(enemy, delta: float) -> void:
 	_update_orbit_gather_visual(enemy, 1.0, false)
 	_sync_target_pull_status(enemy, 0.0)
 
-static func _update_orbit_aimed_burst(enemy, delta: float) -> void:
+static func _update_orbit_aimed_burst(enemy, delta: float, start_new_burst: bool = true) -> void:
 	if enemy.boss_orbit_ball == null or not is_instance_valid(enemy.boss_orbit_ball):
 		return
 	if enemy.target == null or not is_instance_valid(enemy.target):
 		return
-	enemy.boss_orbit_bomb_shot_timer -= delta
-	if enemy.boss_orbit_bomb_shot_timer <= 0.0:
+	if start_new_burst:
+		enemy.boss_orbit_bomb_shot_timer -= delta
+	if start_new_burst and enemy.boss_orbit_bomb_shot_timer <= 0.0:
 		enemy.boss_orbit_bomb_shot_timer += ORBIT_AIMED_BURST_INTERVAL
 		enemy.boss_aimed_shots_remaining = ORBIT_AIMED_BURST_COUNT
 		enemy.boss_aimed_shot_timer = 0.0

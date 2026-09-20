@@ -38,8 +38,8 @@ func _check_roster_and_defaults() -> void:
 	var mechanic_data: Dictionary = ROLE_DATABASE.get_role_data_by_id("mechanic")
 	if str(mechanic_data.get("name", "")) != "机械师":
 		failures.append("mechanic role data should be named 机械师")
-	if not is_equal_approx(float(mechanic_data.get("base_health", 0.0)), 120.0):
-		failures.append("mechanic base health should be 120")
+	if not is_equal_approx(float(mechanic_data.get("base_health", 0.0)), 170.0):
+		failures.append("mechanic base health should be 170")
 
 	var story_profile: Dictionary = SAVE_PROFILE_DEFAULTS.ensure_story_profile_defaults({}, 1)
 	var story_team: Array = story_profile.get("team_order", [])

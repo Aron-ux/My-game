@@ -56,12 +56,16 @@ func _run() -> void:
 	check(boss.boss_routine.stage == "basic", "first bar has a full 12s basic segment")
 	check(not scene.active.is_empty(), "basic segment fires radial attacks")
 	for bullet in scene.active.values():
-		check(bullet.motion_mode == "straight" and bullet.visual_style == "boss_dark_orb", "shielded basic cannot leak advanced skills")
+		check(bullet.motion_mode == "straight" and bullet.visual_style == "boss_danmaku_violet_orb", "shielded basic cannot leak advanced skills")
 	check(boss.boss_laser_remaining == 0.0, "independent laser cooldown must not bypass routine")
 	var ordinary = RUNTIME.BULLET.instantiate()
 	scene.add_child(ordinary)
 	ordinary.reset_projectile({"position": Vector2(800, 0), "target": target, "speed": 0.0, "lifetime": 100.0, "source_enemy_kind": "normal", "source_enemy_instance_id": 123})
-	advance(scene, boss, 0.1)
+	advance(scene, boss, 24.1)
+	check(boss.boss_routine.stage == "basic" and ROUTINE.get_available_themes(boss).is_empty(), "shield intact stays in basic combat indefinitely")
+	STATE.start_shield_break_intro(boss)
+	advance(scene, boss, 5.0)
+	advance(scene, boss, 12.0)
 	check(boss.boss_routine.stage == "preview", "basic transitions to preview at 12s")
 	check(boss.get_boss_ui_payload().status.label.contains("污染迸发"), "preview announces its theme through real HUD payload")
 	check(MOTION.compute_boss_velocity(boss, Vector2.RIGHT, 500.0, 0.02) == Vector2.ZERO, "Boss holds position during preview")
@@ -88,14 +92,38 @@ func _run() -> void:
 	DAMAGE.apply_damage(boss, 10.0, false)
 	check(boss.current_health < health, "performance must allow normal player damage")
 	advance(scene, boss, 9.4)
-	check(boss.boss_routine.stage == "recovery", "performance ends after 15s")
-	check(boss.boss_danmaku_wave == 6 and boss.boss_aimed_shots_remaining == 0, "recovery cancels all pending volleys")
-	advance(scene, boss, 1.99)
-	check(boss.boss_routine.stage == "recovery", "recovery supplies full two-second output window")
+	check(boss.boss_routine.stage == "finishing", "15s ends emission, not the live performance")
+	check(ROUTINE.get_armor_modifier(boss) == 0.0, "tail is not yet the armor vulnerability window")
+	var tail_bullets := 0
 	for bullet in scene.active.values():
-		check(bullet == ordinary, "recovery finishes clearing Boss bullets without new attacks")
+		if bullet != ordinary:
+			tail_bullets += 1
+			check(bullet.clear_fade_remaining == 0.0, "last bullets are not forcibly faded")
+	check(tail_bullets > 0, "last wave remains on screen at the boundary")
+	var tail_save: Dictionary = JSON.parse_string(JSON.stringify(boss.get_save_data()))
+	boss.apply_save_data(tail_save, target)
+	check(boss.boss_routine.stage == "finishing", "load preserves natural tail")
+	var tail_time := 0.0
+	while boss.boss_routine.stage == "finishing" and tail_time < 25.0:
+		advance(scene, boss, 0.05)
+		tail_time += 0.05
+	check(boss.boss_routine.stage == "recovery" and tail_time > 1.0, "recovery waits for live bullets to finish")
+	for bullet in scene.active.values():
+		check(bullet == ordinary, "all Boss bullets end naturally before recovery")
+	boss.boss_routine.elapsed = 0.0
+	health = boss.current_health
+	DAMAGE.apply_damage(boss, 100.0, false)
+	var expected_damage := preload("res://scripts/combat/armor_rules.gd").apply_damage(100.0, -40.0) * 0.9
+	check(absf(health - boss.current_health - expected_damage) < 0.01, "recovery damage uses base armor 10 minus 50 before 10% reduction")
+	check(boss.armor == 10.0, "temporary penalty never mutates base armor")
+	var recovery_save: Dictionary = JSON.parse_string(JSON.stringify(boss.get_save_data()))
+	boss.apply_save_data(recovery_save, target)
+	check(ROUTINE.get_armor_modifier(boss) == -50.0 and boss.armor == 10.0, "load restores recovery penalty exactly once")
+	advance(scene, boss, 3.99)
+	check(boss.boss_routine.stage == "recovery", "recovery supplies full four-second output window")
 	advance(scene, boss, 0.01)
-	check(boss.boss_routine.stage == "basic" and boss.boss_routine.theme == 1, "cycle advances to spiral theme")
+	check(boss.boss_routine.stage == "basic" and boss.boss_routine.theme == 0, "first broken-shield bar only rotates the simple theme")
+	check(ROUTINE.get_armor_modifier(boss) == 0.0, "armor recovers at the exact end of recovery")
 	scene.clear_bullets()
 
 	# Fade remains harmless through JSON save/load, even for split parents.
@@ -130,8 +158,9 @@ func _run() -> void:
 	check(boss.boss_laser_remaining == 0.0 and boss.boss_aimed_shots_remaining == 0, "spiral excludes unrelated attacks")
 	scene.clear_bullets()
 
+	boss.boss_phase = 3
 	start_performance(scene, boss, 2)
-	advance(scene, boss, 5.2)
+	advance(scene, boss, 7.2)
 	check(ROUTINE.is_laser_warning(boss) and boss.boss_laser_remaining == 0.0, "overload gives harmless laser warning first")
 	check(absf(float(boss.get_boss_ui_payload().status.remaining) - 1.0) < 0.001, "laser warning HUD counts down to firing, not end of performance")
 	var locked_angle: float = boss.boss_routine.laser_aim
@@ -146,6 +175,7 @@ func _run() -> void:
 	var ray: Line2D = restored.boss_laser_lines[0]
 	check(absf(ray.to_global(ray.points[1]).distance_to(ray.to_global(ray.points[0])) - 980.0) < 0.01, "rendered laser length matches world collision length")
 	# Damage can interrupt the active performance and clean every hostile cue.
+	restored.boss_phase = 2
 	restored.current_health = 10.0
 	DAMAGE.apply_damage(restored, 100.0, false)
 	check(restored.boss_phase_transition_target == 3, "player can end performance by defeating its health bar")

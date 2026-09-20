@@ -73,8 +73,16 @@ func _run() -> void:
 	_advance(scene, boss, 12.0)
 	await _capture(viewport, hud, boss, "routine-bloom")
 	_advance(scene, boss, 4.5)
+	assert(boss.boss_routine.stage == "finishing")
+	await _capture(viewport, hud, boss, "routine-finishing")
+	for frame in range(1200):
+		if boss.boss_routine.stage == "recovery":
+			break
+		_advance(scene, boss, 1.0 / 60.0)
+	assert(boss.boss_routine.stage == "recovery" and scene.active.is_empty())
 	await _capture(viewport, hud, boss, "routine-recovery")
 	for theme in [1, 2]:
+		boss.boss_phase = 2 if theme == 1 else 3
 		scene.clear_bullets()
 		ROUTINE.stop_attacks(boss)
 		ROUTINE.reset(boss, theme)
@@ -84,10 +92,11 @@ func _run() -> void:
 			_advance(scene, boss, 11.0)
 			await _capture(viewport, hud, boss, "routine-spiral")
 		else:
-			_advance(scene, boss, 5.5)
+			_advance(scene, boss, 7.5)
 			await _capture(viewport, hud, boss, "routine-laser-warning")
 			_advance(scene, boss, 2.0)
 			await _capture(viewport, hud, boss, "routine-overload")
+	boss.boss_phase = 3
 	for theme in range(3, ROUTINE.THEMES.size()):
 		scene.clear_bullets()
 		ROUTINE.stop_attacks(boss)
@@ -95,7 +104,7 @@ func _run() -> void:
 		ROUTINE.advance_stage(boss)
 		_advance(scene, boss, 1.5)
 		for section in range(3):
-			_advance(scene, boss, 4.0 if section == 0 else 5.0)
+			_advance(scene, boss, 4.0 if section == 0 else 6.0)
 			await _capture(viewport, hud, boss, "orb-theme-%d-section-%d" % [theme, section])
 	scene.free()
 	current_scene = null
@@ -118,4 +127,6 @@ func _capture(viewport: SubViewport, hud, boss, filename: String) -> void:
 	await process_frame
 	await RenderingServer.frame_post_draw
 	assert(hud.boss_status_label.visible and hud.boss_status_label.text.contains(data.status.label), "real HUD must display the active stage name")
+	if not bool(data.status.get("countdown", true)):
+		assert(not hud.boss_status_bar.visible and not hud.boss_status_label.text.contains("0.0s"), "natural completion has a label without a fake timer")
 	viewport.get_texture().get_image().save_png("res://.omx/boss-rework/%s.png" % filename)

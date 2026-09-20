@@ -847,16 +847,18 @@ func hide_boss_ui() -> void:
 func _update_boss_status_ui(status_payload: Dictionary) -> void:
 	var remaining: float = float(status_payload.get("remaining", 0.0))
 	var duration: float = max(0.001, float(status_payload.get("duration", 0.0)))
-	if remaining <= 0.0:
+	var countdown := bool(status_payload.get("countdown", true))
+	if remaining <= 0.0 and countdown:
 		if boss_status_label != null:
 			boss_status_label.visible = false
 		if boss_status_bar != null:
 			boss_status_bar.visible = false
 		return
 	if boss_status_label != null:
-		boss_status_label.text = "%s %.1fs" % [str(status_payload.get("label", "状态")), remaining]
+		var label := str(status_payload.get("label", "状态"))
+		boss_status_label.text = "%s %.1fs" % [label, remaining] if countdown else label
 		boss_status_label.visible = true
 	if boss_status_bar != null:
 		boss_status_bar.max_value = duration
 		boss_status_bar.value = clamp(remaining, 0.0, duration)
-		boss_status_bar.visible = true
+		boss_status_bar.visible = countdown

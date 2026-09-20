@@ -177,7 +177,7 @@ func _check_legacy_role_balance_migration(player: Node) -> void:
 			"mage":
 				role["base_health"] = 50.0
 	var normalized_roles: Array = player._normalize_loaded_roles(legacy_roles)
-	var expected_health := {"swordsman": 150.0, "gunner": 120.0, "mage": 120.0}
+	var expected_health := {"swordsman": 200.0, "gunner": 170.0, "mage": 170.0}
 	for role_variant in normalized_roles:
 		var role: Dictionary = role_variant
 		var role_id := str(role.get("id", ""))

@@ -24,6 +24,7 @@ static func apply_damage(enemy, amount: float, show_feedback: bool = true, is_cr
 	var effective_armor: float = float(armor_value) if armor_value != null else 0.0
 	if enemy.enemy_kind == "boss":
 		effective_armor += ENEMY_BOSS_STATE.get_shield_armor_bonus(enemy)
+		effective_armor += ENEMY_BOSS_STATE.ROUTINE.get_armor_modifier(enemy)
 	var fury_shred: Variant = enemy.get("fury_armor_shred")
 	effective_armor -= float(fury_shred) if fury_shred != null else 0.0
 	if HEAVY_ARMOR.is_active(enemy):

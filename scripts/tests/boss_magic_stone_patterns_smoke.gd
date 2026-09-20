@@ -111,13 +111,14 @@ func _run() -> void:
 	scene.difficulty_speed_bonus = 0.0
 	scene.clear_bullets()
 
+	boss.boss_phase = 3
 	for theme in range(ROUTINE.THEMES.size()):
 		ROUTINE.stop_attacks(boss)
 		ROUTINE.reset(boss, theme)
 		ROUTINE.advance_stage(boss)
 		ROUTINE.advance_stage(boss)
 		var seen: Dictionary = {}
-		for frame in range(900):
+		for frame in range(1080):
 			STATE.update_boss_trait(boss, 1.0 / 60.0)
 			seen[boss.boss_danmaku_pattern] = true
 			for bullet in scene.active.values():
@@ -132,7 +133,10 @@ func _run() -> void:
 				loaded.free()
 		for expected in ROUTINE.THEME_PATTERNS[theme]:
 			check(seen.has(expected), "every performance must actually execute its three distinct sections")
-		check(boss.boss_routine.stage == "recovery", "all six performances retain the 15s duration")
+		check(boss.boss_routine.stage == "finishing", "all six final-bar performances emit for 18s then finish naturally")
+		scene.clear_bullets()
+		ROUTINE.stop_attacks(boss)
+		ROUTINE.advance_stage(boss)
 		ROUTINE.advance_stage(boss)
 		check(boss.boss_routine.theme == (theme + 1) % ROUTINE.THEMES.size(), "theme rotation must include all six themes")
 		scene.clear_bullets()
@@ -140,7 +144,7 @@ func _run() -> void:
 	for phase in [2, 3]:
 		STATE.start_phase_transition(boss, phase)
 		STATE.update_boss_trait(boss, 5.0)
-		check(boss.boss_routine.theme == (3 if phase == 2 else 5), "later health bars open with distinct dark-stone performances")
+		check(boss.boss_routine.theme == (1 if phase == 2 else 5), "later health bars open with distinct dark-stone performances")
 	scene.free()
 	current_scene = null
 	if failures.is_empty():

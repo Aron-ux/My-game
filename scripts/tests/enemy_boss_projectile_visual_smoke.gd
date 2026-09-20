@@ -14,9 +14,9 @@ func _run() -> void:
 	root.add_child(scene)
 	current_scene = scene
 
-	await _check_style(scene, "boss_dark_orb", true, false)
+	await _check_style(scene, "boss_dark_orb", true, true)
 	await _check_style(scene, "boss_dark_core_orb", true, true)
-	await _check_style(scene, "boss_turning_hex", false, false)
+	await _check_style(scene, "boss_turning_hex", true, true)
 	_check_legacy_danmaku(scene)
 
 	scene.queue_free()
@@ -74,6 +74,10 @@ func _check_legacy_danmaku(scene: Node2D) -> void:
 	bullet._update_danmaku_motion()
 	var expected_position: Vector2 = bullet.position
 	var old_styles := {
+		"boss_dark_orb": "boss_danmaku_violet_orb",
+		"boss_dark_core_orb": "boss_danmaku_shadow_orb",
+		"boss_turning_hex": "boss_danmaku_violet_orb",
+		"boss_dark_triangle": "boss_danmaku_shadow_orb",
 		"boss_danmaku_butterfly": "boss_danmaku_shadow_orb",
 		"boss_danmaku_petal": "boss_danmaku_violet_orb",
 		"boss_danmaku_rice": "boss_danmaku_violet_orb",

@@ -28,7 +28,7 @@ func _run() -> void:
 		var seen_themes: Dictionary = {}
 		var seen_patterns: Dictionary = {}
 		# Six complete third-bar cycles exercise every authored performance.
-		var frame_count := 10800
+		var frame_count := 16200
 		for frame in range(frame_count):
 			var start := Time.get_ticks_usec()
 			STATE.update_boss_trait(boss, 1.0 / 60.0)

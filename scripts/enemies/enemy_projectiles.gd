@@ -145,6 +145,17 @@ static func spawn_projectile(enemy, origin: Vector2, shot_direction: Vector2, sh
 				projectile.set(key, config[key])
 	return projectile
 
+static func has_projectiles_from_source(enemy) -> bool:
+	var current_scene := _get_enemy_current_scene(enemy)
+	if current_scene == null:
+		return false
+	var projectiles: Array = current_scene.get_runtime_enemy_projectiles() if current_scene.has_method("get_runtime_enemy_projectiles") else current_scene.get_tree().get_nodes_in_group("enemy_projectiles")
+	for projectile in projectiles:
+		if is_instance_valid(projectile) and not projectile.is_queued_for_deletion() and _is_projectile_from_source(projectile, enemy.get_instance_id(), str(enemy.enemy_kind)):
+			return true
+	return false
+
+
 static func clear_projectiles_from_source(enemy, fade_duration: float = 0.0) -> void:
 	if enemy == null or not is_instance_valid(enemy):
 		return
