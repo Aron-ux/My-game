@@ -3,7 +3,7 @@ extends RefCounted
 const ATTACKS := preload("res://scripts/enemies/enemy_boss_attacks.gd")
 const VISUALS := preload("res://scripts/enemies/enemy_boss_visuals.gd")
 const PROJECTILES := preload("res://scripts/enemies/enemy_projectiles.gd")
-const THEMES := ["污染绽放", "双螺旋回廊", "魔核过载", "冥蝶之舞", "幽樱流转", "返魂蝶潮"]
+const THEMES := ["污染迸发", "暗流回旋", "魔核过载", "裂隙脉冲", "蚀晶风暴", "深渊倾泻"]
 const THEME_PATTERNS := [[4, 0, 9], [1, 5, 10], [2, 11, 8], [3, 6, 8], [9, 4, 7], [6, 7, 11]]
 const PHASE_OPENING_THEMES := [0, 3, 5]
 const PREVIEW_DURATION := 1.5

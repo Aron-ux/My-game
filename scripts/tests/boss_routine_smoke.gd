@@ -63,7 +63,7 @@ func _run() -> void:
 	ordinary.reset_projectile({"position": Vector2(800, 0), "target": target, "speed": 0.0, "lifetime": 100.0, "source_enemy_kind": "normal", "source_enemy_instance_id": 123})
 	advance(scene, boss, 0.1)
 	check(boss.boss_routine.stage == "preview", "basic transitions to preview at 12s")
-	check(boss.get_boss_ui_payload().status.label.contains("污染绽放"), "preview announces its theme through real HUD payload")
+	check(boss.get_boss_ui_payload().status.label.contains("污染迸发"), "preview announces its theme through real HUD payload")
 	check(MOTION.compute_boss_velocity(boss, Vector2.RIGHT, 500.0, 0.02) == Vector2.ZERO, "Boss holds position during preview")
 	var neighbor = RUNTIME.ENEMY.instantiate()
 	scene.add_child(neighbor)

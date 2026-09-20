@@ -29,13 +29,13 @@ static func fire_radial_burst(enemy, count: int = -1) -> void:
 			(255.0 + float(enemy.boss_phase - 1) * 12.0) * BOSS_PROJECTILE_SPEED_SCALE,
 			enemy.attack * 0.8,
 			10.0,
-			Color(1.0, 0.38, 0.12, 1.0),
+			Color(0.60, 0.32, 0.96, 1.0),
 			"straight",
 			{"size_scale": 1.15, "visual_style": "boss_dark_orb"}
 		)
 	var rotation_step: float = TAU / float(max(1, bullet_count)) * 0.5
 	enemy.boss_pattern_rotation = wrapf(base_angle + rotation_step + randf_range(-0.06, 0.06), 0.0, TAU)
-	enemy._spawn_status_burst(Color(1.0, 0.44, 0.16, 0.16), 34.0 + enemy.scale.x * 8.0)
+	enemy._spawn_status_burst(Color(0.60, 0.32, 0.96, 0.16), 34.0 + enemy.scale.x * 8.0)
 
 static func fire_quarter_sine_ring(enemy, count: int = 12, pattern: int = -1, spin: float = 1.0) -> void:
 	# Keep the existing entry point/cooldown; each cast is now a complete
@@ -252,8 +252,8 @@ static func _fire_aimed_volley(enemy) -> void:
 			shot_direction, 405.0 * BOSS_PROJECTILE_SPEED_SCALE,
 			enemy.projectile_damage * 0.48,
 			5.2,
-			Color(1.0, 0.38, 0.64), "straight",
-			{"size_scale": 1.0, "hit_radius": 7.0, "visual_style": "boss_danmaku_arrow"}
+			Color(0.62, 0.38, 1.0), "straight",
+			{"size_scale": 1.0, "hit_radius": 7.0, "visual_style": "boss_danmaku_spike"}
 		)
 
 static func _pull_target_to_orbit_ball(enemy, delta: float) -> void:
@@ -335,7 +335,7 @@ static func _update_orbit_gather_visual(enemy, remaining_ratio: float, visible: 
 static func start_peacock_attack(enemy) -> void:
 	enemy.boss_peacock_charge_remaining = 0.78
 	enemy._ensure_boss_peacock_markers(7)
-	enemy._spawn_status_burst(Color(0.98, 0.86, 0.42, 0.2), 48.0 + enemy.scale.x * 8.0)
+	enemy._spawn_status_burst(Color(0.60, 0.40, 1.0, 0.2), 48.0 + enemy.scale.x * 8.0)
 
 static func update_peacock_attack(enemy, delta: float) -> void:
 	if enemy.boss_peacock_charge_remaining <= 0.0:
@@ -377,7 +377,7 @@ static func update_peacock_attack(enemy, delta: float) -> void:
 					row_speed,
 					row_damage,
 					5.2 * BOSS_PROJECTILE_LIFETIME_SCALE,
-					Color(1.0, 0.82, 0.4, 1.0),
+					Color(0.60, 0.40, 1.0, 1.0),
 					"turning",
 					{
 						"turn_start_delay": 0.24 + row_ratio * 0.08,
@@ -388,5 +388,5 @@ static func update_peacock_attack(enemy, delta: float) -> void:
 						"visual_style": "boss_turning_hex"
 					}
 				)
-		enemy._spawn_status_burst(Color(1.0, 0.86, 0.44, 0.22), 52.0 + enemy.scale.x * 8.0)
+		enemy._spawn_status_burst(Color(0.60, 0.40, 1.0, 0.22), 52.0 + enemy.scale.x * 8.0)
 		enemy._clear_boss_peacock_markers()

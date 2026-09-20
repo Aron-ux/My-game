@@ -58,7 +58,7 @@ func _run() -> void:
 			sample.batch_physics_process(0.17)
 			restored.batch_physics_process(0.17)
 			check(sample.position.distance_to(restored.position) < 0.001, "all pattern paths must survive JSON load")
-			check(is_equal_approx(sample.rotation, restored.rotation), "loaded petals must face the same direction")
+			check(is_equal_approx(sample.rotation, restored.rotation), "loaded crystals must face the same direction")
 			restored.free()
 
 		# Resuming a six-wave cast must keep its new (>2) pattern and locked aim.
@@ -140,11 +140,11 @@ func _run() -> void:
 	for phase in [2, 3]:
 		STATE.start_phase_transition(boss, phase)
 		STATE.update_boss_trait(boss, 5.0)
-		check(boss.boss_routine.theme == (3 if phase == 2 else 5), "later health bars open with new butterfly performances")
+		check(boss.boss_routine.theme == (3 if phase == 2 else 5), "later health bars open with distinct dark-stone performances")
 	scene.free()
 	current_scene = null
 	if failures.is_empty():
-		print("BOSS_YUYUKO_PATTERNS_SMOKE_OK")
+		print("BOSS_MAGIC_STONE_PATTERNS_SMOKE_OK")
 		quit(0)
 	else:
 		for failure in failures:

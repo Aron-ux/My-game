@@ -56,7 +56,7 @@ func _run() -> void:
 				if color.v > 0.6 and color.s > 0.25:
 					colored_pixels += 1
 		assert(colored_pixels > 1000, "colored danmaku must be visible in GPU output")
-		image.save_png("res://.omx/boss-rework/danmaku-pattern-%d.png" % pattern)
+		image.save_png("res://.omx/boss-rework/darkstone-pattern-%d.png" % pattern)
 	scene.clear_bullets()
 	boss.boss_phase = 2
 	boss.boss_shield_break_intro_played = true
@@ -96,7 +96,7 @@ func _run() -> void:
 		_advance(scene, boss, 1.5)
 		for section in range(3):
 			_advance(scene, boss, 4.0 if section == 0 else 5.0)
-			await _capture(viewport, hud, boss, "yuyuko-theme-%d-section-%d" % [theme, section])
+			await _capture(viewport, hud, boss, "darkstone-theme-%d-section-%d" % [theme, section])
 	scene.free()
 	current_scene = null
 	viewport.free()

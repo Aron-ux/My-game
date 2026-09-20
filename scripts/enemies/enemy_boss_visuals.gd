@@ -91,7 +91,7 @@ static func ensure_boss_peacock_markers(enemy, count: int) -> void:
 	clear_boss_peacock_markers(enemy)
 	for index in range(count):
 		var marker := Polygon2D.new()
-		marker.color = Color(0.98, 0.84, 0.38, 0.72)
+		marker.color = Color(0.60, 0.40, 1.0, 0.72)
 		marker.polygon = PackedVector2Array([
 			Vector2(0.0, -10.0),
 			Vector2(10.0, 0.0),
@@ -130,7 +130,7 @@ static func clear_boss_phase_three_charge_visuals(enemy) -> void:
 
 static func update_boss_spell_preview(enemy, progress: float, theme: int) -> void:
 	ensure_boss_helpers(enemy)
-	var colors := [Color(1.0, 0.25, 0.78), Color(0.18, 0.92, 1.0), Color(0.45, 1.0, 0.35), Color(0.73, 0.42, 1.0), Color(1.0, 0.58, 0.77), Color(1.0, 0.28, 0.38)]
+	var colors := [Color(0.64, 0.28, 1.0), Color(0.36, 0.52, 1.0), Color(0.78, 0.30, 1.0), Color(0.56, 0.35, 0.96), Color(0.42, 0.58, 1.0), Color(0.72, 0.28, 0.94)]
 	var color: Color = colors[posmod(theme, colors.size())]
 	for index in range(enemy.boss_phase_charge_rings.size()):
 		var ring: Line2D = enemy.boss_phase_charge_rings[index]
@@ -140,8 +140,8 @@ static func update_boss_spell_preview(enemy, progress: float, theme: int) -> voi
 			var points := ring.points
 			for point_index in range(points.size()):
 				var angle: float = points[point_index].angle()
-				var lobes := 4.0 if theme == 3 or theme == 5 else 5.0
-				points[point_index] *= 0.8 + 0.2 * cos(angle * lobes)
+				# Broken, jagged concentric seals; no organic wing outline.
+				points[point_index] *= 0.76 + 0.24 * absf(sin(angle * 3.0 + index * 0.4))
 			ring.points = points
 		ring.rotation = progress * PI * (1.0 if index % 2 == 0 else -1.0)
 		ring.width = 2.0 + progress * 3.0
