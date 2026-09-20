@@ -3,6 +3,8 @@ extends SceneTree
 const RUNTIME := preload("res://scripts/tests/boss_danmaku_test_runtime.gd")
 const STATE := preload("res://scripts/enemies/enemy_boss_state.gd")
 const BUDGET := preload("res://scripts/enemies/boss_danmaku_budget.gd")
+const BATCH := preload("res://scripts/enemies/enemy_projectile_batch_simulation.gd")
+const RENDERER := preload("res://scripts/enemies/boss_projectile_renderer.gd")
 
 
 func _init() -> void:
@@ -35,9 +37,8 @@ func _run() -> void:
 			if boss.boss_routine.stage == "performance":
 				seen_themes[boss.boss_routine.theme] = true
 				seen_patterns[boss.boss_danmaku_pattern] = true
-			for bullet in scene.active.values():
-				if not bullet.is_queued_for_deletion():
-					bullet.batch_physics_process(1.0 / 60.0)
+			scene.remove_meta(BATCH.BATCH_FRAME_META_KEY)
+			BATCH.update_enemy_projectiles(scene, 1.0 / 60.0)
 			var elapsed := Time.get_ticks_usec() - start
 			usecs += elapsed
 			worst_usecs = maxi(worst_usecs, elapsed)
@@ -56,6 +57,7 @@ func _run() -> void:
 			float(samples[int(frame_count * 0.95)]) / 1000.0, float(worst_usecs) / 1000.0])
 		boss._clear_boss_runtime_effects()
 		assert(get_node_count_in_group(BUDGET.GROUP) == 0, "Boss death must free its bullet capacity immediately")
+		assert(scene.get_meta(RENDERER.META_KEY).members.is_empty(), "Boss death also clears all batched visuals")
 		scene.free()
 		current_scene = null
 	print("BOSS_DANMAKU_STRESS_SMOKE_OK")

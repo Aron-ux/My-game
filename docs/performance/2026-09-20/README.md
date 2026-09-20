@@ -2,6 +2,10 @@
 
 Godot 4.6.2 Windows；各结果标明 headless 或实际渲染方式，测试时不并行运行其他性能基准。各轮基线不同，不能将后续收益再次当成相对原始提交的收益。
 
+## 最终 Boss 全阶段
+
+以 `b36bec9` 为基线，统一优化所有阶段的弹丸绘制、生成与碰撞查询。OpenGL 同次对照覆盖 13 种场景，弹量、峰值和实际伤害一致；最终阶段六主题平均帧耗时下降约 60%～67%。详见 [全阶段实现、数据与验证](boss-all-phases.md)，该结果仅代表固定 Boss 测试场景。
+
 ## 第三轮
 
 基线：完成第二轮优化的工作区。`bullet.gd`、`player_projectile_batch.gd`、`enemy_occlusion_sort.gd` 在第三轮前仍与 `32b7782` 一致；Vulkan 基线使用这三个原文件的隔离副本，其余依赖保持当前工作区，候选使用新代码。隔离副本与其基准入口保存在本机 `.omx/performance/round3_reference/`。

@@ -1,11 +1,14 @@
 extends RefCounted
 
 const PERFORMANCE_COUNTERS := preload("res://scripts/game/performance_counters.gd")
+const ENEMY_BULLET := preload("res://scripts/enemy_bullet.gd")
+const BOSS_RENDERER := preload("res://scripts/enemies/boss_projectile_renderer.gd")
+const FRAME_CONTEXT := preload("res://scripts/enemies/enemy_projectile_frame_context.gd")
 
 const BATCH_FRAME_META_KEY := "__enemy_projectile_batch_simulation_frame"
 
 
-static func update_enemy_projectiles(scene: Node, delta: float) -> void:
+static func update_enemy_projectiles(scene: Node, delta: float, render_boss_projectiles: bool = true) -> void:
 	if scene == null or delta <= 0.0:
 		return
 	var current_frame: int = Engine.get_physics_frames()
@@ -13,8 +16,28 @@ static func update_enemy_projectiles(scene: Node, delta: float) -> void:
 		return
 	scene.set_meta(BATCH_FRAME_META_KEY, current_frame)
 
+	var renderer: Node2D = BOSS_RENDERER.get_or_create(scene) if render_boss_projectiles else null
+	var context := FRAME_CONTEXT.new()
+	var profile := bool(scene.get_meta(&"_profile_boss_projectiles", false))
+	var started := Time.get_ticks_usec() if profile else 0
 	var updated_count := 0
 	for raw_projectile in _get_runtime_enemy_projectiles(scene):
+		if not is_instance_valid(raw_projectile):
+			continue
+		# The built-in projectile has a known interface. Avoid reflecting its
+		# property list and using call()/set() thousands of times per frame.
+		if raw_projectile is ENEMY_BULLET:
+			var bullet := raw_projectile as ENEMY_BULLET
+			if bullet.pooled or bullet.is_queued_for_deletion():
+				continue
+			if not bullet.batch_simulation_enabled:
+				bullet.batch_simulation_enabled = true
+				bullet.set_physics_process(false)
+			if renderer != null and bullet.boss_render_owner == null and bullet.visual_style.begins_with("boss_danmaku_"):
+				renderer.add_projectile(bullet)
+			bullet.batch_physics_process(delta, context)
+			updated_count += 1
+			continue
 		if raw_projectile == null or not is_instance_valid(raw_projectile) or raw_projectile is not Node:
 			continue
 		var projectile_node := raw_projectile as Node
@@ -31,6 +54,12 @@ static func update_enemy_projectiles(scene: Node, delta: float) -> void:
 		projectile_node.call("batch_physics_process", delta)
 		updated_count += 1
 
+	var render_started := Time.get_ticks_usec() if profile else 0
+	if renderer != null:
+		renderer.sync()
+	if profile:
+		scene.set_meta(&"_boss_simulation_usec", render_started - started)
+		scene.set_meta(&"_boss_render_upload_usec", Time.get_ticks_usec() - render_started)
 	if updated_count > 0:
 		PERFORMANCE_COUNTERS.add("batched_enemy_projectiles", updated_count)
 

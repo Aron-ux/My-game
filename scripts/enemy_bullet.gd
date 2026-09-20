@@ -5,6 +5,7 @@ const ENEMY_BULLET_SCENE := preload("res://scenes/enemy_bullet.tscn")
 const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
 const ENEMY_GEOMETRY := preload("res://scripts/enemies/enemy_geometry.gd")
 const BOSS_DANMAKU_BUDGET := preload("res://scripts/enemies/boss_danmaku_budget.gd")
+const FRAME_CONTEXT := preload("res://scripts/enemies/enemy_projectile_frame_context.gd")
 const MAX_TURN_CATCH_UP_TICKS := 8
 const POOL_GROUP := "enemy_projectile_pool"
 const POOL_SOFT_LIMIT := 96
@@ -99,6 +100,8 @@ var cached_straight_rotation: float = 0.0
 var clear_fade_remaining: float = 0.0
 var clear_fade_duration: float = 0.45
 var clear_fade_alpha: float = 1.0
+var boss_render_owner: Node2D
+var boss_render_slot := -1
 
 static var visual_shape_cache: Dictionary = {}
 
@@ -107,7 +110,14 @@ func _ready() -> void:
 		return
 	_initialize_runtime_state()
 
+
+func prepare_for_spawn() -> void:
+	# Spawners immediately call reset_projectile after adding the node.
+	# Skip constructing/registering an unused default projectile in _ready.
+	pooled = true
+
 func _exit_tree() -> void:
+	_release_boss_rendering()
 	_release_split_volley_membership()
 	_unregister_runtime_projectile()
 
@@ -206,6 +216,7 @@ func reset_projectile(config: Dictionary) -> void:
 	_initialize_runtime_state()
 
 func recycle() -> void:
+	_release_boss_rendering()
 	if motion_mode == "chain_head":
 		_seal_chain_trail()
 	_release_split_volley_membership()
@@ -263,8 +274,8 @@ func _physics_process(delta: float) -> void:
 		return
 	_run_physics_tick(delta)
 
-func batch_physics_process(delta: float) -> void:
-	_run_physics_tick(delta)
+func batch_physics_process(delta: float, context: FRAME_CONTEXT = null) -> void:
+	_run_physics_tick(delta, context)
 
 func can_use_batch_simulation() -> bool:
 	return not pooled
@@ -277,17 +288,22 @@ func begin_clear_fade(duration: float) -> void:
 	split_performed = true
 
 
-func _run_physics_tick(delta: float) -> void:
+func _run_physics_tick(delta: float, context: FRAME_CONTEXT = null) -> void:
 	if pooled:
 		return
 	if clear_fade_remaining > 0.0:
 		clear_fade_remaining = maxf(0.0, clear_fade_remaining - delta)
 		modulate.a = clear_fade_alpha * clear_fade_remaining / clear_fade_duration
+		if is_instance_valid(boss_render_owner):
+			boss_render_owner.update_color(self)
 		if clear_fade_remaining <= 0.0:
 			recycle()
 		return
 	var target_distance_sq: float = INF
-	if target != null and is_instance_valid(target) and target is Node2D:
+	if context != null:
+		if context.prepare(target):
+			target_distance_sq = global_position.distance_squared_to(context.position)
+	elif target != null and is_instance_valid(target) and target is Node2D:
 		target_distance_sq = global_position.distance_squared_to((target as Node2D).global_position)
 	if target_distance_sq > PLAYER_RELEVANCE_DISTANCE * PLAYER_RELEVANCE_DISTANCE:
 		recycle()
@@ -345,7 +361,9 @@ func _run_physics_tick(delta: float) -> void:
 		recycle()
 		return
 
-	_try_hit_player()
+	_try_hit_player(context)
+	if is_instance_valid(boss_render_owner):
+		boss_render_owner.update_transform(self)
 
 func _update_straight_motion(delta: float) -> void:
 	global_position += direction * speed * delta
@@ -562,7 +580,18 @@ func _update_returning_sine_motion(delta: float) -> bool:
 	rotation = direction.angle()
 	return false
 
-func _try_hit_player() -> void:
+func _try_hit_player(context: FRAME_CONTEXT = null) -> void:
+	if context != null:
+		if not context.prepare(target):
+			return
+		var radius := hit_radius + context.radius
+		if global_position.distance_squared_to(context.center) > radius * radius:
+			return
+		if context.accepts_damage:
+			target.take_damage(damage)
+		context.invalidate()
+		recycle()
+		return
 	if target == null or not is_instance_valid(target):
 		return
 	var target_center: Vector2 = target.global_position
@@ -585,6 +614,8 @@ func _update_lifetime_fade() -> void:
 	if color.a != alpha:
 		color.a = alpha
 		modulate = color
+		if is_instance_valid(boss_render_owner):
+			boss_render_owner.update_color(self)
 
 func _spawn_split_bullets() -> void:
 	split_performed = true
@@ -613,6 +644,8 @@ func _spawn_split_bullets() -> void:
 			bullet = current_scene.take_runtime_enemy_projectile_from_pool()
 		if bullet == null:
 			bullet = bullet_scene.instantiate()
+			if bullet != null:
+				bullet.prepare_for_spawn()
 		if bullet == null:
 			continue
 		var shot_direction := Vector2.RIGHT
@@ -673,6 +706,7 @@ func _get_relative_cross_split_direction(index: int) -> Vector2:
 			return -right
 
 func _apply_visuals() -> void:
+	_release_boss_rendering()
 	var polygon := get_node_or_null("Polygon2D") as Polygon2D
 	if polygon == null:
 		return
@@ -682,7 +716,14 @@ func _apply_visuals() -> void:
 		return
 	_clear_rose_flower_visuals()
 	if visual_style.begins_with("boss_"):
-		_apply_boss_projectile_visual(polygon)
+		var scene := get_tree().current_scene if is_inside_tree() else null
+		var renderer = scene.get_meta(&"_boss_projectile_renderer") if scene != null and scene.has_meta(&"_boss_projectile_renderer") else null
+		if is_instance_valid(renderer):
+			_normalize_boss_orb_style()
+			_clear_extra_visual("Ring")
+			renderer.add_projectile(self)
+		else:
+			_apply_boss_projectile_visual(polygon)
 		return
 	_clear_boss_projectile_visuals()
 	if visual_style == "solid_circle":
@@ -727,6 +768,12 @@ func _apply_visuals() -> void:
 	ring.width = 2.5 * max(size_scale, 0.8)
 	ring.default_color = Color(0.05, 0.02, 0.04, 0.7)
 	ring.points = ENEMY_GEOMETRY.build_circle_points(12.0 * polygon.scale.x, 14)
+
+
+func _release_boss_rendering() -> void:
+	if is_instance_valid(boss_render_owner):
+		boss_render_owner.remove_projectile(self)
+	boss_render_owner = null
 
 func _apply_solid_circle_visual(polygon: Polygon2D) -> void:
 	_clear_extra_visual("Glow")
@@ -777,13 +824,17 @@ func _get_danmaku_shape() -> PackedVector2Array:
 	return ENEMY_GEOMETRY.build_circle_points(8.0, 20)
 
 
-func _apply_danmaku_visual(polygon: Polygon2D) -> void:
+func _normalize_boss_orb_style() -> void:
 	# Old running saves can still contain the previous skin identifiers.
 	# Migrate visuals only: keep damage, motion, elapsed time and hit radius.
 	if LEGACY_DANMAKU_STYLES.has(visual_style):
 		visual_style = LEGACY_DANMAKU_STYLES[visual_style]
 	# Old blue/pink palettes and newly authored waves share the Boss's purple.
 	visual_color = Color.from_hsv(clampf(visual_color.h, 0.72, 0.80), 0.65, 1.0)
+
+
+func _apply_danmaku_visual(polygon: Polygon2D) -> void:
+	_normalize_boss_orb_style()
 	_clear_extra_visual("Ring")
 	var shape := _get_danmaku_shape()
 	var shadow := visual_style == "boss_danmaku_shadow_orb"

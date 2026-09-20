@@ -99,6 +99,8 @@ static func spawn_projectile(enemy, origin: Vector2, shot_direction: Vector2, sh
 	var projectile = _take_projectile_from_pool(current_scene)
 	if projectile == null:
 		projectile = enemy.projectile_scene.instantiate()
+		if projectile != null and projectile.has_method("prepare_for_spawn"):
+			projectile.prepare_for_spawn()
 	if projectile == null:
 		return null
 	var speed_multiplier := NON_BOSS_PROJECTILE_SPEED_MULTIPLIER if str(enemy.enemy_kind) != "boss" else 1.0
