@@ -84,6 +84,9 @@ func _run() -> void:
 	ATTACKS.update_danmaku_stream(restored_boss, 1.0)
 	check(scene.active.is_empty(), "transition cancels pending waves")
 	restored_boss.boss_phase = 1
+	restored_boss.boss_routine.stage = "performance"
+	restored_boss.boss_routine.elapsed = 1.0
+	restored_boss.boss_routine.theme = restored_boss.boss_danmaku_pattern
 	restored_boss.boss_radial_timer = 99.0
 	restored_boss.boss_sine_cooldown = 0.0
 	restored_boss.boss_danmaku_wave = 5
@@ -92,7 +95,7 @@ func _run() -> void:
 	STATE.update_boss_trait(restored_boss, 0.07)
 	check(restored_boss.boss_danmaku_wave == 5 and scene.active.is_empty(), "expired cooldown must not truncate pending last wave")
 	STATE.update_boss_trait(restored_boss, 0.08)
-	check(restored_boss.boss_danmaku_pattern == (pending_pattern + 1) % 3, "next pattern starts after last pending wave")
+	check(restored_boss.boss_danmaku_pattern == pending_pattern, "performance keeps its theme when the next wave starts")
 	check(scene.active.size() == 24 + restored_boss.boss_danmaku_count, "tail wave and next opening wave must both spawn")
 	scene.clear_bullets()
 	restored_boss.free()

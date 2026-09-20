@@ -145,7 +145,7 @@ static func spawn_projectile(enemy, origin: Vector2, shot_direction: Vector2, sh
 				projectile.set(key, config[key])
 	return projectile
 
-static func clear_projectiles_from_source(enemy) -> void:
+static func clear_projectiles_from_source(enemy, fade_duration: float = 0.0) -> void:
 	if enemy == null or not is_instance_valid(enemy):
 		return
 	var current_scene: Node = _get_enemy_current_scene(enemy)
@@ -168,7 +168,9 @@ static func clear_projectiles_from_source(enemy) -> void:
 			continue
 		if not _is_projectile_from_source(projectile, source_id, source_kind):
 			continue
-		if projectile.has_method("recycle"):
+		if fade_duration > 0.0 and projectile.has_method("begin_clear_fade"):
+			projectile.begin_clear_fade(fade_duration)
+		elif projectile.has_method("recycle"):
 			projectile.recycle()
 		else:
 			projectile.queue_free()

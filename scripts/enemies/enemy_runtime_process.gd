@@ -60,6 +60,12 @@ static func physics_process(enemy, delta: float) -> void:
 	enemy._cached_direction_to_target = enemy._cached_to_target.normalized() if enemy._cached_distance_to_target > 0.001 else Vector2.RIGHT
 	if enemy._has_timed_behavior_traits():
 		enemy._update_behavior_state(delta + enemy.throttled_motion_delta)
+	if str(enemy.archetype_id) == "boss_spellcore" and (str(enemy.boss_routine.get("stage", "basic")) != "basic" or enemy.boss_phase_transition_target > 0 or enemy.boss_shield_break_visual_intro_active):
+		# Telegraph origins must not drift under crowd-separation forces.
+		enemy.velocity = Vector2.ZERO
+		enemy.throttled_motion_delta = 0.0
+		enemy._update_motion_visual()
+		return
 	if enemy._should_skip_motion_frame(delta):
 		enemy.ENEMY_BODY_SEPARATION.apply_body_collision_separation(enemy)
 		if bool(enemy._is_glutton):

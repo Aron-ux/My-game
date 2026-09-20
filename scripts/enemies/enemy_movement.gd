@@ -86,6 +86,8 @@ static func _get_boss_boundary_steering(enemy) -> Vector2:
 static func compute_boss_velocity(enemy, direction_to_target: Vector2, distance_to_target: float, delta: float) -> Vector2:
 	if enemy.boss_phase_transition_target > 0 or bool(enemy.boss_shield_break_visual_intro_active):
 		return Vector2.ZERO
+	if str(enemy.archetype_id) == "boss_spellcore" and str(enemy.boss_routine.get("stage", "basic")) != "basic":
+		return Vector2.ZERO
 	var radial := Vector2.ZERO
 	var radial_weight := 1.0
 	var tangential_weight := 0.12

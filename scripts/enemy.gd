@@ -223,6 +223,8 @@ var boss_danmaku_pattern: int = -1
 var boss_danmaku_wave: int = 6
 var boss_danmaku_count: int = 0
 var boss_danmaku_rotation: float = 0.0
+var boss_danmaku_spin: float = 1.0
+var boss_routine: Dictionary = {}
 var boss_aimed_shots_remaining: int = 0
 var boss_aimed_shot_timer: float = 0.0
 var boss_turning_interval: float = 4.0
@@ -382,7 +384,9 @@ func get_boss_ui_payload() -> Dictionary:
 		"phase": boss_phase,
 		"hide_health": enemy_kind == "boss" and boss_phase_transition_target > 0
 	}
-	if behavior_id == "glutton" and ENEMY_GLUTTON_SKILL_BEHAVIOR.is_war_stomp_active(self):
+	if archetype_id == "boss_spellcore":
+		payload["status"] = ENEMY_BOSS_STATE.ROUTINE.get_status(self)
+	elif behavior_id == "glutton" and ENEMY_GLUTTON_SKILL_BEHAVIOR.is_war_stomp_active(self):
 		payload["status"] = {
 			"label": "战争践踏",
 			"remaining": float(glutton_war_stomp_remaining),
@@ -420,6 +424,7 @@ func clear_runtime_effects_after_defeat() -> void:
 		ENEMY_SKULLTOMB_BEHAVIOR.clear_runtime_effects_after_defeat(self)
 
 func _clear_boss_runtime_effects() -> void:
+	boss_routine.clear()
 	boss_danmaku_wave = 6
 	boss_aimed_shots_remaining = 0
 	boss_laser_remaining = 0.0

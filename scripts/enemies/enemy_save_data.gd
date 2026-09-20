@@ -126,6 +126,8 @@ static func get_save_data(enemy) -> Dictionary:
 		"boss_danmaku_wave": enemy.boss_danmaku_wave,
 		"boss_danmaku_count": enemy.boss_danmaku_count,
 		"boss_danmaku_rotation": enemy.boss_danmaku_rotation,
+		"boss_danmaku_spin": enemy.boss_danmaku_spin,
+		"boss_routine": enemy.boss_routine.duplicate(true),
 		"boss_aimed_shots_remaining": enemy.boss_aimed_shots_remaining,
 		"boss_aimed_shot_timer": enemy.boss_aimed_shot_timer,
 		"boss_laser_contact_version": 1,
@@ -294,6 +296,7 @@ static func apply_save_data(enemy, data: Dictionary, target_node: Node2D) -> voi
 	enemy.boss_danmaku_wave = clampi(int(data.get("boss_danmaku_wave", 6)), 0, 6)
 	enemy.boss_danmaku_count = clampi(int(data.get("boss_danmaku_count", 0)), 0, 64)
 	enemy.boss_danmaku_rotation = float(data.get("boss_danmaku_rotation", 0.0))
+	enemy.boss_danmaku_spin = float(data.get("boss_danmaku_spin", 1.0))
 	enemy.boss_aimed_shots_remaining = clampi(int(data.get("boss_aimed_shots_remaining", 0)), 0, 7)
 	enemy.boss_aimed_shot_timer = float(data.get("boss_aimed_shot_timer", 0.0))
 	enemy.boss_turning_interval = float(data.get("boss_turning_interval", enemy.boss_turning_interval))
@@ -349,3 +352,5 @@ static func apply_save_data(enemy, data: Dictionary, target_node: Node2D) -> voi
 			enemy._ensure_boss_orbit_ball()
 		if enemy.boss_peacock_charge_remaining > 0.0:
 			enemy._ensure_boss_peacock_markers(7)
+		if enemy.archetype_id == "boss_spellcore":
+			ENEMY_BOSS_STATE.ROUTINE.restore(enemy, data.get("boss_routine", {}))

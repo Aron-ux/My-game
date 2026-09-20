@@ -72,8 +72,8 @@ func _run() -> void:
     enemy.boss_peacock_timer = 100.0
     var position_after_intro := target.global_position
     ENEMY_BOSS_STATE.update_boss_trait(enemy, 0.5)
-    if target.global_position == position_after_intro:
-        failures.append("final boss should resume passive player pull after the shield intro")
+    if target.global_position != position_after_intro:
+        failures.append("basic combat should not apply the performance-only pull after shield intro")
 
     scene.queue_free()
     await process_frame

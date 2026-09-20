@@ -3,7 +3,7 @@ extends RefCounted
 const BOSS_PROJECTILE_SPEED_SCALE := 0.588
 const BOSS_PROJECTILE_LIFETIME_SCALE := 1.5
 const BOSS_LASER_LENGTH := 980.0
-const BOSS_LASER_COLOR := Color(39.0 / 255.0, 39.0 / 255.0, 39.0 / 255.0, 1.0)
+const BOSS_LASER_COLOR := Color(0.70, 0.32, 1.0, 1.0)
 const ORBIT_PULL_DURATION := 7.0
 const ORBIT_PULL_STRENGTH := 200.0
 const ORBIT_ROTATION_SPEED := 0.987
@@ -36,10 +36,11 @@ static func fire_radial_burst(enemy, count: int = -1) -> void:
 	enemy.boss_pattern_rotation = wrapf(base_angle + rotation_step + randf_range(-0.06, 0.06), 0.0, TAU)
 	enemy._spawn_status_burst(Color(1.0, 0.44, 0.16, 0.16), 34.0 + enemy.scale.x * 8.0)
 
-static func fire_quarter_sine_ring(enemy, count: int = 12) -> void:
+static func fire_quarter_sine_ring(enemy, count: int = 12, pattern: int = -1, spin: float = 1.0) -> void:
 	# Keep the existing entry point/cooldown; each cast is now a complete
 	# six-wave pattern, scheduled in Boss state rather than orphan timers.
-	enemy.boss_danmaku_pattern = (enemy.boss_danmaku_pattern + 1) % 3
+	enemy.boss_danmaku_pattern = pattern if pattern >= 0 else (enemy.boss_danmaku_pattern + 1) % 3
+	enemy.boss_danmaku_spin = spin
 	enemy.boss_danmaku_wave = 0
 	enemy.boss_danmaku_count = maxi(8, count) * 2
 	enemy.boss_danmaku_rotation = enemy.boss_pattern_rotation
@@ -88,6 +89,7 @@ static func _fire_danmaku_wave(enemy) -> void:
 				frequency = 0.42
 				hue = 0.30 + float(wave) * 0.046
 		shot_speed += float(enemy.boss_phase - 1) * 6.0
+		angular_speed *= enemy.boss_danmaku_spin
 		var shot_direction: Vector2 = Vector2.RIGHT.rotated(shot_angle)
 		enemy._spawn_projectile(
 			enemy.global_position + shot_direction * (28.0 + enemy.scale.x * 4.0),
@@ -141,13 +143,29 @@ static func fire_recall_split(enemy) -> void:
 		)
 	enemy._spawn_status_burst(Color(0.46, 1.0, 1.0, 0.22), 46.0 + enemy.scale.x * 8.0)
 
-static func start_laser_sweep(enemy) -> void:
+static func start_laser_sweep(enemy, locked_rotation: float = INF) -> void:
 	enemy.boss_laser_remaining = enemy.boss_laser_duration
 	enemy.boss_laser_hit_timer = 0.0
 	enemy.boss_laser_start_rotation = enemy.global_position.angle_to_point(enemy.target.global_position) if enemy.target != null and is_instance_valid(enemy.target) else enemy.boss_pattern_rotation
+	if is_finite(locked_rotation):
+		enemy.boss_laser_start_rotation = locked_rotation
 	enemy.boss_laser_final_rotation = enemy.boss_laser_start_rotation - 0.52
 	enemy.boss_laser_rotation = enemy.boss_laser_start_rotation
 	enemy._spawn_status_burst(Color(1.0, 0.7, 0.24, 0.2), 50.0 + enemy.scale.x * 10.0)
+
+static func update_laser_warning(enemy, locked_rotation: float) -> void:
+	# Mark both edges of the forthcoming sweep; the firing angle stays locked.
+	for index in range(enemy.boss_laser_lines.size()):
+		var angle: float = locked_rotation + TAU * float(index) / float(enemy.boss_laser_lines.size())
+		for edge in range(2):
+			var ray = enemy.boss_laser_lines[index] if edge == 0 else enemy.boss_laser_core_lines[index]
+			var shot_direction := Vector2.RIGHT.rotated(angle - 0.52 * float(edge))
+			var start: Vector2 = shot_direction * (18.0 + enemy.scale.x * 3.0)
+			ray.scale = Vector2.ONE / enemy.global_scale
+			ray.points = PackedVector2Array([start, start + shot_direction * BOSS_LASER_LENGTH])
+			ray.width = 3.0
+			ray.default_color = Color(1.0, 0.65, 0.22, 0.55)
+			ray.visible = true
 
 static func update_lasers(enemy, delta: float) -> void:
 	if enemy.boss_laser_remaining <= 0.0:
@@ -175,14 +193,18 @@ static func update_lasers(enemy, delta: float) -> void:
 		var alpha: float = 0.32 + 0.08 * sin(enemy.status_visual_time * 9.0 + float(index))
 
 		var outer = enemy.boss_laser_lines[index]
+		outer.scale = Vector2.ONE / enemy.global_scale
+		outer.width = 44.0
 		outer.visible = true
 		outer.points = PackedVector2Array([start_point, end_point])
 		outer.default_color = Color(BOSS_LASER_COLOR.r, BOSS_LASER_COLOR.g, BOSS_LASER_COLOR.b, alpha)
 
 		var core = enemy.boss_laser_core_lines[index]
+		core.scale = Vector2.ONE / enemy.global_scale
+		core.width = 7.0
 		core.visible = true
 		core.points = PackedVector2Array([start_point, end_point])
-		core.default_color = Color(BOSS_LASER_COLOR.r, BOSS_LASER_COLOR.g, BOSS_LASER_COLOR.b, min(1.0, alpha + 0.4))
+		core.default_color = Color(1.0, 0.88, 1.0, 0.96)
 
 		if not touching_beam and enemy.target != null and is_instance_valid(enemy.target):
 			var target_center: Vector2 = enemy.target.global_position
@@ -221,7 +243,7 @@ static func start_orbit_bomb(enemy) -> void:
 	enemy._ensure_boss_orbit_ball()
 	enemy._spawn_status_burst(Color(0.05, 0.0, 0.08, 0.28), 42.0 + enemy.scale.x * 8.0)
 
-static func update_orbit_bomb(enemy, delta: float) -> void:
+static func update_orbit_bomb(enemy, delta: float, fire_aimed: bool = true) -> void:
 	enemy._ensure_boss_orbit_ball()
 	if enemy.boss_orbit_pull_remaining <= 0.0:
 		enemy.boss_orbit_bomb_angle = wrapf(enemy.boss_orbit_bomb_angle + ORBIT_ROTATION_SPEED * delta, 0.0, TAU)
@@ -231,7 +253,8 @@ static func update_orbit_bomb(enemy, delta: float) -> void:
 		if enemy.boss_orbit_pull_remaining <= 0.0:
 			enemy.boss_orbit_ball.rotation = -enemy.status_visual_time * 1.26
 	_update_orbit_pull(enemy, delta)
-	_update_orbit_aimed_burst(enemy, delta)
+	if fire_aimed:
+		_update_orbit_aimed_burst(enemy, delta)
 
 static func _update_orbit_pull(enemy, delta: float) -> void:
 	if enemy.boss_orbit_pull_remaining > 0.0:

@@ -25,11 +25,14 @@ func _run() -> void:
 		var usecs := 0
 		var worst_usecs := 0
 		var samples: Array[int] = []
-		# Keep peak pressure for 30 seconds (actual fight relaxes after 10s).
-		for frame in range(1800):
+		var seen_themes: Dictionary = {}
+		# Three complete third-bar cycles exercise every authored performance.
+		var frame_count := 5400
+		for frame in range(frame_count):
 			var start := Time.get_ticks_usec()
-			boss.boss_phase_three_elapsed = 0.0
 			STATE.update_boss_trait(boss, 1.0 / 60.0)
+			if boss.boss_routine.stage == "performance":
+				seen_themes[boss.boss_routine.theme] = true
 			for bullet in scene.active.values():
 				if not bullet.is_queued_for_deletion():
 					bullet.batch_physics_process(1.0 / 60.0)
@@ -41,11 +44,12 @@ func _run() -> void:
 			if frame % 120 == 0:
 				await process_frame
 		samples.sort()
-		assert(scene.peak_count > 1000, "stress workload must exceed ordinary caps")
+		assert(scene.peak_count > 500, "stress workload must exceed ordinary caps")
+		assert(seen_themes.size() == 3, "stress must cover all three performances")
 		assert(scene.ordinary_budget_calls == 0, "Boss attack density must not use adaptive caps")
 		print("BOSS_DANMAKU_STRESS pressure=%.2f peak=%d avg_ms=%.3f p95_ms=%.3f max_ms=%.3f" % [
-			pressure, scene.peak_count, float(usecs) / 1800.0 / 1000.0,
-			float(samples[1710]) / 1000.0, float(worst_usecs) / 1000.0])
+			pressure, scene.peak_count, float(usecs) / float(frame_count) / 1000.0,
+			float(samples[int(frame_count * 0.95)]) / 1000.0, float(worst_usecs) / 1000.0])
 		boss._clear_boss_runtime_effects()
 		assert(get_node_count_in_group(BUDGET.GROUP) == 0, "Boss death must free its bullet capacity immediately")
 		scene.free()

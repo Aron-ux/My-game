@@ -128,6 +128,18 @@ static func clear_boss_phase_three_charge_visuals(enemy) -> void:
 		if ring != null:
 			ring.visible = false
 
+static func update_boss_spell_preview(enemy, progress: float, theme: int) -> void:
+	ensure_boss_helpers(enemy)
+	var colors := [Color(1.0, 0.25, 0.78), Color(0.18, 0.92, 1.0), Color(0.45, 1.0, 0.35)]
+	var color: Color = colors[posmod(theme, 3)]
+	for index in range(enemy.boss_phase_charge_rings.size()):
+		var ring: Line2D = enemy.boss_phase_charge_rings[index]
+		ring.visible = true
+		ring.points = ENEMY_GEOMETRY.build_circle_points(lerpf(130.0 + index * 18.0, 22.0 + index * 8.0, clampf(progress, 0.0, 1.0)))
+		ring.rotation = progress * PI * (1.0 if index % 2 == 0 else -1.0)
+		ring.width = 2.0 + progress * 3.0
+		ring.default_color = Color(color.r, color.g, color.b, 0.3 + progress * 0.55)
+
 static func ensure_boss_visual(enemy) -> void:
 	if enemy.enemy_kind != "boss":
 		if enemy.boss_visual_instance != null:

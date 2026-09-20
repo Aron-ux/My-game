@@ -77,6 +77,9 @@ var max_lifetime: float = 4.0
 var remote_update_elapsed: float = 0.0
 var cached_straight_direction := Vector2(INF, INF)
 var cached_straight_rotation: float = 0.0
+var clear_fade_remaining: float = 0.0
+var clear_fade_duration: float = 0.45
+var clear_fade_alpha: float = 1.0
 
 static var visual_shape_cache: Dictionary = {}
 
@@ -203,6 +206,7 @@ func recycle() -> void:
 	_clear_source_enemy_meta()
 
 func _initialize_runtime_state() -> void:
+	clear_fade_remaining = 0.0
 	cached_straight_direction = Vector2(INF, INF)
 	direction = direction.normalized()
 	if direction == Vector2.ZERO:
@@ -242,8 +246,22 @@ func batch_physics_process(delta: float) -> void:
 func can_use_batch_simulation() -> bool:
 	return not pooled
 
+func begin_clear_fade(duration: float) -> void:
+	clear_fade_duration = maxf(0.001, duration)
+	clear_fade_remaining = clear_fade_duration
+	clear_fade_alpha = modulate.a
+	# Transition fades are harmless and cannot expire into split children.
+	split_performed = true
+
+
 func _run_physics_tick(delta: float) -> void:
 	if pooled:
+		return
+	if clear_fade_remaining > 0.0:
+		clear_fade_remaining = maxf(0.0, clear_fade_remaining - delta)
+		modulate.a = clear_fade_alpha * clear_fade_remaining / clear_fade_duration
+		if clear_fade_remaining <= 0.0:
+			recycle()
 		return
 	var target_distance_sq: float = INF
 	if target != null and is_instance_valid(target) and target is Node2D:
@@ -861,6 +879,9 @@ func _get_visual_scale() -> Vector2:
 
 func get_save_data() -> Dictionary:
 	return {
+		"clear_fade_remaining": clear_fade_remaining,
+		"clear_fade_duration": clear_fade_duration,
+		"clear_fade_alpha": clear_fade_alpha,
 		"position": [global_position.x, global_position.y],
 		"direction": [direction.x, direction.y],
 		"speed": speed,
@@ -919,6 +940,11 @@ func get_save_data() -> Dictionary:
 	}
 
 func apply_save_data(data: Dictionary, target_node: Node2D) -> void:
+	clear_fade_remaining = maxf(0.0, float(data.get("clear_fade_remaining", 0.0)))
+	clear_fade_duration = maxf(0.001, float(data.get("clear_fade_duration", 0.45)))
+	clear_fade_alpha = clampf(float(data.get("clear_fade_alpha", 1.0)), 0.0, 1.0)
+	if clear_fade_remaining > 0.0:
+		modulate.a = clear_fade_alpha * clear_fade_remaining / clear_fade_duration
 	pooled = false
 	batch_simulation_enabled = false
 	var position_data = data.get("position", [0.0, 0.0])
