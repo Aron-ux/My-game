@@ -77,8 +77,14 @@ func _run() -> void:
 	var saw_children := false
 	var elapsed := 1.1
 	while boss.boss_routine.stage == "finishing" and elapsed < 20.0:
+		var previous_angle: float = boss.boss_orbit_bomb_angle
+		var previous_position: Vector2 = boss.boss_orbit_ball.position
 		step(scene, boss, 1.0 / 60.0)
 		elapsed += 1.0 / 60.0
+		if boss.boss_routine.stage == "finishing":
+			var expected_angle := wrapf(previous_angle + ATTACKS.ORBIT_ROTATION_SPEED / 60.0, 0.0, TAU)
+			check(is_equal_approx(boss.boss_orbit_bomb_angle, expected_angle) and boss.boss_orbit_ball.position != previous_position, "existing orbit keeps moving at its original speed after pending volleys end and after loading")
+			check(boss.boss_aimed_shots_remaining == 0 and boss.boss_orbit_bomb_shot_timer == 0.0, "orbit animation cannot start another aimed burst")
 		for bullet in scene.active.values():
 			check(bullet.clear_fade_remaining == 0.0, "tail cannot force a clear fade")
 			if is_equal_approx(bullet.damage, 40.0):
@@ -86,7 +92,15 @@ func _run() -> void:
 				check(boss.boss_routine.stage == "finishing", "split children retain their own lifetime before recovery")
 	check(saw_children and elapsed > 10.0, "delayed split children are emitted and run to completion")
 	check(boss.boss_routine.stage == "recovery" and scene.active.is_empty(), "recovery starts only after the last active attack ends")
-	check(float(boss.boss_routine.elapsed) < 0.02, "tail does not consume the four-second recovery")
+	check(float(boss.boss_routine.elapsed) < 0.02, "tail does not consume the nine-second paralysis")
+	check(not is_instance_valid(boss.boss_orbit_ball), "orbit is cleared when paralysis begins")
+
+	# A performance without an orbit must not gain one during its tail.
+	ROUTINE.reset(boss, 1)
+	boss.boss_routine.stage = "finishing"
+	ATTACKS.fire_radial_burst(boss, 12)
+	step(scene, boss, 0.1)
+	check(boss.boss_routine.stage == "finishing" and not is_instance_valid(boss.boss_orbit_ball), "tail only continues an existing orbit")
 
 	scene.free()
 	current_scene = null

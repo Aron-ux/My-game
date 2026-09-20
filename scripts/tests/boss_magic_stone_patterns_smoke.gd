@@ -129,7 +129,7 @@ func _run() -> void:
 				var loaded = scene.make_boss()
 				loaded.apply_save_data(saved, scene.player)
 				check(loaded.boss_routine.theme == theme, "new themes survive save/load")
-				check(loaded.get_boss_ui_payload().status.label.contains(ROUTINE.THEMES[theme]), "HUD names the actual restored theme")
+				check(loaded.get_boss_ui_payload().status.is_empty(), "restored performances keep their theme without showing a status label")
 				loaded.free()
 		for expected in ROUTINE.THEME_PATTERNS[theme]:
 			check(seen.has(expected), "every performance must actually execute its three distinct sections")

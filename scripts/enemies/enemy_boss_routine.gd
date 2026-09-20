@@ -8,7 +8,7 @@ const THEME_PATTERNS := [[4, 0, 9], [1, 5, 10], [2, 11, 8], [3, 6, 8], [9, 4, 7]
 const PHASE_THEMES := [[0], [0, 1, 3], [0, 1, 2, 3, 4, 5]]
 const PHASE_OPENING_THEMES := [0, 1, 5]
 const PREVIEW_DURATION := 1.5
-const RECOVERY_DURATION := 4.0
+const RECOVERY_DURATION := 9.0
 const RECOVERY_ARMOR_PENALTY := 50.0
 const LASER_WARNING_DURATION := 1.2
 const CLEAR_FADE_DURATION := 0.45
@@ -46,31 +46,13 @@ static func get_duration(enemy, stage: String) -> float:
 
 static func get_status(enemy) -> Dictionary:
 	var state: Dictionary = enemy.boss_routine
-	var stage := str(state.get("stage", "basic"))
-	var duration := get_duration(enemy, stage)
-	var label := "常规战斗"
-	if enemy.boss_shield_break_visual_intro_active:
-		return {"label": "护盾破碎", "remaining": enemy.boss_phase_three_intro_remaining, "duration": 5.0}
-	if stage == "basic" and _shielded(enemy):
-		return {"label": "护盾完整 · 常规战斗", "countdown": false}
-	var theme := posmod(int(state.get("theme", 0)), THEMES.size())
-	var title: String = THEMES[theme]
-	match stage:
-		"finishing":
-			return {"label": "弹幕 · %s · 收尾" % title, "countdown": false}
-		"preview":
-			label = "即将发动 · %s" % title
-		"performance":
-			label = "弹幕 · %s" % title
-			var elapsed := float(state.get("elapsed", 0.0))
-			var section := get_section(enemy, elapsed)
-			label += " · 引力蓄势" if elapsed < _performance_prelude(enemy) else " · %s" % ATTACKS.DANMAKU.PATTERN_NAMES[THEME_PATTERNS[theme][section]]
-			if is_laser_warning(enemy):
-				label += " · 激光预警"
-				return {"label": label, "remaining": maxf(0.0, _warning_start(enemy) + LASER_WARNING_DURATION - float(state.elapsed)), "duration": LASER_WARNING_DURATION}
-		"recovery":
-			label = "能量平息 · 护甲降低50"
-	return {"label": label, "remaining": maxf(0.0, duration - float(state.get("elapsed", 0.0))), "duration": duration}
+	if str(state.get("stage", "")) != "recovery" or _shielded(enemy) or enemy.boss_shield_break_visual_intro_active or enemy.boss_phase_transition_target > 0:
+		return {}
+	return {
+		"label": "瘫痪 · 护甲降低50",
+		"remaining": maxf(0.0, RECOVERY_DURATION - float(state.get("elapsed", 0.0))),
+		"duration": RECOVERY_DURATION
+	}
 
 
 static func stop_attacks(enemy) -> void:
@@ -165,7 +147,9 @@ static func _update_finishing(enemy, delta: float) -> void:
 	ATTACKS.update_lasers(enemy, delta)
 	if enemy.boss_peacock_charge_remaining > 0.0:
 		ATTACKS.update_peacock_attack(enemy, delta)
-	if enemy.boss_aimed_shots_remaining > 0 or enemy.boss_orbit_pull_remaining > 0.0:
+	# Keep an existing orbit moving after its last volley, until the tail
+	# ends. Do not create an orb for other themes or start another burst.
+	if is_instance_valid(enemy.boss_orbit_ball) or enemy.boss_aimed_shots_remaining > 0 or enemy.boss_orbit_pull_remaining > 0.0:
 		ATTACKS.update_orbit_bomb(enemy, delta, true, false)
 
 

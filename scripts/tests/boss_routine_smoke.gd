@@ -63,11 +63,13 @@ func _run() -> void:
 	ordinary.reset_projectile({"position": Vector2(800, 0), "target": target, "speed": 0.0, "lifetime": 100.0, "source_enemy_kind": "normal", "source_enemy_instance_id": 123})
 	advance(scene, boss, 24.1)
 	check(boss.boss_routine.stage == "basic" and ROUTINE.get_available_themes(boss).is_empty(), "shield intact stays in basic combat indefinitely")
+	check(boss.get_boss_ui_payload().status.is_empty(), "shielded combat does not show a status label")
 	STATE.start_shield_break_intro(boss)
+	check(boss.get_boss_ui_payload().status.is_empty(), "shield break does not show a status label")
 	advance(scene, boss, 5.0)
 	advance(scene, boss, 12.0)
 	check(boss.boss_routine.stage == "preview", "basic transitions to preview at 12s")
-	check(boss.get_boss_ui_payload().status.label.contains("污染迸发"), "preview announces its theme through real HUD payload")
+	check(boss.get_boss_ui_payload().status.is_empty(), "preview keeps its visual cue without a status label")
 	check(MOTION.compute_boss_velocity(boss, Vector2.RIGHT, 500.0, 0.02) == Vector2.ZERO, "Boss holds position during preview")
 	var neighbor = RUNTIME.ENEMY.instantiate()
 	scene.add_child(neighbor)
@@ -93,6 +95,7 @@ func _run() -> void:
 	check(boss.current_health < health, "performance must allow normal player damage")
 	advance(scene, boss, 9.4)
 	check(boss.boss_routine.stage == "finishing", "15s ends emission, not the live performance")
+	check(boss.get_boss_ui_payload().status.is_empty(), "finishing does not show a status label or countdown")
 	check(ROUTINE.get_armor_modifier(boss) == 0.0, "tail is not yet the armor vulnerability window")
 	var tail_bullets := 0
 	for bullet in scene.active.values():
@@ -111,6 +114,8 @@ func _run() -> void:
 	for bullet in scene.active.values():
 		check(bullet == ordinary, "all Boss bullets end naturally before recovery")
 	boss.boss_routine.elapsed = 0.0
+	var status: Dictionary = boss.get_boss_ui_payload().status
+	check(status.label == "瘫痪 · 护甲降低50" and is_equal_approx(status.remaining, 9.0) and is_equal_approx(status.duration, 9.0), "only paralysis shows its nine-second countdown and armor penalty")
 	health = boss.current_health
 	DAMAGE.apply_damage(boss, 100.0, false)
 	var expected_damage := preload("res://scripts/combat/armor_rules.gd").apply_damage(100.0, -40.0) * 0.9
@@ -119,11 +124,17 @@ func _run() -> void:
 	var recovery_save: Dictionary = JSON.parse_string(JSON.stringify(boss.get_save_data()))
 	boss.apply_save_data(recovery_save, target)
 	check(ROUTINE.get_armor_modifier(boss) == -50.0 and boss.armor == 10.0, "load restores recovery penalty exactly once")
-	advance(scene, boss, 3.99)
-	check(boss.boss_routine.stage == "recovery", "recovery supplies full four-second output window")
+	advance(scene, boss, 4.0)
+	check(boss.boss_routine.stage == "recovery" and is_equal_approx(boss.get_boss_ui_payload().status.remaining, 5.0), "paralysis adds five seconds to the previous four-second window")
+	recovery_save = JSON.parse_string(JSON.stringify(boss.get_save_data()))
+	boss.apply_save_data(recovery_save, target)
+	check(is_equal_approx(boss.get_boss_ui_payload().status.remaining, 5.0), "load preserves elapsed paralysis rather than restarting its timer")
+	advance(scene, boss, 4.99)
+	check(boss.boss_routine.stage == "recovery" and ROUTINE.get_armor_modifier(boss) == -50.0, "paralysis supplies a full nine-second armor vulnerability window")
 	advance(scene, boss, 0.01)
 	check(boss.boss_routine.stage == "basic" and boss.boss_routine.theme == 0, "first broken-shield bar only rotates the simple theme")
 	check(ROUTINE.get_armor_modifier(boss) == 0.0, "armor recovers at the exact end of recovery")
+	check(boss.get_boss_ui_payload().status.is_empty(), "status disappears when paralysis ends")
 	scene.clear_bullets()
 
 	# Fade remains harmless through JSON save/load, even for split parents.
@@ -162,12 +173,12 @@ func _run() -> void:
 	start_performance(scene, boss, 2)
 	advance(scene, boss, 7.2)
 	check(ROUTINE.is_laser_warning(boss) and boss.boss_laser_remaining == 0.0, "overload gives harmless laser warning first")
-	check(absf(float(boss.get_boss_ui_payload().status.remaining) - 1.0) < 0.001, "laser warning HUD counts down to firing, not end of performance")
+	check(boss.get_boss_ui_payload().status.is_empty(), "laser warning uses its world telegraph without a status countdown")
 	var locked_angle: float = boss.boss_routine.laser_aim
 	snapshot = JSON.parse_string(JSON.stringify(boss.get_save_data()))
 	var restored = scene.make_boss()
 	restored.apply_save_data(snapshot, target)
-	check(restored.boss_laser_lines[0].visible and restored.get_boss_ui_payload().status.label.contains("预警"), "load restores warning visuals and UI")
+	check(restored.boss_laser_lines[0].visible and restored.get_boss_ui_payload().status.is_empty(), "load restores warning visuals without a status label")
 	target.position = Vector2(-500, 200)
 	advance(scene, restored, 1.0)
 	check(restored.boss_laser_remaining > 4.9, "laser activates only after 1.2s warning")
@@ -179,6 +190,7 @@ func _run() -> void:
 	restored.current_health = 10.0
 	DAMAGE.apply_damage(restored, 100.0, false)
 	check(restored.boss_phase_transition_target == 3, "player can end performance by defeating its health bar")
+	check(restored.get_boss_ui_payload().status.is_empty(), "health-bar transitions do not show a status label")
 	check(get_node_count_in_group(BUDGET.GROUP) == 0 and restored.boss_laser_remaining == 0.0, "health transition clears active lasers and Boss bullets")
 	advance(scene, restored, 5.0)
 	check(restored.boss_phase == 3 and restored.boss_routine.stage == "basic", "next health bar starts with basic combat")

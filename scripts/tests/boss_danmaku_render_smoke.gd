@@ -81,6 +81,12 @@ func _run() -> void:
 		_advance(scene, boss, 1.0 / 60.0)
 	assert(boss.boss_routine.stage == "recovery" and scene.active.is_empty())
 	await _capture(viewport, hud, boss, "routine-recovery")
+	_advance(scene, boss, 4.0)
+	assert(boss.boss_routine.stage == "recovery")
+	await _capture(viewport, hud, boss, "routine-paralysis-extended")
+	_advance(scene, boss, 5.0)
+	assert(boss.boss_routine.stage == "basic")
+	await _capture(viewport, hud, boss, "routine-after-paralysis")
 	for theme in [1, 2]:
 		boss.boss_phase = 2 if theme == 1 else 3
 		scene.clear_bullets()
@@ -126,7 +132,9 @@ func _capture(viewport: SubViewport, hud, boss, filename: String) -> void:
 	hud.show_boss_ui(data.name, data.current_health, data.max_health, data.status, data.ui)
 	await process_frame
 	await RenderingServer.frame_post_draw
-	assert(hud.boss_status_label.visible and hud.boss_status_label.text.contains(data.status.label), "real HUD must display the active stage name")
-	if not bool(data.status.get("countdown", true)):
-		assert(not hud.boss_status_bar.visible and not hud.boss_status_label.text.contains("0.0s"), "natural completion has a label without a fake timer")
+	if boss.boss_routine.stage == "recovery":
+		assert(hud.boss_status_label.visible and hud.boss_status_label.text.begins_with("瘫痪"), "real HUD shows paralysis")
+		assert(hud.boss_status_bar.visible and is_equal_approx(hud.boss_status_bar.max_value, 9.0), "paralysis countdown uses the full nine seconds")
+	else:
+		assert(data.status.is_empty() and not hud.boss_status_label.visible and not hud.boss_status_bar.visible, "all other stages hide both status text and countdown")
 	viewport.get_texture().get_image().save_png("res://.omx/boss-rework/%s.png" % filename)

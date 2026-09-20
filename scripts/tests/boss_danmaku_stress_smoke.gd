@@ -29,8 +29,9 @@ func _run() -> void:
 		var samples: Array[int] = []
 		var seen_themes: Dictionary = {}
 		var seen_patterns: Dictionary = {}
-		# Six complete third-bar cycles exercise every authored performance.
-		var frame_count := 16200
+		# Allow the extra five seconds of paralysis per cycle while still
+		# covering all six third-bar performances and their final sections.
+		var frame_count := 18000
 		for frame in range(frame_count):
 			var start := Time.get_ticks_usec()
 			STATE.update_boss_trait(boss, 1.0 / 60.0)
