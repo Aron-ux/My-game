@@ -15,7 +15,7 @@ const EXPECTED_IDENTITIES := {
 	"smallboss_glutton": {"behavior": "glutton", "boss_name": "幽影树人", "visual_scene": "res://assets/enemies/treeboss/treeboss.tscn"},
 	"smallboss_rebirth": {"behavior": "skulltomb", "boss_name": "引渡人", "visual_scene": "res://assets/enemies/skulltomb/skulltomb.tscn"},
 	"smallboss_turret": {"behavior": "rose", "boss_name": "地瑰灵", "visual_scene": "res://assets/enemies/rose/rose.tscn"},
-	"boss_spellcore": {"behavior": "boss", "boss_name": "祸月星核"}
+	"boss_spellcore": {"behavior": "boss", "boss_name": "被污染的魔法石"}
 }
 
 

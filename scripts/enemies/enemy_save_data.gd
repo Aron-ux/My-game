@@ -129,6 +129,7 @@ static func get_save_data(enemy) -> Dictionary:
 		"boss_orbit_sign": enemy.boss_orbit_sign,
 		"boss_pattern_rotation": enemy.boss_pattern_rotation,
 		"boss_display_name": enemy.boss_display_name,
+		"boss_shield_max_health": enemy.boss_shield_max_health,
 		"boss_battle_elapsed": enemy.boss_battle_elapsed,
 		"boss_phase": enemy.boss_phase,
 		"boss_phase_three_elapsed": enemy.boss_phase_three_elapsed,
@@ -289,6 +290,9 @@ static func apply_save_data(enemy, data: Dictionary, target_node: Node2D) -> voi
 	enemy.boss_orbit_sign = float(data.get("boss_orbit_sign", 1.0))
 	enemy.boss_pattern_rotation = float(data.get("boss_pattern_rotation", 0.0))
 	enemy.boss_display_name = str(data.get("boss_display_name", enemy.boss_display_name))
+	if enemy.archetype_id == "boss_spellcore":
+		enemy.boss_display_name = "被污染的魔法石"
+	enemy.boss_shield_max_health = maxf(0.0, float(data.get("boss_shield_max_health", 5000.0 if enemy.archetype_id == "boss_spellcore" else 0.0)))
 	enemy.boss_battle_elapsed = float(data.get("boss_battle_elapsed", 0.0))
 	enemy.boss_phase = int(data.get("boss_phase", ENEMY_BOSS_STATE.get_boss_phase(enemy)))
 	enemy.boss_phase_three_elapsed = float(data.get("boss_phase_three_elapsed", 0.0))

@@ -6,9 +6,12 @@
 script = ExtResource("1_profile")
 archetype = "boss_spellcore"
 behavior = "boss"
-boss_name = "祸月星核"
-max_health = 21384.0
-speed = 78.0
+boss_name = "被污染的魔法石"
+max_health = 45000.0
+attack = 80.0
+armor = 10.0
+damage_reduction_rate = 0.1
+speed = 30.0
 touch_damage = 28.0
 contact_radius = 64.0
 body_collision_radius = 70.0
@@ -19,7 +22,7 @@ display_color = Color(0.95, 0.2, 0.24, 1)
 extra = {
 "preferred_distance": 230.0,
 "projectile_damage": 18.5,
-"boss_shield_max_health": 10000.0,
+"boss_shield_max_health": 5000.0,
 "boss_radial_interval": 0.78,
 "boss_radial_bullets": 16,
 "boss_sine_interval": 2.9,

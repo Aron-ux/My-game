@@ -22,9 +22,9 @@ func _run() -> void:
     scene.add_child(enemy)
     enemy.target = target
     enemy.apply_enemy_profile("boss", ENEMY_ARCHETYPE_DATABASE.get_profile("boss", "boss_spellcore"))
-    if not is_equal_approx(enemy.boss_shield_max_health, 10000.0):
-        failures.append("boss spellcore shield should use its configured 10000 health")
-    if not is_equal_approx(enemy.current_health, ENEMY_BOSS_STATE.get_phase_bar_max_health(enemy) + 10000.0):
+    if not is_equal_approx(enemy.boss_shield_max_health, 5000.0):
+        failures.append("boss spellcore shield should use its configured 5000 health")
+    if not is_equal_approx(enemy.current_health, ENEMY_BOSS_STATE.get_phase_bar_max_health(enemy) + 5000.0):
         failures.append("boss spellcore spawn health should include its configured shield")
     enemy.max_health = 300.0
     enemy.current_health = 300.0
@@ -48,7 +48,7 @@ func _run() -> void:
     enemy.boss_shield_break_intro_played = false
     enemy.boss_phase_transition_target = 0
     enemy.boss_phase_three_intro_remaining = 0.0
-    var killed: bool = bool(enemy.take_batched_damage(40.0))
+    var killed: bool = bool(enemy.take_batched_damage(60.0))
     if killed:
         failures.append("breaking the final boss shield should not defeat the boss")
     if not enemy.boss_shield_break_intro_played or not enemy.boss_shield_break_visual_intro_active or enemy.boss_phase_transition_target != 0 or enemy.boss_phase_three_intro_remaining <= 0.0:

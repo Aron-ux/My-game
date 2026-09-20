@@ -111,4 +111,7 @@ static func compute_boss_velocity(enemy, direction_to_target: Vector2, distance_
 	if blended_direction.length_squared() <= 0.001:
 		return Vector2.ZERO
 	var move_direction := blended_direction.normalized()
-	return move_direction * enemy.speed * enemy.slow_multiplier * BOSS_MOVE_SPEED_SCALE * GLOBAL_UNIT_MOVE_SPEED_SCALE * movement_scale
+	var legacy_speed_scale := BOSS_MOVE_SPEED_SCALE * GLOBAL_UNIT_MOVE_SPEED_SCALE
+	if str(enemy.get("archetype_id")) == "boss_spellcore":
+		legacy_speed_scale = 1.0
+	return move_direction * enemy.speed * enemy.slow_multiplier * legacy_speed_scale * movement_scale

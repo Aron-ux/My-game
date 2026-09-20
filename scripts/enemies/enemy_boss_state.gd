@@ -9,6 +9,16 @@ const BOSS_PHASE_THREE_LATE_INTERVAL_MULTIPLIER := 2.2222223
 const BOSS_PHASE_THREE_SHAKE_STRENGTH := 60.0
 const BOSS_PHASE_THREE_SHAKE_DURATION := 2.0
 const BOSS_ORBIT_PULL_COOLDOWN := 15.0
+const SHIELD_ARMOR_BONUS := 15.0
+const SHIELD_REDUCTION_BONUS := 0.15
+
+
+static func get_shield_armor_bonus(enemy) -> float:
+	return SHIELD_ARMOR_BONUS if has_boss_shield(enemy) else 0.0
+
+
+static func get_shield_reduction_bonus(enemy) -> float:
+	return SHIELD_REDUCTION_BONUS if has_boss_shield(enemy) else 0.0
 
 static func get_boss_phase(enemy) -> int:
 	return int(enemy.boss_phase)

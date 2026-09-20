@@ -22,6 +22,8 @@ static func apply_damage(enemy, amount: float, show_feedback: bool = true, is_cr
 	# Damage order: total damage -> defense (armor) -> damage reduction -> HP.
 	var armor_value: Variant = enemy.get("armor")
 	var effective_armor: float = float(armor_value) if armor_value != null else 0.0
+	if enemy.enemy_kind == "boss":
+		effective_armor += ENEMY_BOSS_STATE.get_shield_armor_bonus(enemy)
 	var fury_shred: Variant = enemy.get("fury_armor_shred")
 	effective_armor -= float(fury_shred) if fury_shred != null else 0.0
 	if HEAVY_ARMOR.is_active(enemy):
@@ -30,7 +32,10 @@ static func apply_damage(enemy, amount: float, show_feedback: bool = true, is_cr
 	var damage_reduction_rate := PLAYER_COMBAT_MODIFIERS.calculate_damage_reduction_rate(PLAYER_GUNNER_BASIC_TALENT_FLOW.get_effective_damage_reduction_value(enemy))
 	var damage_reduction_multiplier: float = max(0.0, 1.0 - damage_reduction_rate)
 	var base_reduction: Variant = enemy.get("damage_reduction_rate")
-	damage_reduction_multiplier *= max(0.0, 1.0 - (float(base_reduction) if base_reduction != null else 0.0))
+	var base_reduction_rate: float = float(base_reduction) if base_reduction != null else 0.0
+	if enemy.enemy_kind == "boss":
+		base_reduction_rate += ENEMY_BOSS_STATE.get_shield_reduction_bonus(enemy)
+	damage_reduction_multiplier *= max(0.0, 1.0 - base_reduction_rate)
 	damage_reduction_multiplier *= max(0.0, ENEMY_GLUTTON_SKILL_BEHAVIOR.get_damage_taken_multiplier(enemy))
 	# Vulnerability state is retained for status/UI compatibility, but has no damage effect.
 	var adjusted_damage: float = armored_damage * damage_reduction_multiplier

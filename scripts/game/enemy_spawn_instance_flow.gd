@@ -3,6 +3,7 @@ extends RefCounted
 const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
 const SPAWN_POSITION_FLOW := preload("res://scripts/game/enemy_spawn_position_flow.gd")
 const ENEMY_BOSS_STATE := preload("res://scripts/enemies/enemy_boss_state.gd")
+const DIFFICULTY_PROFILE := preload("res://scripts/game/difficulty_profile.gd")
 
 const GLOBAL_ENEMY_HEALTH_MULTIPLIER := 2.04
 const GLOBAL_ENEMY_PROJECTILE_DAMAGE_MULTIPLIER := 2.0
@@ -22,13 +23,18 @@ static func spawn_configured_enemy_at_position(main: Node, kind: String, archety
 	enemy.heart_pickup_scene = main.heart_pickup_scene
 	if enemy.has_method("apply_enemy_profile"):
 		enemy.apply_enemy_profile(kind, main.ENEMY_SPAWN_FLOW.get_enemy_profile(main, kind, archetype))
-	enemy.max_health *= health_multiplier * GLOBAL_ENEMY_HEALTH_MULTIPLIER
+	var uses_authored_boss_stats: bool = kind == "boss" and archetype == "boss_spellcore"
+	enemy.max_health *= health_multiplier * (1.0 if uses_authored_boss_stats else GLOBAL_ENEMY_HEALTH_MULTIPLIER)
 	if kind == "boss":
 		enemy.current_health = ENEMY_BOSS_STATE.get_boss_spawn_health(enemy)
 	else:
 		enemy.current_health = enemy.max_health
 	enemy.speed *= speed_multiplier
-	enemy.attack *= damage_multiplier
+	var attack_multiplier := damage_multiplier
+	if uses_authored_boss_stats and bool(main.get("endless_mode_active")):
+		# N1 is the authored attack baseline; retain relative N-tier growth.
+		attack_multiplier /= float(DIFFICULTY_PROFILE.PROFILES["easy"]["enemy_damage_scale"])
+	enemy.attack *= attack_multiplier
 	enemy.touch_damage *= damage_multiplier
 	enemy.projectile_damage *= damage_multiplier * GLOBAL_ENEMY_PROJECTILE_DAMAGE_MULTIPLIER
 	if enemy.has_signal("defeated"):
