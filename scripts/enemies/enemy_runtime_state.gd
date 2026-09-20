@@ -4,6 +4,8 @@ const ENEMY_GLUTTON_SKILL_BEHAVIOR := preload("res://scripts/enemies/enemy_glutt
 const ENEMY_BOSS_STATE := preload("res://scripts/enemies/enemy_boss_state.gd")
 
 static func reset(enemy, randomize_timers: bool) -> void:
+	enemy.fury_armor_shred = 0.0
+	enemy.fury_armor_shred_remaining = 0.0
 	if randomize_timers:
 		enemy.shot_timer = randf_range(0.15, max(0.16, enemy.shot_interval))
 		enemy.acceleration_timer = randf_range(0.2, max(0.22, enemy.acceleration_interval)) if enemy.acceleration_interval > 0.0 else 0.0

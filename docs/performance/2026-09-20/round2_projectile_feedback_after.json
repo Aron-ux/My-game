@@ -1,0 +1,18 @@
+{
+	"checks": {
+		"alpha_sum": 512.0,
+		"hits": 0,
+		"position": [
+			24576.0,
+			138240.0
+		]
+	},
+	"flash_512_refresh_ms": 2.053,
+	"pending_tweens_after_512_hits": 1,
+	"projectile_tick_median_ms": 1.756,
+	"projectile_tick_p95_ms": 2.437,
+	"workload": {
+		"projectiles": 512,
+		"samples": 90
+	}
+}

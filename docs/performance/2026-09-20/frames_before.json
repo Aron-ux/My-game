@@ -1,0 +1,25 @@
+{
+	"checks": {
+		"enemies": 120,
+		"enemy_projectile_hits": 12,
+		"health": 119998000.0,
+		"player_damage_taken": 12.0,
+		"player_hits": 2100,
+		"position_sum": [
+			6134.2099609375,
+			-1267.646484375
+		]
+	},
+	"cpu_tick_ms": {
+		"max": 184.383,
+		"mean": 58.48785,
+		"median": 38.02,
+		"p95": 162.767
+	},
+	"workload": {
+		"aoe_hits_every_six_frames": 60,
+		"frames": 180,
+		"initial_bullets": 240,
+		"initial_enemies": 120
+	}
+}

@@ -1,0 +1,31 @@
+{
+	"batched_projectile_queries": {
+		"median_ms": 57.166,
+		"p95_ms": 65.767
+	},
+	"checks": {
+		"batch_hits": 4727,
+		"single_hits": 8830,
+		"sort": 161236,
+		"visible_projectiles": 720
+	},
+	"display": "headless",
+	"occlusion_sort": {
+		"median_ms": 1.08,
+		"p95_ms": 1.861
+	},
+	"render_submission": {
+		"median_ms": 0.247,
+		"p95_ms": 0.529
+	},
+	"single_projectile_queries": {
+		"median_ms": 48.277,
+		"p95_ms": 54.593
+	},
+	"workload": {
+		"enemies": 240,
+		"query_probes": 240,
+		"rendered_projectiles": 720,
+		"samples": 30
+	}
+}

@@ -1,0 +1,38 @@
+{
+	"checks": {
+		"health": 999952.380952379,
+		"save_chars": 1007271,
+		"separation_x": 3603.60375976563,
+		"separation_y": 2413.85620117188
+	},
+	"direct_160_hits": {
+		"mean_ms": 4.46904166666667,
+		"median_ms": 4.434,
+		"p95_ms": 5.3
+	},
+	"mana_hud_refresh": {
+		"mean_ms": 4.46095833333333,
+		"median_ms": 4.446,
+		"p95_ms": 5.652
+	},
+	"queued_160_hits": {
+		"mean_ms": 4.56533333333333,
+		"median_ms": 4.614,
+		"p95_ms": 5.006
+	},
+	"save_primary_and_backup": {
+		"mean_ms": 48.6467083333333,
+		"median_ms": 47.959,
+		"p95_ms": 52.935
+	},
+	"separation_240_enemies": {
+		"mean_ms": 61.2269583333333,
+		"median_ms": 60.608,
+		"p95_ms": 68.007
+	},
+	"workload": {
+		"enemies": 240,
+		"hits_per_sample": 160,
+		"samples": 24
+	}
+}

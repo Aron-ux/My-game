@@ -61,13 +61,22 @@ static func read_json(path: String) -> Variant:
 	return json.data
 
 static func write_json(path: String, data: Dictionary) -> int:
+	return _write_serialized_json(path, JSON.stringify(data))
+
+static func write_json_pair(path: String, backup_path: String, data: Dictionary) -> int:
+	# Serialize the identical snapshot once; both files retain atomic replacement.
+	var serialized := JSON.stringify(data)
+	var primary_chars := _write_serialized_json(path, serialized)
+	_write_serialized_json(backup_path, serialized)
+	return primary_chars
+
+static func _write_serialized_json(path: String, serialized: String) -> int:
 	ensure_save_root()
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
 	var temporary_path := path + ".tmp"
 	var file := FileAccess.open(temporary_path, FileAccess.WRITE)
 	if file == null:
 		return 0
-	var serialized := JSON.stringify(data)
 	file.store_string(serialized)
 	file.flush()
 	var write_error := file.get_error()

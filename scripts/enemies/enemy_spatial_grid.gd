@@ -4,8 +4,43 @@ const CELL_SIZE := 96.0
 
 static var cached_frame: int = -1
 static var cached_scene_id: int = -1
+static var snapshot_revision: int = 0
 static var cached_grid: Dictionary = {}
 static var active_cells: Array[Vector2i] = []
+static var cached_neighbor_lists: Dictionary = {}
+static var body_bounds_revision: int = 0
+static var cached_body_bounds_revision: int = -1
+static var cached_max_body_radius: float = INF
+
+
+static func invalidate_body_bounds() -> void:
+	body_bounds_revision += 1
+
+
+static func get_max_body_radius(enemy: Node2D) -> float:
+	if not enemy.is_inside_tree():
+		return INF
+	var scene := enemy.get_tree().current_scene
+	if scene == null:
+		return INF
+	_get_grid(scene)
+	if cached_body_bounds_revision == body_bounds_revision:
+		return cached_max_body_radius
+	cached_body_bounds_revision = body_bounds_revision
+	cached_max_body_radius = 0.0
+	for cell in active_cells:
+		for body in cached_grid[cell]:
+			# Match the query snapshot even when a cached body was queued for
+			# deletion later this frame; its radius is still an upper bound.
+			if body == null or not is_instance_valid(body) or not (body is Node2D):
+				continue
+			# Only the enemy API invalidates on every size change. Unknown bodies
+			# retain the full exact scan rather than risk an underestimated bound.
+			if not body.has_method("get_body_collision_radius"):
+				cached_max_body_radius = INF
+				return cached_max_body_radius
+			cached_max_body_radius = maxf(cached_max_body_radius, float(body.get_body_collision_radius()))
+	return cached_max_body_radius
 
 
 static func get_grid(scene: Node) -> Dictionary:
@@ -31,6 +66,9 @@ static func get_neighbors_at(scene: Node, position: Vector2, query_radius: float
 		return []
 	var center_cell := _grid_cell(position)
 	var cell_radius := int(ceil(max(1.0, query_radius) / CELL_SIZE))
+	var query_key := Vector3i(center_cell.x, center_cell.y, cell_radius)
+	if cached_neighbor_lists.has(query_key):
+		return cached_neighbor_lists[query_key]
 	var candidates: Array = []
 	for x in range(center_cell.x - cell_radius, center_cell.x + cell_radius + 1):
 		for y in range(center_cell.y - cell_radius, center_cell.y + cell_radius + 1):
@@ -38,6 +76,9 @@ static func get_neighbors_at(scene: Node, position: Vector2, query_radius: float
 			if not grid.has(cell):
 				continue
 			candidates.append_array(grid[cell] as Array)
+	# All callers iterate; read-only arrays prevent accidental cache mutation.
+	candidates.make_read_only()
+	cached_neighbor_lists[query_key] = candidates
 	return candidates
 
 
@@ -117,6 +158,9 @@ static func _get_grid(scene: Node) -> Dictionary:
 		active_cells.clear()
 	cached_frame = current_frame
 	cached_scene_id = scene_id
+	snapshot_revision += 1
+	cached_neighbor_lists.clear()
+	cached_body_bounds_revision = -1
 	_clear_grid_cells()
 	var enemies: Array = scene.get_runtime_enemies() if scene.has_method("get_runtime_enemies") else scene.get_tree().get_nodes_in_group("enemies")
 	for enemy in enemies:

@@ -46,7 +46,8 @@ func _run() -> void:
 	restored.apply_save_data(saved, target)
 	assert(is_equal_approx(restored.fury_armor_shred, 10.0))
 	assert(is_equal_approx(restored.fury_armor_shred_remaining, 1.5))
-	STATUS.tick_timers(restored, 1.5)
+	# Exercise the actual runtime guard, with no other timed status active.
+	restored.batch_physics_process(1.5)
 	assert(is_zero_approx(restored.fury_armor_shred))
 	DAMAGE.apply_damage(restored, 105.0, false)
 	assert(is_equal_approx(restored.current_health, 690.0))

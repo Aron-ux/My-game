@@ -71,6 +71,8 @@ var chain_follow_distance: float = 0.0
 var chain_path_distance: float = 0.0
 var max_lifetime: float = 4.0
 var remote_update_elapsed: float = 0.0
+var cached_straight_direction := Vector2(INF, INF)
+var cached_straight_rotation: float = 0.0
 
 static var visual_shape_cache: Dictionary = {}
 
@@ -188,6 +190,7 @@ func recycle() -> void:
 	_clear_source_enemy_meta()
 
 func _initialize_runtime_state() -> void:
+	cached_straight_direction = Vector2(INF, INF)
 	direction = direction.normalized()
 	if direction == Vector2.ZERO:
 		direction = Vector2.RIGHT
@@ -228,13 +231,13 @@ func can_use_batch_simulation() -> bool:
 func _run_physics_tick(delta: float) -> void:
 	if pooled:
 		return
-	var target_distance: float = INF
+	var target_distance_sq: float = INF
 	if target != null and is_instance_valid(target) and target is Node2D:
-		target_distance = global_position.distance_to((target as Node2D).global_position)
-	if target_distance > PLAYER_RELEVANCE_DISTANCE:
+		target_distance_sq = global_position.distance_squared_to((target as Node2D).global_position)
+	if target_distance_sq > PLAYER_RELEVANCE_DISTANCE * PLAYER_RELEVANCE_DISTANCE:
 		recycle()
 		return
-	if target_distance > PLAYER_FULL_UPDATE_DISTANCE:
+	if target_distance_sq > PLAYER_FULL_UPDATE_DISTANCE * PLAYER_FULL_UPDATE_DISTANCE:
 		remote_update_elapsed += delta
 		if remote_update_elapsed < REMOTE_UPDATE_INTERVAL:
 			lifetime -= delta
@@ -284,7 +287,11 @@ func _run_physics_tick(delta: float) -> void:
 
 func _update_straight_motion(delta: float) -> void:
 	global_position += direction * speed * delta
-	rotation = direction.angle()
+	if direction != cached_straight_direction:
+		cached_straight_direction = direction
+		cached_straight_rotation = direction.angle()
+	if rotation != cached_straight_rotation:
+		rotation = cached_straight_rotation
 
 func _update_sine_motion(delta: float) -> void:
 	forward_distance += speed * delta
@@ -475,7 +482,11 @@ func _try_hit_player() -> void:
 
 func _update_lifetime_fade() -> void:
 	var fade_duration: float = min(LIFETIME_FADE_DURATION, max_lifetime)
-	modulate.a = clamp(lifetime / max(fade_duration, 0.001), 0.0, 1.0)
+	var color: Color = modulate
+	var alpha: float = 1.0 if lifetime >= fade_duration else clampf(lifetime / maxf(fade_duration, 0.001), 0.0, 1.0)
+	if color.a != alpha:
+		color.a = alpha
+		modulate = color
 
 func _spawn_split_bullets() -> void:
 	split_performed = true

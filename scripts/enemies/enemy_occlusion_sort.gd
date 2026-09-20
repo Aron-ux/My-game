@@ -40,10 +40,13 @@ static func _update_scene(scene: Node) -> void:
 	_collect_sort_targets(enemies, occluders, sortable_enemies)
 	if occluders.is_empty():
 		return
+	var frontmost_occluder_y: float = -INF
 	for occluder in occluders:
 		_apply_enemy_z_index(occluder, OCCLUDER_Z_INDEX)
+		frontmost_occluder_y = maxf(frontmost_occluder_y, _get_sort_y(occluder))
 	for enemy_node in sortable_enemies:
-		_apply_enemy_z_index(enemy_node, _get_z_index_against_occluders(enemy_node, occluders))
+		var z_value := BEHIND_OCCLUDER_Z_INDEX if _get_sort_y(enemy_node) < frontmost_occluder_y else IN_FRONT_OF_OCCLUDER_Z_INDEX
+		_apply_enemy_z_index(enemy_node, z_value)
 
 
 static func _get_runtime_enemies(scene: Node) -> Array:
@@ -89,12 +92,13 @@ static func _get_z_index_against_occluders(enemy: Node2D, occluders: Array[Node2
 
 
 static func _apply_enemy_z_index(enemy: Node2D, z_value: int) -> void:
-	enemy.z_index = z_value
+	if enemy.z_index != z_value:
+		enemy.z_index = z_value
 	var visual: Node2D = enemy.get_node_or_null("ProfileVisual") as Node2D
-	if visual != null:
+	if visual != null and visual.z_index != 0:
 		visual.z_index = 0
 	var polygon: Polygon2D = enemy.get_node_or_null("Polygon2D") as Polygon2D
-	if polygon != null:
+	if polygon != null and polygon.z_index != 0:
 		polygon.z_index = 0
 
 

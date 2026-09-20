@@ -2,6 +2,7 @@ extends Node2D
 
 const PLAYER_DAMAGE_RESOLVER := preload("res://scripts/player/player_damage_resolver.gd")
 const PLAYER_TARGETING := preload("res://scripts/player/player_targeting.gd")
+const PLAYER_PROJECTILE_QUERY := preload("res://scripts/player/player_projectile_query.gd")
 const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
 const PERFORMANCE_COUNTERS := preload("res://scripts/game/performance_counters.gd")
 const WHITE_KEY_SHADER := preload("res://shaders/white_key.gdshader")
@@ -21,10 +22,13 @@ const ENEMY_GRID_CELL_SIZE := 96.0
 const IMPACT_EFFECT_POOL_LIMIT := 96
 const SPLIT_RING_POOL_LIMIT := 32
 static var shared_bullet_texture: Texture2D
+static var shared_white_key_material: ShaderMaterial
 static var cached_enemy_nodes: Array = []
 static var cached_enemy_nodes_frame: int = -1
+static var cached_enemy_nodes_source_key: int = -1
 static var cached_enemy_grid: Dictionary = {}
 static var cached_enemy_grid_frame: int = -1
+static var cached_enemy_grid_source_key: int = -1
 static var impact_effect_budget_frame: int = -1
 static var impact_effect_budget_used: int = 0
 static var split_burst_budget_frame: int = -1
@@ -48,10 +52,13 @@ static var split_shard_polygon := PackedVector2Array([
 ])
 
 static func clear_runtime_state() -> void:
+	PLAYER_PROJECTILE_QUERY.clear_runtime_state()
 	cached_enemy_nodes.clear()
 	cached_enemy_nodes_frame = -1
+	cached_enemy_nodes_source_key = -1
 	cached_enemy_grid.clear()
 	cached_enemy_grid_frame = -1
+	cached_enemy_grid_source_key = -1
 	impact_effect_budget_frame = -1
 	impact_effect_budget_used = 0
 	split_burst_budget_frame = -1
@@ -237,9 +244,10 @@ func _refresh_bullet_visual(force: bool = false) -> void:
 
 	var shader_material := sprite.material as ShaderMaterial
 	if shader_material == null:
-		shader_material = ShaderMaterial.new()
-		shader_material.shader = WHITE_KEY_SHADER
-		sprite.material = shader_material
+		if shared_white_key_material == null:
+			shared_white_key_material = ShaderMaterial.new()
+			shared_white_key_material.shader = WHITE_KEY_SHADER
+		sprite.material = shared_white_key_material
 	_update_visual_cache()
 
 func _update_visual_cache() -> void:
@@ -513,9 +521,11 @@ func _can_hit_enemy(enemy: Node2D) -> bool:
 
 func _get_cached_enemy_nodes() -> Array:
 	var current_frame := Engine.get_physics_frames()
-	if cached_enemy_nodes_frame != current_frame:
+	var source_key := PLAYER_DAMAGE_RESOLVER._get_enemy_source_cache_key(self, get_tree())
+	if cached_enemy_nodes_frame != current_frame or cached_enemy_nodes_source_key != source_key:
 		cached_enemy_nodes = _get_runtime_enemies()
 		cached_enemy_nodes_frame = current_frame
+		cached_enemy_nodes_source_key = source_key
 	return cached_enemy_nodes
 
 func _get_runtime_enemies() -> Array:
@@ -529,22 +539,12 @@ func _get_runtime_enemies() -> Array:
 
 func _get_candidate_enemies_near(center: Vector2, radius: float) -> Array:
 	var grid: Dictionary = _get_cached_enemy_grid()
-	if grid.is_empty():
-		return []
-	var cell_radius: int = int(ceil(max(1.0, radius) / ENEMY_GRID_CELL_SIZE))
-	var center_cell: Vector2i = _grid_cell(center)
-	var result: Array = []
-	for x in range(center_cell.x - cell_radius, center_cell.x + cell_radius + 1):
-		for y in range(center_cell.y - cell_radius, center_cell.y + cell_radius + 1):
-			var cell := Vector2i(x, y)
-			if not grid.has(cell):
-				continue
-			result.append_array(grid[cell] as Array)
-	return result
+	return PLAYER_PROJECTILE_QUERY.get_candidates(grid, center, radius)
 
 func _get_cached_enemy_grid() -> Dictionary:
 	var current_frame := Engine.get_physics_frames()
-	if cached_enemy_grid_frame == current_frame:
+	var source_key := PLAYER_DAMAGE_RESOLVER._get_enemy_source_cache_key(self, get_tree())
+	if cached_enemy_grid_frame == current_frame and cached_enemy_grid_source_key == source_key:
 		return cached_enemy_grid
 	if source_player != null and is_instance_valid(source_player):
 		cached_enemy_grid = PLAYER_DAMAGE_RESOLVER._get_enemy_grid(source_player)
@@ -558,6 +558,7 @@ func _get_cached_enemy_grid() -> Dictionary:
 				cached_enemy_grid[cell] = []
 			(cached_enemy_grid[cell] as Array).append(enemy)
 	cached_enemy_grid_frame = current_frame
+	cached_enemy_grid_source_key = source_key
 	return cached_enemy_grid
 
 func _grid_cell(position: Vector2) -> Vector2i:

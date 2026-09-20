@@ -2,6 +2,7 @@ extends Node2D
 
 const PLAYER_DAMAGE_RESOLVER := preload("res://scripts/player/player_damage_resolver.gd")
 const PLAYER_DAMAGE_BATCHER := preload("res://scripts/player/player_damage_batcher.gd")
+const PLAYER_PROJECTILE_QUERY := preload("res://scripts/player/player_projectile_query.gd")
 const PERFORMANCE_COUNTERS := preload("res://scripts/game/performance_counters.gd")
 
 const MAX_BATCHED_PROJECTILES := 1800
@@ -22,6 +23,7 @@ const BULLET_ANIMATION_SPEED := 28.0
 const BULLET_FRAME_BASE_SIZE := 84.0
 const MULTIMESH_REFRESH_FRAME_STRIDE_WHEN_HEAVY := 2
 const HEAVY_PROJECTILE_COUNT := 360
+const RENDER_INSTANCE_FLOATS := 12
 
 var positions: Array[Vector2] = []
 var source_origins: Array[Vector2] = []
@@ -80,6 +82,12 @@ var bullet_multimesh: MultiMesh
 var last_multimesh_refresh_frame: int = -1
 var damage_batcher: RefCounted
 var reusable_damage_batcher: RefCounted
+var bullet_render_buffer := PackedFloat32Array()
+var outline_render_buffer := PackedFloat32Array()
+var render_directions: Array[Vector2] = []
+var render_dimensions: Array[Vector3] = []
+var render_colors: Array[Color] = []
+var render_outline_colors: Array[Color] = []
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_PAUSABLE
@@ -342,23 +350,25 @@ func _get_damage_batcher() -> RefCounted:
 
 func _find_hit_enemy(projectile_index: int, grid: Dictionary) -> Node2D:
 	var projectile_position: Vector2 = positions[projectile_index]
-	var total_cell_radius: float = hit_radii[projectile_index] + PLAYER_DAMAGE_RESOLVER.BOSS_MODEL_HURTBOX_QUERY_PADDING
-	var cell_radius: int = int(ceil(total_cell_radius / HIT_GRID_CELL_SIZE))
-	var center_cell: Vector2i = _grid_cell(projectile_position)
-	for x in range(center_cell.x - cell_radius, center_cell.x + cell_radius + 1):
-		for y in range(center_cell.y - cell_radius, center_cell.y + cell_radius + 1):
-			var cell := Vector2i(x, y)
-			if not grid.has(cell):
-				continue
-			for enemy in grid[cell] as Array:
-				if enemy == null or not is_instance_valid(enemy) or enemy is not Node2D:
-					continue
-				if not PLAYER_DAMAGE_RESOLVER._is_live_enemy(enemy):
-					continue
-				if _has_projectile_hit_enemy(projectile_index, enemy as Node2D):
-					continue
-				if _projectile_hits_enemy_shape(projectile_position, hit_radii[projectile_index], enemy as Node2D, enemy_hit_radius_scales[projectile_index], enemy_hit_radius_mins[projectile_index], enemy_hit_radius_maxs[projectile_index]):
-					return enemy as Node2D
+	var projectile_radius: float = hit_radii[projectile_index]
+	var radius_scale: float = enemy_hit_radius_scales[projectile_index]
+	var minimum: float = enemy_hit_radius_mins[projectile_index]
+	var maximum: float = enemy_hit_radius_maxs[projectile_index]
+	var prior_hits: Variant = hit_enemy_ids[projectile_index]
+	var has_prior_hits: bool = prior_hits is Dictionary and not prior_hits.is_empty()
+	var total_cell_radius: float = projectile_radius + PLAYER_DAMAGE_RESOLVER.BOSS_MODEL_HURTBOX_QUERY_PADDING
+	for enemy in PLAYER_PROJECTILE_QUERY.get_candidates(grid, projectile_position, total_cell_radius):
+		if enemy == null or not is_instance_valid(enemy) or enemy is not Node2D:
+			continue
+		if has_prior_hits and prior_hits.has(enemy.get_instance_id()):
+			continue
+		# Geometry has no side effects. Only overlapping candidates need the
+		# live-health/rebirth checks; already pierced targets stay excluded.
+		if not _projectile_hits_enemy_shape(projectile_position, projectile_radius, enemy as Node2D, radius_scale, minimum, maximum):
+			continue
+		if not PLAYER_DAMAGE_RESOLVER._is_live_enemy(enemy):
+			continue
+		return enemy as Node2D
 	return null
 
 func _apply_projectile_hit(projectile_index: int, enemy: Node2D) -> void:
@@ -679,6 +689,13 @@ func _append_damage_enabled_flag(enabled: bool) -> void:
 func _setup_multimesh_renderers() -> void:
 	bullet_outline_multimesh = _create_multimesh()
 	bullet_multimesh = _create_multimesh()
+	bullet_render_buffer.resize(MAX_BATCHED_PROJECTILES * RENDER_INSTANCE_FLOATS)
+	outline_render_buffer.resize(MAX_BATCHED_PROJECTILES * RENDER_INSTANCE_FLOATS)
+	render_directions.resize(MAX_BATCHED_PROJECTILES)
+	render_dimensions.resize(MAX_BATCHED_PROJECTILES)
+	render_dimensions.fill(Vector3(INF, INF, INF))
+	render_colors.resize(MAX_BATCHED_PROJECTILES)
+	render_outline_colors.resize(MAX_BATCHED_PROJECTILES)
 	var fallback_texture: Texture2D = bullet_frame_textures[0] if not bullet_frame_textures.is_empty() else null
 	bullet_outline_multimesh_instance = _create_multimesh_instance("BatchedBulletOutlines", bullet_outline_multimesh, fallback_texture)
 	if bullet_outline_multimesh_instance != null:
@@ -757,19 +774,49 @@ func _update_multimesh_instances() -> void:
 	for index in range(count):
 		var projectile_position: Vector2 = positions[index]
 		var direction: Vector2 = directions[index]
-		var radius: float = visual_radii[index]
-		var color: Color = colors[index]
-		var diameter: float = max(visual_min_diameters[index], radius * 2.0)
-		var frame_size := Vector2(diameter, diameter) * (BULLET_FRAME_BASE_SIZE / 32.0)
-		bullet_multimesh.set_instance_transform_2d(index, _make_transform(projectile_position, direction, frame_size))
-		bullet_multimesh.set_instance_color(index, color)
-		if bullet_outline_multimesh != null:
-			var outline_width: float = visual_outline_widths[index]
-			var outline_color: Color = outline_colors[index] if outline_width > 0.0 else Color(1.0, 1.0, 1.0, 0.0)
-			var outline_diameter: float = diameter + outline_width * 2.0
-			var outline_size := Vector2(outline_diameter, outline_diameter) * (BULLET_FRAME_BASE_SIZE / 32.0)
-			bullet_outline_multimesh.set_instance_transform_2d(index, _make_transform(projectile_position, direction, outline_size))
-			bullet_outline_multimesh.set_instance_color(index, outline_color)
+		var dimensions := Vector3(visual_radii[index], visual_min_diameters[index], visual_outline_widths[index])
+		if render_directions[index] != direction or render_dimensions[index] != dimensions or render_colors[index] != colors[index] or render_outline_colors[index] != outline_colors[index]:
+			_write_render_appearance(index, direction, dimensions)
+		var offset := index * RENDER_INSTANCE_FLOATS
+		bullet_render_buffer[offset + 3] = projectile_position.x
+		bullet_render_buffer[offset + 7] = projectile_position.y
+		outline_render_buffer[offset + 3] = projectile_position.x
+		outline_render_buffer[offset + 7] = projectile_position.y
+	# Two bulk uploads preserve every instance, texture, outline and color.
+	bullet_multimesh.buffer = bullet_render_buffer
+	if bullet_outline_multimesh != null:
+		bullet_outline_multimesh.buffer = outline_render_buffer
+
+func _write_render_appearance(index: int, direction: Vector2, dimensions: Vector3) -> void:
+	render_directions[index] = direction
+	render_dimensions[index] = dimensions
+	render_colors[index] = colors[index]
+	render_outline_colors[index] = outline_colors[index]
+	var forward := direction if direction.length_squared() > 0.001 else Vector2.RIGHT
+	var side := forward.orthogonal()
+	var diameter := maxf(dimensions.y, dimensions.x * 2.0)
+	var size := diameter * (BULLET_FRAME_BASE_SIZE / 32.0)
+	var outline_size := (diameter + dimensions.z * 2.0) * (BULLET_FRAME_BASE_SIZE / 32.0)
+	var color: Color = colors[index]
+	var outline_color: Color = outline_colors[index] if dimensions.z > 0.0 else Color(1.0, 1.0, 1.0, 0.0)
+	var offset := index * RENDER_INSTANCE_FLOATS
+	# TRANSFORM_2D uses two padded rows, then the four color components.
+	bullet_render_buffer[offset] = forward.x * size
+	bullet_render_buffer[offset + 1] = side.x * size
+	bullet_render_buffer[offset + 4] = forward.y * size
+	bullet_render_buffer[offset + 5] = side.y * size
+	bullet_render_buffer[offset + 8] = color.r
+	bullet_render_buffer[offset + 9] = color.g
+	bullet_render_buffer[offset + 10] = color.b
+	bullet_render_buffer[offset + 11] = color.a
+	outline_render_buffer[offset] = forward.x * outline_size
+	outline_render_buffer[offset + 1] = side.x * outline_size
+	outline_render_buffer[offset + 4] = forward.y * outline_size
+	outline_render_buffer[offset + 5] = side.y * outline_size
+	outline_render_buffer[offset + 8] = outline_color.r
+	outline_render_buffer[offset + 9] = outline_color.g
+	outline_render_buffer[offset + 10] = outline_color.b
+	outline_render_buffer[offset + 11] = outline_color.a
 
 func _make_transform(transform_position: Vector2, direction: Vector2, size: Vector2) -> Transform2D:
 	var forward := direction

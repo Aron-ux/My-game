@@ -1,6 +1,7 @@
 extends RefCounted
 
 const PERFORMANCE_COUNTERS := preload("res://scripts/game/performance_counters.gd")
+const DAMAGE_METHOD_DISPATCH := preload("res://scripts/combat/damage_method_dispatch.gd")
 const PLAYER_DAMAGE_JOB_QUEUE := preload("res://scripts/player/player_damage_job_queue.gd")
 const PLAYER_DAMAGE_BATCHER := preload("res://scripts/player/player_damage_batcher.gd")
 const PLAYER_DAMAGE_SHAPE_FLOW := preload("res://scripts/player/player_damage_shape_flow.gd")
@@ -129,18 +130,7 @@ static func _call_enemy_take_damage(enemy: Node, amount: float, is_critical: boo
 	return bool(enemy.take_damage(amount))
 
 static func _method_accepts_argument_count(target: Object, method_name: String, argument_count: int) -> bool:
-	for method in target.get_method_list():
-		if method is not Dictionary:
-			continue
-		var method_data: Dictionary = method
-		if str(method_data.get("name", "")) != method_name:
-			continue
-		var args: Array = method_data.get("args", [])
-		var default_args: Array = method_data.get("default_args", [])
-		var max_args: int = args.size()
-		var min_args: int = max(0, max_args - default_args.size())
-		return argument_count >= min_args and argument_count <= max_args
-	return false
+	return DAMAGE_METHOD_DISPATCH.accepts_arguments(target, method_name, argument_count)
 
 static func queue_damage_to_enemy(owner, enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, prefer_silent_feedback: bool = false, suppress_status_visual: bool = false, gunner_event_prepared: bool = false, damage_event_id: String = "") -> void:
 	if not _is_live_enemy(enemy):

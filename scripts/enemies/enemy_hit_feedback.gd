@@ -20,7 +20,7 @@ const CRITICAL_FPS_KILL_DAMAGE_NUMBER_BUDGET_PER_FRAME := 1
 const DAMAGE_LABEL_POOL_LIMIT := 64
 const DEATH_BURST_POOL_LIMIT := 32
 const BOSS_HIT_FLASH_OVERLAY_NAME := "BossHitFlashOverlay"
-const BOSS_HIT_FLASH_TOKEN_META := "boss_hit_flash_token"
+const BOSS_HIT_FLASH_TWEEN_META := "boss_hit_flash_tween"
 
 static var damage_number_budget_frame: int = -1
 static var damage_number_budget_used: int = 0
@@ -31,6 +31,7 @@ static var death_burst_budget_used: int = 0
 static var hit_flash_budget_frame: int = -1
 static var hit_flash_budget_used: int = 0
 static var boss_hit_flash_shader: Shader
+static var boss_hit_flash_material: ShaderMaterial
 static var damage_label_pool: Array = []
 static var death_burst_pool: Array = []
 static var active_damage_labels: Array[Dictionary] = []
@@ -163,22 +164,29 @@ static func _spawn_boss_hit_flash_overlay_for_sprite(source_sprite: AnimatedSpri
 	overlay.scale = Vector2.ONE
 	overlay.modulate = Color(1.0, 1.0, 1.0, 0.7)
 	overlay.visible = true
-	var flash_token: int = int(overlay.get_meta(BOSS_HIT_FLASH_TOKEN_META, 0)) + 1
-	overlay.set_meta(BOSS_HIT_FLASH_TOKEN_META, flash_token)
-	var tween: Tween = overlay.create_tween()
-	tween.tween_property(overlay, "modulate:a", 0.0, HIT_FLASH_DURATION)
+	var tween: Tween = overlay.get_meta(BOSS_HIT_FLASH_TWEEN_META) as Tween if overlay.has_meta(BOSS_HIT_FLASH_TWEEN_META) else null
+	if tween != null and tween.is_valid():
+		# Refresh a single animation instead of stacking competing tweens on hit.
+		tween.stop()
+		tween.play()
+		return
+	tween = overlay.create_tween()
+	overlay.set_meta(BOSS_HIT_FLASH_TWEEN_META, tween)
+	tween.tween_property(overlay, "modulate:a", 0.0, HIT_FLASH_DURATION).from(0.7)
 	tween.tween_callback(func() -> void:
-		if is_instance_valid(overlay) and int(overlay.get_meta(BOSS_HIT_FLASH_TOKEN_META, 0)) == flash_token:
+		if is_instance_valid(overlay):
 			overlay.visible = false
 	)
 
 static func _get_boss_hit_flash_material() -> ShaderMaterial:
+	if boss_hit_flash_material != null:
+		return boss_hit_flash_material
 	if boss_hit_flash_shader == null:
 		boss_hit_flash_shader = Shader.new()
 		boss_hit_flash_shader.code = "shader_type canvas_item;\nvoid fragment() {\n\tvec4 tex = texture(TEXTURE, UV);\n\tCOLOR = vec4(1.0, 1.0, 1.0, tex.a * COLOR.a);\n}\n"
-	var material: ShaderMaterial = ShaderMaterial.new()
-	material.shader = boss_hit_flash_shader
-	return material
+	boss_hit_flash_material = ShaderMaterial.new()
+	boss_hit_flash_material.shader = boss_hit_flash_shader
+	return boss_hit_flash_material
 
 static func _collect_boss_flash_sprites(root: Node, output: Array[AnimatedSprite2D]) -> void:
 	if root is AnimatedSprite2D:

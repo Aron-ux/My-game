@@ -258,13 +258,9 @@ static func save_run(data: Dictionary, slot_id: int = -1, mode: String = "") -> 
 		return 0
 	if resolved_mode == MODE_STORY:
 		set_active_slot(resolved)
-		var story_payload_chars := _write_json(_run_path(resolved), data)
-		_write_json(_run_backup_path(resolved), data)
-		return story_payload_chars
+		return SAVE_FILE_STORE.write_json_pair(_run_path(resolved), _run_backup_path(resolved), data)
 	set_active_endless_slot(resolved)
-	var endless_payload_chars := _write_json(_endless_run_path(resolved), data)
-	_write_json(_endless_run_backup_path(resolved), data)
-	return endless_payload_chars
+	return SAVE_FILE_STORE.write_json_pair(_endless_run_path(resolved), _endless_run_backup_path(resolved), data)
 
 static func load_run(slot_id: int = -1, mode: String = "") -> Dictionary:
 	var resolved_mode := mode if mode != "" else get_active_mode()

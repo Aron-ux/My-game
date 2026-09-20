@@ -39,7 +39,7 @@ static func physics_process(enemy, delta: float) -> void:
 	if had_hit_flash:
 		enemy.hit_flash_remaining = max(0.0, enemy.hit_flash_remaining - delta)
 	var hit_flash_finished: bool = had_hit_flash and enemy.hit_flash_remaining <= 0.0
-	if enemy.slow_timer > 0.0 or enemy.vulnerability_timer > 0.0 or enemy.bleed_timer > 0.0 or enemy.skull_soldier_speed_timer > 0.0 or enemy.skull_damage_immune_timer > 0.0 or enemy.skullshot_attack_frequency_timer > 0.0:
+	if enemy.fury_armor_shred_remaining > 0.0 or enemy.slow_timer > 0.0 or enemy.vulnerability_timer > 0.0 or enemy.bleed_timer > 0.0 or enemy.skull_soldier_speed_timer > 0.0 or enemy.skull_damage_immune_timer > 0.0 or enemy.skullshot_attack_frequency_timer > 0.0:
 		enemy._update_status_timers(delta)
 	if enemy.bleed_timer > 0.0 and enemy.bleed_damage_per_second > 0.0:
 		enemy._update_bleed(delta)

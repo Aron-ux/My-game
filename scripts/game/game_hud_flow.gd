@@ -162,7 +162,8 @@ static func on_player_mana_changed(main: Node, current_mana: float, max_mana: fl
 	if main.hud != null and main.hud.has_method("update_mana"):
 		main.hud.update_mana(current_mana, max_mana)
 	if main.hud != null and main.hud.has_method("update_stats") and main.player != null and main.player.has_method("get_stat_summary") and _should_refresh_mana_stats(main):
-		main.hud.update_stats(main.player.get_stat_summary())
+		var summary: Dictionary = main.player.get_frame_hud_summary() if main.player.has_method("get_frame_hud_summary") else main.player.get_stat_summary()
+		main.hud.update_stats(summary)
 
 static func _should_refresh_mana_stats(main: Node) -> bool:
 	return _should_refresh_elapsed(main, LAST_FRAME_STATS_REFRESH_META, main.survival_time, FRAME_STATS_REFRESH_INTERVAL)

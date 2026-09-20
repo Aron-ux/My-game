@@ -44,8 +44,16 @@ var heavy_armor_remaining: float = 0.0
 var heavy_armor_cooldown: float = 20.0
 const ENEMY_STALWART_BODY := preload("res://scripts/enemies/enemy_stalwart_body.gd")
 @export var touch_damage: float = 10.0
-@export var contact_radius: float = 36.0
-@export var body_collision_radius: float = -1.0
+@export var contact_radius: float = 36.0:
+	set(value):
+		contact_radius = value
+		body_collision_radius_dirty = true
+		ENEMY_SPATIAL_GRID.invalidate_body_bounds()
+@export var body_collision_radius: float = -1.0:
+	set(value):
+		body_collision_radius = value
+		body_collision_radius_dirty = true
+		ENEMY_SPATIAL_GRID.invalidate_body_bounds()
 @export var experience_reward: int = 10
 @export var reward_tier: int = 1
 @export var exp_gem_scene: PackedScene = preload("res://scenes/exp_gem.tscn")
@@ -274,7 +282,14 @@ var hit_flash_remaining: float = 0.0
 var separation_push: Vector2 = Vector2.ZERO
 var cached_separation_velocity: Vector2 = Vector2.ZERO
 var separation_refresh_frame: int = -1
-var body_collision_reference_scale: float = 1.0
+var body_collision_reference_scale: float = 1.0:
+	set(value):
+		body_collision_reference_scale = value
+		body_collision_radius_dirty = true
+		ENEMY_SPATIAL_GRID.invalidate_body_bounds()
+var body_collision_radius_dirty: bool = true
+var cached_body_collision_scale := Vector2(INF, INF)
+var cached_body_collision_radius: float = 0.0
 var status_visual_refresh_frame: int = -1
 var throttled_motion_delta: float = 0.0
 var motion_refresh_frame: int = -1
@@ -286,8 +301,32 @@ var pooled_inactive: bool = false
 var velocity: Vector2 = Vector2.ZERO
 var batch_simulation_enabled: bool = false
 
+func _init() -> void:
+	set_notify_local_transform(true)
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_ENTER_TREE:
+		body_collision_radius_dirty = true
+		ENEMY_SPATIAL_GRID.invalidate_body_bounds()
+	elif what == NOTIFICATION_LOCAL_TRANSFORM_CHANGED:
+		var current_scale: Vector2 = scale
+		if current_scale != cached_body_collision_scale:
+			cached_body_collision_scale = current_scale
+			body_collision_radius_dirty = true
+			ENEMY_SPATIAL_GRID.invalidate_body_bounds()
+
 func _ready() -> void:
 	ENEMY_RUNTIME_PROCESS.ready(self)
+
+func get_body_collision_radius() -> float:
+	# Transform notifications run in-tree; detached profile/preview nodes use a check.
+	if not is_inside_tree() and scale != cached_body_collision_scale:
+		body_collision_radius_dirty = true
+	if body_collision_radius_dirty:
+		cached_body_collision_scale = scale
+		cached_body_collision_radius = ENEMY_BODY_SEPARATION.calculate_body_collision_radius(maxf(absf(cached_body_collision_scale.x), absf(cached_body_collision_scale.y)), body_collision_reference_scale, body_collision_radius, contact_radius)
+		body_collision_radius_dirty = false
+	return cached_body_collision_radius
 
 func _exit_tree() -> void:
 	clear_runtime_effects_after_defeat()

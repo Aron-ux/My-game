@@ -12,7 +12,7 @@ const SEPARATION_VELOCITY_RADIUS_SCALE := 0.7
 const CLUSTER_ESCAPE_OVERLAP_SCALE := 0.22
 const CLUSTER_ESCAPE_MIN_PUSH := 0.0
 
-static func apply_body_collision_separation(enemy) -> void:
+static func apply_body_collision_separation(enemy: Node2D) -> void:
 	if enemy == null or not is_instance_valid(enemy) or not enemy.is_inside_tree():
 		return
 	if should_skip_direct_separation(enemy):
@@ -23,12 +23,18 @@ static func apply_body_collision_separation(enemy) -> void:
 	var total_overlap: float = 0.0
 	var max_overlap: float = 0.0
 	var processed: int = 0
+	var enemy_position := enemy.global_position
+	var broad_radius: float = self_body_radius + enemy.ENEMY_SPATIAL_GRID.get_max_body_radius(enemy)
+	var broad_radius_sq := broad_radius * broad_radius
 	for other in enemy.ENEMY_SPATIAL_GRID.get_neighbors(enemy, max(144.0, self_body_radius * 5.0)):
 		if other == null or other == enemy or not is_instance_valid(other) or not (other is Node2D):
 			continue
-		var other_radius: float = get_body_collision_radius(other)
-		var offset: Vector2 = enemy.global_position - (other as Node2D).global_position
+		var other_position: Vector2 = (other as Node2D).global_position
+		var offset: Vector2 = enemy_position - other_position
 		var distance_sq: float = offset.length_squared()
+		if distance_sq >= broad_radius_sq:
+			continue
+		var other_radius: float = get_body_collision_radius(other)
 		var min_distance: float = self_body_radius + other_radius
 		var min_distance_sq: float = min_distance * min_distance
 		if distance_sq >= min_distance_sq:
@@ -39,7 +45,7 @@ static func apply_body_collision_separation(enemy) -> void:
 		var distance: float = sqrt(distance_sq)
 		var overlap: float = min_distance - distance
 		push += offset / distance * min(overlap * DIRECT_SEPARATION_OVERLAP_SCALE, DIRECT_SEPARATION_PER_NEIGHBOR_LIMIT)
-		cluster_center += (other as Node2D).global_position
+		cluster_center += other_position
 		total_overlap += overlap
 		max_overlap = max(max_overlap, overlap)
 		processed += 1
@@ -59,7 +65,7 @@ static func get_separation_velocity(enemy) -> Vector2:
 	return enemy.cached_separation_velocity
 
 
-static func compute_separation_velocity(enemy) -> Vector2:
+static func compute_separation_velocity(enemy: Node2D) -> Vector2:
 	if enemy == null or not is_instance_valid(enemy) or not enemy.is_inside_tree():
 		return Vector2.ZERO
 	var push: Vector2 = Vector2.ZERO
@@ -68,14 +74,20 @@ static func compute_separation_velocity(enemy) -> Vector2:
 	var max_overlap: float = 0.0
 	var processed: int = 0
 	var self_body_radius: float = get_body_collision_radius(enemy)
+	var enemy_position := enemy.global_position
+	var broad_radius: float = maxf(12.0, self_body_radius + enemy.ENEMY_SPATIAL_GRID.get_max_body_radius(enemy))
+	var broad_radius_sq := broad_radius * broad_radius
 	for other in enemy.ENEMY_SPATIAL_GRID.get_neighbors(enemy, max(128.0, self_body_radius * 4.5)):
 		if other == null or other == enemy or not is_instance_valid(other) or not (other is Node2D):
 			continue
-		var offset: Vector2 = enemy.global_position - (other as Node2D).global_position
+		var other_position: Vector2 = (other as Node2D).global_position
+		var offset: Vector2 = enemy_position - other_position
+		var distance_sq: float = offset.length_squared()
+		if distance_sq > broad_radius_sq:
+			continue
 		var other_radius: float = get_body_collision_radius(other)
 		var radius: float = max(12.0, self_body_radius + other_radius)
 		var radius_sq: float = radius * radius
-		var distance_sq: float = offset.length_squared()
 		if distance_sq > radius_sq:
 			continue
 		if distance_sq <= 0.001:
@@ -84,8 +96,8 @@ static func compute_separation_velocity(enemy) -> Vector2:
 		var distance: float = sqrt(distance_sq)
 		var max_push: float = max(SEPARATION_VELOCITY_MIN_PUSH, radius * SEPARATION_VELOCITY_RADIUS_SCALE)
 		var strength: float = (radius - distance) / radius
-		push += offset.normalized() * strength * max_push
-		cluster_center += (other as Node2D).global_position
+		push += (offset / distance) * strength * max_push
+		cluster_center += other_position
 		total_overlap += radius - distance
 		max_overlap = max(max_overlap, radius - distance)
 		processed += 1
@@ -108,15 +120,23 @@ static func _get_cluster_escape_push(enemy, cluster_center: Vector2, total_overl
 	return direction.normalized() * max(CLUSTER_ESCAPE_MIN_PUSH, average_overlap * CLUSTER_ESCAPE_OVERLAP_SCALE)
 
 
-static func get_body_collision_radius(enemy) -> float:
-	var visual_scale_multiplier: float = get_body_collision_visual_scale_multiplier(enemy)
-	if float(enemy.body_collision_radius) > 0.0:
-		return max(6.0, float(enemy.body_collision_radius) * visual_scale_multiplier * BODY_COLLISION_RADIUS_SCALE)
-	return clamp(float(enemy.contact_radius) * 0.82, 24.0, 42.0) * visual_scale_multiplier * BODY_COLLISION_RADIUS_SCALE
+static func get_body_collision_radius(enemy: Node2D) -> float:
+	if enemy.has_method("get_body_collision_radius"):
+		return enemy.get_body_collision_radius()
+	var enemy_scale := enemy.scale
+	return calculate_body_collision_radius(maxf(absf(enemy_scale.x), absf(enemy_scale.y)), float(enemy.body_collision_reference_scale), float(enemy.body_collision_radius), float(enemy.contact_radius))
 
 
-static func get_body_collision_visual_scale_multiplier(enemy) -> float:
-	var current_scale: float = max(abs(enemy.scale.x), abs(enemy.scale.y))
+static func calculate_body_collision_radius(current_scale: float, reference_scale: float, body_radius: float, contact_radius: float) -> float:
+	var visual_scale_multiplier := maxf(0.25, current_scale / maxf(0.001, reference_scale))
+	if body_radius > 0.0:
+		return maxf(6.0, body_radius * visual_scale_multiplier * BODY_COLLISION_RADIUS_SCALE)
+	return clampf(contact_radius * 0.82, 24.0, 42.0) * visual_scale_multiplier * BODY_COLLISION_RADIUS_SCALE
+
+
+static func get_body_collision_visual_scale_multiplier(enemy: Node2D) -> float:
+	var enemy_scale := enemy.scale
+	var current_scale: float = max(abs(enemy_scale.x), abs(enemy_scale.y))
 	var reference_scale: float = max(0.001, float(enemy.body_collision_reference_scale))
 	return max(0.25, current_scale / reference_scale)
 

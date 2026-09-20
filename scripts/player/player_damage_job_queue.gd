@@ -1,6 +1,7 @@
 extends Node
 
 const PERFORMANCE_COUNTERS := preload("res://scripts/game/performance_counters.gd")
+const DAMAGE_METHOD_DISPATCH := preload("res://scripts/combat/damage_method_dispatch.gd")
 const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
 const PLAYER_RUAN_STONE_FLOW := preload("res://scripts/player/player_ruan_stone_flow.gd")
 const PLAYER_GUNNER_BASIC_TALENT_FLOW := preload("res://scripts/player/player_gunner_basic_talent_flow.gd")
@@ -384,18 +385,7 @@ func _call_enemy_take_batched_damage(enemy: Node, amount: float, is_critical: bo
 	return bool(enemy.take_batched_damage(amount))
 
 func _method_accepts_argument_count(target: Object, method_name: String, argument_count: int) -> bool:
-	for method in target.get_method_list():
-		if method is not Dictionary:
-			continue
-		var method_data: Dictionary = method
-		if str(method_data.get("name", "")) != method_name:
-			continue
-		var args: Array = method_data.get("args", [])
-		var default_args: Array = method_data.get("default_args", [])
-		var max_args: int = args.size()
-		var min_args: int = max(0, max_args - default_args.size())
-		return argument_count >= min_args and argument_count <= max_args
-	return false
+	return DAMAGE_METHOD_DISPATCH.accepts_arguments(target, method_name, argument_count)
 
 func _get_enemy_current_health(enemy: Node) -> float:
 	if enemy == null or not is_instance_valid(enemy):
