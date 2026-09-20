@@ -17,7 +17,7 @@ const DANMAKU_WAVES := 6
 const DANMAKU_WAVE_INTERVAL := 0.20
 const LASER_DAMAGE_INTERVAL := 0.2
 
-static func fire_radial_burst(enemy, count: int = -1) -> void:
+static func fire_radial_burst(enemy, count: int = -1, finishing_shot: bool = false) -> void:
 	var bullet_count: int = max(10, count if count > 0 else enemy.boss_radial_bullets)
 	var base_angle: float = enemy.boss_pattern_rotation + randf_range(-0.08, 0.08)
 	for index in range(bullet_count):
@@ -31,7 +31,7 @@ static func fire_radial_burst(enemy, count: int = -1) -> void:
 			10.0,
 			Color(0.60, 0.32, 0.96, 1.0),
 			"straight",
-			{"size_scale": 1.15, "visual_style": "boss_dark_orb"}
+			{"size_scale": 1.15, "visual_style": "boss_dark_orb", "boss_finishing_shot": finishing_shot}
 		)
 	var rotation_step: float = TAU / float(max(1, bullet_count)) * 0.5
 	enemy.boss_pattern_rotation = wrapf(base_angle + rotation_step + randf_range(-0.06, 0.06), 0.0, TAU)

@@ -20,6 +20,13 @@ func step(scene, boss, delta: float) -> void:
 	for bullet in scene.active.values():
 		bullet.batch_physics_process(delta)
 
+func performance_projectile_count(scene) -> int:
+	var count := 0
+	for bullet in scene.active.values():
+		if not bool(bullet.get_meta(&"boss_finishing_shot", false)):
+			count += 1
+	return count
+
 
 func _run() -> void:
 	var scene := RUNTIME.new()
@@ -69,11 +76,22 @@ func _run() -> void:
 	for frame in range(66):
 		step(scene, boss, 1.0 / 60.0)
 	check(boss.boss_routine.stage == "finishing", "remaining laser and split parents keep the performance active")
-	check(scene.active.size() - issued == 5 * 24 + 2 * 3, "tail fires exactly five remaining waves and two aimed volleys, with no new casts")
+	check(performance_projectile_count(scene) - issued == 5 * 24 + 2 * 3, "tail completes exactly five remaining waves and two aimed volleys")
+	check(scene.active.size() > performance_projectile_count(scene), "tail also fires normal cannonballs")
 	check(boss.boss_danmaku_wave == 6 and boss.boss_aimed_shots_remaining == 0, "pending emissions complete")
 	check(boss.boss_laser_remaining > 3.8, "laser is allowed to finish its full duration")
 	var data: Dictionary = JSON.parse_string(JSON.stringify(boss.get_save_data()))
+	var shots: Array = []
+	for bullet in scene.active.values():
+		shots.append(JSON.parse_string(JSON.stringify(bullet.get_save_data())))
+	var performance_count_before_load := performance_projectile_count(scene)
+	scene.clear_bullets()
 	boss.apply_save_data(data, scene.player)
+	for shot in shots:
+		var bullet = RUNTIME.BULLET.instantiate()
+		scene.add_child(bullet)
+		bullet.apply_save_data(shot, scene.player)
+	check(performance_projectile_count(scene) == performance_count_before_load, "JSON roundtrip preserves which bullets the tail waits for")
 	var saw_children := false
 	var elapsed := 1.1
 	while boss.boss_routine.stage == "finishing" and elapsed < 20.0:
@@ -91,16 +109,57 @@ func _run() -> void:
 				saw_children = true
 				check(boss.boss_routine.stage == "finishing", "split children retain their own lifetime before recovery")
 	check(saw_children and elapsed > 10.0, "delayed split children are emitted and run to completion")
-	check(boss.boss_routine.stage == "recovery" and scene.active.is_empty(), "recovery starts only after the last active attack ends")
+	check(boss.boss_routine.stage == "recovery" and performance_projectile_count(scene) == 0, "paralysis starts after the last performance attack, even while basic shots remain")
+	check(not scene.active.is_empty(), "new basic shots are not abruptly erased when paralysis begins")
+	for bullet in scene.active.values():
+		check(bool(bullet.get_meta(&"boss_finishing_shot", false)) and bullet.clear_fade_remaining == 0.0, "remaining basic shots keep flying naturally")
 	check(float(boss.boss_routine.elapsed) < 0.02, "tail does not consume the nine-second paralysis")
 	check(not is_instance_valid(boss.boss_orbit_ball), "orbit is cleared when paralysis begins")
 
+	# All health bars use their existing basic bullet count, damage and
+	# speed while waiting, without an extra volley when nothing is left.
+	for phase in [1, 2, 3]:
+		scene.clear_bullets()
+		boss.boss_phase = phase
+		boss.boss_attack_pressure_scale = 1.0
+		ROUTINE.reset(boss)
+		boss.boss_routine.stage = "performance"
+		ATTACKS.fire_radial_burst(boss, 12)
+		for bullet in scene.active.values():
+			bullet.speed = 0.0
+			bullet.lifetime = 0.6
+		ROUTINE.advance_stage(boss)
+		step(scene, boss, 0.01)
+		check(scene.active.size() - performance_projectile_count(scene) == [16, 18, 20][phase - 1], "tail uses the current health bar's normal ring count")
+		for bullet in scene.active.values():
+			if bool(bullet.get_meta(&"boss_finishing_shot", false)):
+				check(is_equal_approx(bullet.damage, 64.0) and bullet.motion_mode == "straight", "tail cannonballs keep normal attack damage and trajectory")
+				check(is_equal_approx(bullet.speed, (255.0 + (phase - 1) * 12.0) * ATTACKS.BOSS_PROJECTILE_SPEED_SCALE), "tail cannonballs keep normal speed")
+		var fired: int = scene.registered_count
+		for frame in range(15):
+			step(scene, boss, 0.05)
+		check(boss.boss_routine.stage == "recovery" and scene.registered_count == fired, "basic shots cannot keep the tail alive or fire after paralysis")
+		var normal = scene.active.values()[0]
+		var normal_save: Dictionary = JSON.parse_string(JSON.stringify(normal.get_save_data()))
+		normal.recycle()
+		check(not normal.has_meta(&"boss_finishing_shot"), "recycling clears the tail classification")
+		normal.reset_projectile({"position": Vector2(800, 0), "target": scene.player, "speed": 0.0, "lifetime": 5.0, "source_enemy_kind": "boss"})
+		check(not normal.has_meta(&"boss_finishing_shot"), "pooled normal or performance reuse cannot inherit the classification")
+		normal.apply_save_data(normal_save, scene.player)
+		check(bool(normal.get_meta(&"boss_finishing_shot", false)), "saved tail shots restore their classification")
+		normal_save.erase("boss_finishing_shot")
+		normal.apply_save_data(normal_save, scene.player)
+		check(not normal.has_meta(&"boss_finishing_shot"), "legacy saves default to the original completion rules")
+
 	# A performance without an orbit must not gain one during its tail.
+	scene.clear_bullets()
 	ROUTINE.reset(boss, 1)
 	boss.boss_routine.stage = "finishing"
 	ATTACKS.fire_radial_burst(boss, 12)
 	step(scene, boss, 0.1)
 	check(boss.boss_routine.stage == "finishing" and not is_instance_valid(boss.boss_orbit_ball), "tail only continues an existing orbit")
+	boss._clear_boss_runtime_effects()
+	check(scene.active.is_empty(), "Boss death also clears the new tail cannonballs")
 
 	scene.free()
 	current_scene = null

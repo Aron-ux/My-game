@@ -72,8 +72,11 @@ func _run() -> void:
     enemy.boss_peacock_timer = 100.0
     var position_after_intro := target.global_position
     ENEMY_BOSS_STATE.update_boss_trait(enemy, 0.5)
-    if target.global_position != position_after_intro:
-        failures.append("basic combat should not apply the performance-only pull after shield intro")
+    var expected_position := position_after_intro.move_toward(enemy.global_position, 50.0 * 0.5)
+    if target.global_position.distance_to(expected_position) > 0.001:
+        failures.append("basic combat should restore the original 50/s passive pull after shield intro")
+    if enemy.boss_orbit_pull_remaining > 0.0:
+        failures.append("restoring the passive must not start active orbit attraction")
 
     scene.queue_free()
     await process_frame

@@ -1,5 +1,6 @@
 extends RefCounted
 
+const ENEMY_BOSS_ATTACKS := preload("res://scripts/enemies/enemy_boss_attacks.gd")
 const ENEMY_BOSS_VISUALS := preload("res://scripts/enemies/enemy_boss_visuals.gd")
 const ROUTINE := preload("res://scripts/enemies/enemy_boss_routine.gd")
 const BOSS_PHASE_THREE_CHARGE_DURATION := 5.0
@@ -67,6 +68,10 @@ static func update_boss_trait(enemy, delta: float) -> void:
 		update_boss_shield_break_intro(enemy, delta)
 		return
 
+	# The original shield-gated passive is independent of the active theme
+	# and remains active during paralysis, like the contact-damage passive.
+	if delta > 0.0 and not has_boss_shield(enemy):
+		ENEMY_BOSS_ATTACKS.apply_passive_boss_pull(enemy, delta)
 	if enemy.boss_phase >= 3:
 		enemy.boss_phase_three_elapsed += delta
 	ROUTINE.update(enemy, delta)

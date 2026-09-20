@@ -4,6 +4,7 @@ const RUNTIME := preload("res://scripts/tests/boss_danmaku_test_runtime.gd")
 const ATTACKS := preload("res://scripts/enemies/enemy_boss_attacks.gd")
 const STATE := preload("res://scripts/enemies/enemy_boss_state.gd")
 const ROUTINE := preload("res://scripts/enemies/enemy_boss_routine.gd")
+const PROJECTILES := preload("res://scripts/enemies/enemy_projectiles.gd")
 const HUD_FLOW := preload("res://scripts/game/game_hud_flow.gd")
 
 
@@ -79,7 +80,7 @@ func _run() -> void:
 		if boss.boss_routine.stage == "recovery":
 			break
 		_advance(scene, boss, 1.0 / 60.0)
-	assert(boss.boss_routine.stage == "recovery" and scene.active.is_empty())
+	assert(boss.boss_routine.stage == "recovery" and not PROJECTILES.has_projectiles_from_source(boss, true))
 	await _capture(viewport, hud, boss, "routine-recovery")
 	_advance(scene, boss, 4.0)
 	assert(boss.boss_routine.stage == "recovery")

@@ -144,6 +144,13 @@ func _sync_source_enemy_archetype(archetype_id: String) -> void:
 func _clear_source_enemy_meta() -> void:
 	_sync_source_enemy_meta(0, "")
 	_sync_source_enemy_archetype("")
+	_sync_boss_finishing_shot(false)
+
+func _sync_boss_finishing_shot(enabled: bool) -> void:
+	if enabled:
+		set_meta(&"boss_finishing_shot", true)
+	elif has_meta(&"boss_finishing_shot"):
+		remove_meta(&"boss_finishing_shot")
 
 func _get_source_enemy_instance_id() -> int:
 	return int(get_meta("source_enemy_instance_id")) if has_meta("source_enemy_instance_id") else 0
@@ -213,6 +220,7 @@ func reset_projectile(config: Dictionary) -> void:
 	chain_follow_index = int(config.get("chain_follow_index", chain_follow_index))
 	_sync_source_enemy_meta(int(config.get("source_enemy_instance_id", 0)), str(config.get("source_enemy_kind", "")))
 	_sync_source_enemy_archetype(str(config.get("source_enemy_archetype", "")))
+	_sync_boss_finishing_shot(bool(config.get("boss_finishing_shot", false)))
 	_initialize_runtime_state()
 
 func recycle() -> void:
@@ -937,6 +945,7 @@ func _get_visual_scale() -> Vector2:
 
 func get_save_data() -> Dictionary:
 	return {
+		"boss_finishing_shot": bool(get_meta(&"boss_finishing_shot", false)),
 		"clear_fade_remaining": clear_fade_remaining,
 		"clear_fade_duration": clear_fade_duration,
 		"clear_fade_alpha": clear_fade_alpha,
@@ -1002,6 +1011,7 @@ func get_save_data() -> Dictionary:
 	}
 
 func apply_save_data(data: Dictionary, target_node: Node2D) -> void:
+	_sync_boss_finishing_shot(bool(data.get("boss_finishing_shot", false)))
 	clear_fade_remaining = maxf(0.0, float(data.get("clear_fade_remaining", 0.0)))
 	clear_fade_duration = maxf(0.001, float(data.get("clear_fade_duration", 0.45)))
 	clear_fade_alpha = clampf(float(data.get("clear_fade_alpha", 1.0)), 0.0, 1.0)

@@ -112,7 +112,7 @@ func _run() -> void:
 		tail_time += 0.05
 	check(boss.boss_routine.stage == "recovery" and tail_time > 1.0, "recovery waits for live bullets to finish")
 	for bullet in scene.active.values():
-		check(bullet == ordinary, "all Boss bullets end naturally before recovery")
+		check(bullet == ordinary or bool(bullet.get_meta(&"boss_finishing_shot", false)), "all performance bullets end before paralysis; normal tail shots can remain")
 	boss.boss_routine.elapsed = 0.0
 	var status: Dictionary = boss.get_boss_ui_payload().status
 	check(status.label == "瘫痪 · 护甲降低50" and is_equal_approx(status.remaining, 9.0) and is_equal_approx(status.duration, 9.0), "only paralysis shows its nine-second countdown and armor penalty")

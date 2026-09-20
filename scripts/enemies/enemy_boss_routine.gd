@@ -81,6 +81,9 @@ static func update(enemy, delta: float) -> void:
 	while remaining > 0.000001:
 		var stage := str(enemy.boss_routine.stage)
 		if stage == "finishing":
+			if _finished(enemy):
+				advance_stage(enemy)
+				continue
 			var tail_step := minf(remaining, 0.05)
 			_update_finishing(enemy, tail_step)
 			enemy.boss_routine.elapsed = float(enemy.boss_routine.elapsed) + tail_step
@@ -113,6 +116,7 @@ static func advance_stage(enemy) -> void:
 	if old_stage == "performance":
 		enemy.boss_routine.stage = "finishing"
 		enemy.boss_routine.elapsed = 0.0
+		enemy.boss_radial_timer = 0.0
 		return
 	if old_stage == "finishing" and not _finished(enemy):
 		return
@@ -151,6 +155,7 @@ static func _update_finishing(enemy, delta: float) -> void:
 	# ends. Do not create an orb for other themes or start another burst.
 	if is_instance_valid(enemy.boss_orbit_ball) or enemy.boss_aimed_shots_remaining > 0 or enemy.boss_orbit_pull_remaining > 0.0:
 		ATTACKS.update_orbit_bomb(enemy, delta, true, false)
+	_update_radial_burst(enemy, delta, true)
 
 
 static func _finished(enemy) -> bool:
@@ -158,7 +163,9 @@ static func _finished(enemy) -> bool:
 		return false
 	if enemy.boss_laser_remaining > 0.0 or enemy.boss_peacock_charge_remaining > 0.0 or enemy.boss_orbit_pull_remaining > 0.0:
 		return false
-	return not PROJECTILES.has_projectiles_from_source(enemy)
+	# Basic fire fills the tail without extending it forever. These shots
+	# keep their normal lifetime when the original performance has ended.
+	return not PROJECTILES.has_projectiles_from_source(enemy, true)
 
 
 static func _shielded(enemy) -> bool:
@@ -166,15 +173,19 @@ static func _shielded(enemy) -> bool:
 
 
 static func _update_basic(enemy, delta: float) -> void:
+	_update_radial_burst(enemy, delta)
+	if not _shielded(enemy):
+		# Active orbit attraction remains exclusive to its themed cast.
+		ATTACKS.update_orbit_bomb(enemy, delta)
+
+
+static func _update_radial_burst(enemy, delta: float, finishing_shot: bool = false) -> void:
 	var pressure := sqrt(maxf(0.6, enemy.boss_attack_pressure_scale))
 	var phase: int = clampi(enemy.boss_phase - 1, 0, 2)
 	enemy.boss_radial_timer -= delta
 	if enemy.boss_radial_timer <= 0.0:
 		enemy.boss_radial_timer += float([1.98, 0.89, 0.71][phase]) / pressure
-		ATTACKS.fire_radial_burst(enemy, roundi(float([16, 18, 20][phase]) * pressure))
-	if not _shielded(enemy):
-		# The orbit remains a visual source; no autonomous pull in basic play.
-		ATTACKS.update_orbit_bomb(enemy, delta)
+		ATTACKS.fire_radial_burst(enemy, roundi(float([16, 18, 20][phase]) * pressure), finishing_shot)
 
 
 static func _event(enemy, bit: int, time: float, end_time: float) -> bool:
@@ -223,7 +234,6 @@ static func _update_performance(enemy, delta: float) -> void:
 	if pulling:
 		if _event(enemy, 1, 0.0, end_time):
 			ATTACKS.start_orbit_bomb(enemy)
-		ATTACKS.apply_passive_boss_pull(enemy, delta)
 		ATTACKS.update_orbit_bomb(enemy, delta, false)
 	else:
 		if enemy.boss_orbit_pull_remaining > 0.0:
