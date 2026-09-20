@@ -41,6 +41,10 @@ const REMOTE_UPDATE_INTERVAL := 0.05
 @export var split_damage_override: float = -1.0
 @export var danmaku_angular_speed: float = 0.0
 @export var danmaku_sway: float = 0.0
+@export var danmaku_brake_time: float = 0.0
+@export var danmaku_hold_time: float = 0.0
+@export var danmaku_release_angle: float = 0.0
+@export var danmaku_release_speed: float = 0.0
 @export var split_lifetime: float = 3.2
 @export var split_motion_mode: String = "quarter_sine"
 @export var split_after_time: float = 0.0
@@ -164,6 +168,10 @@ func reset_projectile(config: Dictionary) -> void:
 	split_damage_override = float(config.get("split_damage_override", -1.0))
 	danmaku_angular_speed = float(config.get("danmaku_angular_speed", 0.0))
 	danmaku_sway = float(config.get("danmaku_sway", 0.0))
+	danmaku_brake_time = float(config.get("danmaku_brake_time", 0.0))
+	danmaku_hold_time = float(config.get("danmaku_hold_time", 0.0))
+	danmaku_release_angle = float(config.get("danmaku_release_angle", 0.0))
+	danmaku_release_speed = float(config.get("danmaku_release_speed", 0.0))
 	split_lifetime = float(config.get("split_lifetime", split_lifetime))
 	split_motion_mode = str(config.get("split_motion_mode", split_motion_mode))
 	split_after_time = float(config.get("split_after_time", split_after_time))
@@ -294,6 +302,10 @@ func _run_physics_tick(delta: float) -> void:
 	match motion_mode:
 		"danmaku":
 			_update_danmaku_motion()
+		"danmaku_bloom":
+			_update_danmaku_bloom_motion()
+		"danmaku_drift":
+			_update_danmaku_drift_motion()
 		"sine":
 			_update_sine_motion(delta)
 		"turning":
@@ -347,6 +359,30 @@ func _update_sine_motion(delta: float) -> void:
 	var lateral_offset := perpendicular_direction * sin(wave_phase_value) * sine_amplitude
 	global_position = base_position + forward_offset + lateral_offset
 	rotation = (base_direction + perpendicular_direction * cos(wave_phase_value) * 0.28).angle()
+
+func _update_danmaku_drift_motion() -> void:
+	var phase := travel_time * TAU * sine_frequency + sine_phase
+	# Subtract the initial sine offset to keep the spawn position continuous.
+	global_position = base_position + base_direction * speed * travel_time + perpendicular_direction * (sin(phase) - sin(sine_phase)) * sine_amplitude
+	direction = (base_direction * speed + perpendicular_direction * cos(phase) * TAU * sine_frequency * sine_amplitude).normalized()
+	rotation = direction.angle()
+
+func _update_danmaku_bloom_motion() -> void:
+	var brake := maxf(0.001, danmaku_brake_time)
+	var approach := minf(travel_time, brake)
+	var radius := speed * (approach - approach * approach / (2.0 * brake))
+	var release_time := maxf(0.0, travel_time - brake - danmaku_hold_time)
+	var turn_ratio := clampf((travel_time - brake) / maxf(0.001, danmaku_hold_time), 0.0, 1.0)
+	direction = base_direction.rotated(danmaku_release_angle * smoothstep(0.0, 1.0, turn_ratio))
+	# Accelerate for 0.65s after the visible hold; there is no positional jump
+	# and evaluating a large time step matches many small ones exactly.
+	var acceleration_time := 0.65
+	var released_distance := danmaku_release_speed * (
+		release_time * release_time / (2.0 * acceleration_time)
+		if release_time < acceleration_time else release_time - acceleration_time * 0.5
+	)
+	global_position = base_position + base_direction * radius + direction * released_distance
+	rotation = direction.angle()
 
 func _update_turning_motion(delta: float) -> void:
 	if turn_delay_remaining > 0.0:
@@ -780,6 +816,25 @@ func _apply_danmaku_visual(polygon: Polygon2D) -> void:
 	var shape := ENEMY_GEOMETRY.build_circle_points(8.0, 20)
 	if visual_style == "boss_danmaku_arrow":
 		shape = PackedVector2Array([Vector2(13, 0), Vector2(-8, -6), Vector2(-4, 0), Vector2(-8, 6)])
+	elif visual_style == "boss_danmaku_butterfly":
+		shape = PackedVector2Array([
+			Vector2(9, 0), Vector2(11, -3), Vector2(15, -9), Vector2(15, -13),
+			Vector2(12, -15), Vector2(8, -15), Vector2(4, -13), Vector2(1, -9),
+			Vector2(-1, -4), Vector2(-3, -9), Vector2(-7, -11), Vector2(-11, -10),
+			Vector2(-13, -7), Vector2(-12, -4), Vector2(-8, -2), Vector2(-3, 0),
+			Vector2(-8, 2), Vector2(-12, 4), Vector2(-13, 7), Vector2(-11, 10),
+			Vector2(-7, 11), Vector2(-3, 9), Vector2(-1, 4), Vector2(1, 9),
+			Vector2(4, 13), Vector2(8, 15), Vector2(12, 15), Vector2(15, 13),
+			Vector2(15, 9), Vector2(11, 3)
+		])
+	elif visual_style == "boss_danmaku_petal":
+		shape = PackedVector2Array([
+			Vector2(13, 0), Vector2(6, -6), Vector2(-3, -7),
+			Vector2(-10, -3), Vector2(-7, 0), Vector2(-10, 3),
+			Vector2(-3, 7), Vector2(6, 6)
+		])
+	elif visual_style == "boss_danmaku_rice":
+		shape = PackedVector2Array([Vector2(14, 0), Vector2(5, -4), Vector2(-10, 0), Vector2(5, 4)])
 	polygon.polygon = shape
 	polygon.color = visual_color
 	polygon.scale = Vector2.ONE * size_scale
@@ -803,6 +858,9 @@ func _apply_danmaku_visual(polygon: Polygon2D) -> void:
 				layer.z_index = 1
 				layer.color = visual_color.lerp(Color.WHITE, 0.85)
 				layer.scale = Vector2.ONE * size_scale * 0.44
+				if visual_style == "boss_danmaku_butterfly":
+					layer.polygon = PackedVector2Array([Vector2(10, 0), Vector2(2, -1.8), Vector2(-9, 0), Vector2(2, 1.8)])
+					layer.scale = Vector2.ONE * size_scale
 
 func _get_boss_hex_shape() -> PackedVector2Array:
 	var shape_key := "boss_hex"
@@ -912,6 +970,10 @@ func get_save_data() -> Dictionary:
 		"split_damage_override": split_damage_override,
 		"danmaku_angular_speed": danmaku_angular_speed,
 		"danmaku_sway": danmaku_sway,
+		"danmaku_brake_time": danmaku_brake_time,
+		"danmaku_hold_time": danmaku_hold_time,
+		"danmaku_release_angle": danmaku_release_angle,
+		"danmaku_release_speed": danmaku_release_speed,
 		"remote_update_elapsed": remote_update_elapsed,
 		"max_lifetime": max_lifetime,
 		"split_lifetime": split_lifetime,
@@ -986,6 +1048,10 @@ func apply_save_data(data: Dictionary, target_node: Node2D) -> void:
 	split_damage_override = float(data.get("split_damage_override", -1.0))
 	danmaku_angular_speed = float(data.get("danmaku_angular_speed", 0.0))
 	danmaku_sway = float(data.get("danmaku_sway", 0.0))
+	danmaku_brake_time = float(data.get("danmaku_brake_time", 0.0))
+	danmaku_hold_time = float(data.get("danmaku_hold_time", 0.0))
+	danmaku_release_angle = float(data.get("danmaku_release_angle", 0.0))
+	danmaku_release_speed = float(data.get("danmaku_release_speed", 0.0))
 	split_lifetime = float(data.get("split_lifetime", split_lifetime))
 	split_motion_mode = str(data.get("split_motion_mode", split_motion_mode))
 	split_after_time = float(data.get("split_after_time", split_after_time))

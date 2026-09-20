@@ -292,7 +292,7 @@ static func apply_save_data(enemy, data: Dictionary, target_node: Node2D) -> voi
 	enemy.boss_sine_stream_remaining = float(data.get("boss_sine_stream_remaining", 0.0))
 	enemy.boss_sine_stream_rate = float(data.get("boss_sine_stream_rate", enemy.boss_sine_stream_rate))
 	enemy.boss_sine_stream_timer = float(data.get("boss_sine_stream_timer", 0.0))
-	enemy.boss_danmaku_pattern = clampi(int(data.get("boss_danmaku_pattern", -1)), -1, 2)
+	enemy.boss_danmaku_pattern = clampi(int(data.get("boss_danmaku_pattern", -1)), -1, preload("res://scripts/enemies/enemy_boss_danmaku.gd").PATTERN_COUNT - 1)
 	enemy.boss_danmaku_wave = clampi(int(data.get("boss_danmaku_wave", 6)), 0, 6)
 	enemy.boss_danmaku_count = clampi(int(data.get("boss_danmaku_count", 0)), 0, 64)
 	enemy.boss_danmaku_rotation = float(data.get("boss_danmaku_rotation", 0.0))

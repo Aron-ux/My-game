@@ -130,12 +130,19 @@ static func clear_boss_phase_three_charge_visuals(enemy) -> void:
 
 static func update_boss_spell_preview(enemy, progress: float, theme: int) -> void:
 	ensure_boss_helpers(enemy)
-	var colors := [Color(1.0, 0.25, 0.78), Color(0.18, 0.92, 1.0), Color(0.45, 1.0, 0.35)]
-	var color: Color = colors[posmod(theme, 3)]
+	var colors := [Color(1.0, 0.25, 0.78), Color(0.18, 0.92, 1.0), Color(0.45, 1.0, 0.35), Color(0.73, 0.42, 1.0), Color(1.0, 0.58, 0.77), Color(1.0, 0.28, 0.38)]
+	var color: Color = colors[posmod(theme, colors.size())]
 	for index in range(enemy.boss_phase_charge_rings.size()):
 		var ring: Line2D = enemy.boss_phase_charge_rings[index]
 		ring.visible = true
 		ring.points = ENEMY_GEOMETRY.build_circle_points(lerpf(130.0 + index * 18.0, 22.0 + index * 8.0, clampf(progress, 0.0, 1.0)))
+		if theme >= 3:
+			var points := ring.points
+			for point_index in range(points.size()):
+				var angle: float = points[point_index].angle()
+				var lobes := 4.0 if theme == 3 or theme == 5 else 5.0
+				points[point_index] *= 0.8 + 0.2 * cos(angle * lobes)
+			ring.points = points
 		ring.rotation = progress * PI * (1.0 if index % 2 == 0 else -1.0)
 		ring.width = 2.0 + progress * 3.0
 		ring.default_color = Color(color.r, color.g, color.b, 0.3 + progress * 0.55)

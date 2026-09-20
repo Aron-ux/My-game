@@ -131,7 +131,7 @@ static func spawn_projectile(enemy, origin: Vector2, shot_direction: Vector2, sh
 		"source_enemy_archetype": str(enemy.archetype_id)
 	}
 	for key in extra_config.keys():
-		if key in ["split_speed", "return_speed"]:
+		if key in ["split_speed", "return_speed", "danmaku_release_speed"]:
 			config[key] = float(extra_config[key]) * speed_multiplier + difficulty_speed_bonus
 		else:
 			config[key] = extra_config[key]

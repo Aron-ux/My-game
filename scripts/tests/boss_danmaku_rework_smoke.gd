@@ -95,7 +95,7 @@ func _run() -> void:
 	STATE.update_boss_trait(restored_boss, 0.07)
 	check(restored_boss.boss_danmaku_wave == 5 and scene.active.is_empty(), "expired cooldown must not truncate pending last wave")
 	STATE.update_boss_trait(restored_boss, 0.08)
-	check(restored_boss.boss_danmaku_pattern == pending_pattern, "performance keeps its theme when the next wave starts")
+	check(restored_boss.boss_danmaku_pattern == STATE.ROUTINE.THEME_PATTERNS[restored_boss.boss_routine.theme][0], "new cast uses the current theme section after pending wave completes")
 	check(scene.active.size() == 24 + restored_boss.boss_danmaku_count, "tail wave and next opening wave must both spawn")
 	scene.clear_bullets()
 	restored_boss.free()

@@ -53,7 +53,8 @@ static func start_shield_break_intro(enemy) -> void:
 static func _prepare_transition_state(enemy) -> void:
 	ROUTINE.stop_attacks(enemy)
 	preload("res://scripts/enemies/enemy_projectiles.gd").clear_projectiles_from_source(enemy)
-	ROUTINE.reset(enemy, enemy.boss_phase_transition_target - 1 if enemy.boss_phase_transition_target > 0 else int(enemy.boss_routine.get("theme", 0)))
+	var theme: int = ROUTINE.PHASE_OPENING_THEMES[clampi(enemy.boss_phase_transition_target - 1, 0, 2)] if enemy.boss_phase_transition_target > 0 else int(enemy.boss_routine.get("theme", 0))
+	ROUTINE.reset(enemy, theme)
 
 static func update_boss_trait(enemy, delta: float) -> void:
 	enemy._ensure_boss_helpers()

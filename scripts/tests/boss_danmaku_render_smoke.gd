@@ -33,15 +33,18 @@ func _run() -> void:
 	viewport.add_child(camera)
 	var boss = scene.make_boss()
 	boss.boss_phase = 3
-	for pattern in range(3):
+	for pattern in range(ATTACKS.DANMAKU.PATTERN_COUNT):
 		scene.clear_bullets()
-		boss.boss_danmaku_pattern = pattern - 1
 		boss.boss_pattern_rotation = 0.0
-		ATTACKS.fire_quarter_sine_ring(boss, 15)
+		scene.player.position = Vector2(450, 150)
+		ATTACKS.fire_quarter_sine_ring(boss, 15, pattern)
 		for frame in range(240):
 			ATTACKS.update_danmaku_stream(boss, 1.0 / 60.0)
 			for bullet in scene.active.values():
-				bullet.batch_physics_process(1.0 / 60.0)
+				# Isolated geometry snapshots evaluate the analytic path.
+				# Live routine captures below retain collisions and culling.
+				bullet.travel_time += 1.0 / 60.0
+				bullet.call("_update_%s_motion" % bullet.motion_mode)
 		assert(scene.active.size() == 180, "all rendered pattern bullets must remain active")
 		await process_frame
 		await RenderingServer.frame_post_draw
@@ -85,6 +88,15 @@ func _run() -> void:
 			await _capture(viewport, hud, boss, "routine-laser-warning")
 			_advance(scene, boss, 2.0)
 			await _capture(viewport, hud, boss, "routine-overload")
+	for theme in range(3, ROUTINE.THEMES.size()):
+		scene.clear_bullets()
+		ROUTINE.stop_attacks(boss)
+		ROUTINE.reset(boss, theme)
+		ROUTINE.advance_stage(boss)
+		_advance(scene, boss, 1.5)
+		for section in range(3):
+			_advance(scene, boss, 4.0 if section == 0 else 5.0)
+			await _capture(viewport, hud, boss, "yuyuko-theme-%d-section-%d" % [theme, section])
 	scene.free()
 	current_scene = null
 	viewport.free()

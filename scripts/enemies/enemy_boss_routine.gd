@@ -3,7 +3,9 @@ extends RefCounted
 const ATTACKS := preload("res://scripts/enemies/enemy_boss_attacks.gd")
 const VISUALS := preload("res://scripts/enemies/enemy_boss_visuals.gd")
 const PROJECTILES := preload("res://scripts/enemies/enemy_projectiles.gd")
-const THEMES := ["污染绽放", "双螺旋回廊", "魔核过载"]
+const THEMES := ["污染绽放", "双螺旋回廊", "魔核过载", "冥蝶之舞", "幽樱流转", "返魂蝶潮"]
+const THEME_PATTERNS := [[4, 0, 9], [1, 5, 10], [2, 11, 8], [3, 6, 8], [9, 4, 7], [6, 7, 11]]
+const PHASE_OPENING_THEMES := [0, 3, 5]
 const PREVIEW_DURATION := 1.5
 const RECOVERY_DURATION := 2.0
 const LASER_WARNING_DURATION := 1.2
@@ -11,7 +13,7 @@ const CLEAR_FADE_DURATION := 0.45
 
 
 static func reset(enemy, theme: int = 0) -> void:
-	enemy.boss_routine = {"stage": "basic", "elapsed": 0.0, "theme": posmod(theme, 3), "events": 0, "laser_aim": 0.0}
+	enemy.boss_routine = {"stage": "basic", "elapsed": 0.0, "theme": posmod(theme, THEMES.size()), "events": 0, "laser_aim": 0.0}
 	enemy.boss_radial_timer = 0.4
 	enemy.boss_orbit_bomb_shot_timer = 1.0
 
@@ -35,12 +37,16 @@ static func get_status(enemy) -> Dictionary:
 	var label := "常规战斗"
 	if enemy.boss_shield_break_visual_intro_active:
 		return {"label": "护盾破碎", "remaining": enemy.boss_phase_three_intro_remaining, "duration": 5.0}
-	var title: String = THEMES[int(state.get("theme", 0)) % 3]
+	var theme := posmod(int(state.get("theme", 0)), THEMES.size())
+	var title: String = THEMES[theme]
 	match stage:
 		"preview":
 			label = "即将发动 · %s" % title
 		"performance":
 			label = "弹幕 · %s" % title
+			var elapsed := float(state.get("elapsed", 0.0))
+			var section := get_section(enemy, elapsed)
+			label += " · 引力蓄势" if elapsed < _performance_prelude(enemy) else " · %s" % ATTACKS.DANMAKU.PATTERN_NAMES[THEME_PATTERNS[theme][section]]
 			if is_laser_warning(enemy):
 				label += " · 激光预警"
 				return {"label": label, "remaining": maxf(0.0, _warning_start(enemy) + LASER_WARNING_DURATION - float(state.elapsed)), "duration": LASER_WARNING_DURATION}
@@ -144,6 +150,15 @@ static func _warning_start(enemy) -> float:
 	return get_duration(enemy, "performance") / 3.0
 
 
+static func _performance_prelude(enemy) -> float:
+	return ATTACKS.ORBIT_PULL_DURATION if int(enemy.boss_routine.get("theme", 0)) == 2 and enemy.boss_phase >= 3 and not _shielded(enemy) else 0.0
+
+
+static func get_section(enemy, elapsed: float) -> int:
+	var prelude := _performance_prelude(enemy)
+	return clampi(int(maxf(0.0, elapsed - prelude) / ((get_duration(enemy, "performance") - prelude) / 3.0)), 0, 2)
+
+
 static func is_laser_warning(enemy) -> bool:
 	var state: Dictionary = enemy.boss_routine
 	if str(state.get("stage", "")) != "performance" or int(state.get("theme", 0)) != 2:
@@ -156,7 +171,7 @@ static func _update_performance(enemy, delta: float) -> void:
 	var theme: int = enemy.boss_routine.theme
 	var duration := get_duration(enemy, "performance")
 	var end_time: float = float(enemy.boss_routine.elapsed) + delta
-	var section := mini(2, int(end_time / (duration / 3.0)))
+	var section := get_section(enemy, end_time)
 	var shielded := _shielded(enemy)
 	var pulling: bool = theme == 2 and enemy.boss_phase >= 3 and not shielded and end_time < ATTACKS.ORBIT_PULL_DURATION - 0.000001
 
@@ -179,7 +194,8 @@ static func _update_performance(enemy, delta: float) -> void:
 		if enemy.boss_sine_cooldown <= 0.0 and enemy.boss_danmaku_wave >= ATTACKS.DANMAKU_WAVES:
 			enemy.boss_sine_cooldown += float([2.4, 2.0, 1.6][clampi(enemy.boss_phase - 1, 0, 2)]) / pressure
 			enemy.boss_pattern_rotation = wrapf(enemy.boss_pattern_rotation + 0.18, 0.0, TAU)
-			ATTACKS.fire_quarter_sine_ring(enemy, roundi(float([12, 18, 16][clampi(enemy.boss_phase - 1, 0, 2)]) * pressure), theme, -1.0 if section >= 1 else 1.0)
+			var pattern: int = THEME_PATTERNS[theme][section]
+			ATTACKS.fire_quarter_sine_ring(enemy, roundi(float([12, 18, 16][clampi(enemy.boss_phase - 1, 0, 2)]) * pressure), pattern, -1.0 if section == 1 else 1.0)
 	if theme == 0 and section == 2 and not shielded:
 		ATTACKS.update_orbit_bomb(enemy, delta)
 	if theme == 1 and enemy.boss_phase >= 2:
@@ -209,7 +225,7 @@ static func restore(enemy, saved: Variant) -> void:
 	enemy.boss_routine = {
 		"stage": stage,
 		"elapsed": clampf(float(saved.get("elapsed", 0.0)), 0.0, get_duration(enemy, stage)),
-		"theme": posmod(int(saved.get("theme", 0)), 3),
+		"theme": posmod(int(saved.get("theme", 0)), THEMES.size()),
 		"events": int(saved.get("events", 0)),
 		"laser_aim": float(saved.get("laser_aim", 0.0))
 	}

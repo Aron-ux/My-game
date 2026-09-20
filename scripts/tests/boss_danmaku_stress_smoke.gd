@@ -26,13 +26,15 @@ func _run() -> void:
 		var worst_usecs := 0
 		var samples: Array[int] = []
 		var seen_themes: Dictionary = {}
-		# Three complete third-bar cycles exercise every authored performance.
-		var frame_count := 5400
+		var seen_patterns: Dictionary = {}
+		# Six complete third-bar cycles exercise every authored performance.
+		var frame_count := 10800
 		for frame in range(frame_count):
 			var start := Time.get_ticks_usec()
 			STATE.update_boss_trait(boss, 1.0 / 60.0)
 			if boss.boss_routine.stage == "performance":
 				seen_themes[boss.boss_routine.theme] = true
+				seen_patterns[boss.boss_danmaku_pattern] = true
 			for bullet in scene.active.values():
 				if not bullet.is_queued_for_deletion():
 					bullet.batch_physics_process(1.0 / 60.0)
@@ -45,7 +47,9 @@ func _run() -> void:
 				await process_frame
 		samples.sort()
 		assert(scene.peak_count > 500, "stress workload must exceed ordinary caps")
-		assert(seen_themes.size() == 3, "stress must cover all three performances")
+		assert(seen_themes.size() == 6, "stress must cover all six performances")
+		for pattern in range(12):
+			assert(seen_patterns.has(pattern), "third-bar prelude must not skip any authored pattern")
 		assert(scene.ordinary_budget_calls == 0, "Boss attack density must not use adaptive caps")
 		print("BOSS_DANMAKU_STRESS pressure=%.2f peak=%d avg_ms=%.3f p95_ms=%.3f max_ms=%.3f" % [
 			pressure, scene.peak_count, float(usecs) / float(frame_count) / 1000.0,

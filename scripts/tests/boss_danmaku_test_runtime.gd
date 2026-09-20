@@ -13,6 +13,7 @@ var player: Node2D
 var peak_count := 0
 var registered_count := 0
 var ordinary_budget_calls := 0
+var difficulty_speed_bonus := 0.0
 var runtime_enemy_projectile_pool_nodes: Dictionary:
 	get:
 		return pool
@@ -87,6 +88,10 @@ func _trim_spawn_count_for_group(group: String, count: int, limit: int) -> int:
 
 func _get_difficulty_limit(_key: String, _fallback: int) -> int:
 	return 180
+
+
+func _get_difficulty_projectile_speed_bonus() -> float:
+	return difficulty_speed_bonus
 
 
 class Target:

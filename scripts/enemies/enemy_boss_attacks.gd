@@ -1,5 +1,6 @@
 extends RefCounted
 
+const DANMAKU := preload("res://scripts/enemies/enemy_boss_danmaku.gd")
 const BOSS_PROJECTILE_SPEED_SCALE := 0.588
 const BOSS_PROJECTILE_LIFETIME_SCALE := 1.5
 const BOSS_LASER_LENGTH := 980.0
@@ -39,11 +40,13 @@ static func fire_radial_burst(enemy, count: int = -1) -> void:
 static func fire_quarter_sine_ring(enemy, count: int = 12, pattern: int = -1, spin: float = 1.0) -> void:
 	# Keep the existing entry point/cooldown; each cast is now a complete
 	# six-wave pattern, scheduled in Boss state rather than orphan timers.
-	enemy.boss_danmaku_pattern = pattern if pattern >= 0 else (enemy.boss_danmaku_pattern + 1) % 3
+	enemy.boss_danmaku_pattern = posmod(pattern, DANMAKU.PATTERN_COUNT) if pattern >= 0 else (enemy.boss_danmaku_pattern + 1) % 3
 	enemy.boss_danmaku_spin = spin
 	enemy.boss_danmaku_wave = 0
 	enemy.boss_danmaku_count = maxi(8, count) * 2
 	enemy.boss_danmaku_rotation = enemy.boss_pattern_rotation
+	if pattern >= 3 and is_instance_valid(enemy.target):
+		enemy.boss_danmaku_rotation = enemy.global_position.angle_to_point(enemy.target.global_position) + sin(enemy.boss_pattern_rotation) * 0.18
 	enemy.boss_sine_stream_timer = 0.0
 	update_danmaku_stream(enemy, 0.0)
 	enemy._spawn_status_burst(Color(0.24, 0.92, 1.0, 0.18), 40.0 + enemy.scale.x * 8.0)
@@ -58,54 +61,7 @@ static func update_danmaku_stream(enemy, delta: float) -> void:
 		enemy.boss_sine_stream_timer += DANMAKU_WAVE_INTERVAL
 
 static func _fire_danmaku_wave(enemy) -> void:
-	var bullet_count: int = enemy.boss_danmaku_count
-	var wave: int = enemy.boss_danmaku_wave
-	var pattern: int = enemy.boss_danmaku_pattern
-	for index in range(bullet_count):
-		var spoke: float = TAU * float(index) / float(bullet_count)
-		var side: float = -1.0 if index % 2 == 0 else 1.0
-		var shot_angle: float = enemy.boss_danmaku_rotation + spoke
-		var shot_speed: float = 156.0
-		var angular_speed: float = 0.0
-		var sway: float = 0.0
-		var frequency: float = 0.0
-		var hue: float = 0.0
-		match pattern:
-			0: # Rotating six-petal rings: petal outline comes from speed.
-				shot_angle += float(wave) * 0.105
-				shot_speed += 40.0 * cos(spoke * 6.0)
-				angular_speed = 0.13
-				hue = 0.78 + float(wave) * 0.026
-			1: # Two interlaced spirals rotating in opposite directions.
-				shot_angle += side * float(wave) * 0.30
-				shot_speed += 16.0
-				angular_speed = side * 0.20
-				hue = 0.50 if side < 0.0 else 0.07
-			2: # Ripple rings alternate radial speed and angular sway.
-				shot_angle += float(wave) * 0.075
-				shot_speed += 24.0 * sin(spoke * 4.0 + float(wave) * 0.7)
-				angular_speed = -0.055
-				sway = 0.14
-				frequency = 0.42
-				hue = 0.30 + float(wave) * 0.046
-		shot_speed += float(enemy.boss_phase - 1) * 6.0
-		angular_speed *= enemy.boss_danmaku_spin
-		var shot_direction: Vector2 = Vector2.RIGHT.rotated(shot_angle)
-		enemy._spawn_projectile(
-			enemy.global_position + shot_direction * (28.0 + enemy.scale.x * 4.0),
-			shot_direction, shot_speed, enemy.attack * 0.8, 10.0,
-			Color.from_hsv(fposmod(hue, 1.0), 0.65, 1.0),
-			"danmaku",
-			{
-				"danmaku_angular_speed": angular_speed,
-				"danmaku_sway": sway,
-				"sine_frequency": frequency,
-				"sine_phase": spoke * 3.0 + float(wave) * 0.5,
-				"hit_radius": 6.8,
-				"size_scale": 0.85,
-				"visual_style": "boss_danmaku_orb"
-			}
-		)
+	DANMAKU.fire_wave(enemy)
 
 static func fire_recall_split(enemy) -> void:
 	var seed_count: int = 10 if enemy.boss_phase == 2 else 12
