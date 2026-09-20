@@ -25,6 +25,10 @@ static func get_group_count(root: Node, group_name: String) -> int:
 	if cached_group_counts.has(cache_key):
 		return int(cached_group_counts[cache_key])
 	var count := _get_runtime_or_group_count(root, group_name)
+	if group_name == "enemy_projectiles":
+		# Final-Boss bullets have their own fixed capacity; they must not
+		# consume the ordinary monsters' projectile allowance.
+		count = maxi(0, count - root.get_tree().get_node_count_in_group(preload("res://scripts/enemies/boss_danmaku_budget.gd").GROUP))
 	cached_group_counts[cache_key] = count
 	return count
 

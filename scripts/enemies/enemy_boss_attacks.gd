@@ -10,10 +10,11 @@ const ORBIT_ROTATION_SPEED := 0.987
 const BOSS_PASSIVE_PULL_STRENGTH := 50.0
 const ORBIT_AIMED_BURST_INTERVAL := 2.9
 const ORBIT_AIMED_BURST_COUNT := 7
-const ORBIT_AIMED_BURST_SPACING := 18.0
-const ORBIT_AIMED_CHAIN_GROUPS := 3
-const ORBIT_AIMED_CHAIN_LANE_SPACING := 72.0
+const ORBIT_AIMED_SHOT_INTERVAL := 0.09
 const ORBIT_BALL_RADIUS := 232.0
+const DANMAKU_WAVES := 6
+const DANMAKU_WAVE_INTERVAL := 0.16
+const LASER_DAMAGE_INTERVAL := 0.2
 
 static func fire_radial_burst(enemy, count: int = -1) -> void:
 	var bullet_count: int = max(10, count if count > 0 else enemy.boss_radial_bullets)
@@ -25,7 +26,7 @@ static func fire_radial_burst(enemy, count: int = -1) -> void:
 			enemy.global_position + shot_direction * (28.0 + enemy.scale.x * 5.0),
 			shot_direction,
 			(255.0 + float(enemy.boss_phase - 1) * 12.0) * BOSS_PROJECTILE_SPEED_SCALE,
-			enemy.projectile_damage * (0.78 + float(enemy.boss_phase - 1) * 0.08),
+			enemy.attack * 0.8,
 			5.0 * BOSS_PROJECTILE_LIFETIME_SCALE,
 			Color(1.0, 0.38, 0.12, 1.0),
 			"straight",
@@ -36,30 +37,73 @@ static func fire_radial_burst(enemy, count: int = -1) -> void:
 	enemy._spawn_status_burst(Color(1.0, 0.44, 0.16, 0.16), 34.0 + enemy.scale.x * 8.0)
 
 static func fire_quarter_sine_ring(enemy, count: int = 12) -> void:
-	var bullet_count: int = max(8, count)
-	var base_angle: float = enemy.boss_pattern_rotation * 0.72 + PI * 0.08 + randf_range(-0.1, 0.1)
+	# Keep the existing entry point/cooldown; each cast is now a complete
+	# six-wave pattern, scheduled in Boss state rather than orphan timers.
+	enemy.boss_danmaku_pattern = (enemy.boss_danmaku_pattern + 1) % 3
+	enemy.boss_danmaku_wave = 0
+	enemy.boss_danmaku_count = maxi(8, count) * 2
+	enemy.boss_danmaku_rotation = enemy.boss_pattern_rotation
+	enemy.boss_sine_stream_timer = 0.0
+	update_danmaku_stream(enemy, 0.0)
+	enemy._spawn_status_burst(Color(0.24, 0.92, 1.0, 0.18), 40.0 + enemy.scale.x * 8.0)
+
+static func update_danmaku_stream(enemy, delta: float) -> void:
+	if enemy.boss_danmaku_wave >= DANMAKU_WAVES:
+		return
+	enemy.boss_sine_stream_timer -= delta
+	while enemy.boss_sine_stream_timer <= 0.000001 and enemy.boss_danmaku_wave < DANMAKU_WAVES:
+		_fire_danmaku_wave(enemy)
+		enemy.boss_danmaku_wave += 1
+		enemy.boss_sine_stream_timer += DANMAKU_WAVE_INTERVAL
+
+static func _fire_danmaku_wave(enemy) -> void:
+	var bullet_count: int = enemy.boss_danmaku_count
+	var wave: int = enemy.boss_danmaku_wave
+	var pattern: int = enemy.boss_danmaku_pattern
 	for index in range(bullet_count):
-		var shot_angle: float = base_angle + TAU * float(index) / float(bullet_count)
-		var shot_direction: Vector2 = Vector2.RIGHT.rotated(shot_angle)
+		var spoke: float = TAU * float(index) / float(bullet_count)
 		var side: float = -1.0 if index % 2 == 0 else 1.0
+		var shot_angle: float = enemy.boss_danmaku_rotation + spoke
+		var shot_speed: float = 156.0
+		var angular_speed: float = 0.0
+		var sway: float = 0.0
+		var frequency: float = 0.0
+		var hue: float = 0.0
+		match pattern:
+			0: # Rotating six-petal rings: petal outline comes from speed.
+				shot_angle += float(wave) * 0.105
+				shot_speed += 40.0 * cos(spoke * 6.0)
+				angular_speed = 0.13
+				hue = 0.78 + float(wave) * 0.026
+			1: # Two interlaced spirals rotating in opposite directions.
+				shot_angle += side * float(wave) * 0.30
+				shot_speed += 16.0
+				angular_speed = side * 0.20
+				hue = 0.50 if side < 0.0 else 0.07
+			2: # Ripple rings alternate radial speed and angular sway.
+				shot_angle += float(wave) * 0.075
+				shot_speed += 24.0 * sin(spoke * 4.0 + float(wave) * 0.7)
+				angular_speed = -0.055
+				sway = 0.14
+				frequency = 0.42
+				hue = 0.30 + float(wave) * 0.046
+		shot_speed += float(enemy.boss_phase - 1) * 6.0
+		var shot_direction: Vector2 = Vector2.RIGHT.rotated(shot_angle)
 		enemy._spawn_projectile(
 			enemy.global_position + shot_direction * (28.0 + enemy.scale.x * 4.0),
-			shot_direction,
-			(210.0 + float(enemy.boss_phase - 1) * 8.0) * BOSS_PROJECTILE_SPEED_SCALE,
-			enemy.projectile_damage * 0.72,
-			5.0 * BOSS_PROJECTILE_LIFETIME_SCALE,
-			Color(0.24, 0.92, 1.0, 1.0),
-			"quarter_sine",
+			shot_direction, shot_speed, enemy.attack * 0.8, 7.5,
+			Color.from_hsv(fposmod(hue, 1.0), 0.65, 1.0),
+			"danmaku",
 			{
-				"sine_amplitude": 54.0,
-				"quarter_sine_distance": 165.0,
-				"quarter_sine_side": side,
-				"size_scale": 1.3,
-				"visual_style": "boss_dark_core_orb"
+				"danmaku_angular_speed": angular_speed,
+				"danmaku_sway": sway,
+				"sine_frequency": frequency,
+				"sine_phase": spoke * 3.0 + float(wave) * 0.5,
+				"hit_radius": 6.8,
+				"size_scale": 0.85,
+				"visual_style": "boss_danmaku_orb"
 			}
 		)
-	enemy.boss_turning_sign *= -1.0
-	enemy._spawn_status_burst(Color(0.24, 0.92, 1.0, 0.18), 40.0 + enemy.scale.x * 8.0)
 
 static func fire_recall_split(enemy) -> void:
 	var seed_count: int = 10 if enemy.boss_phase == 2 else 12
@@ -87,7 +131,7 @@ static func fire_recall_split(enemy) -> void:
 				"split_on_return": true,
 				"split_count": 6 if enemy.boss_phase == 2 else 8,
 				"split_speed": 215.0 * BOSS_PROJECTILE_SPEED_SCALE,
-				"split_damage_scale": 0.45,
+				"split_damage_override": enemy.attack * 0.5,
 				"split_lifetime": 3.8 * BOSS_PROJECTILE_LIFETIME_SCALE,
 				"split_motion_mode": "quarter_sine",
 				"size_scale": 1.45,
@@ -113,8 +157,8 @@ static func update_lasers(enemy, delta: float) -> void:
 			laser_core.visible = false
 		return
 
-	enemy.boss_laser_remaining = max(0.0, enemy.boss_laser_remaining - delta)
-	enemy.boss_laser_hit_timer = max(0.0, enemy.boss_laser_hit_timer - delta)
+	var active_delta: float = min(maxf(delta, 0.0), enemy.boss_laser_remaining)
+	enemy.boss_laser_remaining = max(0.0, enemy.boss_laser_remaining - active_delta)
 	var elapsed: float = enemy.boss_laser_duration - enemy.boss_laser_remaining
 	if elapsed < enemy.boss_laser_spin_duration:
 		var spin_ratio: float = clamp(elapsed / max(enemy.boss_laser_spin_duration, 0.001), 0.0, 1.0)
@@ -122,6 +166,7 @@ static func update_lasers(enemy, delta: float) -> void:
 	else:
 		enemy.boss_laser_rotation = enemy.boss_laser_final_rotation
 
+	var touching_beam := false
 	for index in range(enemy.boss_laser_lines.size()):
 		var angle: float = enemy.boss_laser_rotation + TAU * float(index) / float(max(1, enemy.boss_laser_lines.size()))
 		var laser_direction: Vector2 = Vector2.RIGHT.rotated(angle)
@@ -139,7 +184,7 @@ static func update_lasers(enemy, delta: float) -> void:
 		core.points = PackedVector2Array([start_point, end_point])
 		core.default_color = Color(BOSS_LASER_COLOR.r, BOSS_LASER_COLOR.g, BOSS_LASER_COLOR.b, min(1.0, alpha + 0.4))
 
-		if enemy.boss_laser_hit_timer <= 0.0 and enemy.target != null and is_instance_valid(enemy.target):
+		if not touching_beam and enemy.target != null and is_instance_valid(enemy.target):
 			var target_center: Vector2 = enemy.target.global_position
 			var target_radius: float = 0.0
 			if enemy.target.has_method("get_hurtbox_center"):
@@ -149,8 +194,23 @@ static func update_lasers(enemy, delta: float) -> void:
 			var closest_point: Vector2 = Geometry2D.get_closest_point_to_segment(target_center, enemy.global_position + start_point, enemy.global_position + end_point)
 			var distance_to_beam: float = closest_point.distance_to(target_center)
 			if distance_to_beam <= 22.0 + target_radius and enemy.target.has_method("take_damage"):
-				enemy.target.take_damage(enemy.projectile_damage * 0.62)
-				enemy.boss_laser_hit_timer = 0.16
+				touching_beam = true
+	# All eight beams share contact time: overlaps cannot multiply the DPS.
+	if touching_beam:
+		enemy.boss_laser_hit_timer += active_delta
+		while enemy.boss_laser_hit_timer + 0.000001 >= LASER_DAMAGE_INTERVAL:
+			enemy.boss_laser_hit_timer = maxf(0.0, enemy.boss_laser_hit_timer - LASER_DAMAGE_INTERVAL)
+			enemy.target.take_damage(enemy.attack * LASER_DAMAGE_INTERVAL)
+	# Settle fractional contact on exit/end, so brief crossings also hurt.
+	if (not touching_beam or enemy.boss_laser_remaining <= 0.0) and enemy.boss_laser_hit_timer > 0.0:
+		if enemy.target != null and is_instance_valid(enemy.target) and enemy.target.has_method("take_damage"):
+			enemy.target.take_damage(enemy.attack * enemy.boss_laser_hit_timer)
+		enemy.boss_laser_hit_timer = 0.0
+	if enemy.boss_laser_remaining <= 0.0:
+		for laser in enemy.boss_laser_lines:
+			laser.visible = false
+		for core in enemy.boss_laser_core_lines:
+			core.visible = false
 
 static func apply_passive_boss_pull(enemy, delta: float) -> void:
 	_pull_target_toward_point(enemy, enemy.global_position, BOSS_PASSIVE_PULL_STRENGTH, delta, false)
@@ -188,53 +248,34 @@ static func _update_orbit_aimed_burst(enemy, delta: float) -> void:
 	if enemy.target == null or not is_instance_valid(enemy.target):
 		return
 	enemy.boss_orbit_bomb_shot_timer -= delta
-	if enemy.boss_orbit_bomb_shot_timer > 0.0:
-		return
-	enemy.boss_orbit_bomb_shot_timer += ORBIT_AIMED_BURST_INTERVAL
-	var origin: Vector2 = enemy.global_position
-	var aim_direction: Vector2 = origin.direction_to(enemy.target.global_position)
+	if enemy.boss_orbit_bomb_shot_timer <= 0.0:
+		enemy.boss_orbit_bomb_shot_timer += ORBIT_AIMED_BURST_INTERVAL
+		enemy.boss_aimed_shots_remaining = ORBIT_AIMED_BURST_COUNT
+		enemy.boss_aimed_shot_timer = 0.0
+	else:
+		enemy.boss_aimed_shot_timer -= delta
+	while enemy.boss_aimed_shots_remaining > 0 and enemy.boss_aimed_shot_timer <= 0.000001:
+		_fire_aimed_volley(enemy)
+		enemy.boss_aimed_shots_remaining -= 1
+		enemy.boss_aimed_shot_timer += ORBIT_AIMED_SHOT_INTERVAL
+
+static func _fire_aimed_volley(enemy) -> void:
+	var target_position: Vector2 = enemy.target.global_position
+	if enemy.target.has_method("get_hurtbox_center"):
+		target_position = enemy.target.get_hurtbox_center()
+	var aim_direction: Vector2 = enemy.global_position.direction_to(target_position)
 	if aim_direction.length_squared() <= 0.001:
 		aim_direction = Vector2.RIGHT
-	var perpendicular: Vector2 = aim_direction.orthogonal().normalized()
-	var group_center: float = float(ORBIT_AIMED_CHAIN_GROUPS - 1) * 0.5
-	for group_index in range(ORBIT_AIMED_CHAIN_GROUPS):
-		var lane_offset: Vector2 = perpendicular * (float(group_index) - group_center) * ORBIT_AIMED_CHAIN_LANE_SPACING
-		_spawn_orbit_aimed_chain(enemy, origin + lane_offset, aim_direction)
-
-static func _spawn_orbit_aimed_chain(enemy, origin: Vector2, aim_direction: Vector2) -> void:
-	var center_offset: float = float(ORBIT_AIMED_BURST_COUNT - 1) * 0.5
-	var chain_head: Node = null
-	var projectile_speed: float = 405.0 * BOSS_PROJECTILE_SPEED_SCALE
-	var head_lifetime: float = 2.6 * BOSS_PROJECTILE_LIFETIME_SCALE
-	var chain_trail: Dictionary = {
-		"history": [],
-		"sealed": false
-	}
-	for index in range(ORBIT_AIMED_BURST_COUNT):
-		var chain_offset: float = 18.0 - float(index) * ORBIT_AIMED_BURST_SPACING
-		var shot_direction: Vector2 = aim_direction
-		var motion_mode: String = "chain_head" if index == 0 else "chain_follow"
-		var extra_config: Dictionary = {
-			"size_scale": 1.05,
-			"visual_style": "boss_dark_triangle",
-			"homing_turn_rate": 0.82,
-			"chain_follow_spacing": ORBIT_AIMED_BURST_SPACING,
-			"chain_follow_index": index,
-			"chain_head": chain_head,
-			"chain_trail": chain_trail
-		}
-		var projectile: Node = enemy._spawn_projectile(
-			origin + shot_direction * chain_offset,
-			shot_direction,
-			projectile_speed,
+	for lane in range(3):
+		var shot_direction: Vector2 = aim_direction.rotated(float(lane - 1) * 0.13)
+		enemy._spawn_projectile(
+			enemy.global_position + shot_direction * 34.0,
+			shot_direction, 405.0 * BOSS_PROJECTILE_SPEED_SCALE,
 			enemy.projectile_damage * 0.48,
-			head_lifetime + float(index) * ORBIT_AIMED_BURST_SPACING / max(projectile_speed, 1.0),
-			Color(0.16, 0.05, 0.24, 1.0),
-			motion_mode,
-			extra_config
+			2.6 * BOSS_PROJECTILE_LIFETIME_SCALE,
+			Color(1.0, 0.38, 0.64), "straight",
+			{"size_scale": 1.0, "hit_radius": 7.0, "visual_style": "boss_danmaku_arrow"}
 		)
-		if index == 0:
-			chain_head = projectile
 
 static func _pull_target_to_orbit_ball(enemy, delta: float) -> void:
 	if enemy.target == null or not is_instance_valid(enemy.target):

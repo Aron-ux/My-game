@@ -122,6 +122,13 @@ static func get_save_data(enemy) -> Dictionary:
 		"boss_sine_stream_remaining": enemy.boss_sine_stream_remaining,
 		"boss_sine_stream_rate": enemy.boss_sine_stream_rate,
 		"boss_sine_stream_timer": enemy.boss_sine_stream_timer,
+		"boss_danmaku_pattern": enemy.boss_danmaku_pattern,
+		"boss_danmaku_wave": enemy.boss_danmaku_wave,
+		"boss_danmaku_count": enemy.boss_danmaku_count,
+		"boss_danmaku_rotation": enemy.boss_danmaku_rotation,
+		"boss_aimed_shots_remaining": enemy.boss_aimed_shots_remaining,
+		"boss_aimed_shot_timer": enemy.boss_aimed_shot_timer,
+		"boss_laser_contact_version": 1,
 		"boss_turning_interval": enemy.boss_turning_interval,
 		"boss_turning_timer": enemy.boss_turning_timer,
 		"boss_turning_bullets": enemy.boss_turning_bullets,
@@ -283,6 +290,12 @@ static func apply_save_data(enemy, data: Dictionary, target_node: Node2D) -> voi
 	enemy.boss_sine_stream_remaining = float(data.get("boss_sine_stream_remaining", 0.0))
 	enemy.boss_sine_stream_rate = float(data.get("boss_sine_stream_rate", enemy.boss_sine_stream_rate))
 	enemy.boss_sine_stream_timer = float(data.get("boss_sine_stream_timer", 0.0))
+	enemy.boss_danmaku_pattern = clampi(int(data.get("boss_danmaku_pattern", -1)), -1, 2)
+	enemy.boss_danmaku_wave = clampi(int(data.get("boss_danmaku_wave", 6)), 0, 6)
+	enemy.boss_danmaku_count = clampi(int(data.get("boss_danmaku_count", 0)), 0, 64)
+	enemy.boss_danmaku_rotation = float(data.get("boss_danmaku_rotation", 0.0))
+	enemy.boss_aimed_shots_remaining = clampi(int(data.get("boss_aimed_shots_remaining", 0)), 0, 7)
+	enemy.boss_aimed_shot_timer = float(data.get("boss_aimed_shot_timer", 0.0))
 	enemy.boss_turning_interval = float(data.get("boss_turning_interval", enemy.boss_turning_interval))
 	enemy.boss_turning_timer = float(data.get("boss_turning_timer", enemy.boss_turning_interval))
 	enemy.boss_turning_bullets = int(data.get("boss_turning_bullets", enemy.boss_turning_bullets))
@@ -306,7 +319,7 @@ static func apply_save_data(enemy, data: Dictionary, target_node: Node2D) -> voi
 	enemy.boss_laser_rotation = float(data.get("boss_laser_rotation", 0.0))
 	enemy.boss_laser_start_rotation = float(data.get("boss_laser_start_rotation", enemy.boss_laser_rotation))
 	enemy.boss_laser_final_rotation = float(data.get("boss_laser_final_rotation", enemy.boss_laser_rotation))
-	enemy.boss_laser_hit_timer = float(data.get("boss_laser_hit_timer", 0.0))
+	enemy.boss_laser_hit_timer = float(data.get("boss_laser_hit_timer", 0.0)) if data.has("boss_laser_contact_version") else 0.0
 	enemy.boss_orbit_bomb_timer = float(data.get("boss_orbit_bomb_timer", enemy.boss_orbit_bomb_interval))
 	enemy.boss_orbit_bomb_remaining = float(data.get("boss_orbit_bomb_remaining", 0.0))
 	enemy.boss_orbit_bomb_angle = float(data.get("boss_orbit_bomb_angle", 0.0))

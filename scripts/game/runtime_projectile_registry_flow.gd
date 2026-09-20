@@ -46,7 +46,11 @@ static func get_runtime_enemy_projectile_pool(main: Node) -> Array:
 
 
 static func take_runtime_enemy_projectile_from_pool(main: Node) -> Node:
-	for instance_id in main.runtime_enemy_projectile_pool_nodes.keys():
+	while not main.runtime_enemy_projectile_pool_nodes.is_empty():
+		var instance_id: int = 0
+		for key in main.runtime_enemy_projectile_pool_nodes:
+			instance_id = int(key)
+			break
 		var projectile = main.runtime_enemy_projectile_pool_nodes[instance_id]
 		main.runtime_enemy_projectile_pool_nodes.erase(instance_id)
 		main.runtime_enemy_projectile_pool_cache_dirty = true

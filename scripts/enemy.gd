@@ -219,6 +219,12 @@ var boss_sine_stream_duration: float = 1.6
 var boss_sine_stream_remaining: float = 0.0
 var boss_sine_stream_rate: float = 0.14
 var boss_sine_stream_timer: float = 0.0
+var boss_danmaku_pattern: int = -1
+var boss_danmaku_wave: int = 6
+var boss_danmaku_count: int = 0
+var boss_danmaku_rotation: float = 0.0
+var boss_aimed_shots_remaining: int = 0
+var boss_aimed_shot_timer: float = 0.0
 var boss_turning_interval: float = 4.0
 var boss_turning_timer: float = 0.0
 var boss_turning_bullets: int = 8
@@ -414,6 +420,8 @@ func clear_runtime_effects_after_defeat() -> void:
 		ENEMY_SKULLTOMB_BEHAVIOR.clear_runtime_effects_after_defeat(self)
 
 func _clear_boss_runtime_effects() -> void:
+	boss_danmaku_wave = 6
+	boss_aimed_shots_remaining = 0
 	boss_laser_remaining = 0.0
 	boss_laser_hit_timer = 0.0
 	boss_orbit_bomb_remaining = 0.0

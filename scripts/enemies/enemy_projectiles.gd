@@ -212,6 +212,8 @@ static func _get_difficulty_projectile_speed_bonus(current_scene: Node) -> float
 	return 0.0
 
 static func _can_spawn_enemy_projectile(current_scene: Node, enemy) -> bool:
+	if str(enemy.archetype_id) == "boss_spellcore":
+		return preload("res://scripts/enemies/boss_danmaku_budget.gd").available(current_scene) > 0
 	var limit: int = _get_enemy_projectile_limit(enemy)
 	if current_scene != null and current_scene.has_method("_can_spawn_runtime_group"):
 		return bool(current_scene._can_spawn_runtime_group("enemy_projectiles", limit))

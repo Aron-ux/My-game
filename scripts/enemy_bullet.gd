@@ -4,6 +4,7 @@ const ENEMY_BULLET_SCENE_PATH := "res://scenes/enemy_bullet.tscn"
 const ENEMY_BULLET_SCENE := preload("res://scenes/enemy_bullet.tscn")
 const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
 const ENEMY_GEOMETRY := preload("res://scripts/enemies/enemy_geometry.gd")
+const BOSS_DANMAKU_BUDGET := preload("res://scripts/enemies/boss_danmaku_budget.gd")
 const MAX_TURN_CATCH_UP_TICKS := 8
 const POOL_GROUP := "enemy_projectile_pool"
 const POOL_SOFT_LIMIT := 96
@@ -37,6 +38,9 @@ const REMOTE_UPDATE_INTERVAL := 0.05
 @export var split_count: int = 0
 @export var split_speed: float = 180.0
 @export var split_damage_scale: float = 0.45
+@export var split_damage_override: float = -1.0
+@export var danmaku_angular_speed: float = 0.0
+@export var danmaku_sway: float = 0.0
 @export var split_lifetime: float = 3.2
 @export var split_motion_mode: String = "quarter_sine"
 @export var split_after_time: float = 0.0
@@ -96,6 +100,10 @@ func _sync_source_enemy_meta(source_id: int, source_kind: String) -> void:
 		remove_meta("source_enemy_kind")
 
 func _sync_source_enemy_archetype(archetype_id: String) -> void:
+	if archetype_id == "boss_spellcore":
+		add_to_group(BOSS_DANMAKU_BUDGET.GROUP)
+	else:
+		remove_from_group(BOSS_DANMAKU_BUDGET.GROUP)
 	if archetype_id != "":
 		set_meta("source_enemy_archetype", archetype_id)
 	elif has_meta("source_enemy_archetype"):
@@ -150,6 +158,9 @@ func reset_projectile(config: Dictionary) -> void:
 	split_count = int(config.get("split_count", split_count))
 	split_speed = float(config.get("split_speed", split_speed))
 	split_damage_scale = float(config.get("split_damage_scale", split_damage_scale))
+	split_damage_override = float(config.get("split_damage_override", -1.0))
+	danmaku_angular_speed = float(config.get("danmaku_angular_speed", 0.0))
+	danmaku_sway = float(config.get("danmaku_sway", 0.0))
 	split_lifetime = float(config.get("split_lifetime", split_lifetime))
 	split_motion_mode = str(config.get("split_motion_mode", split_motion_mode))
 	split_after_time = float(config.get("split_after_time", split_after_time))
@@ -172,7 +183,9 @@ func recycle() -> void:
 	if motion_mode == "chain_head":
 		_seal_chain_trail()
 	_release_split_volley_membership()
-	if _get_runtime_pool_count() >= POOL_SOFT_LIMIT:
+	var pool_limit: int = BOSS_DANMAKU_BUDGET.POOL_LIMIT if _get_source_enemy_archetype() == "boss_spellcore" else POOL_SOFT_LIMIT
+	remove_from_group(BOSS_DANMAKU_BUDGET.GROUP)
+	if _get_runtime_pool_count() >= pool_limit:
 		queue_free()
 		return
 	pooled = true
@@ -200,6 +213,7 @@ func _initialize_runtime_state() -> void:
 	turn_delay_remaining = turn_start_delay
 	turn_tick_remaining = turn_interval
 	travel_time = 0.0
+	remote_update_elapsed = 0.0
 	forward_distance = 0.0
 	return_started = false
 	split_performed = false
@@ -237,15 +251,7 @@ func _run_physics_tick(delta: float) -> void:
 	if target_distance_sq > PLAYER_RELEVANCE_DISTANCE * PLAYER_RELEVANCE_DISTANCE:
 		recycle()
 		return
-	if target_distance_sq > PLAYER_FULL_UPDATE_DISTANCE * PLAYER_FULL_UPDATE_DISTANCE:
-		remote_update_elapsed += delta
-		if remote_update_elapsed < REMOTE_UPDATE_INTERVAL:
-			lifetime -= delta
-			return
-		delta = remote_update_elapsed
-		remote_update_elapsed = 0.0
-	else:
-		remote_update_elapsed = 0.0
+	# Lifetime uses real elapsed time once, even when distant motion batches.
 	lifetime -= delta
 	if lifetime <= 0.0:
 		if motion_mode == "returning_sine" and split_on_return and not split_performed:
@@ -255,10 +261,21 @@ func _run_physics_tick(delta: float) -> void:
 		recycle()
 		return
 	_update_lifetime_fade()
+	if target_distance_sq > PLAYER_FULL_UPDATE_DISTANCE * PLAYER_FULL_UPDATE_DISTANCE:
+		remote_update_elapsed += delta
+		if remote_update_elapsed < REMOTE_UPDATE_INTERVAL:
+			return
+		delta = remote_update_elapsed
+		remote_update_elapsed = 0.0
+	else:
+		delta += remote_update_elapsed
+		remote_update_elapsed = 0.0
 
 	travel_time += delta
 
 	match motion_mode:
+		"danmaku":
+			_update_danmaku_motion()
 		"sine":
 			_update_sine_motion(delta)
 		"turning":
@@ -292,6 +309,18 @@ func _update_straight_motion(delta: float) -> void:
 		cached_straight_rotation = direction.angle()
 	if rotation != cached_straight_rotation:
 		rotation = cached_straight_rotation
+
+func _update_danmaku_motion() -> void:
+	# Evaluate from launch state, so batching and save/restore follow the
+	# same expanding spiral instead of accumulating integration error.
+	var phase: float = travel_time * TAU * sine_frequency + sine_phase
+	var angle: float = danmaku_angular_speed * travel_time + danmaku_sway * (sin(phase) - sin(sine_phase))
+	var radial_direction: Vector2 = base_direction.rotated(angle)
+	var radius: float = speed * travel_time
+	global_position = base_position + radial_direction * radius
+	var angular_velocity: float = danmaku_angular_speed + danmaku_sway * TAU * sine_frequency * cos(phase)
+	direction = (radial_direction * speed + Vector2(-radial_direction.y, radial_direction.x) * radius * angular_velocity).normalized()
+	rotation = direction.angle()
 
 func _update_sine_motion(delta: float) -> void:
 	forward_distance += speed * delta
@@ -501,7 +530,9 @@ func _spawn_split_bullets() -> void:
 		return
 
 	var count: int = max(1, split_count)
-	if current_scene.has_method("_trim_spawn_count_for_group"):
+	if _get_source_enemy_archetype() == "boss_spellcore":
+		count = mini(count, BOSS_DANMAKU_BUDGET.available(current_scene))
+	elif current_scene.has_method("_trim_spawn_count_for_group"):
 		count = int(current_scene._trim_spawn_count_for_group("enemy_projectiles", count, _get_enemy_projectile_limit(current_scene)))
 	else:
 		count = PERFORMANCE_GUARD.trim_requested_count(current_scene, "enemy_projectiles", count, _get_enemy_projectile_limit(current_scene))
@@ -536,7 +567,7 @@ func _spawn_split_bullets() -> void:
 				"position": global_position,
 				"direction": shot_direction,
 				"speed": split_speed,
-				"damage": damage * split_damage_scale,
+				"damage": split_damage_override if split_damage_override >= 0.0 else damage * split_damage_scale,
 				"lifetime": split_lifetime,
 				"hit_radius": max(1.0, hit_radius * split_hit_radius_scale),
 				"visual_color": visual_color,
@@ -669,6 +700,9 @@ func _apply_rose_flower_visual(polygon: Polygon2D) -> void:
 
 
 func _apply_boss_projectile_visual(polygon: Polygon2D) -> void:
+	if visual_style.begins_with("boss_danmaku_"):
+		_apply_danmaku_visual(polygon)
+		return
 	_clear_extra_visual("Glow")
 	_clear_extra_visual("Ring")
 	_clear_extra_visual("BossCore")
@@ -723,6 +757,34 @@ func _apply_boss_projectile_visual(polygon: Polygon2D) -> void:
 		core.scale = Vector2.ONE * size_scale
 		add_child(core)
 
+func _apply_danmaku_visual(polygon: Polygon2D) -> void:
+	_clear_extra_visual("Ring")
+	var shape := ENEMY_GEOMETRY.build_circle_points(8.0, 20)
+	if visual_style == "boss_danmaku_arrow":
+		shape = PackedVector2Array([Vector2(13, 0), Vector2(-8, -6), Vector2(-4, 0), Vector2(-8, 6)])
+	polygon.polygon = shape
+	polygon.color = visual_color
+	polygon.scale = Vector2.ONE * size_scale
+	for part in ["Outline", "Glow", "BossCore"]:
+		var layer := get_node_or_null(part) as Polygon2D
+		if layer == null:
+			layer = Polygon2D.new()
+			layer.name = part
+			add_child(layer)
+		layer.polygon = shape
+		match part:
+			"Outline":
+				layer.z_index = -1
+				layer.color = Color(0.04, 0.02, 0.10, 0.96)
+				layer.scale = Vector2.ONE * size_scale * 1.2
+			"Glow":
+				layer.z_index = -2
+				layer.color = Color(visual_color.r, visual_color.g, visual_color.b, 0.16)
+				layer.scale = Vector2.ONE * size_scale * 1.8
+			"BossCore":
+				layer.z_index = 1
+				layer.color = visual_color.lerp(Color.WHITE, 0.85)
+				layer.scale = Vector2.ONE * size_scale * 0.44
 
 func _get_boss_hex_shape() -> PackedVector2Array:
 	var shape_key := "boss_hex"
@@ -826,6 +888,11 @@ func get_save_data() -> Dictionary:
 		"split_count": split_count,
 		"split_speed": split_speed,
 		"split_damage_scale": split_damage_scale,
+		"split_damage_override": split_damage_override,
+		"danmaku_angular_speed": danmaku_angular_speed,
+		"danmaku_sway": danmaku_sway,
+		"remote_update_elapsed": remote_update_elapsed,
+		"max_lifetime": max_lifetime,
 		"split_lifetime": split_lifetime,
 		"split_motion_mode": split_motion_mode,
 		"split_after_time": split_after_time,
@@ -847,7 +914,8 @@ func get_save_data() -> Dictionary:
 		"return_started": return_started,
 		"split_performed": split_performed,
 		"source_enemy_instance_id": _get_source_enemy_instance_id(),
-		"source_enemy_kind": _get_source_enemy_kind()
+		"source_enemy_kind": _get_source_enemy_kind(),
+		"source_enemy_archetype": _get_source_enemy_archetype()
 	}
 
 func apply_save_data(data: Dictionary, target_node: Node2D) -> void:
@@ -866,6 +934,8 @@ func apply_save_data(data: Dictionary, target_node: Node2D) -> void:
 	speed = float(data.get("speed", speed))
 	damage = float(data.get("damage", damage))
 	lifetime = float(data.get("lifetime", lifetime))
+	max_lifetime = maxf(float(data.get("max_lifetime", lifetime)), 0.001)
+	remote_update_elapsed = maxf(0.0, float(data.get("remote_update_elapsed", 0.0)))
 	hit_radius = float(data.get("hit_radius", hit_radius))
 	motion_mode = str(data.get("motion_mode", motion_mode))
 	sine_amplitude = float(data.get("sine_amplitude", sine_amplitude))
@@ -887,6 +957,9 @@ func apply_save_data(data: Dictionary, target_node: Node2D) -> void:
 	split_count = int(data.get("split_count", split_count))
 	split_speed = float(data.get("split_speed", split_speed))
 	split_damage_scale = float(data.get("split_damage_scale", split_damage_scale))
+	split_damage_override = float(data.get("split_damage_override", -1.0))
+	danmaku_angular_speed = float(data.get("danmaku_angular_speed", 0.0))
+	danmaku_sway = float(data.get("danmaku_sway", 0.0))
 	split_lifetime = float(data.get("split_lifetime", split_lifetime))
 	split_motion_mode = str(data.get("split_motion_mode", split_motion_mode))
 	split_after_time = float(data.get("split_after_time", split_after_time))
@@ -920,6 +993,7 @@ func apply_save_data(data: Dictionary, target_node: Node2D) -> void:
 	return_started = bool(data.get("return_started", false))
 	split_performed = bool(data.get("split_performed", false))
 	_sync_source_enemy_meta(int(data.get("source_enemy_instance_id", 0)), str(data.get("source_enemy_kind", "")))
+	_sync_source_enemy_archetype(str(data.get("source_enemy_archetype", "boss_spellcore" if _get_source_enemy_kind() == "boss" else "")))
 
 	var color_data = data.get("visual_color", [visual_color.r, visual_color.g, visual_color.b, visual_color.a])
 	if color_data.size() >= 4:
@@ -963,8 +1037,6 @@ func _release_split_volley_membership() -> void:
 		scene.release_enemy_split_projectile_volley_projectile(releasing_volley_id)
 
 func _get_runtime_pool_count() -> int:
-	var scene: Node = get_tree().current_scene if get_tree() != null else null
-	if scene != null and scene.has_method("get_runtime_enemy_projectile_pool"):
-		return (scene.get_runtime_enemy_projectile_pool() as Array).size()
+	# Avoid rebuilding the pool registry array for each bullet in a dense wave.
 	var tree := get_tree()
 	return tree.get_node_count_in_group(POOL_GROUP) if tree != null else 0

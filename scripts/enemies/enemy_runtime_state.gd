@@ -53,6 +53,12 @@ static func reset(enemy, randomize_timers: bool) -> void:
 		enemy.dash_timer = enemy.dash_interval
 	enemy.boss_sine_stream_remaining = 0.0
 	enemy.boss_sine_stream_timer = 0.0
+	enemy.boss_danmaku_pattern = -1
+	enemy.boss_danmaku_wave = 6
+	enemy.boss_danmaku_count = 0
+	enemy.boss_danmaku_rotation = 0.0
+	enemy.boss_aimed_shots_remaining = 0
+	enemy.boss_aimed_shot_timer = 0.0
 	enemy.boss_pattern_rotation = randf() * TAU if randomize_timers else 0.0
 	enemy.boss_battle_elapsed = 0.0
 	enemy.boss_phase = 1

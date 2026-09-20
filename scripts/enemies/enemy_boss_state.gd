@@ -55,6 +55,8 @@ static func start_shield_break_intro(enemy) -> void:
 	enemy._spawn_status_burst(Color(1.0, 0.84, 0.42, 0.24), 54.0 + enemy.scale.x * 12.0)
 
 static func _prepare_transition_state(enemy) -> void:
+	enemy.boss_danmaku_wave = ENEMY_BOSS_ATTACKS.DANMAKU_WAVES
+	enemy.boss_aimed_shots_remaining = 0
 	enemy.boss_laser_remaining = 0.0
 	enemy.boss_laser_hit_timer = 0.0
 	enemy._clear_boss_orbit_ball()
@@ -64,6 +66,7 @@ static func _prepare_transition_state(enemy) -> void:
 	ENEMY_BOSS_ATTACKS.update_lasers(enemy, 0.0)
 
 static func _clear_shield_gated_attacks(enemy) -> void:
+	enemy.boss_aimed_shots_remaining = 0
 	enemy.boss_orbit_bomb_remaining = 0.0
 	enemy.boss_orbit_pull_remaining = 0.0
 	enemy.boss_peacock_charge_remaining = 0.0
@@ -133,6 +136,7 @@ static func update_boss_trait(enemy, delta: float) -> void:
 		enemy.boss_radial_timer += radial_interval
 		ENEMY_BOSS_ATTACKS.fire_radial_burst(enemy, radial_count)
 
+	ENEMY_BOSS_ATTACKS.update_danmaku_stream(enemy, delta)
 	enemy.boss_sine_cooldown -= delta
 	if enemy.boss_sine_cooldown <= 0.0:
 		enemy.boss_sine_cooldown += sine_interval
