@@ -138,7 +138,7 @@ static func update_boss_trait(enemy, delta: float) -> void:
 
 	ENEMY_BOSS_ATTACKS.update_danmaku_stream(enemy, delta)
 	enemy.boss_sine_cooldown -= delta
-	if enemy.boss_sine_cooldown <= 0.0:
+	if enemy.boss_sine_cooldown <= 0.0 and enemy.boss_danmaku_wave >= ENEMY_BOSS_ATTACKS.DANMAKU_WAVES:
 		enemy.boss_sine_cooldown += sine_interval
 		ENEMY_BOSS_ATTACKS.fire_quarter_sine_ring(enemy, sine_count)
 

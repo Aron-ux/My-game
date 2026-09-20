@@ -10,10 +10,10 @@ const ORBIT_ROTATION_SPEED := 0.987
 const BOSS_PASSIVE_PULL_STRENGTH := 50.0
 const ORBIT_AIMED_BURST_INTERVAL := 2.9
 const ORBIT_AIMED_BURST_COUNT := 7
-const ORBIT_AIMED_SHOT_INTERVAL := 0.09
+const ORBIT_AIMED_SHOT_INTERVAL := 0.12
 const ORBIT_BALL_RADIUS := 232.0
 const DANMAKU_WAVES := 6
-const DANMAKU_WAVE_INTERVAL := 0.16
+const DANMAKU_WAVE_INTERVAL := 0.20
 const LASER_DAMAGE_INTERVAL := 0.2
 
 static func fire_radial_burst(enemy, count: int = -1) -> void:
@@ -27,7 +27,7 @@ static func fire_radial_burst(enemy, count: int = -1) -> void:
 			shot_direction,
 			(255.0 + float(enemy.boss_phase - 1) * 12.0) * BOSS_PROJECTILE_SPEED_SCALE,
 			enemy.attack * 0.8,
-			5.0 * BOSS_PROJECTILE_LIFETIME_SCALE,
+			10.0,
 			Color(1.0, 0.38, 0.12, 1.0),
 			"straight",
 			{"size_scale": 1.15, "visual_style": "boss_dark_orb"}
@@ -91,7 +91,7 @@ static func _fire_danmaku_wave(enemy) -> void:
 		var shot_direction: Vector2 = Vector2.RIGHT.rotated(shot_angle)
 		enemy._spawn_projectile(
 			enemy.global_position + shot_direction * (28.0 + enemy.scale.x * 4.0),
-			shot_direction, shot_speed, enemy.attack * 0.8, 7.5,
+			shot_direction, shot_speed, enemy.attack * 0.8, 10.0,
 			Color.from_hsv(fposmod(hue, 1.0), 0.65, 1.0),
 			"danmaku",
 			{
@@ -132,7 +132,7 @@ static func fire_recall_split(enemy) -> void:
 				"split_count": 6 if enemy.boss_phase == 2 else 8,
 				"split_speed": 215.0 * BOSS_PROJECTILE_SPEED_SCALE,
 				"split_damage_override": enemy.attack * 0.5,
-				"split_lifetime": 3.8 * BOSS_PROJECTILE_LIFETIME_SCALE,
+				"split_lifetime": 7.6,
 				"split_motion_mode": "quarter_sine",
 				"size_scale": 1.45,
 				"visual_style": "boss_dark_core_orb",
@@ -272,7 +272,7 @@ static func _fire_aimed_volley(enemy) -> void:
 			enemy.global_position + shot_direction * 34.0,
 			shot_direction, 405.0 * BOSS_PROJECTILE_SPEED_SCALE,
 			enemy.projectile_damage * 0.48,
-			2.6 * BOSS_PROJECTILE_LIFETIME_SCALE,
+			5.2,
 			Color(1.0, 0.38, 0.64), "straight",
 			{"size_scale": 1.0, "hit_radius": 7.0, "visual_style": "boss_danmaku_arrow"}
 		)

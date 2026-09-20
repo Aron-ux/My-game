@@ -3,7 +3,7 @@ extends RefCounted
 # The authored N11 phase-three overlap stays below this fixed ceiling.
 # Ordinary enemy limits and FPS-dependent trimming do not clip Boss patterns.
 const GROUP := "boss_danmaku_projectiles"
-const LIMIT := 4096
+const LIMIT := 5120
 const POOL_LIMIT := 1024
 
 

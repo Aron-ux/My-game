@@ -31,6 +31,7 @@ func _run() -> void:
 		check(scene.active.size() == 16, "radial must fire every bullet")
 		for bullet in scene.active.values():
 			check(is_equal_approx(bullet.damage, 64.0), "radial damage must be 80% in every phase")
+			check(is_equal_approx(bullet.lifetime, 10.0), "radial bullets remain for ten seconds")
 		scene.clear_bullets()
 	boss.attack = 160.0
 	ATTACKS.fire_radial_burst(boss, 16)
@@ -43,10 +44,13 @@ func _run() -> void:
 		ATTACKS.fire_quarter_sine_ring(boss, 12)
 		check(scene.active.size() == 24, "first danmaku wave must be complete")
 		ATTACKS.update_danmaku_stream(boss, 0.8)
+		check(scene.active.size() == 120, "last danmaku wave must wait until one second")
+		ATTACKS.update_danmaku_stream(boss, 0.2)
 		check(scene.active.size() == 144, "all six danmaku waves must survive ordinary frame cap")
 		check(boss.boss_danmaku_pattern == pattern, "patterns must rotate in order")
 		for bullet in scene.active.values():
 			check(is_equal_approx(bullet.damage, 64.0), "all danmaku bullets use 80% attack")
+			check(is_equal_approx(bullet.lifetime, 10.0), "danmaku bullets remain for ten seconds")
 			check(bullet.get_node("Polygon2D").color == bullet.visual_color, "danmaku must retain authored color")
 		var sample = scene.active.values()[1]
 		sample.travel_time = 1.2
@@ -73,12 +77,24 @@ func _run() -> void:
 	restored_boss.apply_save_data(saved_boss, target)
 	check(restored_boss.boss_danmaku_wave == 2, "save retains pending waves")
 	scene.clear_bullets()
-	ATTACKS.update_danmaku_stream(restored_boss, 0.6)
+	ATTACKS.update_danmaku_stream(restored_boss, 0.8)
 	check(scene.active.size() == 96, "restore fires remaining four waves exactly once")
 	STATE._prepare_transition_state(restored_boss)
 	scene.clear_bullets()
 	ATTACKS.update_danmaku_stream(restored_boss, 1.0)
 	check(scene.active.is_empty(), "transition cancels pending waves")
+	restored_boss.boss_phase = 1
+	restored_boss.boss_radial_timer = 99.0
+	restored_boss.boss_sine_cooldown = 0.0
+	restored_boss.boss_danmaku_wave = 5
+	restored_boss.boss_sine_stream_timer = 0.15
+	var pending_pattern: int = restored_boss.boss_danmaku_pattern
+	STATE.update_boss_trait(restored_boss, 0.07)
+	check(restored_boss.boss_danmaku_wave == 5 and scene.active.is_empty(), "expired cooldown must not truncate pending last wave")
+	STATE.update_boss_trait(restored_boss, 0.08)
+	check(restored_boss.boss_danmaku_pattern == (pending_pattern + 1) % 3, "next pattern starts after last pending wave")
+	check(scene.active.size() == 24 + restored_boss.boss_danmaku_count, "tail wave and next opening wave must both spawn")
+	scene.clear_bullets()
 	restored_boss.free()
 
 	boss.boss_phase = 2
@@ -92,6 +108,7 @@ func _run() -> void:
 	check(scene.active.size() == before + 6, "all six split children spawn")
 	for bullet in scene.active.values().slice(before):
 		check(is_equal_approx(bullet.damage, 40.0), "split child uses 50% attack after save")
+		check(is_equal_approx(bullet.lifetime, 7.6), "split children remain for 7.6 seconds")
 		check(bullet.split_damage_override == -1.0, "child must not inherit another split override")
 	scene.clear_bullets()
 
@@ -106,15 +123,30 @@ func _run() -> void:
 	first._run_physics_tick(0.09)
 	check(first.direction.is_equal_approx(Vector2.RIGHT), "launched aimed bullet must not home")
 	ATTACKS._update_orbit_aimed_burst(boss, 0.09)
+	check(scene.active.size() == 3, "next aimed volley must wait for the longer interval")
+	ATTACKS._update_orbit_aimed_burst(boss, 0.03)
 	check(scene.active.values()[4].direction.is_equal_approx(Vector2.DOWN), "next volley reacquires target")
 	saved_boss = JSON.parse_string(JSON.stringify(boss.get_save_data()))
 	boss.apply_save_data(saved_boss, target)
 	boss._ensure_boss_orbit_ball()
-	ATTACKS._update_orbit_aimed_burst(boss, 0.45)
+	ATTACKS._update_orbit_aimed_burst(boss, 0.6)
 	check(scene.active.size() == 21, "aimed salvo resumes all seven volleys after save")
 	for bullet in scene.active.values():
 		check(bullet.motion_mode == "straight" and is_equal_approx(bullet.damage, 14.208), "aimed salvo retains unspecified damage")
+		check(is_equal_approx(bullet.max_lifetime, 5.2), "aimed bullets retain extended lifetime after save")
 	scene.clear_bullets()
+
+	target.position = Vector2(200, 0)
+	target.damage_taken = 0.0
+	ATTACKS.start_laser_sweep(boss)
+	check(is_equal_approx(boss.boss_laser_remaining, 5.0), "laser lasts five seconds")
+	boss.boss_laser_spin_duration = 0.0
+	boss.boss_laser_final_rotation = 0.0
+	ATTACKS.update_lasers(boss, 4.0)
+	check(boss.boss_laser_lines[0].visible, "laser remains visible after four seconds")
+	ATTACKS.update_lasers(boss, 1.0)
+	check(absf(target.damage_taken - 400.0) < 0.01, "five-second laser retains 80 DPS")
+	check(not boss.boss_laser_lines[0].visible, "laser ends at five seconds")
 
 	for fps in [30, 60, 120]:
 		target.position = Vector2(200, 0)
