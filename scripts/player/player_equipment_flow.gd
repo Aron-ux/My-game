@@ -287,9 +287,11 @@ static func apply_passives(owner, delta: float) -> void:
 		owner._heal(regen_amount)
 
 
-static func get_role_dodge_chance(owner, role_id: String) -> float:
+static func get_role_dodge_chance(owner, role_id: String, breakdown: Variant = null) -> float:
 	var resolved_role_id: String = role_id if role_id != "" else _get_active_role_id(owner)
 	var sources: Array[float] = [get_role_base_dodge_chance(owner, resolved_role_id)]
+	if breakdown != null:
+		breakdown.append({"label": "角色基础", "value": sources[0], "op": "chance"})
 	if owner == null:
 		return calculate_dodge_chance(sources)
 	var equipment: Dictionary = get_role_equipment_levels(owner, resolved_role_id)
@@ -298,15 +300,29 @@ static func get_role_dodge_chance(owner, role_id: String) -> float:
 		var chance: float = float(definition.get("dodge_chance", 0.0))
 		for _index in range(maxi(0, int(equipment[equipment_id]))):
 			sources.append(chance)
+			if breakdown != null:
+				breakdown.append({"label": str(definition.get("title", equipment_id)), "value": sources[-1], "op": "chance"})
 	if owner.has_method("_get_role_blessing_stat_bonus"):
 		sources.append(float(owner._get_role_blessing_stat_bonus(resolved_role_id, "dodge_chance")))
+		if breakdown != null:
+			breakdown.append({"label": "祝福", "value": sources[-1], "op": "chance"})
 	sources.append(1.0 - PLAYER_RUAN_STONE_STAT_FLOW.get_dodge_miss_multiplier(owner))
+	if breakdown != null:
+		breakdown.append({"label": "共享阮石", "value": sources[-1], "op": "chance"})
 	if resolved_role_id == "gunner" and owner.has_method("_get_gunner_flash_dodge_chance"):
 		var flash_stacks: int = PLAYER_GUNNER_FLASH_TALENT_FLOW.get_active_flash_stacks(owner)
 		sources.append(float(owner._get_gunner_flash_dodge_chance(resolved_role_id)) * flash_stacks)
+		if breakdown != null:
+			breakdown.append({"label": "瞬杀", "value": sources[-1], "op": "chance"})
 	sources.append(PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW.get_flat_dodge_chance_bonus(owner, resolved_role_id))
+	if breakdown != null:
+		breakdown.append({"label": "剑士特性", "value": sources[-1], "op": "chance"})
 	sources.append(PLAYER_GUNNER_FLASH_TALENT_FLOW.get_flat_dodge_chance_bonus(owner, resolved_role_id))
+	if breakdown != null:
+		breakdown.append({"label": "瞬杀强化", "value": sources[-1], "op": "chance"})
 	sources.append(get_role_temporary_dodge_strength(owner, resolved_role_id))
+	if breakdown != null:
+		breakdown.append({"label": "终结技迅捷", "value": sources[-1], "op": "chance"})
 	return calculate_dodge_chance(sources)
 
 

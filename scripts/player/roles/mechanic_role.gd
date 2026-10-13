@@ -276,7 +276,10 @@ func update_trait_state(owner, delta: float) -> void:
 	state["parts_elapsed"] = elapsed
 
 func get_parts_count(owner) -> int:
-	return int(_get_talent_state(owner).get("parts", 0))
+	if owner == null or not owner.has_method("_get_role_special_state"):
+		return 0
+	var role_state: Dictionary = owner.role_special_states.get("mechanic", {})
+	return int((role_state.get("talent_runtime", {}) as Dictionary).get("parts", 0))
 
 func get_summon_damage_multiplier(owner) -> float:
 	var per_part_bonus: float = TRAIT_PART_DAMAGE_BONUS + PLAYER_BUILD_SYSTEM.get_mechanic_part_damage_bonus(owner)
