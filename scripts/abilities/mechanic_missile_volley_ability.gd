@@ -110,8 +110,18 @@ func get_cooldown_slot(owner = null) -> Dictionary:
 		"remaining": clamp(cooldown_remaining, 0.0, COOLDOWN),
 		"duration": get_cooldown(owner),
 		"color": CANNON_COLOR,
-		"description": "部署一座重型炮台，持续 10 秒，每 1.2 秒发射一枚大子弹，造成 200% 伤害（受战场改装零件加成）。"
+		"description": "部署重型炮台，自动向附近敌人发射大口径炮弹。",
+		"effect_rows": [
+			{"label": "单发伤害倍率", "value": "%.0f%%" % (_get_damage_ratio(owner) * 100.0)},
+			{"label": "射击间隔", "value": "%.1f 秒" % FIRE_INTERVAL},
+			{"label": "持续时间", "value": "%.1f 秒" % _get_duration(owner)}
+		],
+		"effect_note": "按当前强化下的标准部署计算；实际伤害还受角色攻击力、暴击和目标防御影响。"
 	}
+
+
+func _get_damage_ratio(owner) -> float:
+	return DAMAGE_RATIO * _get_cannon_damage_multiplier(owner) * _get_summon_damage_multiplier(owner)
 
 
 func get_save_data() -> Dictionary:
@@ -178,7 +188,7 @@ func _fire(owner, data: Dictionary) -> void:
 	if sprite != null:
 		sprite.play("fire")
 		sprite.set_frame_and_progress(1, 0.0)
-	var damage_amount: float = owner._get_role_damage("mechanic") * DAMAGE_RATIO * _get_cannon_damage_multiplier(owner) * _get_summon_damage_multiplier(owner)
+	var damage_amount: float = owner._get_role_damage("mechanic") * _get_damage_ratio(owner)
 	var muzzle := Vector2(-100.0 if cos(cannon.rotation) < 0.0 else 100.0, -82.0) * CANNON_VISUAL_SCALE
 	var bullet = owner._spawn_bullet(target, damage_amount, CANNON_COLOR, "mechanic", cannon.global_position + muzzle)
 	if bullet != null and is_instance_valid(bullet):

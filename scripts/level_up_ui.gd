@@ -35,7 +35,6 @@ const LEVEL_TALENT_ROLE_SCENES := {
 }
 const LEVEL_TALENT_ROLE_BUTTON_SCALE := 2.5
 const BUILD_CARD_DISPLAY_SCALE := 1.0
-const BUILD_CARD_VISUAL_OFFSET := Vector2(52.0, 98.0)
 const TRAIT_BUTTON_SCALE := 2.0
 const OPENING_TRAIT_BUTTON_SCALE := TRAIT_BUTTON_SCALE * 2.0
 const OPENING_TRAIT_IDLE_MODULATE := Color(0.58, 0.58, 0.58, 0.86)
@@ -72,7 +71,7 @@ const OPENING_TRAIT_DESCRIPTION_OFFSETS := {
 	"level_trait_gunner": Vector2(0.0, -80.0),
 	"level_trait_mage": Vector2(0.0, -50.0)
 }
-const BUILD_DETAIL_HOVER_DELAY := 1.5
+const BUILD_DETAIL_HOVER_DELAY := 0.18
 const BUILD_REFRESH_ANIMATION_TIME := 0.5
 const BUILD_REFRESH_COLLAPSE_RATIO := 0.42
 const BUILD_REFRESH_COLLAPSED_SCALE := 0.72
@@ -80,8 +79,6 @@ const BUILD_REFRESH_COLLAPSED_ALPHA := 0.62
 const BUILD_REFRESH_TEXT_HIDDEN_HOLD := 0.08
 const BUILD_REFRESH_BUTTON_ROTATION_TIME := 0.3
 const BUILD_REFRESH_BUTTON_ROTATION_DEGREES := 45.0
-const BUILD_CARD_SUMMARY_CHARS_PER_LINE := 8
-const BUILD_CARD_SUMMARY_MAX_LINES := 4
 const TIER_FOUR_CARD_SHAKE_TIME := 0.16
 const TIER_FOUR_CARD_SHAKE_DISTANCE := 8.0
 const BLESSING_SLOT_ORDER := ["body", "combat", "skill"]
@@ -105,6 +102,10 @@ var build_card_layer: Control
 var trait_button_layer: Control
 var build_refresh_button: Button
 var level_talent_back_button: Button
+var build_heading: Label
+var build_choice_hint: Label
+var build_count_label: Label
+var build_footer: Label
 var opening_prompt_label: Label
 var build_detail_hide_timer: Timer
 var build_detail_hover_timer: Timer
@@ -395,6 +396,24 @@ func _ensure_build_overlay() -> void:
 	opening_prompt_label.add_theme_font_size_override("font_size", 28)
 	build_root.add_child(opening_prompt_label)
 
+	build_heading = _make_build_label("选择升级", 30, SURVIVORS_THEME.COLOR_TEXT_GOLD)
+	build_choice_hint = _make_build_label("", 16, SURVIVORS_THEME.COLOR_TEXT)
+	build_count_label = _make_build_label("", 16, SURVIVORS_THEME.COLOR_TEXT_GOLD)
+	build_footer = _make_build_label("", 13, SURVIVORS_THEME.COLOR_TEXT_MUTED)
+	for label in [build_heading, build_choice_hint, build_count_label, build_footer]:
+		build_root.add_child(label)
+
+func _make_build_label(text_value: String, font_size: int, color: Color) -> Label:
+	var label := Label.new()
+	label.text = text_value
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.add_theme_font_override("font", SURVIVORS_THEME.get_reading_font())
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", color)
+	return label
+
 func _fill_rect(control: Control) -> void:
 	control.anchor_left = 0.0
 	control.anchor_top = 0.0
@@ -408,6 +427,7 @@ func _fill_rect(control: Control) -> void:
 func _rebuild_build_overlay() -> void:
 	if build_root == null:
 		return
+	_hide_build_item_detail()
 	build_root.visible = true
 	if build_dimmer != null:
 		build_dimmer.visible = true
@@ -481,11 +501,14 @@ func _make_build_card_button(option: Dictionary) -> TextureButton:
 		button.texture_normal = BUILD_CARD_TEXTURE
 		button.texture_hover = BUILD_CARD_TEXTURE
 		button.texture_pressed = BUILD_CARD_TEXTURE
-	button.focus_mode = Control.FOCUS_NONE
-	button.clip_contents = true
+	button.focus_mode = Control.FOCUS_ALL
+	button.clip_contents = false
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	button.mouse_entered.connect(_on_build_card_mouse_entered.bind(button, option))
 	button.mouse_exited.connect(_on_build_card_mouse_exited.bind(button))
+	button.focus_entered.connect(_show_build_item_detail.bind(button, option))
+	button.focus_entered.connect(_animate_build_card_hover.bind(button, true))
+	button.focus_exited.connect(_animate_build_card_hover.bind(button, false))
 	button.gui_input.connect(_on_build_item_gui_input.bind(button, option))
 	button.pressed.connect(_on_build_card_pressed.bind(button, option))
 	if button.get_node_or_null("HoverFrame") == null:
@@ -520,6 +543,11 @@ func _make_build_card_refresh_button(option_index: int) -> Button:
 	icon.offset_bottom = 4.0
 	icon.modulate = Color(0.78, 0.88, 0.92, 0.62)
 	button.add_child(icon)
+	var count := _make_build_label("剩余 1 次", 13, SURVIVORS_THEME.COLOR_TEXT_MUTED)
+	count.name = "RefreshCount"
+	count.position = Vector2(-23, 47)
+	count.size = Vector2(92, 22)
+	button.add_child(count)
 	_apply_card_refresh_button_style(button)
 	_apply_build_card_refresh_button_state(button, option_index)
 	return button
@@ -559,23 +587,94 @@ func _get_build_card_scene(option: Dictionary) -> PackedScene:
 			return BUILD_CARD_SCENE
 
 func _populate_build_card_scene(button: TextureButton, option: Dictionary) -> void:
-	var tier_color: Color = option.get("tier_text_font_color", Color(0.0, 0.0, 0.0, 1.0))
-	var title_label := button.get_node_or_null("Margin/Content/TitleLabel") as Label
-	if title_label != null:
-		var hide_title := bool(option.get("hide_card_title", false))
-		title_label.visible = not hide_title
-		title_label.text = "" if hide_title else str(option.get("card_title", option.get("title", option.get("name", "选项"))))
-		if not hide_title:
-			title_label.add_theme_color_override("font_color", tier_color)
-			title_label.add_theme_constant_override("outline_size", int(option.get("tier_text_outline_size", 0)))
-			title_label.add_theme_color_override("font_outline_color", option.get("tier_text_outline_color", Color(0.0, 0.0, 0.0, 0.0)))
-	var summary_label := button.get_node_or_null("Margin/Content/SummaryLabel") as Label
-	if summary_label != null:
-		summary_label.add_theme_color_override("font_color", option.get("tier_description_color", tier_color))
-		summary_label.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
-		summary_label.clip_text = true
-		summary_label.max_lines_visible = BUILD_CARD_SUMMARY_MAX_LINES
-		summary_label.text = _get_card_summary_text(option)
+	var margin := button.get_node("Margin") as MarginContainer
+	# The source texture includes transparent gutters; text belongs on the paper.
+	margin.add_theme_constant_override("margin_left", 62)
+	margin.add_theme_constant_override("margin_right", 60)
+	margin.add_theme_constant_override("margin_top", 42)
+	margin.add_theme_constant_override("margin_bottom", 30)
+	var content := button.get_node("Margin/Content") as VBoxContainer
+	content.alignment = BoxContainer.ALIGNMENT_BEGIN
+	content.add_theme_constant_override("separation", 4)
+	var ink := Color(0.16, 0.09, 0.06)
+	var title := button.get_node("Margin/Content/TitleLabel") as Label
+	title.text = str(option.get("card_title", option.get("title", "选项"))).trim_prefix("升级：")
+	title.visible = true
+	title.add_theme_font_override("font", SURVIVORS_THEME.get_reading_bold_font())
+	title.add_theme_font_size_override("font_size", 17)
+	title.add_theme_color_override("font_color", ink)
+	title.size_flags_vertical = Control.SIZE_FILL
+	var owner_text := str(option.get("role_name", option.get("slot_label", "")))
+	if str(option.get("role_name", "")) == "" and option.has("role_id"):
+		owner_text = str({"swordsman": "剑士", "gunner": "枪手", "mage": "法师", "mechanic": "机械师"}.get(str(option["role_id"]), ""))
+	var kind := "祝福"
+	var level_text := "团队共享" if str(option.get("blessing_binding", "")) == "role" else ""
+	var primary := str(option.get("card_highlight", _get_summary_text(option)))
+	var lines: Array = option.get("card_lines", []).duplicate()
+	if bool(option.get("skill_upgrade", false)):
+		kind = "技能升级"
+		level_text = "Lv.%d → Lv.%d" % [int(option.get("skill_level", 1)), int(option.get("skill_level_next", 2))]
+	elif str(option.get("unlock_skill", "")) != "":
+		kind = "新技能"
+		level_text = "未学习 → Lv.1"
+		for row in option.get("effect_rows", []):
+			if str(row.get("label", "")) == "持续时间":
+				lines.push_front("持续 " + str(row.get("value", "")))
+	elif str(option.get("option_category", "")) == "skill_level_talent":
+		kind = "技能天赋"
+		level_text = "天赋位 " + ("I" if int(option.get("talent_slot", 1)) == 1 else "II")
+		primary = "效果尚未实装"
+		lines = ["选择后记录该天赋位", "满 10 级获得另一天赋位"]
+	elif option.has("blessing_id"):
+		owner_text = "全队" if str(option.get("blessing_binding", "")) == "role" else "技能"
+		if owner_text == "技能":
+			level_text = "作用于匹配技能"
+		lines = ["获得 %s 阶祝福 ×1" % str(["I", "II", "III", "IV"][clampi(int(option.get("blessing_tier", 1)), 1, 4) - 1])]
+	elif str(option.get("option_category", option.get("blessing_category", ""))) == "magic_stone":
+		kind = "魔石"
+	var metadata := _make_build_label("%s · %s" % [owner_text, kind] if owner_text != "" else kind, 11, ink)
+	metadata.name = "MetadataLabel"
+	content.add_child(metadata)
+	content.move_child(metadata, 0)
+	var level := _make_build_label(level_text, 12, ink)
+	level.name = "LevelLabel"
+	level.visible = level_text != ""
+	content.add_child(level)
+	content.move_child(level, 2)
+	var divider := HSeparator.new()
+	divider.modulate = Color(0.3, 0.2, 0.14, 0.45)
+	content.add_child(divider)
+	content.move_child(divider, 3)
+	var highlight := _make_build_label(primary, 14, ink)
+	highlight.name = "HighlightLabel"
+	highlight.add_theme_font_override("font", SURVIVORS_THEME.get_reading_bold_font())
+	highlight.max_lines_visible = 2
+	highlight.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	highlight.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	content.add_child(highlight)
+	content.move_child(highlight, 4)
+	var summary := button.get_node("Margin/Content/SummaryLabel") as Label
+	var card_lines: Array[String] = []
+	for line in lines.slice(0, 2):
+		card_lines.append(str(line).replace("每跳伤害倍率", "每跳倍率").replace(" ", ""))
+	if lines.size() > 2:
+		card_lines.append("另有 %d 项变化，见详情" % (lines.size() - 2))
+	summary.text = "\n".join(card_lines)
+	summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	summary.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	summary.clip_text = false
+	summary.max_lines_visible = 3
+	summary.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	summary.add_theme_font_override("font", SURVIVORS_THEME.get_reading_font())
+	summary.add_theme_font_size_override("font_size", 12)
+	summary.add_theme_color_override("font_color", ink)
+	var selected := _make_build_label("✓ 已选", 11, ink)
+	selected.name = "SelectedBadge"
+	selected.position = Vector2(141, 23)
+	selected.size = Vector2(65, 18)
+	selected.visible = false
+	button.add_child(selected)
 
 func _make_build_card_hover_frame() -> Panel:
 	var panel := Panel.new()
@@ -592,9 +691,9 @@ func _apply_build_card_hover_frame_style(panel: Panel) -> void:
 	panel.visible = false
 	panel.z_index = 30
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(1.0, 0.90, 0.36, 0.16)
+	style.bg_color = Color(1.0, 0.90, 0.36, 0.025)
 	style.border_color = Color(1.0, 0.82, 0.18, 1.0)
-	style.set_border_width_all(5)
+	style.set_border_width_all(2)
 	style.set_corner_radius_all(8)
 	panel.add_theme_stylebox_override("panel", style)
 
@@ -617,7 +716,7 @@ func _ensure_build_card_selected_outline(card: TextureButton) -> TextureRect:
 shader_type canvas_item;
 
 uniform vec2 texel_size = vec2(0.00390625, 0.00390625);
-uniform float outline_width = 4.0;
+uniform float outline_width = 1.2;
 uniform vec4 outline_color : source_color = vec4(1.0, 0.78, 0.08, 1.0);
 
 void fragment() {
@@ -711,7 +810,7 @@ func _layout_build_overlay() -> void:
 	var viewport := SURVIVORS_THEME.viewport_size(self)
 	var card_count := build_card_entries.size()
 	var base_card_y: float = clamp(viewport.y * 0.055, 42.0, 64.0)
-	var card_y: float = base_card_y + BUILD_CARD_VISUAL_OFFSET.y
+	var card_y: float = viewport.y * 0.145
 	if opening_prompt_label != null:
 		opening_prompt_label.visible = current_mode == "opening_trait"
 		opening_prompt_label.position = Vector2(0.0, viewport.y * 0.18)
@@ -730,27 +829,42 @@ func _layout_build_overlay() -> void:
 			var card_size := _get_build_card_visual_size(button)
 			card_sizes.append(card_size)
 			total_card_width += card_size.x
-		var card_gap: float = clamp(viewport.x * 0.030, 26.0, 56.0)
+		var card_gap: float = 0.0
 		var max_gap: float = (viewport.x - 40.0 - total_card_width) / float(max(1, card_count - 1))
 		if card_count > 1:
-			card_gap = clamp(min(card_gap, max_gap), 12.0, 56.0)
+			card_gap = maxf(0.0, minf(card_gap, max_gap))
 		var total_width := total_card_width + card_gap * float(max(0, card_count - 1))
-		var x := (viewport.x - total_width) * 0.5 + BUILD_CARD_VISUAL_OFFSET.x
+		var x := (viewport.x - total_width) * 0.5
 		for index in range(card_count):
 			var entry: Dictionary = build_card_entries[index]
 			var button := entry.get("button") as Control
 			if button == null:
 				continue
 			var card_size: Vector2 = card_sizes[index]
-			button.position = Vector2(x, card_y)
 			if button.size.x <= 0.0 or button.size.y <= 0.0:
 				button.size = _get_build_card_base_size(button)
 			button.pivot_offset = button.size * 0.5
+			button.position = Vector2(x, card_y) - button.pivot_offset + button.pivot_offset * button.scale
 			button.set_meta("build_card_layout_position", button.position)
 			button.set_meta("build_card_layout_scale", button.scale)
 			var refresh_button := entry.get("refresh_button") as Button
 			_layout_build_card_refresh_button(refresh_button, button)
 			x += card_size.x + card_gap
+
+	for label in [build_heading, build_choice_hint, build_count_label, build_footer]:
+		label.visible = card_count > 0
+	build_heading.text = "选择天赋" if str(current_offer_context.get("offer_type", "")) == "skill_level_talent" or (not current_options.is_empty() and str(current_options[0].get("option_category", "")) == "skill_level_talent") else "选择升级"
+	build_heading.position = Vector2(0, 16)
+	build_heading.size = Vector2(viewport.x, 40)
+	build_choice_hint.text = "从 %d 张卡牌中选择 %d 张 · 战斗已暂停" % [card_count, _get_build_selection_count()]
+	build_choice_hint.position = Vector2(0, 62)
+	build_choice_hint.size = Vector2(viewport.x, 28)
+	build_count_label.position = Vector2(viewport.x - 170, 27)
+	build_count_label.size = Vector2(148, 30)
+	build_count_label.text = "已选 %d / %d" % [pending_blessing_option_ids.size(), _get_build_selection_count()]
+	build_footer.position = Vector2(0, viewport.y - 28)
+	build_footer.size = Vector2(viewport.x, 22)
+	build_footer.text = "选满 %d 张后继续 · 悬停查看详情" % _get_build_selection_count()
 
 	var role_count := level_talent_role_button_entries.size()
 	if role_count > 0:
@@ -847,7 +961,7 @@ func _get_cards_bottom() -> float:
 	for entry in build_card_entries:
 		var button := (entry as Dictionary).get("button") as Control
 		if button != null:
-			bottom = max(bottom, button.position.y + _get_build_card_visual_size(button).y)
+			bottom = max(bottom, _get_build_card_scaled_rect(button, _get_build_card_layout_position(button), _get_build_card_layout_scale(button)).end.y)
 	return bottom
 
 func _get_cards_height() -> float:
@@ -877,20 +991,14 @@ func _get_build_card_base_scale(button: Control) -> Vector2:
 			return value
 	return button.scale if button != null else Vector2.ONE
 
-func _get_build_card_fit_scale(viewport: Vector2, card_y: float) -> float:
-	var card_count := build_card_entries.size()
-	if card_count <= 0:
-		return 1.0
+func _get_build_card_fit_scale(viewport: Vector2, _card_y: float) -> float:
 	var total_width := 0.0
+	var max_height := 1.0
 	for entry in build_card_entries:
-		var button := (entry as Dictionary).get("button") as Control
-		var visual_size := _get_build_card_design_visual_size(button)
+		var visual_size := _get_build_card_design_visual_size(entry.get("button") as Control)
 		total_width += visual_size.x
-	var gap: float = clamp(viewport.x * 0.030, 26.0, 56.0)
-	var design_width: float = total_width + gap * float(max(0, card_count - 1))
-	var available_width: float = max(1.0, viewport.x - 40.0)
-	var fit_x: float = min(1.0, available_width / max(1.0, design_width))
-	return clamp(fit_x, 0.45, 1.0)
+		max_height = maxf(max_height, visual_size.y)
+	return minf((viewport.x - 24.0) / maxf(1.0, total_width), viewport.y * 0.44 / max_height)
 
 func _get_build_card_base_size(button: Control) -> Vector2:
 	if button == null:
@@ -1038,6 +1146,9 @@ func _apply_build_card_refresh_button_state(button: Button, option_index: int) -
 	if button == null:
 		return
 	var used := _is_build_card_refresh_used(option_index)
+	var count := button.get_node_or_null("RefreshCount") as Label
+	if count != null:
+		count.text = "已用完" if used else "剩余 1 次"
 	button.disabled = used or build_refresh_animation_in_progress or build_selection_in_progress
 	var available_tip := "刷新这张天赋" if _is_level_talent_offer() else "刷新这张构筑"
 	var used_tip := "本次天赋已刷新" if _is_level_talent_offer() else "本次升级已刷新"
@@ -1175,7 +1286,7 @@ func _get_trait_button_size(button: Button, fallback_size: float) -> Vector2:
 	return Vector2(fallback_size, fallback_size)
 
 func _on_build_card_pressed(card: TextureButton, option: Dictionary) -> void:
-	if build_selection_in_progress:
+	if build_selection_in_progress or build_refresh_animation_in_progress:
 		return
 	var option_id := str(option.get("id", ""))
 	var option_title := str(option.get("title", "祝福"))
@@ -1446,9 +1557,12 @@ func _mark_build_card_selected(card: TextureButton, selected: bool) -> void:
 	var hover_frame := card.get_node_or_null("HoverFrame") as Control
 	if hover_frame != null:
 		hover_frame.visible = false
+	var badge := card.get_node_or_null("SelectedBadge") as Label
+	if badge != null:
+		badge.visible = selected
 	var selected_outline := _ensure_build_card_selected_outline(card)
 	if selected_outline != null:
-		selected_outline.visible = selected
+		selected_outline.visible = selected or card.is_hovered() or card.has_focus()
 
 func _refresh_build_card_selected_outlines() -> void:
 	for entry in build_card_entries:
@@ -1464,6 +1578,9 @@ func _animate_build_card_hover(card: TextureButton, hovered: bool) -> void:
 		return
 	if build_selection_in_progress or build_refresh_animation_in_progress:
 		return
+	var selected_badge := card.get_node_or_null("SelectedBadge") as Label
+	var outline := _ensure_build_card_selected_outline(card)
+	outline.visible = hovered or card.is_hovered() or card.has_focus() or (selected_badge != null and selected_badge.visible)
 	var key := card.get_instance_id()
 	var old_tween := build_card_hover_tweens.get(key) as Tween
 	if old_tween != null and old_tween.is_valid():
@@ -1714,14 +1831,11 @@ func _set_build_card_text_visible(card: Control, text_visible: bool) -> void:
 	var content := card.get_node_or_null("Margin/Content") as Control
 	if content != null:
 		content.visible = text_visible
-	for child in card.get_children():
-		_set_label_subtree_visible(child, text_visible)
-
-func _set_label_subtree_visible(node: Node, text_visible: bool) -> void:
-	if node is Label:
-		(node as Label).visible = text_visible
-	for child in node.get_children():
-		_set_label_subtree_visible(child, text_visible)
+	var badge := card.get_node_or_null("SelectedBadge") as Label
+	if badge != null:
+		badge.visible = false
+	if text_visible:
+		_refresh_build_card_selected_outlines()
 
 func _animate_trait_button_hover(button: Button, hovered: bool) -> void:
 	if button == null:
@@ -1942,7 +2056,13 @@ func _show_build_item_detail(control: Control, item: Dictionary) -> void:
 		build_detail_hover_timer.stop()
 	_cancel_build_detail_hide()
 	if hover_detail != null and hover_detail.has_method("show_item"):
-		hover_detail.show_item(item, get_viewport().get_mouse_position(), Rect2(control.global_position, control.size))
+		var detail_rect := Rect2()
+		if not build_card_entries.is_empty() and current_mode == "blessing" and trait_button_entries.is_empty():
+			var viewport := SURVIVORS_THEME.viewport_size(self)
+			var top := _get_cards_bottom() + (84.0 if _should_show_build_card_refresh_buttons() else 14.0)
+			var width := minf(840.0, viewport.x - 36.0)
+			detail_rect = Rect2(Vector2((viewport.x - width) * 0.5, top), Vector2(width, maxf(140.0, viewport.y - top - 36.0)))
+		hover_detail.show_item(item, get_viewport().get_mouse_position(), control.get_global_rect(), detail_rect)
 
 func _hide_build_item_detail() -> void:
 	if hover_detail != null and hover_detail.has_method("hide_detail"):
@@ -1959,7 +2079,7 @@ func _clear_active_build_detail() -> void:
 		build_detail_hover_timer.stop()
 
 func _schedule_build_detail_hide() -> void:
-	if build_detail_hide_timer == null:
+	if build_detail_hide_timer == null or not build_detail_hide_timer.is_inside_tree():
 		return
 	build_detail_hide_timer.start(BUILD_DETAIL_HIDE_DELAY)
 
@@ -1972,6 +2092,8 @@ func _on_build_detail_hide_timer_timeout() -> void:
 		return
 	var viewport := get_viewport()
 	if viewport != null and active_build_detail_control.get_global_rect().has_point(viewport.get_mouse_position()):
+		return
+	if hover_detail != null and hover_detail.visible and hover_detail.get_global_rect().has_point(get_viewport().get_mouse_position()):
 		return
 	_hide_build_item_detail()
 
@@ -1994,31 +2116,12 @@ func _get_summary_text(item: Dictionary) -> String:
 			return _first_line(value)
 	return _first_line(str(item.get("description", "")))
 
-func _get_card_summary_text(item: Dictionary) -> String:
-	return _wrap_card_text(_get_summary_text(item), BUILD_CARD_SUMMARY_CHARS_PER_LINE, BUILD_CARD_SUMMARY_MAX_LINES)
-
 func _first_line(text_value: String) -> String:
 	var normalized := text_value.replace("\r", "")
 	var newline_index := normalized.find("\n")
 	if newline_index >= 0:
 		return normalized.substr(0, newline_index)
 	return normalized
-
-func _wrap_card_text(text_value: String, max_chars_per_line: int, max_lines: int) -> String:
-	var normalized := text_value.replace("\r", "").replace("\n", "")
-	var lines: Array[String] = []
-	var current := ""
-	for index in range(normalized.length()):
-		var next_char := normalized.substr(index, 1)
-		current += next_char
-		if current.length() >= max_chars_per_line:
-			lines.append(current)
-			current = ""
-			if lines.size() >= max_lines:
-				break
-	if lines.size() < max_lines and current != "":
-		lines.append(current)
-	return "\n".join(lines)
 
 func _prepare_modal_layout() -> void:
 	if modal != null and modal.has_method("apply_layout"):
@@ -2168,6 +2271,8 @@ func _try_emit_combined_selection() -> void:
 	upgrade_selected.emit(pending_blessing_option_id, pending_attribute_option_id)
 
 func _update_selection_hint() -> void:
+	if build_count_label != null:
+		build_count_label.text = "已选 %d / %d" % [pending_blessing_option_ids.size(), _get_build_selection_count()]
 	if current_mode != "blessing":
 		return
 	if _is_build_multi_select_offer():

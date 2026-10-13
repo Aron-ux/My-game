@@ -494,6 +494,46 @@ static func get_upgrade_preview_text(owner, role_id: String, progress_id: String
 	return ""
 
 
+static func get_upgrade_display(owner, role_id: String, progress_id: String) -> Dictionary:
+	var level := PLAYER_SKILL_LEVEL_SYSTEM.get_skill_level(owner, role_id, progress_id)
+	var preview := get_upgrade_preview_text(owner, role_id, progress_id)
+	var lines: Array[String] = []
+	for part in preview.split("；", false):
+		var line := str(part).strip_edges()
+		if line.contains("倍率"):
+			line = line.replace("%", " 个百分点")
+		lines.append(line)
+	var highlight := "等级 +1"
+	if not lines.is_empty():
+		highlight = lines[0]
+		for line in lines:
+			if line.contains("追加") or line.contains("多发射") or line.contains("分裂") or line.contains("开启天赋") or line.contains("多一个"):
+				highlight = line
+		lines.erase(highlight)
+	var rows: Array = []
+	var detail := preview.replace("；", "\n")
+	var note := "以下为本次升级收益；倍率的百分比增长按百分点相加。"
+	if progress_id == SWORDSMAN_BASIC:
+		var damage_bonus := get_swordsman_basic_attack_damage_ratio_bonus(owner)
+		var range_multiplier := get_swordsman_basic_attack_range_multiplier(owner)
+		rows.append({"label": "等级伤害加成", "before": "+%.0f%%" % (damage_bonus * 100.0), "after": "+%.0f%%" % ((damage_bonus + BASIC_ATTACK_DAMAGE_RATIO_PER_LEVEL) * 100.0)})
+		rows.append({"label": "范围倍率", "before": "%.0f%%" % (range_multiplier * 100.0), "after": "%.0f%%" % ((range_multiplier + BASIC_ATTACK_RANGE_RATIO_PER_LEVEL) * 100.0)})
+		var count := get_swordsman_basic_attack_extra_slash_count(owner)
+		var added := 1 if _is_milestone_level(level + 1, BASIC_ATTACK_EXTRA_SLASH_FIRST_LEVEL, BASIC_ATTACK_EXTRA_SLASH_STEP, BASIC_ATTACK_EXTRA_SLASH_MAX) else 0
+		rows.append({"label": "追加斩击", "before": "%d 道" % count, "after": "%d 道" % (count + added)})
+		if added > 0:
+			highlight = "追加斩击 %d → %d 道" % [count, count + added]
+			lines = ["伤害倍率 +%.0f 个百分点" % (BASIC_ATTACK_DAMAGE_RATIO_PER_LEVEL * 100.0), "范围倍率 %.0f%% → %.0f%%" % [range_multiplier * 100.0, (range_multiplier + BASIC_ATTACK_RANGE_RATIO_PER_LEVEL) * 100.0]]
+		detail = "挥剑攻击前方敌人。" + ("\n本次新增 1 道追加斩击。" if added > 0 else "\n本次提升伤害与攻击范围。")
+		note = "追加斩击为主斩击 %.0f%% 的伤害。右表仅列等级成长，不含其他强化。" % (BASIC_ATTACK_EXTRA_SLASH_DAMAGE_SCALE * 100.0)
+	if preview == "":
+		lines = ["数值成长说明待补充"]
+		note = "该技能暂未提供具体数值成长说明。"
+	if level + 1 == PLAYER_SKILL_LEVEL_SYSTEM.TALENT_AUTO_LEVEL:
+		lines.append("满级自动获得另一天赋位")
+	return {"card_highlight": highlight, "card_lines": lines, "effect_rows": rows, "effect_note": note, "description": detail if preview != "" else note}
+
+
 static func _get_swordsman_upgrade_preview(owner, progress_id: String) -> String:
 	var level := _get_level(owner, progress_id)
 	if level <= 0 or level >= PLAYER_SKILL_LEVEL_SYSTEM.MAX_SKILL_LEVEL:

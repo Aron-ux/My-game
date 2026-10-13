@@ -133,7 +133,9 @@ func _check_upgrade_card_text() -> void:
 	_expect_equal(int(basic_option.get("skill_level", 0)), 3, "upgrade card should expose the current skill level")
 	_expect_equal(int(basic_option.get("skill_level_next", 0)), 4, "upgrade card should expose the next skill level")
 	var summary := str(basic_option.get("summary", ""))
-	_expect(summary.contains("追加一道 60% 伤害的斩击"), "level 4 upgrade card should preview the milestone slash, got %s" % summary)
+	_expect(summary.contains("新增 1 道追加斩击"), "level 4 detail should describe the new slash, got %s" % summary)
+	_expect_equal(str(basic_option.get("card_highlight", "")), "追加斩击 1 → 2 道", "level 4 card should highlight the milestone")
+	_expect(str(basic_option.get("effect_note", "")).contains("60%"), "slash damage scale must remain available in the detail note")
 	owner.free()
 
 

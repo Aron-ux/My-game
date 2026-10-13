@@ -141,6 +141,10 @@ Depth is structural: nested navy surfaces, thin borders, and modest dark shadows
 - **State:** owned blessing tiers are written explicitly; unavailable or locked information uses muted text plus an explicit label.
 
 ### Cards / Containers
+
+- **Upgrade-card exception:** preserve the original four floating portrait paper cards, illustrated outlines, crystals, entrance animation and separate cyan refresh controls. Their face reads owner/type, name, level transition, primary benefit and secondary changes. Show details below the row; do not replace the cards with dashboard tiles.
+- **Reading type for choices and hover details:** Noto Sans CJK SC, Microsoft YaHei, PingFang SC, then sans-serif through Godot `SystemFont`. Paper uses dark ink; dark hover panels always use the archive's light text. Skill titles and the primary benefit use a bold weight.
+- **Choice state:** gold outline plus an explicit selected check, a visible selected/required count and one refresh count per card. The second selection still submits the original four-pick-two offer automatically.
 - **Corner Style:** 12px for rows/cards; 16px for the main modal.
 - **Background:** archive card over archive background.
 - **Shadow Strategy:** structural only, following Elevation.

@@ -94,12 +94,9 @@ func deploy_turret(owner, damage_scale: float = 1.0, direction_sign: float = 1.0
 	turret.rotation = direction.angle()
 	_update_facing(turret)
 	scene.add_child(turret)
-	var duration: float = DURATION + PLAYER_BUILD_SYSTEM.get_mechanic_turret_duration_bonus(owner)
-	if _has_talent(owner, TALENT_TURRET_2) or _has_talent(owner, TALENT_ENTRY_1):
-		duration += TALENT_DURATION_BONUS
 	active_turrets.append({
 		"node": turret,
-		"remaining": duration,
+		"remaining": _get_duration(owner),
 		"tick_elapsed": 0.0,
 		"damage_scale": max(0.0, damage_scale)
 	})
@@ -116,8 +113,26 @@ func get_cooldown_slot(owner = null) -> Dictionary:
 		"remaining": clamp(cooldown_remaining, 0.0, COOLDOWN),
 		"duration": get_cooldown(owner),
 		"color": TURRET_COLOR,
-		"description": "在原地部署一座定点机炮，持续 8 秒，每 0.8 秒射击最近的敌人，造成 120% 伤害（受战场改装零件加成）。"
+		"description": "在原地部署定点机炮，自动射击最近的敌人。",
+		"effect_rows": [
+			{"label": "单发伤害倍率", "value": "%.0f%%" % (_get_damage_ratio(owner) * 100.0)},
+			{"label": "射击间隔", "value": "%.1f 秒" % _get_fire_interval(owner)},
+			{"label": "持续时间", "value": "%.1f 秒" % _get_duration(owner)}
+		],
+		"effect_note": "按当前强化下的标准部署计算；实际伤害还受角色攻击力、暴击和目标防御影响。"
 	}
+
+
+func _get_duration(owner) -> float:
+	var duration: float = DURATION + PLAYER_BUILD_SYSTEM.get_mechanic_turret_duration_bonus(owner)
+	if _has_talent(owner, TALENT_TURRET_2) or _has_talent(owner, TALENT_ENTRY_1):
+		duration += TALENT_DURATION_BONUS
+	return duration
+
+
+func _get_damage_ratio(owner) -> float:
+	var ratio: float = TALENT_DAMAGE_RATIO if _has_talent(owner, TALENT_TURRET_2) else DAMAGE_RATIO
+	return ratio * PLAYER_BUILD_SYSTEM.get_mechanic_turret_damage_multiplier(owner) * _get_summon_damage_multiplier(owner)
 
 
 func get_save_data() -> Dictionary:
@@ -185,8 +200,7 @@ func _fire(owner, data: Dictionary) -> void:
 	if sprite != null:
 		sprite.play("fire")
 		sprite.set_frame_and_progress(1, 0.0)
-	var damage_ratio: float = TALENT_DAMAGE_RATIO if _has_talent(owner, TALENT_TURRET_2) else DAMAGE_RATIO
-	var damage_amount: float = owner._get_role_damage("mechanic") * damage_ratio * float(data.get("damage_scale", 1.0)) * PLAYER_BUILD_SYSTEM.get_mechanic_turret_damage_multiplier(owner) * _get_summon_damage_multiplier(owner)
+	var damage_amount: float = owner._get_role_damage("mechanic") * _get_damage_ratio(owner) * float(data.get("damage_scale", 1.0))
 	var muzzle := Vector2(-96.0 if cos(turret.rotation) < 0.0 else 96.0, -90.0) * TURRET_VISUAL_SCALE
 	owner._spawn_bullet(target, damage_amount, TURRET_COLOR, "mechanic", turret.global_position + muzzle)
 

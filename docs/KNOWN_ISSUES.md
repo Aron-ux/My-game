@@ -28,6 +28,8 @@
 
 ## UI Risks
 
+- Mechanic skill-level growth previews are not supplied for all progress lines; cards now disclose the missing growth description. Skill-level talent slots still have no combat effect. Improving their presentation does not implement those effects.
+- Most ability hover descriptions still contain authored base values. Turret/cannon stat rows read current deployment getters; a complete effective-value presentation for every ability remains separate content work.
 - Main-menu Settings must remain a full-screen `Control` hosting `SurvivorsModal`; using a plain `CenterContainer` can make the panel appear in a corner.
 - Hover detail panels intentionally auto-size up to a max size. Very long future text can still require scrolling inside the detail panel.
 - Only independent-cooldown skills should appear as separate bottom skill slots. Other passive/basic/ultimate changes should be folded into normal attack or ultimate hover descriptions.
