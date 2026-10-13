@@ -23,7 +23,7 @@ const BASIC_RANGE := 300.0
 const SPIDER_SPEED := 100.0
 const SPIDER_VISUAL_SCALE := 1.8
 const SPIDER_SCENE_SIZE := Vector2(128.0, 128.0)
-const SPIDER_VISIBLE_BOUNDS := Rect2(27.0, 39.0, 73.0, 51.0)
+const SPIDER_VISIBLE_BOUNDS := Rect2(16.0, 36.0, 98.0, 56.0)
 const SPIDER_VISUAL_FPS := 10.0
 const SPIDER_TEXTURES := [
 	preload("res://effects/mechanic/spider/1.png"),
@@ -42,9 +42,9 @@ const ULTIMATE_SALVO_DAMAGE_RATIO := 3.0
 const ULTIMATE_SALVO_RADIUS := 150.0
 const ULTIMATE_WARNING_DELAY := 0.5
 const ULT_WARNING_VISUAL_FPS := 6.0
-const ULT_WARNING_VISUAL_MAX_RADIUS := 107.6
+const ULT_WARNING_VISUAL_MAX_RADIUS := 99.8
 const ULT_EXPLOSION_VISUAL_FPS := 12.0
-const ULT_EXPLOSION_VISUAL_MAX_RADIUS := 180.3
+const ULT_EXPLOSION_VISUAL_MAX_RADIUS := 123.8
 const TALENT_TRAIT_1 := "mechanic_level_talent_trait_1"
 const TALENT_TRAIT_2 := "mechanic_level_talent_trait_2"
 const TALENT_BASIC_ATTACK_1 := "mechanic_level_talent_basic_attack_1"
@@ -85,6 +85,12 @@ func perform_attack(owner) -> void:
 	if _has_talent(owner, TALENT_BASIC_ATTACK_2) and target.get("damage_reduction_value") != null:
 		target.set("damage_reduction_value", float(target.get("damage_reduction_value")) - BASIC_TALENT_SHRED_VALUE)
 	_spawn_spider(owner, owner._spawn_bullet(target, damage_amount, BASIC_BULLET_COLOR, _create_basic_source_id(owner)))
+	play_command(owner)
+
+func play_command(owner) -> void:
+	var visual := owner.get_node_or_null("RoleVisualRoot/RoleSceneVisual") as Node2D
+	if visual != null and visual.has_method("play_command"):
+		visual.play_command()
 
 func perform_background(owner) -> void:
 	var target: Node2D = owner._get_closest_enemy()
@@ -118,6 +124,7 @@ func _get_spider_frames() -> SpriteFrames:
 	return frames
 
 func perform_enter(owner, _role_id: String, _assault_level: int, assault_multiplier: float) -> int:
+	play_command(owner)
 	owner._show_switch_banner("进场", "紧急部署", ENTRY_BANNER_COLOR)
 	var turret_ability = owner.get("mechanic_tulip_turret_ability")
 	if turret_ability != null and turret_ability.has_method("deploy_turret"):
@@ -130,6 +137,7 @@ func perform_exit(_owner, _role_id: String, _rearguard_level: int) -> int:
 	return 0
 
 func perform_ultimate(owner, cast_payload: Dictionary) -> void:
+	play_command(owner)
 	var center: Vector2 = owner._get_enemy_cluster_center()
 	if center == Vector2.ZERO:
 		center = owner.global_position

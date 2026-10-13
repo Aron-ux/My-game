@@ -20,8 +20,8 @@ const TALENT_FIRE_INTERVAL := 0.6
 const TALENT_DURATION_BONUS := 2.0
 const TALENT_DAMAGE_RATIO := 1.5
 const TURRET_COLOR := Color(0.95, 0.68, 0.25, 1.0)
-const TURRET_VISUAL_SCALE := 0.25
-const TURRET_VISUAL_OFFSET := Vector2(-2.0, -37.0)
+const TURRET_VISUAL_SCALE := 0.35
+const TURRET_VISUAL_OFFSET := Vector2(0.0, -96.0)
 const TURRET_VISUAL_FPS := 9.0
 
 var cooldown_remaining: float = 0.0
@@ -65,6 +65,7 @@ func try_trigger(owner) -> bool:
 	if deploy_turret(owner, 1.0) == null:
 		return false
 	cooldown_remaining = get_cooldown(owner)
+	owner.mechanic_role.play_command(owner)
 	return true
 
 
@@ -86,9 +87,12 @@ func deploy_turret(owner, damage_scale: float = 1.0, direction_sign: float = 1.0
 	sprite.animation = StringName("fire")
 	sprite.offset = TURRET_VISUAL_OFFSET
 	sprite.scale = Vector2.ONE * TURRET_VISUAL_SCALE
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	sprite.animation_finished.connect(func(): sprite.frame = 0)
 	turret.add_child(sprite)
 	turret.global_position = owner.global_position + direction.normalized() * DEPLOY_OFFSET
 	turret.rotation = direction.angle()
+	_update_facing(turret)
 	scene.add_child(turret)
 	var duration: float = DURATION + PLAYER_BUILD_SYSTEM.get_mechanic_turret_duration_bonus(owner)
 	if _has_talent(owner, TALENT_TURRET_2) or _has_talent(owner, TALENT_ENTRY_1):
@@ -157,6 +161,7 @@ func restore_effect_if_active(owner) -> void:
 			continue
 		turret.global_position = _decode_vector2(saved_data.get("position", []), owner.global_position)
 		turret.rotation = float(saved_data.get("rotation", 0.0))
+		_update_facing(turret)
 		for index in range(active_turrets.size()):
 			if active_turrets[index].get("node", null) == turret:
 				var data: Dictionary = active_turrets[index]
@@ -174,14 +179,25 @@ func _fire(owner, data: Dictionary) -> void:
 	var target: Node2D = owner._get_enemy_nearest_to_position(turret.global_position)
 	if target == null or not is_instance_valid(target):
 		return
+	turret.rotation = turret.global_position.direction_to(target.global_position).angle()
+	_update_facing(turret)
 	var sprite := turret.get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
 	if sprite != null:
-		sprite.frame = 1
-		sprite.frame_progress = 0.0
 		sprite.play("fire")
+		sprite.set_frame_and_progress(1, 0.0)
 	var damage_ratio: float = TALENT_DAMAGE_RATIO if _has_talent(owner, TALENT_TURRET_2) else DAMAGE_RATIO
 	var damage_amount: float = owner._get_role_damage("mechanic") * damage_ratio * float(data.get("damage_scale", 1.0)) * PLAYER_BUILD_SYSTEM.get_mechanic_turret_damage_multiplier(owner) * _get_summon_damage_multiplier(owner)
-	owner._spawn_bullet(target, damage_amount, TURRET_COLOR, "mechanic", turret.global_position)
+	var muzzle := Vector2(-96.0 if cos(turret.rotation) < 0.0 else 96.0, -90.0) * TURRET_VISUAL_SCALE
+	owner._spawn_bullet(target, damage_amount, TURRET_COLOR, "mechanic", turret.global_position + muzzle)
+
+
+func _update_facing(turret: Node2D) -> void:
+	var sprite := turret.get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
+	if sprite == null:
+		return
+	# Save data keeps the aim angle; the side-view chassis stays level.
+	sprite.rotation = -turret.rotation
+	sprite.flip_h = cos(turret.rotation) < 0.0
 
 
 func _get_turret_frames() -> SpriteFrames:

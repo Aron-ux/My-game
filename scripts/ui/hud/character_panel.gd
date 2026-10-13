@@ -26,21 +26,21 @@ const ROLE_TEXTURE_PATHS := {
 	"swordsman": "人设草图/剑士草图.jpg",
 	"gunner": "人设草图/枪手草图.jpg",
 	"mage": "人设草图/术师草图.jpg",
-	"mechanic": "人设草图/机械师草图.jpg"
+	"mechanic": "res://assets/players/mechanic/mechanic-standing.png"
 }
 
 const ROLE_PIXEL_TEXTURE_PATHS := {
 	"swordsman": "res://assets/players/sword/剑-run.png",
 	"gunner": "res://assets/players/gun/gun-run.png",
 	"mage": "res://assets/players/wizard/wizard-run.png",
-	"mechanic": "res://assets/players/mechanic/mechanic-run.png"
+	"mechanic": "res://assets/players/mechanic/mechanic-idle.png"
 }
 
 const ROLE_PIXEL_FRAME_RECTS := {
 	"swordsman": Rect2(529.0, 21.0, 95.0, 89.0),
 	"gunner": Rect2(542.0, 25.0, 69.0, 74.0),
 	"mage": Rect2(314.0, 78.0, 133.0, 93.0),
-	"mechanic": Rect2(57.0, 73.0, 135.0, 100.0)
+	"mechanic": Rect2(22.0, 8.0, 44.0, 80.0)
 }
 
 const ROLE_PIXEL_MODULATE := {
