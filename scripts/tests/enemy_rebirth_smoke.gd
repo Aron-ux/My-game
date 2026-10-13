@@ -44,8 +44,7 @@ func _run() -> void:
 	enemy._physics_process(0.2)
 	if enemy.global_position == position_before_move:
 		failures.append("reborn skulltomb should resume movement after rebirth timer")
-	enemy.take_batched_damage(enemy.max_health + 100.0)
-	if is_instance_valid(enemy) and int(enemy.get("rebirth_lives_remaining")) == 0 and float(enemy.get("rebirth_timer")) > 0.0:
+	if not enemy.take_batched_damage(enemy.max_health * 10.0):
 		failures.append("skulltomb should only rebirth once")
 
 	scene.queue_free()
@@ -62,7 +61,8 @@ func _run() -> void:
 
 
 func _force_rebirth(enemy: Node2D, expected_lives_remaining: int, message: String) -> void:
-	enemy.take_batched_damage(enemy.max_health + 100.0)
+	# The hit must remain lethal after the profile's armor and damage reduction.
+	enemy.take_batched_damage(enemy.max_health * 10.0)
 	if int(enemy.get("rebirth_lives_remaining")) != expected_lives_remaining:
 		failures.append("%s: unexpected lives remaining %d" % [message, int(enemy.get("rebirth_lives_remaining"))])
 	if float(enemy.get("rebirth_timer")) <= 0.0:

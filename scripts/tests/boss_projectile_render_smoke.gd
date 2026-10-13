@@ -9,6 +9,7 @@ func _init() -> void:
 
 
 func _run() -> void:
+	assert(DirAccess.make_dir_recursive_absolute("res://.omx/boss-performance") == OK)
 	var harness := RUNTIME.new()
 	root.add_child(harness)
 	current_scene = harness

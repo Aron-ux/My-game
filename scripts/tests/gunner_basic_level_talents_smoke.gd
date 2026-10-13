@@ -152,6 +152,7 @@ class BasicEnemy:
 	var vulnerability_bonus: float = 0.0
 	var rebirth_timer: float = 0.0
 	var skull_damage_immune_timer: float = 0.0
+	var glutton_war_stomp_remaining: float = 0.0
 	var boss_phase_transition_target: int = 0
 	var boss_phase_three_intro_remaining: float = 0.0
 	var contact_radius: float = 20.0

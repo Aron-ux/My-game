@@ -34,5 +34,12 @@ jobs:
           chmod +x "$install_dir/godot"
           echo "$install_dir" >> "$GITHUB_PATH"
 
+      - name: Install virtual display for render checks
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri
+
       - name: Run project checks
-        run: ./scripts/check_project.sh
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: xvfb-run --auto-servernum ./scripts/check_project.sh

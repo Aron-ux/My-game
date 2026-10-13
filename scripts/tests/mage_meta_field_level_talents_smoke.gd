@@ -42,6 +42,8 @@ func _check_level_talent_definitions() -> void:
 	owner.role_special_states["mage"] = {"level_talents": [MAGE_META_FIELD_TALENT_FLOW.TALENT_META_FIELD_1]}
 	candidates = PLAYER_SKILL_TALENT_SYSTEM._collect_level_talent_candidates(owner, definitions, {}, false)
 	_expect(not _has_candidate(candidates, MAGE_META_FIELD_TALENT_FLOW.TALENT_META_FIELD_2), "same-scope meta field II should be locked after picking I")
+	locked_owner.free()
+	owner.free()
 
 
 func _check_radius_and_background_scaling() -> void:
@@ -50,13 +52,15 @@ func _check_radius_and_background_scaling() -> void:
 	owner.set_level_talents([MAGE_META_FIELD_TALENT_FLOW.TALENT_META_FIELD_1])
 	_expect(is_equal_approx(ability._get_radius(owner), 100.0 * sqrt(1.25)), "meta field I should increase area by 25 percent through sqrt radius multiplier")
 
-	owner.active_role_id = "gunner"
-	owner.set_level_talents([MAGE_META_FIELD_TALENT_FLOW.TALENT_META_FIELD_2])
 	ability.active_remaining = 1.0
-	_expect(is_equal_approx(ability.get_damage_taken_multiplier(owner), 0.80), "meta field II background damage reduction should keep 40 percent effect")
-	_expect(is_equal_approx(ability.get_damage_reduction_value(owner), 128.0), "meta field II background fixed reduction should keep 40 percent effect")
+	_expect(is_equal_approx(ability.get_armor_bonus(owner), 25.0), "active meta field should grant 25 armor")
+	owner.active_role_id = "gunner"
+	_expect(is_zero_approx(ability.get_armor_bonus(owner)), "background meta field without talent II should grant no armor")
+	owner.set_level_talents([MAGE_META_FIELD_TALENT_FLOW.TALENT_META_FIELD_2])
+	_expect(is_equal_approx(ability.get_armor_bonus(owner), 10.0), "meta field II background armor should keep 40 percent effect")
 	_expect(is_equal_approx(ability._get_slow_multiplier(owner), 0.80), "meta field II background enemy slow should keep 40 percent effect")
 	_expect(is_equal_approx(ability._get_damage(owner), 4.0), "meta field II background damage should keep 40 percent effect")
+	owner.free()
 
 
 func _check_projectile_speed_aura() -> void:
