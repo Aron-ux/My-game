@@ -94,6 +94,16 @@ func _run() -> void:
 	panel._view_role(1)
 	_expect(panel.selected_items.overview == "dodge", "Role changes should retain selected stat")
 	panel._set_tab("skills")
+	panel._view_role(0)
+	panel._select_item("swordsman_basic")
+	_expect(_text(panel.detail).contains("/ 9") and not _text(panel.detail).contains("天赋位"), "Custom basic must use current LV0-9 branches")
+	var base_state: Dictionary = player.role_special_states.duplicate(true)
+	player.role_special_states.swordsman.skill_levels["swordsman_basic"] = 0
+	panel.refresh()
+	panel._select_item("swordsman_basic")
+	_expect(_text(panel.detail).contains("Lv.0 / 9") and not _text(panel.detail).contains("解锁方式"), "Innate LV0 basic must remain usable")
+	player.role_special_states = base_state
+	panel._view_role(1)
 	_expect(panel.records.size() == LEVELS.ROLE_PROGRESS_ORDER.gunner.size(), "Gunner must retain the independent hunt record")
 	panel._view_role(2)
 	panel._select_item("mechanic_tulip_turret")
