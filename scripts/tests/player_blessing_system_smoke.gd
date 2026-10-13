@@ -179,8 +179,8 @@ func _check_role_build_skill_gating() -> void:
 		failures.append("skill upgrade role build should use stone card scene, got %s" % str(skill_build_option))
 	if not PlayerBuildSystem.apply_option(owner, "role_build:swordsman:skill_up_swordsman_blade_storm"):
 		failures.append("skill upgrade build should apply")
-	if PlayerSkillLevelSystem.get_skill_level(owner, "swordsman", "swordsman_blade_storm") != 2:
-		failures.append("applying a skill upgrade card should raise the skill to level 2")
+	if PlayerSkillLevelSystem.get_skill_level(owner, "swordsman", "swordsman_blade_storm") != 1:
+		failures.append("applying a skill upgrade card should raise storm LV0 to LV1")
 	if str(skill_build_option.get("unlock_skill", "")) != "":
 		failures.append("skill upgrade build should not unlock anything, got %s" % str(skill_build_option))
 func _check_level_based_tier_weights() -> void:

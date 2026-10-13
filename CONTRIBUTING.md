@@ -16,7 +16,7 @@ Run the one-command project check before reporting completion or opening a pull 
 ./scripts/check_project.sh
 ```
 
-This runs Markdown link checks, achievement JSON checks, project config checks, Godot headless parse, achievement smoke, and graphify update when available.
+This runs Markdown links, achievement JSON, project config and architecture checks, Godot import and scene checks, all smoke tests except the separate dense-combat benchmark, and the existing Graphify index update when available. Pixel checks (`*_render_smoke.gd`) use OpenGL and require a display; other smoke tests run headless. On a Linux server, install Xvfb and Mesa and run `xvfb-run --auto-servernum ./scripts/check_project.sh`, as CI does.
 
 ## Change rules
 

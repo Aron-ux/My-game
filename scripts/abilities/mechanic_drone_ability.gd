@@ -69,6 +69,7 @@ func try_trigger(owner) -> bool:
 			oldest_node.queue_free()
 		active_guards.remove_at(0)
 	_spawn_guard(owner, scene, _get_max_charges(owner))
+	owner.mechanic_role.play_command(owner)
 	return true
 
 
@@ -149,6 +150,7 @@ func _spawn_guard(owner, scene: Node, charges: int) -> Node2D:
 	sprite.sprite_frames = _get_guard_frames()
 	sprite.animation = StringName("guard")
 	sprite.scale = Vector2.ONE * GUARD_VISUAL_SCALE
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	guard.add_child(sprite)
 	guard.global_position = owner.global_position + FOLLOW_OFFSET
 	scene.add_child(guard)

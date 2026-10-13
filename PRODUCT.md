@@ -6,7 +6,7 @@ Product UI for a desktop three-role survivors-like game.
 
 ## Users
 
-Players who pause combat to compare the swordsman, gunner, and mage, then inspect the build they have actually assembled during the current run.
+Players who pause combat to compare the three selected roles from the swordsman, gunner, mage, and mechanic roster, then inspect the build they have actually assembled during the current run.
 
 ## Purpose
 
@@ -14,10 +14,10 @@ The interface must answer four questions quickly:
 
 1. What are this role's live combat stats and equipment?
 2. Which blessings are currently owned and what do they do?
-3. Which ordinary upgrades are active on each of the role's six skill records?
-4. Which player-level role talents are active and which alternatives did they lock?
+3. What do this role's skills currently do, and what will the next level change?
+4. Which saved role talents are actually owned and what effects do they provide?
 
-The current panel does not yet answer question four. Until that ledger is implemented, talent ownership is visible only in the selection flow and runtime/save state.
+The character sheet opens on an eleven-stat overview with a fixed source inspector. Skills, blessings, and equipment share the same team / list / detail structure. Saved `level_talents` appear as a read-only list; their disabled acquisition flow stays disabled. Placeholder effects are explicitly labeled.
 
 ## Personality
 

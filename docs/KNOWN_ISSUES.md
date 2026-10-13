@@ -17,6 +17,7 @@
 - Save/load and continue-game behavior should be treated as high-risk when changing player, enemy, blessings, equipment, hero traits, or mode state.
 - Elite reward design is not final.
 - Blessing text, blessing values, character panel display, and actual combat effects must stay synchronized.
+- Rusted Dagger's authored shop summary also promises critical damage, but `_get_critical_damage_multiplier` currently only includes base, overflow and blessings. The character sheet follows the runtime result and lists its effective critical-chance bonus; this UI work does not change combat balance.
 - Common-prosperity applies a multiplicative switch-cooldown factor through player attribute data; changing switch cooldown formulas needs regression testing.
 - Current talent definitions contain 70 player-facing options in 35 mutually exclusive `_1` / `_2` groups, while a choice is queued every three player levels. The three role-entry cards now derive from the current team, so a single run only reaches its own team's groups (default team swordsman/gunner/mage: 28 groups; mechanic's 7 groups appear only while she is on the team). Exhaustion is reproducible: the offer still exposes three role-entry cards whose nested candidate arrays are empty, so the paused reward flow cannot complete. With active-skill groups unavailable this can occur after 16 picks (next trigger Lv.51); full exhaustion of the default team's 28 groups reaches the same state at Lv.87.
 - `_1` / `_2` talent names are alternatives, not sequential tiers; current I/II titles can mislead players.
@@ -28,10 +29,12 @@
 
 ## UI Risks
 
+- Mechanic skill-level growth previews are not supplied for all progress lines; cards now disclose the missing growth description. Skill-level talent slots still have no combat effect. Improving their presentation does not implement those effects.
+- Most ability hover descriptions still contain authored base values. Turret/cannon stat rows read current deployment getters; a complete effective-value presentation for every ability remains separate content work.
 - Main-menu Settings must remain a full-screen `Control` hosting `SurvivorsModal`; using a plain `CenterContainer` can make the panel appear in a corner.
 - Hover detail panels intentionally auto-size up to a max size. Very long future text can still require scrolling inside the detail panel.
 - Only independent-cooldown skills should appear as separate bottom skill slots. Other passive/basic/ultimate changes should be folded into normal attack or ultimate hover descriptions.
-- Character panel shows ordinary skill-build stacks but not the current `level_talents` ledger; its footer still says “查看天赋树” after the old tree was removed.
+- The character sheet now displays current stats/sources and saved `level_talents`. Some innate/ultimate parameters still come from authored descriptions, and mechanic skill-level growth currently has no numeric preview provider; the UI labels missing growth descriptions instead of inventing them. Skill talent slots still have placeholder effects.
 - `refresh_limit=0` disables the old whole-offer refresh, not the live per-card buttons. Ordinary four-card offers and level-talent detail cards track one refresh per card slot in `level_up_ui.gd`.
 
 ## Tooling

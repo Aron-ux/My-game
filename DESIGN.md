@@ -105,7 +105,7 @@ The palette is restrained navy-black with a scarce amber-gold accent and semanti
 ## Typography
 
 **Display Font:** Godot UI Default
-**Body Font:** Godot UI Default
+**Body Font:** Noto Sans CJK SC, Microsoft YaHei, PingFang SC, then sans-serif in reading-heavy panels
 **Label/Mono Font:** Godot UI Default
 
 **Character:** One familiar sans-serif family carries the entire product surface. Hierarchy comes from size, weight, and spacing rather than decorative typefaces.
@@ -141,6 +141,10 @@ Depth is structural: nested navy surfaces, thin borders, and modest dark shadows
 - **State:** owned blessing tiers are written explicitly; unavailable or locked information uses muted text plus an explicit label.
 
 ### Cards / Containers
+
+- **Upgrade-card exception:** preserve the original four floating portrait paper cards, illustrated outlines, crystals, entrance animation and separate cyan refresh controls. Their face reads owner/type, name, level transition, primary benefit and secondary changes. Show details below the row; do not replace the cards with dashboard tiles.
+- **Reading type for choices and hover details:** Noto Sans CJK SC, Microsoft YaHei, PingFang SC, then sans-serif through Godot `SystemFont`. Paper uses dark ink; dark hover panels always use the archive's light text. Skill titles and the primary benefit use a bold weight.
+- **Choice state:** gold outline plus an explicit selected check, a visible selected/required count and one refresh count per card. The second selection still submits the original four-pick-two offer automatically.
 - **Corner Style:** 12px for rows/cards; 16px for the main modal.
 - **Background:** archive card over archive background.
 - **Shadow Strategy:** structural only, following Elevation.
@@ -153,15 +157,22 @@ Depth is structural: nested navy surfaces, thin borders, and modest dark shadows
 - **Error / Disabled:** explicit text and muted/danger color; never color alone.
 
 ### Navigation
-- Tabs live at the top of the right-hand build workspace. Default, hover, focus, selected, and disabled states reuse the same archive-card vocabulary. `C` and `Esc` close the panel; standard scrolling remains available.
 
-### Skill Build Record
+The character sheet has four top tabs: 总览 / 技能 / 祝福 / 装备. Its left team rail and right inspector stay fixed across tabs. Open on overview with attack selected; preserve stat selection on role changes. Click or keyboard focus selects list records. `Ctrl+Tab` cycles tabs, `Ctrl+Shift+Tab` reverses, and the configured character key or `Esc` closes the sheet. Preserve reward-menu pause context.
 
-Each role keeps a six-skill selector beside one focused build record. Hover, focus, or click selects a skill; the detail pane shows its unlock state, derived build level, owned repeatable upgrades, stack counts, and current descriptions. The retired three-stage left/right tree must not be presented as live progression. When a player-level talent ledger is added, it must read `level_talents` directly and remain visually separate from ordinary build stacks.
+### Character Overview
 
-### Blessing Ledger
+Show all eleven primary stats at the 1280×720 logical baseline. Group output, survival, and mobility/cooldowns. Base attack speed belongs in the attack-speed detail; damage bonuses belong in attack sources. Do not duplicate already-applied multipliers. The inspector lists exact combat operands and explains conditional scope and nonlinear dodge/reduction. Keep pixel portraits compact, show shared run level, and distinguish viewed role from active role.
 
-Blessings are grouped into team-shared role blessings and skill-bound blessings that affect matching skill types. Each row shows the owned I–IV tier counts and the strongest current effect; expansion reveals all owned-tier effects and recipe relevance.
+Character-sheet surfaces use `#111620` / `#181F2B`, sparse `#CBB581` gold, `#EDECE5` reading text, `#A5ADB9` secondary text and `#98C8B2` values. Use 16px body text, 25–26px titles and 30px selected values, with thin borders and 3–4px corners. The modal scales with the supported minimum window; it does not hide primary stats in a small scroll box.
+
+### Skill Record
+
+Group innate abilities, five active skills and the ultimate; retain the gunner's extra hunt record. Show current effect and available runtime parameters before next-level changes and talent slots. Unowned actives point to acquisition cards, ultimates have no invented level progression, and saved `level_talents` get a separate read-only list. Explicitly label placeholder effects and missing growth descriptions.
+
+### Blessing and Equipment Records
+
+Show all owned tier counts and aggregate primary plus extra stats only where the formula supports it. Label per-copy effects in the fixed detail pane; do not call a highest-tier copy the total. Keep scope visible. Equipment separates shared stones from role-owned items and gives ordinary items a visible transfer action, retaining the existing cap and right-click shortcut.
 
 ## Do's and Don'ts
 

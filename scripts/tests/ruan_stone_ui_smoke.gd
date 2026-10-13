@@ -57,20 +57,27 @@ func _run() -> void:
 		hud.update_stats(projection)
 		_expect(hud.find_child("RuanStoneHudLabel", true, false).get_instance_id() == original_id, "刷新 HUD 时重建了阮石控件。")
 
+	var player := preload("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	player.set_process(false)
+	player.set_physics_process(false)
+	player.ruan_stone_purchased = ["thunder", "thunder", "thunder"]
+	player.ruan_stone_carry_limit = 5
 	var character_panel := CHARACTER_PANEL.new()
-	var equipment_list := HBoxContainer.new()
-	character_panel.set("equipment_list", equipment_list)
-	character_panel.set("cached_player", owner)
-	character_panel.call("_refresh_equipment_list", "swordsman")
-	var stone_slot := equipment_list.get_node_or_null("RuanStoneSlot") as Button
-	_expect(stone_slot != null, "角色面板装备行缺少全局阮石槽。")
-	if stone_slot != null:
-		_expect(stone_slot == equipment_list.get_child(0), "阮石槽不是装备行第一项。")
-		_expect(stone_slot.text.contains("全队") and stone_slot.text.contains("阮石携带 3/5") and stone_slot.text.contains("雷石×3"), "阮石槽未明确显示共享范围、携带数量与摘要。")
-		_expect(stone_slot.tooltip_text.contains("不可赠与") and stone_slot.tooltip_text.contains("上限"), "阮石槽未显示不可赠与或上限说明。")
-
-	equipment_list.free()
+	root.add_child(character_panel)
+	character_panel.show_for_player(player)
+	character_panel._set_tab("equipment")
+	_expect(character_panel.records.has("stones"), "人物页装备栏目缺少全队阮石记录。")
+	_expect(character_panel.records.keys()[0] == "stones", "阮石应是装备页第一项。")
+	var text := _collect_text(character_panel.detail)
+	_expect(text.contains("全队共享") and text.contains("3 / 5") and text.contains("雷石 × 3"), "阮石详情未显示共享范围、数量与携带明细。")
+	_expect(text.contains("不可赠与") and text.contains("上限"), "阮石详情未明确不可赠与及上限规则。")
+	player.ruan_stone_purchased = ["rusted_dagger"]
+	character_panel._set_tab("equipment")
+	text = _collect_text(character_panel.detail)
+	_expect(text.contains("暴击率 +8%") and not text.contains("暴击伤害 +8%"), "阮石详情不应承诺尚未进入战斗计算的暴伤加成。")
 	character_panel.free()
+	player.free()
 	root.remove_child(hud)
 	hud.free()
 	root.remove_child(owner)
@@ -88,3 +95,12 @@ func _run() -> void:
 func _expect(condition: bool, message: String) -> void:
 	if not condition:
 		failures.append(message)
+
+
+func _collect_text(node: Node) -> String:
+	var parts: PackedStringArray = []
+	if node is Label or node is Button:
+		parts.append(str(node.text))
+	for child in node.get_children():
+		parts.append(_collect_text(child))
+	return "\n".join(parts)

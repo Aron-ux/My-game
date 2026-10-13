@@ -115,6 +115,7 @@ class TalentOwner:
 	extends Node2D
 
 	var talents: Dictionary = {}
+	var blessing_skill_state: Dictionary = {"unlocked": {"blade_storm": true}}
 	var role_special_states: Dictionary = {"swordsman": {}}
 	var roles: Array = [{"id": "swordsman"}]
 	var active_role_index := 0

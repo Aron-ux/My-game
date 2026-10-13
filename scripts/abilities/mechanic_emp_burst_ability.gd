@@ -19,10 +19,10 @@ const SLOW_DURATION := 1.0
 const SELF_HASTE_MULTIPLIER := 1.3
 const HEAL_RATIO_PER_TICK := 0.015
 const FIELD_COLOR := Color(0.62, 0.85, 1.0, 1.0)
-const TOWER_VISUAL_SCALE := 0.33
-const TOWER_VISUAL_OFFSET := Vector2(-2.0, -44.0)
+const TOWER_VISUAL_SCALE := 0.4
+const TOWER_VISUAL_OFFSET := Vector2(0.0, -108.0)
 const TOWER_VISUAL_FPS := 9.0
-const TOWER_VISUAL_TINT := Color(0.7, 0.88, 1.0, 1.0)
+const TOWER_VISUAL_TINT := Color.WHITE
 
 var cooldown_remaining: float = 0.0
 var field_remaining: float = 0.0
@@ -93,6 +93,7 @@ func try_trigger(owner) -> bool:
 	field_position = owner.global_position
 	_spawn_field_visual(owner)
 	_tick_field(owner)
+	owner.mechanic_role.play_command(owner)
 	return true
 
 
@@ -146,6 +147,7 @@ func _spawn_field_visual(_owner) -> void:
 	tower.offset = TOWER_VISUAL_OFFSET
 	tower.scale = Vector2.ONE * TOWER_VISUAL_SCALE
 	tower.modulate = TOWER_VISUAL_TINT
+	tower.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	container.add_child(tower)
 
 	scene.add_child(container)

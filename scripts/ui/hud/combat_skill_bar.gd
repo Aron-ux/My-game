@@ -802,6 +802,8 @@ var ultimate_display: Dictionary = {}
 var experience_bar: ProgressBar
 var experience_label: Label
 var hover_detail: Control
+var hovered_skill_view: Control
+var hovered_skill_id := ""
 var action_key_labels_ready: bool = false
 var hud_layout: String = GAME_SETTINGS.DEFAULT_HUD_LAYOUT
 
@@ -836,6 +838,9 @@ func _rebuild_widgets_for_layout() -> void:
 		move_child(hover_detail, get_child_count() - 1)
 
 func _clear_layout_widgets() -> void:
+	hovered_skill_view = null
+	if hover_detail != null:
+		hover_detail.hide_detail()
 	for child in get_children():
 		if child == hover_detail:
 			continue
@@ -949,6 +954,7 @@ func update_skill_cooldown_slots(slot_data_list: Array) -> void:
 		var label: Label = slot_nodes["label"] as Label
 		var key_label: Label = slot_nodes.get("key_label", null) as Label
 		if index >= slot_data_list.size():
+			_clear_skill_detail(slot_nodes)
 			slot_view.set_state(false, Color(0.12, 0.13, 0.16, 1.0), 0.0)
 			slot_view.set_auto_mode(false)
 			if slot_view.tooltip_text != "":
@@ -992,6 +998,7 @@ func update_skill_cooldown_slots(slot_data_list: Array) -> void:
 			slot_nodes["slot_label"] = next_slot_label
 		slot_nodes["skill_id"] = str(slot_data.get("skill_id", ""))
 		_apply_skill_slot_key_label(slot_nodes, index, str(slot_data.get("skill_id", "")), slot_data)
+		_remember_skill_detail(slot_nodes, slot_data, duration, remaining)
 
 
 func _apply_skill_slot_key_label(slot_nodes: Dictionary, slot_index: int, skill_id: String, slot_data: Dictionary) -> void:
@@ -1599,6 +1606,7 @@ func _update_team_role_slots(row_index: int, slot_data_list: Array) -> void:
 		var slot_view: SkillCooldownIcon = slot_nodes["view"] as SkillCooldownIcon
 		var label: Label = slot_nodes["label"] as Label
 		if slot_index >= slot_data_list.size():
+			_clear_skill_detail(slot_nodes)
 			slot_view.set_state(false, Color(0.12, 0.13, 0.16, 1.0), 0.0)
 			slot_view.set_auto_mode(false)
 			if label.text != "":
@@ -1642,6 +1650,8 @@ func _update_team_role_slots(row_index: int, slot_data_list: Array) -> void:
 		slot_nodes["description"] = _build_slot_tooltip(tooltip_data, duration, remaining)
 		slot_nodes["slot_label"] = str(slot_data.get("slot_label", "技能冷却"))
 		_apply_team_slot_key_label(slot_nodes, slot_index, skill_id, slot_data)
+		slot_nodes["role_active"] = row_active
+		_remember_skill_detail(slot_nodes, slot_data, duration, remaining)
 
 func _apply_team_slot_key_label(slot_nodes: Dictionary, slot_index: int, skill_id: String, slot_data: Dictionary) -> void:
 	var key_label: Label = slot_nodes.get("key_label", null) as Label
@@ -1687,6 +1697,8 @@ func _on_team_skill_slot_gui_input(event: InputEvent, row_index: int, slot_index
 
 
 func _begin_skill_slot_drag(slot_index: int, role_id: String, skill_id: String, title: String) -> void:
+	hovered_skill_view = null
+	hover_detail.hide_detail()
 	if slot_index < 1 or skill_id == "":
 		return
 	var key_slot_index := slot_index
@@ -1946,6 +1958,7 @@ func _build_slot_tooltip(slot_data: Dictionary, duration: float, remaining: floa
 	return description
 
 func _on_team_role_row_hovered(row_index: int) -> void:
+	hovered_skill_view = null
 	if row_index < 0 or row_index >= team_role_rows.size():
 		return
 	var row_entry: Dictionary = team_role_rows[row_index]
@@ -1978,47 +1991,81 @@ func _on_team_role_row_hovered(row_index: int) -> void:
 	if hover_detail != null and hover_detail.has_method("show_item"):
 		hover_detail.show_item(item, get_viewport().get_mouse_position(), Rect2(row.global_position, row.size))
 
+func _clear_skill_detail(nodes: Dictionary) -> void:
+	nodes.erase("detail_data")
+	if is_instance_valid(hovered_skill_view) and hovered_skill_view == nodes.get("view"):
+		hover_detail.hide_detail()
+		hovered_skill_view = null
+
+func _remember_skill_detail(nodes: Dictionary, data: Dictionary, duration: float, remaining: float) -> void:
+	var previous: Dictionary = nodes.get("detail_data", {})
+	var changed := str(previous.get("skill_id", "")) != str(data.get("skill_id", ""))
+	var info_changed: bool = str(data.get("description", "")) != "" and (previous.get("effect_rows", []) != data.get("effect_rows", []) or previous.get("current_level", 0) != data.get("current_level", 0))
+	if changed or str(data.get("description", "")) != "":
+		nodes["detail_data"] = data.duplicate(true)
+	var detail: Dictionary = nodes.get("detail_data", {})
+	detail["duration"] = duration
+	detail["remaining"] = remaining
+	detail["role_active"] = bool(nodes.get("role_active", true))
+	if not is_instance_valid(hovered_skill_view):
+		hovered_skill_view = null
+	if hovered_skill_view == nodes.get("view") and hover_detail.visible:
+		if changed or hovered_skill_id != str(data.get("skill_id", "")):
+			hover_detail.hide_detail()
+			hovered_skill_view = null
+		else:
+			var mode_changed: bool = not hovered_skill_id.ends_with("_basic_attack") and hover_detail.category_label.text.contains("手动释放") != GAME_SETTINGS.is_skill_manual(hovered_skill_id)
+			if info_changed or mode_changed:
+				_show_skill_detail(nodes, hovered_skill_view, int(detail.get("manual_slot_index", 0)))
+			else:
+				hover_detail.update_status(_skill_status(detail), remaining <= 0.05 and bool(detail.get("role_active", true)))
+
+func _skill_status(data: Dictionary) -> String:
+	var remaining := float(data.get("remaining", 0.0))
+	var status := "冷却中 · 还需 %.1f 秒" % remaining if remaining > 0.05 else "冷却就绪"
+	return status if bool(data.get("role_active", true)) else "待命角色 · " + status
+
+func _show_skill_detail(nodes: Dictionary, view: Control, slot_index: int, role_name: String = "") -> void:
+	var data: Dictionary = (nodes.get("detail_data", {}) as Dictionary).duplicate(true)
+	if data.is_empty():
+		if str(nodes.get("description", "")) != "":
+			hovered_skill_view = null
+			hover_detail.show_item({"title": nodes.get("title", "技能"), "description": nodes["description"]}, get_viewport().get_mouse_position(), view.get_global_rect())
+		return
+	var skill_id := str(data.get("skill_id", ""))
+	data["title"] = str(nodes.get("title", "技能"))
+	data["description"] = str(data.get("description", "")).split("\n\n进化需求：")[0]
+	if role_name != "":
+		data["role_name"] = role_name
+	data["slot_label"] = "普通攻击" if slot_index == 0 else ("手动释放" if GAME_SETTINGS.is_skill_manual(skill_id) else "自动释放")
+	data["status_text"] = _skill_status(data)
+	data["status_ready"] = float(data.get("remaining", 0.0)) <= 0.05 and bool(data.get("role_active", true))
+	var key := GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(GAME_SETTINGS.ACTION_CHARACTER_PANEL))
+	var hint := "%s 查看角色面板" % key
+	if slot_index > 0:
+		var skill_key := GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(GAME_SETTINGS.get_skill_slot_action_id(int(data.get("manual_slot_index", slot_index)))))
+		hint = "手动时按 %s 释放 · 右键切换模式 · %s 角色面板" % [skill_key, key]
+	data["effect_note"] = str(data.get("effect_note", "")) + ("\n" if str(data.get("effect_note", "")) != "" else "") + hint
+	hovered_skill_view = view
+	hovered_skill_id = skill_id
+	var anchor_rect := view.get_global_rect()
+	anchor_rect.position.y = minf(anchor_rect.position.y, global_position.y)
+	hover_detail.show_item(data, get_viewport().get_mouse_position(), anchor_rect)
+
 func _on_team_role_skill_slot_hovered(row_index: int, slot_index: int, slot_icon: Control) -> void:
 	if row_index < 0 or row_index >= team_role_rows.size():
 		return
-	var row_entry: Dictionary = team_role_rows[row_index]
-	var slots: Array = row_entry.get("slots", [])
-	if slot_index < 0 or slot_index >= slots.size():
-		return
-	var slot_nodes: Dictionary = slots[slot_index]
-	var title := str(slot_nodes.get("title", "技能"))
-	var description := str(slot_nodes.get("description", ""))
-	if description == "":
-		return
-	var row_data: Dictionary = row_entry.get("data", {})
-	var role_name := str(row_data.get("role_name", "角色"))
-	var item := {
-		"title": title,
-		"slot_label": "%s / %s" % [role_name, str(slot_nodes.get("slot_label", "技能冷却"))],
-		"description": description
-	}
-	if hover_detail != null and hover_detail.has_method("show_item"):
-		hover_detail.show_item(item, get_viewport().get_mouse_position(), Rect2(slot_icon.global_position, slot_icon.size))
+	var entry: Dictionary = team_role_rows[row_index]
+	var slots: Array = entry.get("slots", [])
+	if slot_index >= 0 and slot_index < slots.size():
+		_show_skill_detail(slots[slot_index], slot_icon, slot_index, str((entry.get("data", {}) as Dictionary).get("role_name", "")))
 
 func _on_skill_slot_hovered(slot_icon: Control, index: int) -> void:
-	if index < 0 or index >= skill_cd_slots.size():
-		return
-	var slot_nodes: Dictionary = skill_cd_slots[index]
-	var title := str(slot_nodes.get("title", ""))
-	if title == "":
-		title = "技能"
-	var description := str(slot_nodes.get("description", ""))
-	if description == "":
-		return
-	var item := {
-		"title": title,
-		"slot_label": str(slot_nodes.get("slot_label", "技能冷却")),
-		"description": description
-	}
-	if hover_detail != null and hover_detail.has_method("show_item"):
-		hover_detail.show_item(item, get_viewport().get_mouse_position(), Rect2(slot_icon.global_position, slot_icon.size))
+	if index >= 0 and index < skill_cd_slots.size():
+		_show_skill_detail(skill_cd_slots[index], slot_icon, index)
 
 func _on_buff_slot_hovered(slot_icon: Control, index: int) -> void:
+	hovered_skill_view = null
 	if index < 0 or index >= buff_status_slots.size():
 		return
 	var slot_nodes: Dictionary = buff_status_slots[index]
@@ -2035,6 +2082,7 @@ func _on_buff_slot_hovered(slot_icon: Control, index: int) -> void:
 		hover_detail.show_item(item, get_viewport().get_mouse_position(), Rect2(slot_icon.global_position, slot_icon.size))
 
 func _on_ultimate_energy_hovered() -> void:
+	hovered_skill_view = null
 	if ultimate_energy_widget == null:
 		return
 	var ultimate_key := ""

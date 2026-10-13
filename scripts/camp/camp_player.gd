@@ -16,7 +16,7 @@ const ROLE_VISUALS := {
 	},
 	"mechanic": {
 		"scene": preload("res://assets/players/mechanic/mechanic.tscn"),
-		"scale": Vector2(1.0, 1.0)
+		"scale": Vector2(1.1, 1.1)
 	}
 }
 

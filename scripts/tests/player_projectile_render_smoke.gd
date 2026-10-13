@@ -44,7 +44,17 @@ func _run() -> void:
 			await RenderingServer.frame_post_draw
 			var actual := viewport.get_texture().get_image()
 			var expected := reference_viewport.get_texture().get_image()
-			assert(actual.get_data() == expected.get_data(), "Rendered pixels must match the previous submission algorithm")
+			var actual_data := actual.get_data()
+			var expected_data := expected.get_data()
+			var max_difference := 0
+			for index in actual_data.size():
+				max_difference = maxi(max_difference, absi(actual_data[index] - expected_data[index]))
+			print("PLAYER_RENDER_COMPARE step=%d max_channel_difference=%d" % [step, max_difference])
+			# Allow one 8-bit level of renderer rounding; instance data is checked above.
+			if max_difference > 1:
+				push_error("Rendered pixels differ from the previous submission algorithm")
+				quit(1)
+				return
 	# Check the full allocation and same-index reuse beyond the heavy threshold.
 	batch._clear_projectiles()
 	for index in range(BATCH.MAX_BATCHED_PROJECTILES):

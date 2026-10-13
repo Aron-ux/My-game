@@ -195,13 +195,13 @@ const ROLE_SKETCH_PATHS := {
 	"swordsman": "人设草图/剑士草图.jpg",
 	"gunner": "人设草图/枪手草图.jpg",
 	"mage": "人设草图/术师草图.jpg",
-	"mechanic": "人设草图/机械师草图.jpg"
+	"mechanic": "res://assets/players/mechanic/mechanic-standing.png"
 }
 const ROLE_SKETCH_FULL_SIZES := {
 	"swordsman": Vector2(589.0, 527.0),
 	"gunner": Vector2(589.0, 582.0),
 	"mage": Vector2(589.0, 527.0),
-	"mechanic": Vector2(589.0, 527.0)
+	"mechanic": Vector2(96.0, 96.0)
 }
 const ROLE_SKETCH_SCALE_MULTIPLIERS := {
 	"swordsman": 1.0,
@@ -219,7 +219,7 @@ const ROLE_SKETCH_VISIBLE_BOUNDS := {
 	"swordsman": Rect2(161.0, 49.0, 368.0, 430.0),
 	"gunner": Rect2(94.0, 16.0, 415.0, 539.0),
 	"mage": Rect2(142.0, 31.0, 377.0, 424.0),
-	"mechanic": Rect2(70.0, 8.0, 450.0, 512.0)
+	"mechanic": Rect2(22.0, 8.0, 44.0, 80.0)
 }
 const SWORD_SLASH_TEXTURE_RELATIVE_PATH := "技能特效/斩击.jpg"
 const SWORD_SLASH_TEXTURE_SIZE := Vector2(1200.0, 1600.0)

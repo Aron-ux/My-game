@@ -32,6 +32,12 @@ Current paths include:
 
 Status: prototype material. Verify source and usage rights before public/commercial distribution.
 
+## Mechanic artwork (2026-10-13)
+
+- Runtime paths: `assets/players/mechanic/`, the two mechanic portraits in `assets/UI/facility/`, and the eight active sequences listed in `docs/07_资源_美术_特效规范.md` under `effects/mechanic/`.
+- Source: newly generated with the built-in `image_gen` tool, then registered and exported through Aseprite. Original outputs, prompts and the reproducible import instructions are in `design/mechanic-rework-20261013/`.
+- Character reference requested by the user: Maria Custard from Rance, using [AliceSoft's official Rance IX character page](https://www.alicesoft.com/rance9/character/outlaw.html). The official reference image itself is not bundled in the runtime assets; the generated design remains visibly reference-derived and is not recorded as an independently cleared character design.
+
 ## Ruan Dog pixel sprite
 
 - Path: `assets/camp/ruan_dog_husky.png`

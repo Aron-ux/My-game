@@ -71,7 +71,7 @@ func _run() -> void:
 	enemy.dash_windup_remaining = 0.2
 	check(enemy.apply_stun(0.5), "normal stunned")
 	check(enemy.dash_windup_remaining == 0.0, "charge interrupted")
-	check(enemy.try_stalwart_body_damage() == 0.0, "stun suppresses contact")
+	check(enemy.try_stalwart_body_damage() > 0.0, "stalwart contact remains active during stun")
 	var position_before: Vector2 = enemy.position
 	STUN.tick(enemy, 0.4)
 	check(is_equal_approx(enemy.stun_remaining, 0.1) and enemy.shot_timer == 0.0, "cooldown progresses during stun")

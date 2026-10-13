@@ -1,46 +1,221 @@
 extends SceneTree
 
-const CHARACTER_PANEL := preload("res://scripts/ui/hud/character_panel.gd")
-const PLAYER_SCENE := preload("res://scenes/player.tscn")
-const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
-const PLAYER_BLESSING_SYSTEM := preload("res://scripts/player/player_blessing_system.gd")
-const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_talent_system.gd")
-const PLAYER_SKILL_LEVEL_SYSTEM := preload("res://scripts/player/player_skill_level_system.gd")
+const PANEL := preload("res://scripts/ui/hud/character_panel.gd")
+const PLAYER := preload("res://scenes/player.tscn")
+const SHEET := preload("res://scripts/player/player_character_sheet.gd")
+const BLESSINGS := preload("res://scripts/player/player_blessing_system.gd")
+const SKILLS := preload("res://scripts/player/player_blessing_skill_state.gd")
+const LEVELS := preload("res://scripts/player/player_skill_level_system.gd")
+class PanelHost:
+	extends Node
+	var character_panel: Node
+	var player: Node
+	var level_up_ui: Control
+	var pause_menu: Control
+	var game_over := false
 
 var failures: Array[String] = []
-var shared_blessing_count_line_before_role_preview := ""
-
+var capture_dir := ""
 
 func _init() -> void:
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--capture="):
+			capture_dir = arg.trim_prefix("--capture=")
 	call_deferred("_run")
 
-
 func _run() -> void:
-	var player := PLAYER_SCENE.instantiate()
-	root.add_child(player)
+	root.size = Vector2i(1280, 720)
+	root.content_scale_size = Vector2i(1280, 720)
+	var world := Node2D.new()
+	root.add_child(world)
+	current_scene = world
+	var player := PLAYER.instantiate()
+	world.add_child(player)
+	player.configure_story_loadout(["swordsman", "gunner", "mechanic"])
+	player.visible = false
 	await process_frame
-	_seed_character_build(player)
-
-	var panel := CHARACTER_PANEL.new()
+	paused = true
+	var panel := PANEL.new()
 	root.add_child(panel)
-	await process_frame
 	panel.show_for_player(player)
-	await process_frame
-	await process_frame
+	await _settle()
+	_expect(panel.selected_tab == "overview" and panel.selected_items.overview == "attack", "Opening should select overview / attack")
+	_expect(panel.records.size() == 14, "Overview should retain all 14 current stats")
+	for stat_id in ["base_attack_speed", "damage_bonus", "status_resistance"]:
+		_expect(panel.records.has(stat_id), "Overview must retain %s" % stat_id)
+	await _capture("01-starting-overview")
+	_check_stats(player)
+	panel._set_tab("blessings")
+	_expect(panel.records.is_empty() and _text(panel.detail).contains("暂无祝福"), "Empty blessings should have a useful empty state")
+	panel._set_tab("overview")
 
-	_check_stable_nodes(panel)
-	_check_core_stats(panel, player)
-	await _check_skill_tree_content(panel)
-	await _check_archive_ctrl_tab_focus(panel)
-	await _check_blessing_content(panel)
-	await _check_archive_pages_scroll(panel)
-	await _check_role_preview_does_not_switch_active_role(panel, player)
-	await _check_empty_states(panel, player)
-	await _check_viewport_layout(panel)
+	BLESSINGS.apply_blessing(player, "blazing_sun", 1)
+	BLESSINGS.apply_blessing(player, "blazing_sun", 1)
+	BLESSINGS.apply_blessing(player, "divine_grace", 1)
+	BLESSINGS.apply_blessing(player, "divine_grace", 2)
+	BLESSINGS.apply_blessing(player, "divine_grace", 2)
+	BLESSINGS.apply_blessing(player, "tailwind", 1)
+	BLESSINGS.apply_blessing(player, "unyielding", 1)
+	SKILLS.force_unlock_skill(player, "tulip_turret", 1)
+	SKILLS.force_unlock_skill(player, "missile_volley", 1)
+	LEVELS.add_skill_level(player, "swordsman", "swordsman_basic", 8)
+	player.switch_power_remaining = 3.0
+	player.switch_power_role_id = "gunner"
+	player.switch_power_damage_multiplier = 1.25
+	player.frenzy_remaining = 3.0
+	player.frenzy_stacks = 4
+	_check_stats(player)
+	player.switch_power_remaining = 0.0
+	player.frenzy_remaining = 0.0
+	var active: int = player.active_role_index
+	panel._view_role(2)
+	await _settle()
+	_expect(player.active_role_index == active, "Viewing another role must not change combat role")
+	_expect(is_equal_approx(float(panel.records.attack.value), 27.0), "Mechanic attack should be 23 + 2 + 2 = 27")
+	_expect(_text(panel.detail).contains("焰阳") and _text(panel.detail).contains("×2"), "Attack must identify owned blessing quantities")
+	await _capture("02-mechanic-sources")
 
+	var special_before: Dictionary = player.role_special_states.duplicate(true)
+	var equipment_before: Dictionary = player.role_equipment_levels.duplicate(true)
+	for tab in PANEL.TAB_IDS:
+		panel._set_tab(tab)
+		await _settle()
+		for id in panel.records.keys():
+			panel._select_item(id)
+	if player.role_special_states != special_before:
+		print("STATE_BEFORE ", JSON.stringify(special_before))
+		print("STATE_AFTER ", JSON.stringify(player.role_special_states))
+	_expect(player.role_special_states == special_before, "Browsing details must not mutate role state")
+	_expect(player.role_equipment_levels == equipment_before, "Browsing details must not mutate equipment")
+	_expect(player.active_role_index == active, "All pages must preserve active role")
+
+	panel._set_tab("overview")
+	panel._select_item("dodge")
+	panel._view_role(1)
+	_expect(panel.selected_items.overview == "dodge", "Role changes should retain selected stat")
+	panel._set_tab("skills")
+	_expect(panel.records.size() == LEVELS.ROLE_PROGRESS_ORDER.gunner.size(), "Gunner must retain the independent hunt record")
+	panel._view_role(2)
+	panel._select_item("mechanic_tulip_turret")
+	var skill_text := _text(panel.detail)
+	_expect(skill_text.contains("当前效果") and skill_text.contains("冷却时间"), "Owned active skill must show actual effect and cooldown")
+	_expect(not skill_text.contains("进化需求"), "Character sheet must not suggest obsolete recipe unlocks")
+	await _settle()
+	await _capture("03-mechanic-skill")
+	panel._select_item("mechanic_drone")
+	_expect(_text(panel.detail).contains("获得技能") and not _text(panel.detail).contains("进化需求"), "Locked skills should explain acquisition cards")
+	panel._select_item("mechanic_ultimate")
+	_expect(not _text(panel.detail).contains("Lv.") and not _text(panel.detail).contains("天赋位"), "Ultimate must not show invented leveling progress")
+
+	panel._set_tab("blessings")
+	_expect(SHEET.blessing_total("blazing_sun", {1: 2}).contains("固定攻击 +4.00"), "Blessing totals must include extra stats such as flat attack")
+	panel._select_item("role:divine_grace")
+	_expect(_text(panel.detail).contains("55.0%"), "Mixed blessing tiers should show +55% health in total")
+	_expect(_text(panel.detail).contains("每份效果") and _text(panel.detail).contains("× 2"), "Per-copy text must be distinguished from aggregate")
+	await _settle()
+	await _capture("04-blessing-tiers")
+
+	var item := "small_boss_equipment_ocean_amulet"
+	player.role_equipment_levels.mechanic[item] = 2
+	panel._set_tab("equipment")
+	panel._select_item(item)
+	_expect(_text(panel.detail).contains("44") and _text(panel.detail).contains("1.80"), "Equipment should show cumulative effects")
+	_expect(panel.find_child("GiftButton", true, false) != null, "Gift action must be visible")
+	await _settle()
+	await _capture("05-equipment-gift")
+	panel._show_gift_popup(item, "mechanic")
+	panel._on_gift_popup_index_pressed(0)
+	panel.gift_popup.hide()
+	_expect(int(player.role_equipment_levels.mechanic.get(item, 0)) == 1, "Gifting must transfer exactly one item")
+	_expect(int(player.role_equipment_levels.swordsman.get(item, 0)) == 1, "Gift recipient must receive exactly one item")
+	player.role_equipment_levels.swordsman[item] = 3
+	panel._show_gift_popup(item, "mechanic")
+	_expect(panel.gift_popup.is_item_disabled(0), "Recipient at item cap should be disabled")
+	panel.gift_popup.hide()
+
+	var key := InputEventKey.new()
+	key.keycode = KEY_TAB
+	key.ctrl_pressed = true
+	key.pressed = true
+	panel._input(key)
+	_expect(panel.selected_tab == "overview", "Ctrl Tab should cycle through all four tabs")
+	panel._set_tab("skills")
+	await _settle()
+	var last: Button = panel.item_buttons["mechanic_ultimate"]
+	last.grab_focus()
+	await _settle()
+	_expect(panel.selected_items.skills == "mechanic_ultimate", "Keyboard focus should update stable details")
+	if panel.list_scroll.scroll_vertical <= 0:
+		print("FOCUS_GEOMETRY ", last.has_focus(), " ", last.get_global_rect(), " / ", panel.list_scroll.get_global_rect(), " content ", panel.list_content.size)
+	_expect(panel.list_scroll.scroll_vertical > 0, "Keyboard focus should scroll the list to the selected skill")
+
+	player.role_special_states.mechanic["level_talents"] = ["mechanic_level_talent_trait_1"]
+	panel._set_tab("skills")
+	_expect(panel.records.has("mechanic_level_talent_trait_1"), "Saved level talents must be visible")
+	panel._select_item("mechanic_level_talent_trait_1")
+	_expect(_text(panel.detail).contains("已生效强化") and not _text(panel.detail).contains("mechanic_level_talent"), "Talent details must resolve authored title and effect")
+	await _settle()
+	await _capture("07-owned-talent")
+	for id in BLESSINGS.DEFINITIONS:
+		if BLESSINGS.DEFINITIONS[id].get("binding", "") == BLESSINGS.ROLE_BOUND:
+			BLESSINGS.apply_blessing(player, id, 1, false)
+	panel._set_tab("blessings")
+	await _settle()
+	var first_id: String = panel.records.keys()[0]
+	panel._select_item(first_id)
+	var selected_before: String = panel.selected_items.blessings
+	panel.list_scroll.scroll_vertical = 10000
+	await _settle()
+	_expect(panel.list_scroll.scroll_vertical > 0 and panel.selected_items.blessings == selected_before, "Scrolling long lists should retain fixed details")
+	await _capture("08-long-blessings")
+	player.configure_story_loadout(["swordsman", "gunner", "mage"])
+	player.ruan_stone_purchased = ["broken_sword", "ground_branch", "tattered_cloak", "tattered_cloak", "broken_chestplate", "rusted_dagger", "failed_assassin_dagger"]
+	player.role_equipment_levels.mage["small_boss_equipment_spell_prism"] = 3
+	player.role_equipment_levels.mage["small_boss_equipment_ocean_amulet"] = 2
+	_check_stats(player)
+	panel._view_role(2)
+	for tab in PANEL.TAB_IDS:
+		panel._set_tab(tab)
+		for id in panel.records.keys():
+			panel._select_item(id)
+	panel._set_tab("overview")
+	root.size = Vector2i(960, 540)
+	await _settle()
+	var last_stat: Button = panel.item_buttons.cooldown
+	panel.list_scroll.ensure_control_visible(last_stat)
+	await _settle()
+	_expect(last_stat.get_global_rect().end.y <= panel.list_scroll.get_global_rect().end.y + 1, "All retained stats must be reachable by scrolling at minimum window size")
+	await _capture("06-minimum-window")
+	var host := PanelHost.new()
+	root.add_child(host)
+	host.character_panel = panel
+	host.player = player
+	host.level_up_ui = Control.new()
+	host.pause_menu = Control.new()
+	host.add_child(host.level_up_ui)
+	host.add_child(host.pause_menu)
+	host.pause_menu.hide()
+	host.level_up_ui.show()
+	var flow := preload("res://scripts/game/game_character_panel_flow.gd")
+	panel.close_requested.connect(func(): flow.hide_character_panel(host))
+	flow.show_character_panel(host)
+	var escape := InputEventKey.new()
+	escape.pressed = true
+	escape.keycode = KEY_ESCAPE
+	panel._input(escape)
+	_expect(paused and not panel.visible, "Esc close over a reward offer must keep the game paused")
+	host.level_up_ui.hide()
+	paused = false
+	flow.show_character_panel(host)
+	_expect(paused and panel.visible, "Opening from combat must pause")
+	flow.hide_character_panel(host)
+	_expect(not paused, "Closing from combat must resume")
+	host.queue_free()
+	_expect(not panel.visible and not panel.gift_popup.visible, "Closing sheet should hide child popup")
 	panel.queue_free()
-	player.queue_free()
+	world.queue_free()
 	await process_frame
+	paused = false
 	if failures.is_empty():
 		print("CHARACTER_PANEL_UI_SMOKE_OK")
 		quit(0)
@@ -49,466 +224,43 @@ func _run() -> void:
 			push_error(failure)
 		quit(1)
 
-
-func _check_core_stats(panel: Node, player: Node) -> void:
-	var labels := ["生命值", "攻击力", "基础攻击速度", "普通攻速", "护甲", "状态抗性", "移动速度", "闪避率", "减伤率", "暴击率", "暴击伤害", "增伤", "生命回复", "冷却缩减"]
+func _check_stats(player: Node) -> void:
 	for role in player.roles:
-		var text: String = panel._build_stats_text(role)
-		var lines := text.split("\n")
-		_expect(lines.size() == labels.size(), "core stats should include base and current attack speed")
-		for index in range(min(lines.size(), labels.size())):
-			_expect(lines[index].begins_with(labels[index]), "core stats should keep requested order")
-		_expect(text.contains("%.2f 次/秒" % float(role.get("base_attack_speed", 0.0))), "role panel should display its base attack speed")
-		_expect(text.contains("间隔") and not text.contains("拾取范围"), "attack interval should be shown with current attack speed")
+		for row in SHEET.get_stats(player, role):
+			var value := 0.0
+			var complement := 1.0
+			for source in row.sources:
+				match str(source.op):
+					"=": value = float(source.value)
+					"+": value += float(source.value)
+					"*": value *= float(source.value)
+					"chance": complement *= 1.0 - float(source.value)
+			if row.id in ["dodge", "reduction"]:
+				value = 1.0 - complement
+			elif row.id == "cooldown":
+				value = 1.0 - value
+			elif row.id == "crit":
+				value = clampf(value, 0.0, 1.0)
+			_expect(is_equal_approx(value, float(row.value)), "%s %s sources should reproduce combat result: %s != %s" % [role.id, row.id, value, row.value])
 
-
-func _seed_character_build(player: Node) -> void:
-	for _index in range(8):
-		PLAYER_SKILL_LEVEL_SYSTEM.add_skill_level(player, "swordsman", "swordsman_basic")
-	PLAYER_SKILL_LEVEL_SYSTEM.add_skill_level(player, "swordsman", "swordsman_entry")
-	PLAYER_SKILL_LEVEL_SYSTEM.add_skill_level(player, "swordsman", "swordsman_entry")
-	PLAYER_SKILL_LEVEL_SYSTEM.add_skill_level(player, "gunner", "gunner_entry")
-
-	for tier in range(1, PLAYER_BLESSING_SYSTEM.MAX_BLESSING_TIER + 1):
-		PLAYER_BLESSING_SYSTEM.apply_blessing(player, "divine_grace", tier)
-	PLAYER_BLESSING_SYSTEM.apply_blessing(player, "divine_grace", 2)
-	for blessing_id in [
-		"prayer",
-		"formation_break",
-		"benediction",
-		"support",
-		"greed",
-		"tailwind",
-		"burst",
-		"unyielding"
-	]:
-		PLAYER_BLESSING_SYSTEM.apply_blessing(player, blessing_id, 1)
-	player.set("skill_blessing_levels", {
-		"kebiru_prayer": {1: 1, 2: 2, 3: 1, 4: 1},
-		"kebiru_formation_break": {1: 1, 2: 1, 3: 1, 4: 1},
-		"invoker_formation_break": {1: 1, 2: 1, 3: 1, 4: 1},
-		"tide_rain": {1: 1},
-		"reprise": {1: 1},
-		"trick": {1: 1}
-	})
-
-
-func _check_stable_nodes(panel: Node) -> void:
-	for node_name in [
-		"BuildTabButton",
-		"BlessingTabButton",
-		"SkillTreeSelectorList",
-		"SkillTreeDetailScroll",
-		"SkillTreeDetail",
-		"BlessingScroll",
-		"BlessingList"
-	]:
-		_expect(
-			panel.find_child(node_name, true, false) != null,
-			"character panel should expose stable node %s" % node_name
-		)
-
-
-func _check_skill_tree_content(panel: Node) -> void:
-	var selector_list := panel.find_child("SkillTreeSelectorList", true, false)
-	var detail := panel.find_child("SkillTreeDetail", true, false)
-	if selector_list == null or detail == null:
-		return
-	var expected_selector_count := 0
-	for progress_order_value in PLAYER_SKILL_TALENT_SYSTEM.ROLE_PROGRESS_ORDER.values():
-		if progress_order_value is Array:
-			expected_selector_count = maxi(expected_selector_count, progress_order_value.size())
-	_expect(
-		selector_list.get_child_count() == expected_selector_count,
-		"skill tree page should render one selector per role progress node"
-	)
-	for progress_id in PLAYER_SKILL_TALENT_SYSTEM.ROLE_PROGRESS_ORDER["swordsman"]:
-		_expect(
-			panel.find_child("SkillTreeSelector_%s" % progress_id, true, false) != null,
-			"skill tree page should expose selector %s" % progress_id
-		)
-
-	await _check_skill_tree_selection_input(panel, "mouse_entered")
-	await _check_skill_tree_selection_input(panel, "focus_entered")
-	await _check_skill_tree_selection_input(panel, "pressed")
-
-	detail = panel.find_child("SkillTreeDetail", true, false)
-	var text := _collect_text(detail)
-	for title in ["普通攻击", "普通攻击 LV8 / 9", "升级保留已选强化"]:
-		_expect(text.contains(title), "basic attack tree should show %s" % title)
-	_expect(
-		not text.contains("当前路径") and not text.contains("阶段 I") and not text.contains("质变后续升级"),
-		"skill build detail should no longer show the old three-stage path"
-	)
-	_expect(
-		_compact(text).contains("普通攻击LV8/9"),
-		"basic attack tree should keep the concrete skill level readout"
-	)
-	var header_instance_id := panel.find_child("SkillTreeHeader", true, false).get_instance_id()
-	var build_instance_id := panel.find_child("SkillTreeBuildDetails", true, false).get_instance_id()
-	await _check_locked_skill_copy(panel)
-	await _check_pretrigger_skill_copy(panel)
-	await _check_pending_skill_copy(panel)
-	_expect(
-		panel.find_child("SkillTreeHeader", true, false).get_instance_id() == header_instance_id
-		and panel.find_child("SkillTreeBuildDetails", true, false).get_instance_id() == build_instance_id,
-		"switching skill trees should update persistent detail controls instead of rebuilding them"
-	)
-
-
-func _check_skill_tree_selection_input(panel: Node, signal_name: String) -> void:
-	var other_selector := panel.find_child("SkillTreeSelector_swordsman_entry", true, false) as Button
-	var basic_selector := panel.find_child("SkillTreeSelector_swordsman_basic", true, false) as Button
-	if other_selector == null or basic_selector == null:
-		failures.append("skill tree should expose swordsman entry and basic selectors")
-		return
-	other_selector.emit_signal("pressed")
-	await process_frame
-	if signal_name == "focus_entered":
-		basic_selector.grab_focus()
-	else:
-		basic_selector.emit_signal(signal_name)
-	await process_frame
-	var detail := panel.find_child("SkillTreeDetail", true, false)
-	_expect(
-		detail != null and _collect_text(detail).contains("普通攻击"),
-		"swordsman basic selector %s should show the basic attack tree" % signal_name
-	)
-
-
-func _check_locked_skill_copy(panel: Node) -> void:
-	var selector := panel.find_child("SkillTreeSelector_swordsman_blade_storm", true, false) as Button
-	if selector == null:
-		failures.append("skill tree should expose the locked blade storm selector")
-		return
-	selector.emit_signal("pressed")
-	await process_frame
-	var text := _collect_text(panel.find_child("SkillTreeDetail", true, false))
-	for expected in ["尚未解锁", "该技能不在升级卡池中", "先解锁"]:
-		_expect(text.contains(expected), "locked skill detail should say %s" % expected)
-	_expect(
-		not text.contains("阶段 I") and not text.contains("当前路径") and not text.contains("质变"),
-		"locked skill detail should not describe the removed path system"
-	)
-
-
-func _check_pretrigger_skill_copy(panel: Node) -> void:
-	var selector := panel.find_child("SkillTreeSelector_swordsman_trait", true, false) as Button
-	if selector == null:
-		failures.append("skill tree should expose the swordsman trait selector")
-		return
-	selector.emit_signal("pressed")
-	await process_frame
-	var text := _collect_text(panel.find_child("SkillTreeDetail", true, false))
-	_expect(
-		text.contains("技能 Lv.1 / 10"),
-		"an unlocked level-1 skill should show its skill level"
-	)
-	_expect(
-		not text.contains("阶段 I") and not text.contains("当前路径") and not text.contains("构筑 Lv.6 解锁"),
-		"an unlocked skill below old thresholds should not show removed stage thresholds"
-	)
-
-
-func _check_pending_skill_copy(panel: Node) -> void:
-	var selector := panel.find_child("SkillTreeSelector_swordsman_entry", true, false) as Button
-	if selector == null:
-		failures.append("skill tree should expose the swordsman entry selector")
-		return
-	selector.emit_signal("mouse_entered")
-	await process_frame
-	var text := _collect_text(panel.find_child("SkillTreeDetail", true, false))
-	_expect(text.contains("冲锋"), "moving to another skill should update the tree header")
-	_expect(
-		text.contains("技能 Lv.3 / 10"),
-		"moving to another skill should show its skill level"
-	)
-	_expect(
-		not text.contains("阶段 I 待选择") and not text.contains("当前路径") and not text.contains("二选一"),
-		"an unlocked level-3 skill should not show removed pending path copy"
-	)
-
-
-func _check_archive_ctrl_tab_focus(panel: Node) -> void:
-	var selector := panel.find_child("SkillTreeSelector_swordsman_entry", true, false) as Button
-	var blessing_button := panel.find_child("BlessingTabButton", true, false) as Button
-	var build_button := panel.find_child("BuildTabButton", true, false) as Button
-	if selector == null or blessing_button == null or build_button == null:
-		failures.append("archive Ctrl+Tab check requires selector and both tab buttons")
-		return
-	selector.grab_focus()
-	await process_frame
-	panel.call("_input", _ctrl_tab_event())
-	await process_frame
-	_expect(
-		root.gui_get_focus_owner() == blessing_button,
-		"first Ctrl+Tab from a skill selector should focus BlessingTabButton"
-	)
-	panel.call("_input", _ctrl_tab_event())
-	await process_frame
-	_expect(
-		root.gui_get_focus_owner() == build_button,
-		"second Ctrl+Tab should focus BuildTabButton"
-	)
-
-
-func _ctrl_tab_event() -> InputEventKey:
-	var event := InputEventKey.new()
-	event.keycode = KEY_TAB
-	event.ctrl_pressed = true
-	event.pressed = true
-	return event
-
-
-func _check_blessing_content(panel: Node) -> void:
-	var blessing_button := panel.find_child("BlessingTabButton", true, false) as Button
-	var blessing_list := panel.find_child("BlessingList", true, false)
-	if blessing_button == null or blessing_list == null:
-		return
-	blessing_button.emit_signal("pressed")
-	await process_frame
-	var text := _collect_text(blessing_list)
-	_expect(
-		text.contains("团队共享 · 角色祝福（三角色生效）"),
-		"blessing page should identify role blessings as shared by all three roles"
-	)
-	_expect(
-		text.contains("技能绑定祝福 · 按技能类型生效"),
-		"blessing page should group skill-bound blessings by skill type"
-	)
-	for scope_label in ["所有连段技能", "所有持续技能", "所有数量技能"]:
-		_expect(text.contains(scope_label), "general skill blessing should show scope %s" % scope_label)
-	for tier_count in ["I×1", "II×2", "III×1", "IV×1"]:
-		_expect(
-			_compact(text).contains(tier_count),
-			"blessing page should show owned tier count %s" % tier_count
-		)
-	var divine_grace_row := panel.find_child("BlessingRow_divine_grace", true, false) as Button
-	if divine_grace_row == null:
-		failures.append("blessing page should render the shared divine grace row")
-		return
-	var row_instance_id := divine_grace_row.get_instance_id()
-	shared_blessing_count_line_before_role_preview = divine_grace_row.text.get_slice("\n", 0)
-	divine_grace_row.grab_focus()
-	divine_grace_row.emit_signal("pressed")
-	await process_frame
-	await process_frame
-	divine_grace_row = panel.find_child("BlessingRow_divine_grace", true, false) as Button
-	if divine_grace_row == null:
-		failures.append("expanded divine grace row should remain rendered")
-		return
-	_expect(
-		divine_grace_row.get_instance_id() == row_instance_id and root.gui_get_focus_owner() == divine_grace_row,
-		"expanded blessing row should update in place and preserve keyboard focus"
-	)
-	var expanded_text := divine_grace_row.text
-	for effect_text in [
-		"I级：最大血量增加15％",
-		"II级：最大血量增加20％",
-		"III级：最大血量增加25％，每5s回复2％点最大血量",
-		"IV级：最大血量增加30％，每5s回复4％点最大血量"
-	]:
-		_expect(expanded_text.contains(effect_text), "expanded divine grace should show %s" % effect_text)
-	_expect(expanded_text.contains("技能关联："), "expanded divine grace should show localized skill relations")
-	_expect(
-		not expanded_text.contains("divine_grace") and not expanded_text.contains("entry_rescue"),
-		"expanded blessing detail should not expose internal blessing or skill IDs"
-	)
-
-
-func _check_archive_pages_scroll(panel: Node) -> void:
-	var build_button := panel.find_child("BuildTabButton", true, false) as Button
-	if build_button != null:
-		build_button.emit_signal("pressed")
+func _settle() -> void:
+	for _frame in range(5):
 		await process_frame
-	await _check_scroll_container(panel, "SkillTreeDetailScroll", "skill tree detail", false)
-	var blessing_button := panel.find_child("BlessingTabButton", true, false) as Button
-	if blessing_button != null:
-		blessing_button.emit_signal("pressed")
-		await process_frame
-	await _check_scroll_container(
-		panel,
-		"BlessingScroll",
-		"blessing page"
-	)
 
-
-func _check_scroll_container(
-		panel: Node,
-		scroll_name: String,
-		page_label: String,
-		require_overflow: bool = true
-) -> void:
-	var scroll := panel.find_child(scroll_name, true, false) as ScrollContainer
-	if scroll == null:
+func _capture(file_name: String) -> void:
+	if capture_dir == "":
 		return
-	await process_frame
-	var scroll_bar := scroll.get_v_scroll_bar()
-	if not require_overflow and scroll_bar.max_value <= scroll_bar.page:
-		return
-	_expect(
-		scroll_bar.max_value > scroll_bar.page,
-		"%s should overflow vertically, max %.1f page %.1f" % [
-			page_label,
-			scroll_bar.max_value,
-			scroll_bar.page
-		]
-	)
-	if scroll_bar.max_value <= scroll_bar.page:
-		return
-	scroll.scroll_vertical = int(min(60.0, scroll_bar.max_value - scroll_bar.page))
-	await process_frame
-	_expect(scroll.scroll_vertical > 0, "%s should accept a positive vertical scroll offset" % page_label)
+	DirAccess.make_dir_recursive_absolute(capture_dir)
+	await RenderingServer.frame_post_draw
+	root.get_texture().get_image().save_png(capture_dir.path_join(file_name + ".png"))
 
-
-func _check_role_preview_does_not_switch_active_role(panel: Node, player: Node) -> void:
-	var original_active_index := int(player.get("active_role_index"))
-	var basic_selector := panel.find_child("SkillTreeSelector_swordsman_basic", true, false) as Button
-	var role_nav_list := panel.get("role_nav_list") as VBoxContainer
-	var first_role_card_id := 0
-	if role_nav_list != null and role_nav_list.get_child_count() > 0:
-		first_role_card_id = role_nav_list.get_child(0).get_instance_id()
-	if basic_selector != null:
-		basic_selector.emit_signal("pressed")
-		await process_frame
-	panel.call("_view_role", 1)
-	await process_frame
-	_expect(
-		int(player.get("active_role_index")) == original_active_index,
-		"previewing another role should not change active_role_index"
-	)
-	_expect(
-		first_role_card_id != 0
-		and role_nav_list.get_child(0).get_instance_id() == first_role_card_id,
-		"role preview should update persistent role cards instead of rebuilding them"
-	)
-	var gunner_entry_selector := panel.find_child("SkillTreeSelector_gunner_entry", true, false) as Button
-	_expect(
-		basic_selector != null
-		and gunner_entry_selector != null
-		and gunner_entry_selector.get_instance_id() == basic_selector.get_instance_id(),
-		"role preview should update the persistent selector buttons in place"
-	)
-	var build_button := panel.find_child("BuildTabButton", true, false) as Button
-	if build_button != null:
-		build_button.emit_signal("pressed")
-		await process_frame
-	var selector_list := panel.find_child("SkillTreeSelectorList", true, false)
-	var detail := panel.find_child("SkillTreeDetail", true, false)
-	if selector_list != null and detail != null:
-		var selector_text := _collect_text(selector_list)
-		var detail_text := _collect_text(detail)
-		_expect(selector_text.contains("枪火典礼"), "role preview should refresh gunner-bound skill content")
-		_expect(selector_text.contains("火箭弹幕"), "role preview should refresh the gunner ultimate content")
-		_expect(not selector_text.contains("冲锋"), "role preview should remove the previous role's skill content")
-		_expect(
-			detail_text.contains("枪火典礼")
-			and detail_text.contains("技能 Lv.2 / 10")
-			and not detail_text.contains("冲锋伤害倍率增加15％"),
-			"role preview should preserve slot index 2 and show the gunner entry skill, got %s" % detail_text.left(240)
-		)
-	var blessing_button := panel.find_child("BlessingTabButton", true, false) as Button
-	if blessing_button != null:
-		blessing_button.emit_signal("pressed")
-		await process_frame
-	var blessing_list := panel.find_child("BlessingList", true, false)
-	if blessing_list != null:
-		var blessing_text := _collect_text(blessing_list)
-		_expect(
-			blessing_text.contains("团队共享 · 角色祝福（三角色生效）"),
-			"role preview should preserve the team-shared blessing group"
-		)
-		var divine_grace_row := panel.find_child("BlessingRow_divine_grace", true, false) as Button
-		if divine_grace_row != null:
-			_expect(
-				divine_grace_row.text.get_slice("\n", 0) == shared_blessing_count_line_before_role_preview,
-				"role preview should preserve shared blessing tier counts"
-			)
-
-
-func _check_empty_states(panel: Node, player: Node) -> void:
-	player.set("role_special_states", {
-		"swordsman": {},
-		"gunner": {},
-		"mage": {}
-	})
-	player.set("role_blessing_levels", PLAYER_BLESSING_SYSTEM.build_empty_role_state(player.get("roles")))
-	player.set("skill_blessing_levels", {})
-	panel.call("_view_role", 0)
-	await process_frame
-
-	var skill_detail := panel.find_child("SkillTreeDetail", true, false)
-	if skill_detail != null:
-		_expect(
-			_contains_any(_collect_text(skill_detail), ["尚未解锁", "技能等级：Lv.1"]),
-			"skill tree detail should show the fresh-run skill state"
-		)
-	var blessing_button := panel.find_child("BlessingTabButton", true, false) as Button
-	if blessing_button != null:
-		blessing_button.emit_signal("pressed")
-		await process_frame
-	var blessing_list := panel.find_child("BlessingList", true, false)
-	if blessing_list != null:
-		_expect(
-			_contains_any(_collect_text(blessing_list), ["暂无祝福", "尚未获得祝福", "本局暂无祝福"]),
-			"blessing page should show an empty state"
-		)
-		var divine_grace_row := panel.find_child("BlessingRow_divine_grace", true, false) as Button
-		_expect(
-			divine_grace_row != null
-			and not divine_grace_row.visible
-			and divine_grace_row.text == ""
-			and divine_grace_row.tooltip_text == ""
-			and not divine_grace_row.button_pressed,
-			"empty blessing state should clear hidden persistent rows"
-		)
-
-
-func _check_viewport_layout(panel: Node) -> void:
-	var panel_control := panel.get("panel") as Control
-	if panel_control == null:
-		failures.append("character panel should expose its root panel control")
-		return
-	for viewport_size in [Vector2i(1280, 720), Vector2i(1600, 900), Vector2i(1920, 1080)]:
-		root.size = viewport_size
-		await process_frame
-		panel.call("_layout_panel")
-		await process_frame
-		var viewport_rect := Rect2(Vector2.ZERO, Vector2(viewport_size))
-		var panel_rect := panel_control.get_global_rect()
-		_expect(
-			viewport_rect.encloses(panel_rect),
-			"character panel should stay inside %dx%d viewport, got %s" % [
-				viewport_size.x,
-				viewport_size.y,
-				str(panel_rect)
-			]
-		)
-
-
-func _collect_text(node: Node) -> String:
-	var parts: Array[String] = []
-	if node is RichTextLabel:
-		parts.append((node as RichTextLabel).get_parsed_text())
-	elif node is Label:
-		parts.append((node as Label).text)
-	elif node is Button:
-		parts.append((node as Button).text)
+func _text(node: Node) -> String:
+	var parts: PackedStringArray = []
+	if node is Label or node is Button:
+		parts.append(str(node.text))
 	for child in node.get_children():
-		parts.append(_collect_text(child))
+		parts.append(_text(child))
 	return "\n".join(parts)
-
-
-func _compact(value: String) -> String:
-	return value.replace(" ", "").replace("\n", "")
-
-
-func _contains_any(value: String, candidates: Array[String]) -> bool:
-	for candidate in candidates:
-		if value.contains(candidate):
-			return true
-	return false
-
 
 func _expect(condition: bool, message: String) -> void:
 	if not condition:

@@ -251,6 +251,7 @@ class OwnerStub:
 
 	var level_talents: Dictionary = {}
 	var role_special_states: Dictionary = {"swordsman": {}, "gunner": {}, "mage": {}}
+	var blessing_skill_state: Dictionary = {"unlocked": {"blade_storm": true, "crescent_wave": true}}
 	var roles: Array = [
 		{"id": "swordsman", "range": 100.0},
 		{"id": "gunner", "range": 100.0},
