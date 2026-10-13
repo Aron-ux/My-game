@@ -889,6 +889,10 @@ func _refresh_skill_build_list(role_id: String) -> void:
 		button.tooltip_text = button.text
 		button.button_pressed = index == selected_skill_tree_index
 		button.modulate = Color(0.70, 0.72, 0.78, 0.72) if level <= 0 else Color.WHITE
+		if PLAYER_SKILL_LEVEL_SYSTEM.is_custom_basic(progress_id):
+			button.text = "%s\n%s" % [PLAYER_SKILL_LEVEL_SYSTEM.get_progress_title(progress_id), "技能 Lv.%d / 9" % level if PLAYER_SKILL_LEVEL_SYSTEM.is_progress_unlocked(cached_player, progress_id) else "尚未解锁"]
+			button.tooltip_text = button.text
+			button.modulate = Color.WHITE
 	skill_build_summary_label.text = "%d 个技能构筑 · 普通构筑等级与强化列表" % progress_ids.size()
 	skill_build_tab_button.text = "技能构筑  %d" % progress_ids.size()
 	_refresh_skill_tree_detail(role_id, str(progress_ids[selected_skill_tree_index]))
@@ -996,7 +1000,13 @@ func _refresh_skill_tree_detail(role_id: String, progress_id: String) -> void:
 	requirement_label.visible = requirement_label.text != ""
 	build_entries_label.text = "\n".join(_get_skill_level_lines(role_id, progress_id, level, granted_slots))
 	build_entries_label.custom_minimum_size.y = 0.0
-	if level <= 0:
+	if PLAYER_SKILL_LEVEL_SYSTEM.is_custom_basic(progress_id) and PLAYER_SKILL_LEVEL_SYSTEM.is_progress_unlocked(cached_player, progress_id):
+		header.modulate = Color.WHITE
+		build_panel.modulate = Color.WHITE
+		state_label.text = "%s LV%d / 9 · LV4、LV8、LV9 分别选择强化" % [PLAYER_SKILL_LEVEL_SYSTEM.get_progress_title(progress_id), level]
+		requirement_label.visible = not PLAYER_SKILL_LEVEL_SYSTEM.is_progress_unlocked(cached_player, progress_id)
+		upgrade_note.text = "已满级。" if level >= 9 else "升级保留已选强化；每个阶段二选一。"
+	elif level <= 0:
 		upgrade_note.text = "先解锁该技能；解锁后它才会在升级卡牌里刷出等级 +1 的升级卡。"
 		upgrade_note.modulate = SURVIVORS_THEME.COLOR_TEXT_MUTED
 	elif level >= PLAYER_SKILL_LEVEL_SYSTEM.MAX_SKILL_LEVEL:
@@ -1018,6 +1028,12 @@ func _refresh_skill_tree_detail(role_id: String, progress_id: String) -> void:
 
 func _get_skill_level_lines(role_id: String, progress_id: String, level: int, granted_slots: Array) -> Array[String]:
 	var lines: Array[String] = []
+	if PLAYER_SKILL_LEVEL_SYSTEM.is_custom_basic(progress_id):
+		if not PLAYER_SKILL_LEVEL_SYSTEM.is_progress_unlocked(cached_player, progress_id):
+			lines.append("尚未解锁：先获得该技能。")
+			return lines
+		lines.append(PLAYER_SKILL_LEVEL_SYSTEM.basic_build(progress_id).description(cached_player))
+		return lines
 	if level <= 0:
 		lines.append("尚未解锁：大招以外的主动技能需要先通过「获得技能」卡解锁。")
 		return lines
@@ -1313,6 +1329,9 @@ func _build_stats_text(role_data: Dictionary) -> String:
 	var critical_chance: float = float(cached_player._get_role_critical_chance(role_id)) if cached_player.has_method("_get_role_critical_chance") else 0.0
 	var critical_damage: float = float(cached_player._get_critical_damage_multiplier(role_id)) if cached_player.has_method("_get_critical_damage_multiplier") else 1.0
 	var base_attack_speed: float = float(role_data.get("base_attack_speed", 1.0))
+	if role_id == "mage":
+		base_attack_speed += preload("res://scripts/player/player_mage_basic_build.gd").base_speed_modifier(cached_player)
+	base_attack_speed += preload("res://scripts/player/player_blade_storm_build.gd").bonus(cached_player, role_id, "speed")
 	var effective_attack_speed: float = float(cached_player._get_effective_attack_speed(role_id)) if cached_player.has_method("_get_effective_attack_speed") else base_attack_speed
 	var attack_interval: float = 1.0 / maxf(0.01, effective_attack_speed)
 	var flat_attack: float = float(role_data.get("damage", 0.0))
@@ -1327,6 +1346,7 @@ func _build_stats_text(role_data: Dictionary) -> String:
 		health_regen += float(cached_player._get_attribute_health_regen_per_second())
 	health_regen += max_health * PLAYER_BLESSING_SYSTEM.get_divine_grace_regen_ratio_per_tick(cached_player) / PLAYER_BLESSING_SYSTEM.DIVINE_GRACE_REGEN_INTERVAL
 	var cooldown_multiplier: float = float(bonus.get("cooldown_multiplier", 1.0))
+	cooldown_multiplier *= 1.0 - preload("res://scripts/player/player_blade_storm_build.gd").bonus(cached_player, role_id, "cooldown")
 	if cached_player.has_method("_get_mage_arcane_charge_skill_cooldown_multiplier"):
 		cooldown_multiplier *= float(cached_player._get_mage_arcane_charge_skill_cooldown_multiplier(role_id))
 	var lines: Array[String] = []
@@ -1335,6 +1355,8 @@ func _build_stats_text(role_data: Dictionary) -> String:
 	lines.append("基础攻击速度[color=#ffffff]%.2f 次/秒[/color]" % base_attack_speed)
 	lines.append("普通攻速    [color=#74f0a7]%.2f 次/秒（间隔 %.2f 秒）[/color]" % [effective_attack_speed, attack_interval])
 	lines.append("护甲        [color=#ffffff]%.1f[/color]" % armor)
+	var status_resistance: float = float(cached_player.get_status_resistance(role_id)) if cached_player.has_method("get_status_resistance") else 0.0
+	lines.append("状态抗性    [color=#ffffff]%.1f%%[/color]" % (status_resistance * 100.0))
 	lines.append("移动速度    [color=#ffffff]%.1f[/color]" % move_speed)
 	lines.append("闪避率      [color=#74f0a7]%.1f%%[/color]" % (dodge_chance * 100.0))
 	lines.append("减伤率      [color=#74f0a7]%.1f%%[/color]" % (reduction * 100.0))

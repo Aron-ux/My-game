@@ -4,6 +4,10 @@ const STATUS_VISUAL_REFRESH_EPSILON := 0.08
 const NORMAL_STATUS_VISUAL_REFRESH_EPSILON := 0.35
 
 static func tick_timers(enemy, delta: float) -> void:
+	for index in range(enemy.storm_armor_shred_timers.size() - 1, -1, -1):
+		enemy.storm_armor_shred_timers[index] -= delta
+		if enemy.storm_armor_shred_timers[index] <= 0.0:
+			enemy.storm_armor_shred_timers.remove_at(index)
 	if enemy.fury_armor_shred_remaining > 0.0:
 		enemy.fury_armor_shred_remaining = maxf(0.0, enemy.fury_armor_shred_remaining - delta)
 		if enemy.fury_armor_shred_remaining == 0.0:
@@ -56,6 +60,9 @@ static func apply_slow_without_status_visuals(enemy, multiplier: float, duration
 	_apply_slow(enemy, multiplier, duration, false)
 
 static func _apply_slow(enemy, multiplier: float, duration: float, allow_status_visuals: bool) -> void:
+	duration = preload("res://scripts/combat/status_resistance.gd").duration(enemy, duration)
+	if duration <= 0.0:
+		return
 	var next_multiplier: float = min(enemy.slow_multiplier, clamp(multiplier, 0.2, 1.0))
 	var next_timer: float = max(enemy.slow_timer, duration)
 	var should_refresh_visual: bool = next_multiplier < enemy.slow_multiplier or next_timer > enemy.slow_timer + _get_status_visual_refresh_epsilon(enemy)
@@ -67,6 +74,9 @@ static func _apply_slow(enemy, multiplier: float, duration: float, allow_status_
 		enemy._spawn_status_burst(Color(0.56, 0.92, 1.0, 0.28), 22.0)
 
 static func apply_vulnerability(enemy, bonus: float, duration: float) -> void:
+	duration = preload("res://scripts/combat/status_resistance.gd").duration(enemy, duration)
+	if duration <= 0.0:
+		return
 	var next_bonus: float = max(enemy.vulnerability_bonus, bonus)
 	var next_timer: float = max(enemy.vulnerability_timer, duration)
 	var should_refresh_visual: bool = next_bonus > enemy.vulnerability_bonus or next_timer > enemy.vulnerability_timer + _get_status_visual_refresh_epsilon(enemy)
@@ -78,6 +88,9 @@ static func apply_vulnerability(enemy, bonus: float, duration: float) -> void:
 		enemy._spawn_status_burst(Color(1.0, 0.46, 0.36, 0.24), 18.0)
 
 static func apply_bleed(enemy, damage_per_second: float, duration: float) -> void:
+	duration = preload("res://scripts/combat/status_resistance.gd").duration(enemy, duration)
+	if duration <= 0.0:
+		return
 	enemy.bleed_damage_per_second = max(enemy.bleed_damage_per_second, damage_per_second)
 	enemy.bleed_timer = max(enemy.bleed_timer, duration)
 

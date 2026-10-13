@@ -1,5 +1,33 @@
 extends RefCounted
 
+const EXPERIENCE_VACUUM_SCENE := preload("res://scenes/experience_vacuum_pickup.tscn")
+const SWORDSMAN_GROUND := preload("res://scripts/player/swordsman_ground_crack.gd")
+const SKULL_MAGE_DOMAIN := preload("res://scripts/enemies/skull_mage_domain.gd")
+const PARASITE_SEED := preload("res://scripts/enemies/parasite_seed.gd")
+
+static func restore_parasite_seeds(main: Node, seeds_data: Array) -> void:
+	for data in seeds_data:
+		var seed := PARASITE_SEED.new()
+		main.add_child(seed)
+		seed.apply_save_data(data, main.player)
+
+static func restore_skull_mage_domains(main: Node, fields_data: Array) -> void:
+	for data in fields_data:
+		var field := SKULL_MAGE_DOMAIN.new()
+		field.player = main.player
+		field.position = Vector2(float(data["position"][0]), float(data["position"][1]))
+		field.remaining = clampf(float(data.get("remaining", 0.0)), 0.0, 10.0)
+		if field.remaining > 0:
+			main.add_child(field)
+		else:
+			field.free()
+
+static func restore_swordsman_ground_cracks(main: Node, cracks_data: Array) -> void:
+	for data in cracks_data:
+		var crack := SWORDSMAN_GROUND.new()
+		main.add_child(crack)
+		crack.apply_save_data(data, main.player)
+
 
 static func append_group_save_data(main: Node, save_data: Dictionary, save_key: String, group_name: String) -> void:
 	for node in get_runtime_or_group_nodes(main, group_name):
@@ -14,7 +42,7 @@ static func get_runtime_or_group_nodes(main: Node, group_name: String) -> Array:
 		return main.get_runtime_enemies()
 	if group_name == "enemy_projectiles" and main.has_method("get_runtime_enemy_projectiles"):
 		return main.get_runtime_enemy_projectiles()
-	if (group_name == "exp_gems" or group_name == "heart_pickups" or group_name == "bone_pickups") and main.has_method("get_runtime_pickups"):
+	if group_name in ["exp_gems", "heart_pickups", "bone_pickups", "experience_vacuum_pickups"] and main.has_method("get_runtime_pickups"):
 		return main.get_runtime_pickups(group_name)
 	return main.get_tree().get_nodes_in_group(group_name)
 
@@ -54,6 +82,18 @@ static func restore_gems(main: Node, gems_data: Array) -> void:
 			continue
 		main.add_child(gem)
 		gem.apply_save_data(gem_data)
+		if bool(gem_data.get("attraction_active", false)) and is_instance_valid(main.player):
+			gem.set_attraction_target(main.player)
+			gem.attraction_speed = clampf(float(gem_data.get("attraction_speed", gem.ATTRACT_START_SPEED)), gem.ATTRACT_START_SPEED, gem.ATTRACT_MAX_SPEED)
+
+
+static func restore_experience_vacuum_pickups(main: Node, pickups_data: Array) -> void:
+	for pickup_data in pickups_data:
+		var pickup := EXPERIENCE_VACUUM_SCENE.instantiate()
+		if pickup == null:
+			continue
+		main.add_child(pickup)
+		pickup.apply_save_data(pickup_data)
 
 
 static func restore_heart_pickups(main: Node, hearts_data: Array) -> void:

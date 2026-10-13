@@ -39,4 +39,6 @@ static func has_trait(enemy, trait_id: String) -> bool:
 
 
 static func has_timed_behavior_traits(enemy) -> bool:
+	if enemy.behavior_id in ["skull_mage", "vine", "shadow_tree", "tree_seed", "necro_priest"]:
+		return true
 	return bool(enemy._is_shooter) or bool(enemy._is_accelerator) or bool(enemy._is_dasher) or bool(enemy._is_glutton) or bool(enemy._is_turret) or bool(enemy._is_boss) or bool(enemy._is_rebirth) or enemy.behavior_id == "rose" or enemy.secondary_behavior_id == "rose"

@@ -1,4 +1,7 @@
 extends RefCounted
+const MAGE_BASIC_BUILD := preload("res://scripts/player/player_mage_basic_build.gd")
+const GUNNER_BASIC_BUILD := preload("res://scripts/player/player_gunner_basic_build.gd")
+const SWORDSMAN_BASIC_BUILD := preload("res://scripts/player/player_swordsman_basic_build.gd")
 
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")
@@ -8,6 +11,7 @@ const PLAYER_SWORDSMAN_KING_BLADE_FLOW := preload("res://scripts/player/player_s
 const PLAYER_RUAN_STONE_STAT_FLOW := preload("res://scripts/player/player_ruan_stone_stat_flow.gd")
 
 const GLOBAL_UNIT_MOVE_SPEED_SCALE := 0.7
+const MIN_ATTACK_SPEED := 0.15
 
 
 static func build_background_cooldowns(owner) -> Dictionary:
@@ -67,7 +71,8 @@ static func _legacy_interval_bonus_to_speed(base_attack_speed: float, interval_r
 static func get_role_base_attack_speed(owner, role_id: String) -> float:
 	for role_data in owner.roles:
 		if role_data is Dictionary and str((role_data as Dictionary).get("id", "")) == role_id:
-			return maxf(0.01, float((role_data as Dictionary).get("base_attack_speed", 1.0)))
+			var base: float = float((role_data as Dictionary).get("base_attack_speed", 1.0))
+			return base + (MAGE_BASIC_BUILD.base_speed_modifier(owner) if role_id == "mage" else 0.0) + preload("res://scripts/player/player_blade_storm_build.gd").bonus(owner, role_id, "speed")
 	return 1.0
 
 
@@ -78,9 +83,9 @@ static func get_effective_attack_speed(owner, role_id: String) -> float:
 			role_data = candidate
 			break
 	if role_data.is_empty():
-		return 0.01
+		return MIN_ATTACK_SPEED
 
-	var base_attack_speed: float = maxf(0.01, float(role_data.get("base_attack_speed", 1.0)))
+	var base_attack_speed: float = get_role_base_attack_speed(owner, role_id)
 	var attack_speed_bonus: float = get_active_interval_bonus(owner, role_id)
 
 	# Percentage bonuses are absolute additions: base speed + 1 × bonus.
@@ -92,6 +97,12 @@ static func get_effective_attack_speed(owner, role_id: String) -> float:
 		attack_speed_bonus += float(owner._get_role_equipment_bonus_summary(role_id).get("attack_speed_percent_bonus", 0.0))
 	attack_speed_bonus += PLAYER_RUAN_STONE_STAT_FLOW.get_attack_speed_percent_bonus(owner)
 	attack_speed_bonus += PLAYER_BUILD_SYSTEM.get_basic_attack_speed_percent_bonus(owner, role_id)
+	if role_id == "swordsman":
+		attack_speed_bonus += SWORDSMAN_BASIC_BUILD.speed_bonus(owner)
+	elif role_id == "gunner":
+		attack_speed_bonus += GUNNER_BASIC_BUILD.speed_bonus(owner)
+	elif role_id == "mage":
+		attack_speed_bonus += MAGE_BASIC_BUILD.speed_bonus(owner)
 
 	# Keep old interval-based talent hooks compatible. They are dormant in the
 	# current game, but if an old save activates one, it still contributes to
@@ -106,7 +117,7 @@ static func get_effective_attack_speed(owner, role_id: String) -> float:
 		var talent_multiplier: float = maxf(0.01, float(owner.mechanic_role.get_basic_attack_interval_multiplier(owner)))
 		attack_speed_bonus += _legacy_interval_multiplier_to_speed(base_attack_speed, talent_multiplier)
 
-	return maxf(0.01, base_attack_speed + attack_speed_bonus)
+	return maxf(MIN_ATTACK_SPEED, base_attack_speed + attack_speed_bonus) * preload("res://scripts/player/player_skull_mage_effects.gd").attack_speed_multiplier(owner)
 
 
 static func _legacy_interval_multiplier_to_speed(base_attack_speed: float, interval_multiplier: float) -> float:
@@ -160,6 +171,7 @@ static func get_role_move_speed(owner, role_id: String) -> float:
 		move_speed += float(owner._get_role_blessing_stat_bonus(role_id, "move_speed"))
 		move_speed *= max(0.01, 1.0 + float(owner._get_role_blessing_stat_bonus(role_id, "move_speed_percent")))
 	move_speed *= max(0.01, 1.0 + PLAYER_RUAN_STONE_STAT_FLOW.get_move_speed_percent_bonus(owner))
+	move_speed *= 1.0 + preload("res://scripts/player/player_blade_storm_build.gd").bonus(owner, role_id, "move")
 	move_speed += PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW.get_move_speed_bonus(owner, role_id)
 	if role_id == "gunner" and owner.has_method("_get_gunner_hunt_move_speed_bonus"):
 		move_speed += float(owner._get_gunner_hunt_move_speed_bonus(role_id))
@@ -187,6 +199,7 @@ static func get_role_move_speed(owner, role_id: String) -> float:
 		move_speed *= 1.0 + 0.02 * owner.frenzy_stacks
 	var slow_multiplier: float = minf(minf(owner.enemy_move_slow_multiplier, preload("res://scripts/enemies/elite_charge_ground.gd").get_slow_multiplier(owner)), preload("res://scripts/enemies/skulltomb_domain_effect.gd").get_slow_multiplier(owner))
 	move_speed *= minf(slow_multiplier, preload("res://scripts/player/player_plague_flow.gd").get_slow_multiplier(owner))
+	move_speed *= preload("res://scripts/enemies/skull_mage_domain.gd").get_slow_multiplier(owner)
 	return move_speed
 
 

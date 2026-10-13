@@ -181,7 +181,9 @@ func get_save_data() -> Dictionary:
 		"position": [global_position.x, global_position.y],
 		"value": value,
 		"tier": tier,
-		"age_seconds": age_seconds
+		"age_seconds": age_seconds,
+		"attraction_active": attraction_active,
+		"attraction_speed": attraction_speed
 	}
 
 func apply_save_data(data: Dictionary) -> void:
@@ -194,4 +196,8 @@ func apply_save_data(data: Dictionary) -> void:
 	value = int(data.get("value", value))
 	tier = clamp(int(data.get("tier", tier)), 1, 4)
 	age_seconds = clamp(float(data.get("age_seconds", 0.0)), 0.0, DESPAWN_SECONDS)
+	attraction_active = false
+	attraction_target_node = null
+	attraction_target = Vector2.ZERO
+	attraction_speed = 0.0
 	_apply_appearance()

@@ -307,6 +307,7 @@ static func get_role_dodge_chance(owner, role_id: String) -> float:
 	sources.append(PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW.get_flat_dodge_chance_bonus(owner, resolved_role_id))
 	sources.append(PLAYER_GUNNER_FLASH_TALENT_FLOW.get_flat_dodge_chance_bonus(owner, resolved_role_id))
 	sources.append(get_role_temporary_dodge_strength(owner, resolved_role_id))
+	sources.append(preload("res://scripts/player/player_blade_storm_build.gd").bonus(owner, resolved_role_id, "dodge"))
 	return calculate_dodge_chance(sources)
 
 
@@ -408,7 +409,7 @@ static func get_skill_range_multiplier(owner) -> float:
 
 
 static func get_cooldown_multiplier(owner) -> float:
-	return clamp(owner.equipment_cooldown_multiplier, 0.45, 1.0)
+	return clamp(owner.equipment_cooldown_multiplier, 0.45, 1.0) * (1.0 - preload("res://scripts/player/player_blade_storm_build.gd").bonus(owner, owner._get_active_role_id(), "cooldown"))
 
 
 static func _scale_active_cooldowns(owner, scale: float) -> void:

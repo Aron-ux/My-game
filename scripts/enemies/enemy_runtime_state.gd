@@ -4,8 +4,16 @@ const ENEMY_GLUTTON_SKILL_BEHAVIOR := preload("res://scripts/enemies/enemy_glutt
 const ENEMY_BOSS_STATE := preload("res://scripts/enemies/enemy_boss_state.gd")
 
 static func reset(enemy, randomize_timers: bool) -> void:
+	preload("res://scripts/enemies/enemy_porcupine.gd").reset(enemy)
+	preload("res://scripts/enemies/enemy_necro_priest.gd").reset(enemy)
+	preload("res://scripts/enemies/enemy_plant_behavior.gd").reset(enemy)
+	preload("res://scripts/enemies/enemy_skull_mage.gd").reset(enemy)
 	preload("res://scripts/enemies/enemy_runner_haste.gd").reset(enemy)
+	enemy.stun_remaining = 0.0
+	enemy.electric_stacks = 0
+	enemy.boss_direct_health_loss = 0.0
 	enemy.fury_armor_shred = 0.0
+	enemy.storm_armor_shred_timers.clear()
 	enemy.fury_armor_shred_remaining = 0.0
 	if randomize_timers:
 		enemy.shot_timer = randf_range(0.15, max(0.16, enemy.shot_interval))

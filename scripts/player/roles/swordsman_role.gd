@@ -5,6 +5,7 @@ const PLAYER_COMBAT_RESULT_FLOW := preload("res://scripts/player/player_combat_r
 const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")
 const PLAYER_SWORDSMAN_ULTIMATE_FLOW := preload("res://scripts/player/player_swordsman_ultimate_flow.gd")
 const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
+const SWORDSMAN_BASIC_BUILD := preload("res://scripts/player/player_swordsman_basic_build.gd")
 
 const BASIC_COMBO_INTERVAL := 0.14
 const ULTIMATE_SKILL_ID := "swordsman_ultimate"
@@ -80,20 +81,21 @@ func _apply_basic_talent_followup(owner, base_direction: Vector2, blood_surge_mu
 	if owner.swordsman_attack_chain == 0 and _has_talent(owner, "swordsman_basic_sword_wheel"):
 		total_hits += _perform_attack_variant(owner, base_direction.rotated(PI * 0.5), 0.35, false, false, false, blood_surge_multiplier, basic_source_id)
 		total_hits += _perform_attack_variant(owner, base_direction.rotated(-PI * 0.5), 0.35, false, false, false, blood_surge_multiplier, basic_source_id)
-	# 技能等级 2 / 4 / 6 / 8 级各追加一道同方向斩击，每道为第一道斩击的 60% 伤害
-	# 依次发射而不是同帧重叠，否则视觉上完全看不出多了一道
+	# LV6 grants one complete delayed slash; it does not schedule itself again.
 	var extra_slash_count: int = PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_basic_attack_extra_slash_count(owner)
 	if extra_slash_count > 0:
 		_schedule_level_extra_slashes(owner, base_direction, extra_slash_count, blood_surge_multiplier, basic_source_id)
 	return total_hits
 
-func _schedule_level_extra_slashes(owner, base_direction: Vector2, count: int, blood_surge_multiplier: float, basic_source_id: String) -> void:
+func _schedule_level_extra_slashes(owner, base_direction: Vector2, count: int, blood_surge_multiplier: float, _basic_source_id: String) -> void:
 	var interval: float = PLAYER_SKILL_LEVEL_EFFECT_FLOW.BASIC_ATTACK_EXTRA_SLASH_INTERVAL
 	var slash_scale: float = PLAYER_SKILL_LEVEL_EFFECT_FLOW.BASIC_ATTACK_EXTRA_SLASH_DAMAGE_SCALE
 	var callback := func(_index: int) -> void:
 		if owner == null or not is_instance_valid(owner) or bool(owner.get("is_dead")):
 			return
-		_perform_attack_variant(owner, base_direction, slash_scale, false, false, false, blood_surge_multiplier, basic_source_id)
+		if str(owner._get_active_role_id()) != "swordsman":
+			return
+		_perform_combo_segment(owner, base_direction, slash_scale, true, true, blood_surge_multiplier, _create_basic_source_id(owner))
 	if owner != null and owner.has_method("_schedule_repeating_sequence"):
 		owner._schedule_repeating_sequence(interval, count, callback, interval)
 		return
@@ -137,7 +139,7 @@ func _perform_attack_variant(owner, attack_direction: Vector2, effect_scale: flo
 	var attack_range: float = (float(role_data["range"]) + float(upgrade_data.get("range_bonus", 0.0))) * owner._get_role_attribute_range_multiplier(role_data["id"]) * owner._get_role_equipment_skill_range_multiplier(role_data["id"]) * basic_range_multiplier
 	var third_main_slash: bool = advance_chain and owner.swordsman_attack_chain == 2
 	var opening_damage_multiplier: float = 1.20 if third_main_slash and _has_talent(owner, "swordsman_basic_opening") else 1.0
-	var basic_damage_ratio: float = 1.5 + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_basic_attack_damage_ratio_bonus(owner)
+	var basic_damage_ratio: float = 1.0 + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_basic_attack_damage_ratio_bonus(owner)
 	var attack_damage: float = owner._get_role_damage(role_data["id"]) * basic_damage_ratio * max(0.0, effect_scale) * PLAYER_BUILD_SYSTEM.get_basic_attack_damage_multiplier(owner, "swordsman") * opening_damage_multiplier * blood_surge_multiplier
 	var slash_axis: Vector2 = owner._get_downward_perpendicular(attack_direction)
 	var slash_mirror: bool = attack_direction.x > 0.0
@@ -162,7 +164,7 @@ func _perform_attack_variant(owner, attack_direction: Vector2, effect_scale: flo
 		slash_width,
 		slash_mirror
 	)
-	var slash_hit_registry: Dictionary = {}
+	var slash_hit_registry: Dictionary = {"swordsman_slash": true, "slash_direction": attack_direction}
 	var slash_rect_width: float = max(slash_visual_width, slash_center.distance_to(owner.global_position) * 2.0 + 16.0)
 	var slash_animation_duration: float = owner._get_sword_slash_scene_animation_duration()
 	var slow_multiplier: float = 0.75 if third_main_slash and _has_talent(owner, "swordsman_basic_opening") else 1.0
@@ -171,6 +173,8 @@ func _perform_attack_variant(owner, attack_direction: Vector2, effect_scale: flo
 	var enemies_hit: int = owner._damage_enemies_in_oriented_rect_unique(slash_center, slash_axis, slash_length, slash_rect_width, attack_damage, 0.0, slow_multiplier, slow_duration, slash_hit_registry, damage_source_id)
 	if allow_followthrough:
 		owner._schedule_swordsman_slash_followthrough(slash_center, slash_axis, slash_length, slash_rect_width, attack_damage, 0.0, slow_multiplier, slow_duration, slash_animation_duration, damage_source_id, slash_hit_registry)
+	if enemies_hit > 0 and SWORDSMAN_BASIC_BUILD.has_choice(owner, "heavy") and owner.has_method("_queue_camera_shake"):
+		owner._queue_camera_shake(4.5, 0.10)
 
 	if advance_chain:
 		owner.swordsman_attack_chain = (owner.swordsman_attack_chain + 1) % 3
@@ -184,10 +188,11 @@ func _schedule_reprise_segments(owner, base_direction: Vector2, basic_source_id:
 	var combo_scales := _get_skill_effect_scales(owner, "combo_skill_extra")
 	if combo_scales.is_empty():
 		return
-	owner._schedule_repeating_sequence(BASIC_COMBO_INTERVAL, combo_scales.size(), func(index: int) -> void:
+	var combo_interval: float = SWORDSMAN_BASIC_BUILD.combo_interval(owner)
+	owner._schedule_repeating_sequence(combo_interval, combo_scales.size(), func(index: int) -> void:
 		if index >= 0 and index < combo_scales.size():
 			_perform_combo_segment_if_valid(owner, base_direction, float(combo_scales[index]), basic_source_id)
-	, BASIC_COMBO_INTERVAL)
+	, combo_interval)
 
 func _perform_combo_segment_if_valid(owner, base_direction: Vector2, combo_scale: float, basic_source_id: String) -> void:
 	if owner == null or not is_instance_valid(owner) or bool(owner.get("is_dead")):
@@ -629,7 +634,7 @@ func _has_level_talent(owner, talent_id: String) -> bool:
 	return PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW.has_level_talent(owner, talent_id)
 
 func _can_basic_attack_during_blade_storm(owner) -> bool:
-	return _has_level_talent(owner, LEVEL_TALENT_BLADE_STORM_2)
+	return false
 
 func _get_ultimate_target_position(owner, target_enemy: Node2D, origin: Vector2) -> Vector2:
 	if target_enemy == null or not is_instance_valid(target_enemy):

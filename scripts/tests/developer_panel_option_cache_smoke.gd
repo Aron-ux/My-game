@@ -17,18 +17,19 @@ func _run() -> void:
 		options.append({
 			"id": "skill_%03d" % index,
 			"title": "技能 %03d" % index,
-			"description": "测试技能"
+			"description": "测试物品", "count": 0
 		})
-	panel.set_skill_options(options)
-	var skill_list: VBoxContainer = panel.get("skill_list")
+	panel.set_catalog_data({"item": options})
+	var page = panel.catalogs["item"]
+	var skill_list: VBoxContainer = page.list
 	assert(skill_list.get_child_count() == 300)
 	var first_button_id := skill_list.get_child(0).get_instance_id()
 
-	panel.set_skill_options(options.duplicate(true))
+	panel.set_catalog_data({"item": options.duplicate(true)})
 	assert(skill_list.get_child(0).get_instance_id() == first_button_id)
 
 	options[0]["title"] = "已变化"
-	panel.set_skill_options(options)
+	panel.set_catalog_data({"item": options})
 	assert(skill_list.get_child(0).get_instance_id() != first_button_id)
 	assert((skill_list.get_child(0) as Button).text.begins_with("已变化"))
 

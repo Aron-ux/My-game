@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="EnemyProfile" load_steps=3 format=3]
+[ext_resource type="Script" path="res://scripts/enemy/enemy_profile.gd" id="1"]
+[ext_resource type="PackedScene" path="res://assets/enemies/porcupine/porcupine.tscn" id="2"]
+[resource]
+script = ExtResource("1")
+archetype = "angry_porcupine"
+behavior = "chaser"
+max_health = 200.0
+attack = 30.0
+armor = 15.0
+speed = 80.0
+damage_reduction_rate = 0.8
+touch_damage = 45.0
+contact_radius = 32.0
+body_collision_radius = 32.0
+experience_reward = 6
+scale = 1.0
+visual_scene = ExtResource("2")
+extra = {"status_resistance": 0.2}

@@ -45,6 +45,7 @@ static func build_from_player(owner) -> Dictionary:
 		"ultimate_cost_multiplier": owner.ultimate_cost_multiplier,
 		"damage_reduction_value": owner._get_role_damage_reduction_value(role_id) if owner.has_method("_get_role_damage_reduction_value") else 0.0,
 		"damage_reduction_rate": owner._get_role_damage_reduction_rate(role_id) if owner.has_method("_get_role_damage_reduction_rate") else 0.0,
+		"status_resistance": owner.get_status_resistance(role_id) if owner.has_method("get_status_resistance") else 0.0,
 		"damage_taken_multiplier": owner._get_effective_damage_taken_multiplier() if owner.has_method("_get_effective_damage_taken_multiplier") else 1.0,
 		"attribute_swordsman_trait_level": owner._get_attribute_level("swordsman_trait") if owner.has_method("_get_attribute_level") else 0.0,
 		"attribute_gunner_trait_level": owner._get_attribute_level("gunner_trait") if owner.has_method("_get_attribute_level") else 0.0,
@@ -183,6 +184,13 @@ static func _build_team_role_statuses(owner, active_role_id: String, include_des
 
 static func _build_buff_status_slots(owner) -> Array:
 	var slots: Array = []
+	var necro_slot := preload("res://scripts/player/player_necro_mark.gd").get_buff_slot(owner)
+	if not necro_slot.is_empty():
+		slots.append(necro_slot)
+	var vine_slot := preload("res://scripts/player/player_vine_entangle.gd").get_buff_slot(owner)
+	if not vine_slot.is_empty():
+		slots.append(vine_slot)
+	slots.append_array(preload("res://scripts/player/player_skull_mage_effects.gd").get_buff_slots(owner))
 	var plague_slot: Dictionary = preload("res://scripts/player/player_plague_flow.gd").get_buff_slot(owner)
 	if not plague_slot.is_empty():
 		slots.append(plague_slot)
@@ -240,6 +248,12 @@ static func _build_buff_status_slots(owner) -> Array:
 		var gunner_flash_slot: Dictionary = owner._get_gunner_flash_buff_slot()
 		if not gunner_flash_slot.is_empty():
 			slots.append(gunner_flash_slot)
+	if owner != null:
+		var blade_storm = owner.get("swordsman_blade_storm_ability")
+		if blade_storm != null and blade_storm.has_method("get_buff_slot"):
+			var breath_slot: Dictionary = blade_storm.get_buff_slot()
+			if not breath_slot.is_empty():
+				slots.append(breath_slot)
 	if owner != null and owner.has_method("_get_mage_arcane_charge_buff_slot"):
 		var mage_arcane_charge_slot: Dictionary = owner._get_mage_arcane_charge_buff_slot()
 		if not mage_arcane_charge_slot.is_empty():

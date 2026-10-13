@@ -136,6 +136,8 @@ static func heal(owner, amount: float) -> void:
 	amount *= preload("res://scripts/player/player_plague_flow.gd").get_healing_multiplier(owner)
 	if amount <= 0.0:
 		return
+	if preload("res://scripts/player/player_necro_mark.gd").convert_healing(owner, amount):
+		return
 	var previous_health: float = owner.current_health
 	owner.current_health = min(owner.max_health, owner.current_health + amount)
 	var actual_heal_amount: float = owner.current_health - previous_health

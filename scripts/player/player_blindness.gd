@@ -70,7 +70,7 @@ func _ready() -> void:
 func try_apply() -> bool:
 	if remaining > 0.0 or cooldown_remaining > 0.0:
 		return false
-	remaining = DURATION
+	remaining = preload("res://scripts/combat/status_resistance.gd").duration(get_parent(), DURATION)
 	cooldown_remaining = TRIGGER_COOLDOWN
 	_sync_mask()
 	return true

@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>类幸存者/割草游戏刷怪机制与同屏性能调研总结</title>
+<style>
+  body { font-family: "Microsoft YaHei","PingFang SC","Segoe UI",sans-serif; background:#faf7f1; color:#333; max-width:1060px; margin:0 auto; padding:28px 24px; line-height:1.75; }
+  h1 { color:#7a4a1e; font-size:26px; margin-bottom:4px; }
+  .sub { color:#8a7a62; font-size:14px; margin-bottom:24px; }
+  h2 { color:#8a5a2b; font-size:21px; border-bottom:2px solid #e0b478; padding-bottom:6px; margin-top:40px; }
+  h3 { color:#a06a30; font-size:17px; margin-top:26px; }
+  .src { font-size:0.84em; color:#7a6a52; }
+  .src a { color:#7a6a52; text-decoration:none; border-bottom:1px dotted #aaa; }
+  .src a:hover { color:#a06a30; }
+  table { border-collapse:collapse; width:100%; margin:14px 0; font-size:0.88em; }
+  th,td { border:1px solid #d8cbb4; padding:6px 8px; vertical-align:top; }
+  th { background:#f0e2c8; color:#6a4a1a; }
+  tr:nth-child(even) td { background:#f6f0e4; }
+  .tag { display:inline-block; padding:0 8px; border-radius:11px; font-size:0.8em; margin-right:6px; white-space:nowrap; }
+  .t-time { background:#e2ecd8; color:#4a6a32; }
+  .t-kill { background:#f2dcd8; color:#8a3a30; }
+  .t-mix  { background:#efe4cc; color:#8a6a20; }
+  .box { background:#fff; border:1px solid #e5d9c2; border-left:5px solid #d9a05b; border-radius:6px; padding:12px 16px; margin:14px 0; }
+  .tip { background:#eef4e8; border-left:5px solid #7aa04a; }
+  .warn { background:#f8ece8; border-left:5px solid #c05a40; }
+  .svg-wrap { background:#fff; border:1px solid #e5d9c2; border-radius:8px; padding:10px; text-align:center; }
+  ol li, ul li { margin:6px 0; }
+  .kbd { background:#f0e0c8; border-radius:4px; padding:0 5px; font-family:Consolas,monospace; font-size:0.9em; }
+  .game-head { font-weight:bold; color:#7a4a1e; }
+  .src-list { font-size:0.86em; }
+  .src-list li { margin:4px 0; }
+  @media (max-width:720px){ body{ padding:14px 10px; } table{ font-size:0.78em; } }
+</style>
+</head>
+<body>
+
+<h1>类幸存者（割草）游戏刷怪机制与同屏性能调研总结</h1>
+<div class="sub">为正在用 Godot 4.6.2 制作类幸存者游戏的作者提供 · 调研日期 2026-09-28 · 全文每条结论紧邻标注「来源名称 + 链接」，文末附完整参考来源列表</div>
+
+<div class="box">
+<strong>怎么读这份报告：</strong>第一部分用一张图+一段话讲清楚 10 款游戏的刷怪模式；第二部分逐款讲刷怪机制；第三部分是横向对比表；第四、五、六部分是"同屏几百只怪不卡"的性能调研（含 Godot 4 官方对应能力）；第七、八部分是可复用的设计规律和对你的实用建议。凡是数字、机制、做法，旁边都跟着来源；查不到的资料我如实标注"未能查到可靠来源"，没有编造。
+</div>
+
+<h2>第一部分 · 一图看懂：10 款游戏的刷怪模式</h2>
+
+<div class="svg-wrap">
+<svg viewBox="0 0 920 560" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;">
+  <rect x="0" y="0" width="920" height="560" fill="#fffdf8"/>
+  <!-- 轴 -->
+  <line x1="80" y1="480" x2="860" y2="480" stroke="#b09878" stroke-width="2"/>
+  <line x1="80" y1="60" x2="80" y2="520" stroke="#b09878" stroke-width="2"/>
+  <polygon points="852,480 864,480 858,470" fill="#b09878"/>
+  <polygon points="80,52 80,64 90,58" fill="#b09878"/>
+  <text x="470" y="530" font-size="17" fill="#6a5a42" text-anchor="middle">← 时间驱动（时钟到点就刷）　·　驱动方式　·　击杀数驱动（杀够数量才触发） →</text>
+  <text x="70" y="42" font-size="17" fill="#6a5a42" text-anchor="end">离散波次（打一波停一下） ↑</text>
+  <text x="70" y="545" font-size="17" fill="#6a5a42" text-anchor="end">连续洪流（不停涌入） ↓</text>
+  <!-- 区域划分线 -->
+  <line x1="470" y1="60" x2="470" y2="480" stroke="#e0d4bc" stroke-width="1" stroke-dasharray="6,6"/>
+  <!-- 图例 -->
+  <circle cx="150" cy="75" r="7" fill="#c0843c"/><text x="165" y="79" font-size="13" fill="#6a5a42">时间驱动 + 离散波次</text>
+  <circle cx="420" cy="75" r="7" fill="#3c84a8"/><text x="435" y="79" font-size="13" fill="#6a5a42">时间驱动 + 连续洪流（含到点事件）</text>
+  <circle cx="700" cy="75" r="7" fill="#a83c3c"/><text x="715" y="79" font-size="13" fill="#6a5a42">击杀数驱动（唯一反例）</text>
+  <!-- 时间驱动+离散 -->
+  <circle cx="170" cy="120" r="7" fill="#c0843c"/><text x="190" y="124" font-size="14" fill="#333">血腥大陆 Crimsonland（脚本波次表）</text>
+  <circle cx="250" cy="150" r="7" fill="#c0843c"/><text x="270" y="154" font-size="14" fill="#333">土豆兄弟 Brotato（20 波 + 商店喘息）</text>
+  <circle cx="330" cy="185" r="7" fill="#c0843c"/><text x="350" y="189" font-size="14" fill="#333">魔法幸存者 Magic Survival（到点封圈大波）</text>
+  <circle cx="380" cy="225" r="7" fill="#c0843c"/><text x="400" y="229" font-size="14" fill="#333">小怪军团 Boneraiser（关卡制）</text>
+  <circle cx="430" cy="262" r="7" fill="#c0843c"/><text x="450" y="266" font-size="14" fill="#333">死亡必死 Death Must Die（到点事件+Boss）</text>
+  <!-- 时间驱动+连续 -->
+  <circle cx="300" cy="330" r="7" fill="#3c84a8"/><text x="320" y="334" font-size="14" fill="#333">吸血鬼猎人 Vampire Hunters（固定传送门）</text>
+  <circle cx="240" cy="400" r="7" fill="#3c84a8"/><text x="260" y="404" font-size="14" fill="#333">苦难殿堂 Halls of Torment（30 分钟+钟点精英）</text>
+  <circle cx="190" cy="435" r="7" fill="#3c84a8"/><text x="210" y="439" font-size="14" fill="#333">吸血鬼幸存者（每分钟一波的连续压力）</text>
+  <circle cx="130" cy="468" r="7" fill="#3c84a8"/><text x="150" y="472" font-size="14" fill="#333">20 分钟直到黎明（纯连续）</text>
+  <!-- 击杀驱动 -->
+  <circle cx="700" cy="240" r="8" fill="#a83c3c"/><text x="720" y="244" font-size="14" fill="#333">灵魂石幸存者（杀够数→出 Boss→打 5 轮）</text>
+  <!-- 备注 -->
+  <text x="470" y="410" font-size="13" fill="#9a8a6a" text-anchor="middle">10 款里 9 款都是「时间驱动」：</text>
+  <text x="470" y="430" font-size="13" fill="#9a8a6a" text-anchor="middle">刷怪压力是设计者写死的，不看你杀多快。</text>
+</svg>
+</div>
+
+<div class="box">
+<strong>图上最值得注意的一件事：</strong>10 款知名作品里，<strong>9 款都是时间驱动</strong>——到点就刷，和你杀得快慢、等级高低无关（来源：吸血鬼幸存者官方 Wiki，https://vampire-survivors.fandom.com/wiki/Enemies）。唯一明显的例外是<strong>灵魂石幸存者</strong>：它"杀够数量 → 出 Boss → 打死 → 下一轮"，把节奏完全交给玩家的手速（来源：GamePressure，《Soulstone Survivors：Overlord 模式与传送门详解》，https://www.gamepressure.com/newsroom/soulstone-survivors-overlord-mode-and-portals-explained/z14d09）。纵向看：上半部分（离散波次）靠"波间商店/关卡结算"喘息，下半部分（连续洪流）靠"软波硬波交替/升级弹窗"喘气——这是两条截然不同的节奏设计路线。
+</div>
+
+<h2>第二部分 · 各游戏刷怪机制要点（逐款）</h2>
+
+<h3>1. 吸血鬼幸存者 Vampire Survivors —— 本类型的当代标杆，纯时间驱动</h3>
+<ul>
+<li><strong>驱动方式</strong>：纯时间驱动，<strong>每分钟整点翻一次牌</strong>，每波预先写死"最少几只 + 隔几秒刷一只"，与杀敌数、等级完全无关。<span class="src">（来源：吸血鬼幸存者官方 Wiki《Enemies》https://vampire-survivors.fandom.com/wiki/Enemies）</span></li>
+<li><strong>第一关（疯狂森林）的波次表</strong>：开局一波 15 只；1:00 出 30 只并来第一只宝箱 Boss；3:00 一波 40 只、间隔已压到 0.25 秒；11:00 一波 300 只、间隔 0.1 秒（附阿卡那 Boss）；21:00 再来一个 300 只高峰；30:00 死神清场。<span class="src">（来源：官方 Wiki《Mad Forest》https://vampire-survivors.fandom.com/wiki/Mad_Forest）</span></li>
+<li><strong>生成位置</strong>：怪在<strong>屏幕边缘外侧</strong>生成，从四个方向同时围过来；玩家跑远后，身后拖太久的旧怪会被回收，新怪刷在前方（Boss 例外：不会消失，会被传送回屏幕内）。<span class="src">（来源：官方 Wiki《Enemies》同前；俄语拆解文 DTF https://dtf.ru/games/3821226-mekhanika-spavna-vragov-v-vampire-survivors）</span></li>
+<li><strong>密度与难度</strong>：刷怪间隔从 1 秒压到 0.1 秒、单波从 15 只涨到 300 只；场上存活约 300 只时停止周期性刷普通怪（第三方反编译称引擎硬顶 500）；敌人血量/速度随时间缓慢上涨（挑战图实测约血量每分钟 +0.03、速度每分钟 +0.05，主线公式官方未公开）。<span class="src">（来源：官方 Wiki《Enemies》同前；Twinfinite 反编译分析 https://twinfinite.net/guides/vampire-survivors-evolution-chart/；Gameskinny 实测 https://www.gameskinny.com/dg6f0/vampire-survivors-how-to-unlock-bone-zone）</span></li>
+<li><strong>敌人类型与特殊怪</strong>：普通怪 + 定点 Boss + 地图事件（蝙蝠群横穿、花墙包围等）；11:00 和 21:00 固定刷"阿卡那"Boss；25:00 是本图解锁高速模式的 Boss；<strong>30:00 死神（The Reaper）清场</strong>，之后每多活一分钟再刷一只；死神 HP=655,350×玩家等级、一击 65,535 伤害。<span class="src">（来源：官方 Wiki《The Reaper》https://vampire-survivors.fandom.com/wiki/The_Reaper；官方 Wiki《Treasure Chest》https://vampire-survivors.fandom.com/wiki/Treasure_Chest）</span></li>
+<li><strong>喘息与奖励</strong>：没有真正的停手休息，靠"50 只弱怪波"和"10 只硬怪波"交替制造呼吸感；宝箱由 Boss 掉：<strong>10 分钟前</strong>的 Boss 掉青铜箱（不能进化武器），<strong>10 分钟后</strong>掉白银箱（可进化武器），11/21 分钟的 Boss 掉阿卡那箱。<span class="src">（来源：官方 Wiki《Treasure Chest》同前）</span></li>
+<li><strong>开发者自述为什么是 30 分钟</strong>：Luca Galante 在任天堂官方访谈中亲口说"自己玩到 20 分钟就腻了"，于是把终点设在 25 分钟出现的 Boss，再算上击杀时间凑成一局约 30 分钟，并且是有意用时间限制给一局设"自然终点"保持新鲜感。<span class="src">（来源：任天堂官方访谈（日文）https://topics.nintendo.co.jp/article/3f3d9c44-6cc5-4197-a31b-1397f229c03b）</span></li>
+</ul>
+
+<h3>2. 土豆兄弟 Brotato —— 波次制的代表，波间开商店</h3>
+<ul>
+<li><strong>驱动方式</strong>：20 个固定波次，波内纯计时——第 1 波 20 秒，每波 +5 秒，到第 9 波 60 秒封顶（W9–W19 都是 60 秒），第 20 波 90 秒且必须打死 Boss 才结束。<span class="src">（来源：Brotato 官方 Wiki《Waves》https://brotato.wiki.spellsandguns.com/Waves）</span></li>
+<li><strong>波间喘息</strong>：每波打完自动进商店，<strong>不限时</strong>，玩家买完手动点"出发"开下一波；波内杀怪掉的材料就是商店货币——杀得多=买得好=下一波更稳。<span class="src">（来源：官方 Wiki《Shop》https://brotato.wiki.spellsandguns.com/index.php?oldid=7487&amp;title=Shop）</span></li>
+<li><strong>生成位置</strong>：怪在地图边缘生成、从四面八方压过来；同类怪彼此间隔至少 100 距离单位；<strong>同屏上限 100 只</strong>，超出的瞬间随机删一只非精英/非 Boss 怪且不掉落。<span class="src">（来源：官方 Wiki《Enemies》https://brotato.wiki.spellsandguns.com/Enemies；社区逐波拆解 Gameplay.tips https://gameplay.tips/guides/brotato-ultimate-guide-to-enemies-and-waves.html）</span></li>
+<li><strong>难度曲线</strong>：血量、伤害每波线性增长，但<strong>敌人速度不随波次/难度变化</strong>（官方原文）；精英波/潮怪波只在高难度定点出现（Danger 2+ 在第 11–12 波，Danger 4–5 在第 11–12/14–15/17–18 波三连）；Boss 固定第 20 波，Danger 5 出两只。<span class="src">（来源：官方 Wiki《Enemies》《Waves》同前）</span></li>
+</ul>
+
+<h3>3. 20 分钟直到黎明 20 Minutes Till Dawn —— 一条连续时间线</h3>
+<ul>
+<li><strong>驱动方式</strong>：一局就是一条 20 分钟倒计时，普通怪持续涌入、没有离散波次；<strong>精英固定在剩余 17:00 / 8:45 / 4:00 出，Boss 在剩余 15:00 / 5:00 出</strong>（按剩余时间倒推，不是随机也不是杀敌数）。<span class="src">（来源：韩国 Wiki thewiki.kr https://thewiki.kr/w/20%20Minutes%20Till%20Dawn）</span></li>
+<li><strong>生成位置</strong>：怪在<strong>黑暗视野外</strong>生成，开局只见黑暗中一对对发光的眼睛；从四面八方包围玩家。<span class="src">（来源：HandWiki 条目 https://handwiki.org/wiki/Software:20_Minutes_Till_Dawn；Steam 商店页 https://store.steampowered.com/app/1966900/20/）</span></li>
+<li><strong>难度曲线</strong>：随时间越刷越密；难度由"黑暗等级 0–15"叠加修饰（如黑暗 1=刷新频率 +25%、黑暗 2=血量 +25%、黑暗 3=精英提前 25% 出、黑暗 4=Boss 血量 +50%）；无尽模式敌人血量每 20 分钟翻倍（官方 1.0.2 更新日志）。<span class="src">（来源：Epic 官方难度指南 https://store.epicgames.com/news/20-minutes-till-dawn-guide-how-to-survive-and-thrive-at-the-highest-difficulties；官方 1.0.2 更新日志 https://www.updatemonitor.com/app/3620890/news/1844115010495351）</span></li>
+<li><strong>喘息与奖励</strong>：没有商店期；唯一的"暂停喘息"是升级时弹出三选一；精英掉宝箱（三选一强增益）、Boss 掉魔法书。<span class="src">（来源：HandWiki 同前；评测 https://www.jetsonplaysgames.com/post/20-minutes-till-dawn-review）</span></li>
+</ul>
+
+<h3>4. 苦难殿堂 Halls of Torment —— 30 分钟一局的暗黑割草</h3>
+<ul>
+<li><strong>驱动方式</strong>：一局硬上限 30 分钟；精英大怪按<strong>固定钟点</strong>刷（各关大约 6–8 分、14–16 分、24 分各一只）；<strong>30:00 最终 Lord 登场并把全场杂兵清空、变成 1v1</strong>。<span class="src">（来源：NAGuide 全任务攻略 https://www.naguide.com/halls-of-torment-walkthrough-guide/；评测 GamesAsylum https://www.gamesasylum.com/2025/10/28/halls-of-torment-review/）</span></li>
+<li><strong>生成位置</strong>：怪刷在屏幕视野之外、从四面八方涌向玩家；官方补丁还提到"刷得越远的怪，难度宽限期越长"，说明是按不同距离刷在屏幕外的。<span class="src">（来源：官方 2023-10-30 补丁说明 https://steamdb.info/patchnotes/12570578/）</span></li>
+<li><strong>难度曲线</strong>：除了时间变密，还有一套"Agony 痛苦值"压力槽——随时间自动上涨（杀得快只是降得慢），最早每 4 分钟升一级、20 分钟可到最高 5 级，每级敌人伤害 +2.5%~10%；四档敌人有递减的减速抗性（冠军 25% / 精英 50% / Boss 66% / Lord 80%）。<span class="src">（来源：官方补丁同前）</span></li>
+<li><strong>喘息与奖励</strong>：无波间停顿，升级 4 选 1 时暂停；精英击杀掉装备宝箱或新技能；地图上金卷轴（被动三选一）用箭头指引——时间路标与奖励绑在一起。<span class="src">（来源：评测 GamesAsylum 同前；Celxius 攻略 https://celxiusgaming.com/halls-of-torment/）</span></li>
+</ul>
+
+<h3>5. 灵魂石幸存者 Soulstone Survivors —— 罕见的击杀数驱动反例</h3>
+<ul>
+<li><strong>驱动方式</strong>：<strong>杀够屏幕要求的数量 → 召唤一只虚空领主 Boss → 打死 → 下一轮</strong>，5 波 5 王循环，没有倒计时终点；普通难度要求约 13 分钟内打完 5 王（典型一局约 900 击杀、12 分钟）。<span class="src">（来源：GamePressure https://www.gamepressure.com/newsroom/soulstone-survivors-overlord-mode-and-portals-explained/z14d09；Gamerscout https://www.gamerscout.io/games/soulstone-survivors；FinalBoss 评测 https://finalboss.io/soulstone-survivors-1-0-launch-brings-power-fantasy）</span></li>
+<li><strong>生成位置</strong>：怪刷在<strong>封闭竞技场的四周边缘</strong>，玩家甚至能蹲角落压缩刷怪距离（速通公认技巧）。<span class="src">（来源：GamePretty 速通攻略 https://gamepretty.com/soulstone-survivors-sub-8-sub-10-minutes-achievements-guide/）</span></li>
+<li><strong>难度曲线</strong>：普通怪刷新率约每 2 分钟 +8%（媒体实测，非官方公式）；真正的难度由玩家开局<strong>自选诅咒词条</strong>调节（如"亡灵增援=精英刷新 +10%"、"克隆军团=同时多刷 1 只精英"）。<span class="src">（来源：FinalBoss 同前；GamePressure 诅咒列表 https://www.gamepressure.com/S013-amp.asp?ID=19608）</span></li>
+<li><strong>喘息与奖励</strong>：Boss 战本身就是呼吸点（杂兵潮让位）；打完 5 王开三个传送门：蓝门=带奖励离场、红门=进 Overlord 双倍难度、紫门=无尽。<span class="src">（来源：GamePressure 同前）</span></li>
+</ul>
+
+<h3>6. 魔法幸存者 Magic Survival —— 类型鼻祖（先订正一个时间线）</h3>
+<div class="box warn"><strong>时间线订正：</strong>你记忆里的"2016 年鼻祖"其实有出入——多家资料一致记录它是 <strong>2019 年 10 月 31 日</strong>在安卓上线的（LEME 开发），但确实比 2022 年的《吸血鬼幸存者》早约三年，仍是该玩法的早期代表作。<span class="src">（来源：日本 Wiki atwiki https://w.atwiki.jp/magicsurvival/pages/52.html；韩国 Namu Wiki https://namu.moe/w/%EB%A7%A4%EC%A7%81%EC%84%9C%EB%B0%94%EC%9D%B4%EB%B2%8C）</span></div>
+<ul>
+<li><strong>驱动方式</strong>：时间驱动 + 固定时间表波次：平时怪物随时间持续渗入，到点强制进入波次；<strong>波次进行期间大时钟暂停</strong>，画面四周被黑圈封锁（碰到掉血），必须杀够屏幕上的怪数才算过；早期区域每 4 分钟一波。<span class="src">（来源：atwiki 机制页 https://w.atwiki.jp/magicsurvival/pages/53.html；Namu Wiki 同前）</span></li>
+<li><strong>生成位置</strong>：敌人基本在<strong>玩家屏幕视野外</strong>生成，波次开始后四周围圈合拢；捡"转灵石"会在身边直接召唤一大群精英（限时击杀掉宝箱）。<span class="src">（来源：Namu Wiki 同前，原文"적들은 기본적으로 캐릭터의 화면 바깥에서 생성된다"）</span></li>
+<li><strong>难度曲线</strong>：深层区域的波次时间点约 2:30 / 7:30 / 12:30 / 15:00 / 17:30 / 25:00 / 37:30 / 45:00 / 47:30，越往后间隔越长、强度阶梯抬升；玩家社区普遍说"60 分钟后怪硬得离谱"。<span class="src">（来源：atwiki 深层区域页 https://w.atwiki.jp/magicsurvival/pages/185.html；atwiki 社区页 https://w.atwiki.jp/magicsurvival/pages/43.html）</span></li>
+<li><strong>类型构成</strong>：红边精英（对异常/即死 50% 抗性）、紫边超级精英；Boss 分两类——Citadel 平时自然刷出，Nemesis/Apostle/Amadeus 只在波次里出现；每区域有"最终波"，打过才算通关该区域。<span class="src">（来源：atwiki 机制页同前）</span></li>
+<li><strong>喘息与奖励</strong>：波与波之间是发育窗口（自由走位、捡经验、找商人）；商人定点出现且每次涨价；<strong>波次打完后弹"方尖碑"传说三选一</strong>——稀有三选一和刷怪节奏绑死。<span class="src">（来源：atwiki 机制页同前）</span></li>
+</ul>
+
+<h3>7. 死亡必死 Death Must Die —— 20 分钟时间轴 + 封锁战与准点 Boss</h3>
+<ul>
+<li><strong>驱动方式</strong>：整局 20 分钟倒计时；时间轴上排了两类硬事件：<strong>封锁战（关进封闭竞技场被精英/史莱姆群围殴）约 4:00 / 12:00 / 17:00 各一次；Boss 准点 7:00 / 14:00 / 20:00</strong>，20:00 的最终 Boss 打完即通关。<span class="src">（来源：Celxius 新手指南 https://celxiusgaming.com/death-must-die/；日文 Wiki https://dungeonrpgwiki.com/?Death+Must+Die+%E6%94%BB%E7%95%A5Wiki/%E5%88%9D%E5%BF%83%E8%80%85%E5%90%91%E3%81%91%E6%94%BB%E7%95%A5%E6%83%85%E5%A0%B1）</span></li>
+<li><strong>难度曲线</strong>：官方补丁给过实锤数字——最高难度档下，怪物血量在 20 分钟内从 170% 线性涨到 340%、伤害从 25% 涨到 66%。<span class="src">（来源：官方补丁 0.8.4（Steam250 存档）https://club.steam250.com/app/2334730）</span></li>
+<li><strong>生成位置</strong>：怪物从四面八方扑向玩家；地图是开阔平面，鼓励跑图探索（小地图黄点=神龛/祭坛给 buff）。<span class="src">（来源：日文 Wiki 关卡页 https://dungeonrpgwiki.com/?Death+Must+Die+%E6%94%BB%E7%95%A5Wiki/%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B8）</span></li>
+<li><strong>喘息与奖励</strong>：事件之间是开放探索喘息期；Boss 掉落回血红心、局外天赋货币（Cosmic Essence）、装祝福的宝箱和装备——重要奖励全部绑在准点 Boss 上。<span class="src">（来源：日文 Wiki 天赋树页 https://dungeonrpgwiki.com/?Death+Must+Die+%E6%94%BB%E7%95%A5Wiki/Talent+Trees）</span></li>
+</ul>
+
+<h3>8. 骨王觉醒：小怪军团 Boneraiser Minions —— 关卡制 + 花钱买更强的怪</h3>
+<ul>
+<li><strong>驱动方式</strong>：主模式按"关卡"推进的时间驱动制，Boss 固定在第 3 / 6 关等节点出现，整局通关约十几分钟（有个成就是"13 分钟内杀最终 Boss"）。<span class="src">（来源：官方 Steam 公告 https://store.steampowered.com/news/posts/?feed=steam_community_announcements&amp;enddate=1681127323；成就列表 https://www.exophase.com/game/boneraiser-minions-steam/achievements/）</span></li>
+<li><strong>生成位置</strong>：多数敌人从屏幕边缘走进来；<strong>强盗/劫匪类可以离玩家更近甚至从屏幕头顶空投</strong>（官方补丁原文）；远程怪必须完全走进屏幕才开火——不让你看不见的地方放冷枪。<span class="src">（来源：官方补丁 #36 https://steamdb.info/patchnotes/13913812/）</span></li>
+<li><strong>难度曲线</strong>：难度随关卡数线性放大（宝箱怪血量=关卡数×5）；敌人类型池随关卡解锁（前期刷不出后期怪）。<span class="src">（来源：同上补丁）</span></li>
+<li><strong>最特别的设计</strong>：玩家可以<strong>主动花钱买更强的敌人波次</strong>——怪越多掉的骨头/经验越多，召唤军团养得越快；即刷怪压力被做成了可交易的成长资源。<span class="src">（来源：Jimquisition 评测 https://www.thejimquisition.com/post/boneraiser-minions-boning-up-review）</span></li>
+</ul>
+
+<h3>9. 血腥大陆 Crimsonland（2003）—— 老前辈：脚本时间轴波次</h3>
+<ul>
+<li><strong>驱动方式</strong>：Quest 任务模式是<strong>纯脚本时间轴</strong>——每关一张刷怪时间表，到点刷指定阵型（环形、纵队、螺旋、网格等），不是击杀驱动；还有一个防卡死机制：<strong>场上超过 3 秒没有活怪就强制触发下一条</strong>；生存模式刷怪间隔随时间缩短（公式：500 − 已流逝毫秒/1800）。<span class="src">（来源：机制拆解站 crimson.banteg.xyz https://crimson.banteg.xyz/mechanics/modes/quests/ 与 https://crimson.banteg.xyz/mechanics/modes/survival/）</span></li>
+<li><strong>生成位置</strong>：从屏幕边缘和角落刷出，或从屏幕外以固定阵型走进来；某些关有定点"巢穴"持续生小怪。<span class="src">（来源：同上 quests 页）</span></li>
+<li><strong>难度曲线</strong>：60 关分 5 个 Tier 手工编排（Tier 5 全是 8 分钟一关的 Boss 游行）；生存模式按玩家等级出里程碑波次（9 级红 Boss、17 级蜘蛛 Boss）。<span class="src">（来源：同上）</span></li>
+<li><strong>喘息与奖励</strong>：关卡之间就是最长的喘息期（解锁新武器/perk）；局内几乎不给空档；游戏里甚至有个 perk 直接叫"Breathing Room 喘息空间"——喘息本身被当稀缺资源设计。<span class="src">（来源：同上）</span></li>
+</ul>
+
+<h3>10. 吸血鬼猎人 Vampire Hunters（2024）—— FPS 视角下的特殊做法</h3>
+<ul>
+<li><strong>驱动方式</strong>：时间限制型（评测写 20 分钟、官方新闻与玩家实况写 30 分钟，EA 期间改过）；<strong>时间到了解锁"关任务"</strong>（如逐个关掉地图上的传送门），超时继续打则敌人明显变强直到淹没你。<span class="src">（来源：Jimquisition 评测 https://www.thejimquisition.com/post/vampire-hunters-first-person-survivor-review；官方更新 https://store.steampowered.com/news/posts/?feed=steam_community_announcements&amp;enddate=1713200765）</span></li>
+<li><strong>生成位置（FPS 特例）</strong>：敌人从<strong>场景内固定的传送门/刑铁处女</strong>刷出（不是屏幕边随机刷），通关任务就是去关掉这些刷怪点；为补偿"看不见背后"，做了屏幕外敌人指示器和穿墙高亮。<span class="src">（来源：玩家长评（Lemmy）https://lemmy.world/post/34750724/18912674）</span></li>
+<li><strong>类型构成</strong>：Boss 按固定间隔出现，后期甚至"几百只怪围着时同时刷 4 个 Boss"。<span class="src">（来源：Jimquisition 同前）</span></li>
+</ul>
+
+<h2>第三部分 · 刷怪机制横向对比表</h2>
+<table>
+<tr><th>游戏</th><th>驱动方式</th><th>刷怪位置</th><th>密度/难度曲线</th><th>精英/Boss 时机</th><th>喘息与奖励</th></tr>
+<tr><td><b>吸血鬼幸存者</b></td><td><span class="tag t-time">时间驱动</span>每分钟一波，波次写死</td><td>屏幕边缘外侧、四方向围拢；旧怪回收</td><td>间隔 1s→0.1s、单波 15→300 只；存活约 300 停刷；血/速随时间微涨</td><td>定点 1:00–25:00；11/21 阿卡那；30:00 死神清场</td><td>无停手；软波/硬波交替；宝箱绑 Boss（10 分钟前后青铜/白银）</td></tr>
+<tr><td><b>土豆兄弟</b></td><td><span class="tag t-time">时间驱动</span>20 个固定波次</td><td>地图边缘；同类间隔 100；同屏上限 100 超限删怪</td><td>血量/伤害每波线性加；速度不变</td><td>精英/潮怪波定点（11–12/14–15/17–18 波）；Boss 第 20 波</td><td>波间不限时商店；杀怪掉材料当货币</td></tr>
+<tr><td><b>20 分钟直到黎明</b></td><td><span class="tag t-time">时间驱动</span>20 分钟连续线</td><td>黑暗视野外生成（先见眼睛）</td><td>越刷越密；黑暗等级 1–15 叠修饰；无尽血每 20 分钟翻倍</td><td>精英剩余 17:00/8:45/4:00；Boss 15:00/5:00</td><td>无商店；升级暂停三选一</td></tr>
+<tr><td><b>苦难殿堂</b></td><td><span class="tag t-time">时间驱动</span>30 分钟硬上限</td><td>屏幕外、四面八方</td><td>时间变密 + Agony 压力槽（每 4 分钟一级，伤害+2.5~10%/级）</td><td>精英约 6–8/14–16/24 分；30:00 Lord 清场 1v1</td><td>升级 4 选 1 暂停；精英掉宝箱/技能；金卷轴路标</td></tr>
+<tr><td><b>灵魂石幸存者</b></td><td><span class="tag t-kill">击杀驱动</span>杀够数出 Boss ×5</td><td>封闭竞技场四周边缘（可蹲角）</td><td>刷新率约每 2 分钟 +8%；自选诅咒词条</td><td>虚空领主按击杀数出；5 王后三传送门</td><td>Boss 战即喘息；每王掉灵魂石</td></tr>
+<tr><td><b>魔法幸存者</b></td><td><span class="tag t-mix">时间+波次</span>到点封圈大波</td><td>屏幕外生成、四周围圈</td><td>深层波次阶梯（2:30→47:30）；60 分钟后极硬</td><td>Citadel 自然刷；Nemesis 等波内 Boss；区域最终波</td><td>波间发育窗口；商人定点；方尖碑传说三选一绑波次</td></tr>
+<tr><td><b>死亡必死</b></td><td><span class="tag t-time">时间驱动</span>20 分钟时间轴</td><td>四面八方涌来、开阔地图</td><td>血 170%→340%、伤 25%→66%（官方补丁实锤线性）</td><td>封锁战 4/12/17；Boss 7/14/20</td><td>事件间自由探索；Boss 掉局外资源</td></tr>
+<tr><td><b>小怪军团</b></td><td><span class="tag t-time">时间驱动</span>关卡制</td><td>屏幕边缘 + 头顶空投特殊怪；远程怪进屏才开火</td><td>随关卡线性放大（宝箱怪=关卡×5）；怪种随关卡解锁</td><td>小 Boss 中途插入；大 Boss 固定第 3/6 关</td><td>关卡间结算喘息；可花钱买更强的怪波</td></tr>
+<tr><td><b>血腥大陆</b></td><td><span class="tag t-time">时间驱动</span>脚本时间轴</td><td>屏幕边缘/角落、固定阵型；定点巢穴</td><td>60 关 5 Tier 手工编排；生存按等级里程碑</td><td>大型怪在关内固定出现；生存 9/17/26/32 级 Boss</td><td>关卡间解锁武器/perk；3 秒无怪强制下一波</td></tr>
+<tr><td><b>吸血鬼猎人</b></td><td><span class="tag t-time">时间驱动</span>约 20–30 分钟时限</td><td>场景内固定传送门（FPS 特例）</td><td>开局慢、后期怪海洪流；超时难度陡增</td><td>Boss 固定间隔；后期 4 Boss 同屏</td><td>无波间喘息；宝箱有存在时间会消失</td></tr>
+</table>
+
+<h2>第四部分 · 同屏几百只怪不卡：吸血鬼幸存者具体怎么做</h2>
+
+<div class="box">
+<strong>先一句话结论：</strong>VS 早期其实是<strong>用网页游戏框架 Phaser 3 写的"浏览器游戏"</strong>（后来用 Electron 套壳上架 Steam，2023 年 Xbox 版起才换成 Unity 重写）。它能扛住几百只怪，靠的是四件最朴素的事：① 美术资源极少、全部塞进几张"大图"，让显卡一次画指令画一大片；② 怪死后"回收复用"而不是反复创建销毁；③ 怪的 AI 傻到只会直线朝你走；④ 同屏怪数硬封顶（约 300 只存活即停刷，引擎硬顶 500）。<span class="src">（来源：Xbox Wire 官方技术文章 https://news.xbox.com/en-us/2023/04/13/vampire-survivors-dlc-2-launch/；Phaser 官方开发日志 https://phaser.io/devlogs/265）</span>
+</div>
+
+<h3>4.1 渲染：纹理图集 + 引擎自动合批（让显卡"一口气画完"）</h3>
+<ul>
+<li>显卡最怕的不是画得多，而是被反复打断换图。把几百张小图拼进<strong>一张大图（纹理图集 texture atlas）</strong>，所有怪都从这张大图上挖一小块来画；Phaser 引擎的机制是"共用一张图集的连续精灵会自动被捆进同一次画指令（draw call）"——合批是引擎自动做的，不是开发者手写的。<span class="src">（来源：Phaser 官方教程《Advanced Rendering Tutorial Part 2》https://phaser.io/tutorials/advanced-rendering-tutorial/part2）</span></li>
+<li>VS 的美术资源本来就极少：Luca Galante 自述是"功利主义"地从免费精灵包里扒图、现场拼玩法——资源少意味着图集数量天然就少，合批轻松。<span class="src">（来源：Game Developer（原 Gamasutra）转述 Game Informer 访谈 https://gamasutra.eu/design/vampire-survivors-development-sounds-like-an-open-source-fueled-fever-dream）</span></li>
+<li>移植到 Unity 后，官方 1.6.0 补丁仍专门修"精灵生成导致顶点数偏高"，说明顶点数（显卡画的三角形个数）是他们持续盯着的指标。<span class="src">（来源：VS 1.6.0 补丁说明 https://gameupdatenotifier.com/g/vampire-survivors/v/1-6-0）</span></li>
+</ul>
+
+<h3>4.2 对象池：怪死了不销毁，回收下次再用</h3>
+<ul>
+<li>拆解文章证实：玩家往前走时，<strong>身后的旧"尾巴"怪会被取消生成、收回池子里，新怪刷在玩家前方</strong>——典型的"视野外回收"循环，不是真删除。<span class="src">（来源：DTF 拆解文 https://dtf.ru/games/3821226-mekhanika-spavna-vragov-v-vampire-survivors）</span></li>
+<li>联机开发商 coherence 的复盘描述 VS 的运行状态就是"怪不停地在刷、挨打、死、掉经验宝石"——这种高频生灭不靠对象池撑不住；1.6 补丁里大量"修复 X 没有正确回收（de-spawn）"的条目也反证这套回收是游戏底层结构。<span class="src">（来源：coherence 官方博客 https://coherence.io/blog/tradecraft/vampire-survivors-online-coop-case-study；VS 1.6.0 补丁说明 https://gameupdatenotifier.com/g/vampire-survivors/v/1-6-0）</span></li>
+</ul>
+
+<h3>4.3 碰撞与伤害：别让几百只怪两两互测</h3>
+<ul>
+<li>怪用的是引擎的<strong>动态物理刚体</strong>，碰撞形状极度简单（小圆点/小方块）；怪和怪之间会互相推开——这个"推挤感"不是 AI 算的，是物理系统自带的副作用。<span class="src">（来源：coherence 博客同前）</span></li>
+<li><strong>伤害数字是性能大户</strong>：西班牙玩家论坛多人反馈，在设置里关掉"显示伤害数字"后怪多时帧率明显变好——满屏飘字本身就是一笔大开销。<span class="src">（来源：Elotrolado 论坛讨论 https://www.elotrolado.net/hilo_vampire-survivors_2452383）</span></li>
+<li>引擎层<strong>硬编码"同屏最多 500 个活跃怪物精灵"</strong>的上限，防止无限堆诅咒把内存和 CPU 撑爆；正常一局实际峰值约 300 只。也就是说"上千只同屏"更多是视觉错觉。<span class="src">（来源：Twinfinite 反编译分析 https://twinfinite.net/guides/vampire-survivors-evolution-chart/；DTF 拆解同前）</span></li>
+<li><strong>如实说明：</strong>没有查到 VS 官方说自己用了四叉树或固定网格——它吃的是 Phaser 物理引擎自带的粗筛（引擎级空间分区），这个在 Godot 里需要你自己做（或用引擎自带的 BVH）。<span class="src">（来源：同上各篇；Godot 官方博客《Physics progress report #1》https://godotengine.org/article/physics-progress-report-1/ 说明 Godot 2D 物理自带 BVH 粗筛）</span></li>
+</ul>
+
+<h3>4.4 怪物 AI：不寻路，只会直线追你</h3>
+<ul>
+<li>联机复盘原话："<strong>VS 的 AI 很简单：敌人直接朝目标玩家移动</strong>"——不算最短路径、不做复杂决策，地图也基本是平地没有墙。<span class="src">（来源：coherence 博客同前）</span></li>
+<li>因为 AI 简单，联机时位置每秒只需同步 1 次（本地仍按 60 帧模拟），带宽和计算都极省；1.6 补丁里出现过"敌人摆动算得不准"的修复条目——可见它给怪加的唯一花哨行为就是左右轻微摇摆。<span class="src">（来源：coherence 博客同前；VS 1.6.0 补丁说明同前）</span></li>
+</ul>
+
+<h3>4.5 特效与粒子：死了就闪一下消失，别炸花</h3>
+<ul>
+<li>怪死了基本就是"啪"一下消失、掉一颗经验宝石，没有长篇爆炸动画；割草的爽感主要靠武器特效和屏幕震动。<span class="src">（来源：Twinfinite 同前；游戏实际表现，基于补丁条目推断）</span></li>
+<li>反编译分析指出：武器"Vicious Hunger"（把怪变成金币）会把帧率从 60 拖到个位数，<strong>原因正是它要为每次转化实例化几百个独立粒子资产</strong>——反过来证明普通武器不卡就是因为粒子少；老玩家的优化技巧就是"带一把低粒子数的武器"。<span class="src">（来源：Twinfinite 同前）</span></li>
+<li>官方补丁一直在压缩特效：烟花每次触发只更新一次、升级界面粒子大小与时长被砍、加"Disable Blood 关闭血迹"选项、像素字体替代矢量字；1.15/1.16 更新继续针对低端机重写框架降内存、消除每分钟切换时的卡顿。<span class="src">（来源：VS 1.6.0 补丁说明同前；Nintendo Reporters https://www.nintendoreporters.com/en/news/nintendo-switch-2/vampire-survivors-116100-live-now-with-legacy-of-the-bloodmoon-patch-notes/）</span></li>
+</ul>
+
+<h3>4.6 引擎演变与帧率策略</h3>
+<ul>
+<li>初代（2020–2023）：Phaser 3（JavaScript/HTML5）+ Electron 套壳；2023 年 Xbox 版起换 Unity（C# + IL2CPP），官方要求"玩家察觉不到换了引擎"；老 Phaser 版本只保留在私有测试分支里。<span class="src">（来源：Phaser 官方开发日志 https://phaser.io/devlogs/265；Xbox Wire https://news.xbox.com/en-us/2023/04/13/vampire-survivors-dlc-2-launch/）</span></li>
+<li>同屏上限：正常峰值约 300 只存活即停刷普通怪；引擎硬顶 500 个活跃怪物精灵。<span class="src">（来源：DTF 同前；Twinfinite 同前）</span></li>
+<li>低端机降质策略：提供关闭血迹、像素字体等选项；后续版本持续重写框架针对 Switch 和老手机优化。<span class="src">（来源：VS 1.6.0 补丁说明同前；Nintendo Reporters 同前）</span></li>
+<li><strong>诚实提醒：</strong>本次调研<strong>没有找到</strong>Luca Galante 本人亲口逐条讲"我用了对象池/图集"的长访谈原文；上面的结论来自 Phaser 官方机制、coherence 联机复盘、DTF 拆解和官方补丁的交叉印证，证据链较硬但不是开发者亲口。也<strong>没查到</strong> VS 官方宣称使用四叉树/网格分区。<span class="src">（来源：本次调研的检索记录；相关来源同上）</span></li>
+</ul>
+
+<h2>第五部分 · 其他割草游戏怎么保性能 + Godot 对应能力</h2>
+
+<h3>5.1 土豆兄弟 Brotato —— 同门师兄，最硬核的一招是"限数量"</h3>
+<ul>
+<li>Brotato 本身就是 <strong>Godot</strong> 做的（Blobfish 自述这是他第一个 Godot 游戏），后期移植也保留了 Godot 架构——是你最该参考的"同门案例"。<span class="src">（来源：Blobfish 官方博客 https://www.blobfish.dev/my-new-game-brotato/）</span></li>
+<li>它最硬核的做法：<strong>同屏怪数硬性封顶 100 只，刷新时超过就随机"擦除"一只非精英/非 Boss 怪，且不掉任何战利品</strong>。大白话：与其努力让 500 只怪都跑起来，不如干脆只让 100 只活在场上。<span class="src">（来源：Brotato 官方 Wiki《Enemies》https://brotato.wiki.spellsandguns.com/index.php?diff=cur&amp;oldid=8558&amp;title=Enemies）</span></li>
+<li>对象池/合批/粒子等更细的技术做法：<strong>未能查到</strong> Blobfish 公开说明。<span class="src">（来源：本次调研检索，未见公开资料）</span></li>
+</ul>
+
+<h3>5.2 20 分钟直到黎明 —— 跑得稳，但秘籍没公开</h3>
+<ul>
+<li>评测显示满屏怪时 PC 仍能稳住 60 帧、低端安卓掉到 45–60 帧；但开发者 flanne 没有公开讲过内部优化技术，也刻意没有砍特效。<span class="src">（来源：Winlator 游戏页 https://winlator.me/game/0/20-minutes-till-dawn/；CoreAPKs 评测 https://coreapks.com/apps/com_Flanne_MinutesTillDawn_roguelike_shooting_fr_gp）</span></li>
+</ul>
+
+<h3>5.3 苦难殿堂 Halls of Torment —— 一个重要的纠正：它也是 Godot 做的</h3>
+<ul>
+<li><strong>纠正前提：</strong>HoT 不是 Unity，官方 2023 年 9 月更新日志明确写"用更新版本的 Godot 引擎重新构建游戏，修复了大量由 Vulkan API 报错导致的崩溃"（Vulkan 正是 Godot 4 默认图形接口）——它踩过的坑你会直接遇到。<span class="src">（来源：Halls of Torment 官方 Steam 公告 2023-09-15 https://store.steampowered.com/news/posts/?feed=steam_community_announcements&amp;enddate=1694790549）</span></li>
+<li>官方公开的性能动作主要是：换新版 Godot 修崩溃、2025 年 2 月更新做"稳定性与性能改进"并加 VSync 开关；内部是否用对象池、同屏上限是多少：<strong>未能查到公开资料</strong>。<span class="src">（来源：FullCleared 更新报道 https://fullcleared.com/news/one-of-our-favorite-games-of-2024-gets-a-nice-update/）</span></li>
+</ul>
+
+<h3>5.4 灵魂石幸存者 Soulstone Survivors —— 公开资料最扎实，重点参考</h3>
+<ul>
+<li><strong>重做约 70 个敌人模型</strong>：官方补丁写"绘制调用（draw call）减少约 10 倍、顶点数减少约 3 倍，屏幕填满怪时帧率明显提升"——把每只怪的"复杂零件"做简单做统一，GPU 一次能打发几十只。<span class="src">（来源：SteamDB 补丁日志 https://steamdb.info/patchnotes/24950092/）</span></li>
+<li><strong>把地上掉的经验碎片从"游戏对象"改成"粒子"</strong>：几百颗带脚本、带碰撞的经验宝石压垮 CPU，改成粒子后就只是画面光点、不占逻辑开销。<span class="src">（来源：同上）</span></li>
+<li><strong>底层重做伤害数字和血条系统</strong>；<strong>重做刷怪系统让怪"匀速来"而不是"一波爆"</strong>，避免性能尖峰（突然卡一下）；几乎所有技能换新碰撞检测系统。<span class="src">（来源：官方 Steam 公告 2022-10 https://store.steampowered.com/news/posts/?feed=steam_community_announcements&amp;enddate=1666461334；游侠网转载 https://3g.ali213.net/down/soulstonesurvivors.html）</span></li>
+<li><strong>高难/无尽模式主动关掉一部分视觉特效</strong>换帧率，并加 FPS 上限滑块。<span class="src">（来源：SteamDB v0.9.028c https://steamdb.info/patchnotes/9944985/）</span></li>
+</ul>
+
+<h3>5.5 两个反例：魔法幸存者与吸血鬼猎人</h3>
+<ul>
+<li><strong>魔法幸存者（手游）</strong>：韩国 Namu Wiki 记载低配手机同时处理"多种魔法、几十个投射物、几百只怪"就会卡顿；日本媒体写后期一屏 1000+ 怪会直接卡死。<span class="src">（来源：Namu Wiki https://namu.moe/w/%EB%A7%A4%EC%A7%81%EC%84%9C%EB%B0%94%EC%9D%B4%EB%B2%8C；uta-macross.jp https://uta-macross.jp/mobile-vansaba/）</span></li>
+<li><strong>吸血鬼猎人</strong>：评测直说"画面崩溃纯粹是怪太多造成的"，Switch 版后期传送门持续冒怪变成慢动作——这就是"不做限流、不做对象池"的下场。<span class="src">（来源：The Jimquisition 评测 https://www.thejimquisition.com/post/vampire-hunters-first-person-survivor-review；What's It Like? Switch 评测 https://www.whatsitlike.com.au/vampire-hunters-switch-review/）</span></li>
+</ul>
+
+<h3>5.6 Godot 4 官方给你备好的"武器"（都是官方文档内容，版本 4.x 通用）</h3>
+<ul>
+<li><strong>MultiMeshInstance2D（多重网格实例）</strong>：同一张图、同一个形状，只告诉 GPU 一次"怎么画"，然后一口气把"画在哪几千个位置"批量交出去——官方原话"MultiMesh 能用一次绘制调用画出几千个实例"。代价：实例彼此离太远反而变慢（整块被当成一个整体做可见性剔除）。适合"挤在一起的一大群同款怪/同款子弹"。<span class="src">（来源：Godot 官方文档《MultiMesh》https://docs.godotengine.org/en/stable/classes/class_multimesh.html；《MeshInstance2D》https://docs.godotengine.org/en/4.7/classes/class_meshinstance2d.html）</span></li>
+<li><strong>自动 2D 合批（batching）</strong>：Godot 4.4 起默认开启——官方说"把多个相似物件归成一组，用一次绘制调用渲染，减少状态切换"。前提是<strong>大家共用同一张贴图/同一个材质</strong>：所以要把怪的帧图拼成一张大图（sprite sheet / 图集），别给每只怪单独一张小图。合批找不到可合并的组时反而会变开销。<span class="src">（来源：Godot 官方文档《GPU optimization》https://docs.godotengine.org/en/4.7/tutorials/performance/gpu_optimization.html；Godot 官方博客《Dev snapshot: 4.6 dev 5》https://godotengine.org/article/dev-snapshot-godot-4-6-dev-5/）</span></li>
+<li><strong>对象池</strong>：官方《CPU optimization》文档把"反复实例化+释放会触发垃圾回收卡顿"列为问题，给了"对象池"方向，还给了一个零基础友好做法：<strong>用 remove_child 把节点从场景树摘下来留着、下次 add_child 挂回去，比删除重建省得多</strong>（像餐厅盘子：洗了接着用，不反复买新盘摔旧盘）。官方还提醒：节点本身有成本，几千到几万节点时 _process 广播就会拖慢性能——更少的节点、每个节点里塞更多东西往往更快。<span class="src">（来源：Godot 官方文档《CPU optimization》https://docs.godotengine.org/en/stable/tutorials/performance/cpu_optimization.html）</span></li>
+<li><strong>物理与碰撞优化（割草游戏最容易爆的一块）</strong>：① 碰撞形状用简化版——圆（CircleShape2D）或方块（RectangleShape2D），别用跟贴图轮廓一样复杂的多边形；② 屏幕外/离开区域的物体从物理里摘掉（或复用少数几个物理对象）；③ 可以把物理 tick 从每秒 60 次降到 30/20 次（配合"物理插值"保持画面平滑）；④ 空间查询用 max_results 限制返回条数，别问全世界；⑤ Godot 2D 物理自带 BVH 空间分区做"粗筛"，引擎已经把远在天边的怪先划掉了——不要再让每只怪每帧遍历所有怪。<span class="src">（来源：Godot 官方文档《CPU optimization》同前；《PhysicsDirectSpaceState2D》https://docs.godotengine.org/en/4.2/classes/class_physicsdirectspacestate2d.html；官方博客《Physics progress report #1》https://godotengine.org/article/physics-progress-report-1/；《Using physics interpolation》https://docs.godotengine.org/en/4.5/tutorials/physics/interpolation/using_physics_interpolation.html）</span></li>
+<li><strong>先看数据再优化</strong>：用 Godot 内置 Performance 计数器的 <span class="kbd">RENDER_TOTAL_DRAW_CALLS_IN_FRAME</span>（一帧总共多少次绘制调用，越低越好）定位瓶颈，别凭感觉。<span class="src">（来源：Godot 官方文档《Performance》https://docs.godotengine.org/es/stable/classes/class_performance.html）</span></li>
+<li><strong>一条第三方实测（关于你的掉帧问题）</strong>：有 Godot 4 教程作者实测——默认物理下约 50 只怪就掉帧崩，换 Jolt 物理后端（godot-jolt 插件）后能到约 200 只。<span class="src">（来源：Bright Coding 博客 https://blog.brightcoding.dev/2026/05/17/darkrewars-survivorsstarterkit-build-a-vampire-survivors-clone-in-godot-4-c）</span></li>
+</ul>
+
+<h2>第六部分 · 性能做法横向对比表</h2>
+<table>
+<tr><th>游戏</th><th>引擎</th><th>同屏上限</th><th>公开/查证到的性能手段</th><th>资料公开度</th></tr>
+<tr><td><b>吸血鬼幸存者</b></td><td>初代 Phaser 3（JS/HTML5）→ Unity</td><td>约 300 存活停刷，硬顶 500</td><td>图集合批（引擎自动）、对象池/视野外回收、简单碰撞体、直线 AI、低粒子特效、可关伤害数字/血迹</td><td>高（补丁+拆解+联机复盘）</td></tr>
+<tr><td><b>土豆兄弟</b></td><td>Godot</td><td><b>100 只，超出删怪</b></td><td>限数量优先于优化渲染（唯一公开硬规则）</td><td>中</td></tr>
+<tr><td><b>20 分钟直到黎明</b></td><td>未公开</td><td>未公开</td><td>能跑稳 60 帧，但具体技术未公开</td><td>低</td></tr>
+<tr><td><b>苦难殿堂</b></td><td><b>Godot（官方证实）</b></td><td>未公开</td><td>换新版 Godot 修 Vulkan 崩溃、性能修复、VSync</td><td>低</td></tr>
+<tr><td><b>灵魂石幸存者</b></td><td>Unity</td><td>未公开</td><td>重做模型 draw call 降 10 倍、经验碎片改粒子、重做伤害数字/血条/刷怪系统、高难关特效</td><td>高（补丁日志详细）</td></tr>
+<tr><td><b>魔法幸存者</b></td><td>Unity（手游）</td><td>有上限（无官方数字）</td><td>低配手机几百上千只怪会卡（反例）</td><td>低</td></tr>
+<tr><td><b>吸血鬼猎人</b></td><td>未公开</td><td>无（反例）</td><td>怪海导致帧率崩（反例）</td><td>低</td></tr>
+</table>
+
+<h2>第七部分 · 可提炼的通用设计规律</h2>
+
+<div class="box tip"><strong>说明：</strong>以下规律是对第二部分各款游戏事实的归纳，证据都在前面各条来源里；归纳本身不构成独立事实。</div>
+
+<h3>7.1 刷怪机制规律</h3>
+<ol>
+<li><strong>绝大多数成功作品是"时间驱动 + 写死的时间表"，不是动态 AI。</strong>VS 每分钟翻一次牌、Brotato 固定 20 波、HoT 精英按钟点、DDM 事件按时间轴——压力是设计者"写"出来的，玩家杀多快不改变剧本，只有灵魂石幸存者是靠击杀数推进的反例。</li>
+<li><strong>刷怪位置一律在玩家视野外一圈，怪自己走进来。</strong>屏幕边缘/视野外生成是 10 款游戏的共识（Vampire Hunters 的固定传送门是 FPS 特例），没有任何一款在玩家脚边刷。</li>
+<li><strong>同屏数量必须有硬上限。</strong>VS 约 300、Brotato 100、魔法幸存者有上限——上限既是性能刹车，也是难度天花板（"几百只封顶"之后压力靠怪变强来加，不靠无限变多）。</li>
+<li><strong>难度曲线是"多管齐下"的。</strong>数量↑ + 刷怪间隔↓ + 血量/速度随时间微涨 + 到点换更硬的怪种（骷髅→史莱姆→装甲怪）——单靠加血量会很快无聊。</li>
+<li><strong>精英/Boss 绑固定时间点当"里程碑"，奖励也绑在它们身上。</strong>VS 的宝箱（10 分钟前后青铜/白银）、HoT 的精英装备宝箱、DDM 的 Boss 局外资源、魔法幸存者的方尖碑——奖励不跟击杀数走，跟"打完硬仗"走，玩家就有了明确的中期目标。</li>
+<li><strong>喘息期有两条路线。</strong>离散派：波间商店/关卡结算（Brotato、Crimsonland）；连续派：软波硬波交替或升级弹窗暂停（VS、20MTD、HoT）。连续派不做真停顿，但一定会给"呼吸点"。</li>
+</ol>
+
+<h3>7.2 性能规律</h3>
+<ol>
+<li><strong>限数量是最便宜的第一道闸门</strong>（Brotato 100 只规则；VS 300/500 硬顶）——不写高级代码就有效。</li>
+<li><strong>对象池是"怪多不卡"的地基</strong>：VS 靠视野外回收、Godot 官方文档推荐摘/挂节点复用；反复 new/delete 会触发垃圾回收卡顿。</li>
+<li><strong>渲染靠"图集 + 共用材质 + 引擎合批"</strong>：Soulstone 重做模型让 draw call 降 10 倍、经验碎片改粒子；Godot 4.4+ 会自动 2D 合批，前提是你把图拼成一张大图、共用材质。</li>
+<li><strong>碰撞检测是隐形杀手</strong>：简单形状 + 空间粗筛（引擎自带 BVH）+ 屏幕外摘物理 + 降低检测频率；Soulstone 甚至重做了全部技能的碰撞系统。</li>
+<li><strong>特效/飘字要设上限且可关闭</strong>：VS 的伤害数字能关、粒子被持续砍、提供"Disable Blood"；Soulstone 高难模式主动关特效。反例（Vampire Hunters、魔法幸存者低配机）证明不做这些后期必崩。</li>
+</ol>
+
+<h2>第八部分 · 给你的实用建议（结合你目前的游戏设计）</h2>
+
+<div class="box">
+<strong>对照你的现状</strong>：你的游戏已经是"时间驱动"（12:00 最终 Boss、精英/小 Boss 固定分钟点）——方向是对的，和主流一致；怪物在地图边框内刷、带红色预警波次入场，也符合"不在脚边刷"的共识；你的文档里已经出现"对象池复用""普通怪物数量上限""批处理/空间分区/节流"等机制——底子很好。下面是结合本次调研的 5 条刷怪建议 + 5 条性能建议。
+</div>
+
+<h3>8.1 刷怪设计建议（5 条）</h3>
+<ol>
+<li><strong>先把一局做成一长条"写死的波次时间表"</strong>（每分钟/每 30 秒翻一次牌：出哪几种怪、几只、隔几秒一只）。所有标杆作品都这么做，你不用写"根据玩家强弱动态调难度"的 AI。<span class="src">（依据：VS 官方 Wiki 波次表 https://vampire-survivors.fandom.com/wiki/Mad_Forest）</span></li>
+<li><strong>用"软波/硬波交替"制造呼吸感</strong>：一波 50 只弱怪让你割草爽，下一波 10 只高血高伤硬怪逼你走位——这是 VS 在"无停手"节奏下的喘息方案，比硬加冷却更耐玩。<span class="src">（依据：DTF 拆解 https://dtf.ru/games/3821226-mekhanika-spavna-vragov-v-vampire-survivors）</span></li>
+<li><strong>把精英/Boss 当"时间路标"，奖励绑在它们身上</strong>：你已经有小 Boss 3:00/6:00/9:00、精英定点——可以再加一条"质变奖励线"（例如中期后 Boss 掉的可强化掉落，类似 VS 的 10 分钟白银宝箱），让玩家有明确的中期目标。<span class="src">（依据：VS 官方 Wiki《Treasure Chest》https://vampire-survivors.fandom.com/wiki/Treasure_Chest）</span></li>
+<li><strong>后期别只靠"怪更多"施压，要靠"怪更硬+间隔更短+换新怪种"</strong>：你的 N 层后期有生命/伤害线性增长、速度/密度封顶——这个封顶是对的，把压力转到"硬怪+弹幕+精英权重"上，避免变成纯数量堆叠。<span class="src">（依据：HoT Agony 机制官方补丁 https://steamdb.info/patchnotes/12570578/；你项目 05 文档的调参原则）</span></li>
+<li><strong>想引入"手速奖励"就学灵魂石幸存者的击杀数驱动，但作为变体而非主结构</strong>：可以在无尽模式里加一个"杀够 N 只提前触发精英/宝箱波"的支线，主线仍保持时间表——既奖励高效刷怪，又不丢节奏确定性。<span class="src">（依据：Soulstone 击杀数机制 https://www.gamerscout.io/games/soulstone-survivors）</span></li>
+</ol>
+
+<h3>8.2 性能建议（5 条，直接对应你之前的"技能命中多单位掉帧"问题）</h3>
+<ol>
+<li><strong>确认并坚持同屏上限</strong>：你文档里已有"普通怪物数量上限"——建议给一个明确的数字（参考 Brotato 100 / VS 300），到顶停刷普通怪，只让 Boss/事件照常出。<span class="src">（依据：Brotato 官方 Wiki https://brotato.wiki.spellsandguns.com/Enemies；VS 官方 Wiki https://vampire-survivors.fandom.com/wiki/Enemies）</span></li>
+<li><strong>把对象池推广到所有高频物体</strong>：你的文档已提到怪物对象池——把经验球、掉落物、伤害飘字、技能弹丸全部纳入"回收复用"（Godot 里就是 hide/show 或 remove_child/add_child，别 queue_free）。<span class="src">（依据：Godot 官方文档《CPU optimization》https://docs.godotengine.org/en/stable/tutorials/performance/cpu_optimization.html）</span></li>
+<li><strong>图集 + 共用材质，让 Godot 4.4+ 自动合批帮你干活</strong>：把所有怪、弹丸、特效切片拼进一张或几张 AtlasTexture 大图、共用同一材质；避免给每只怪独立材质/遮罩——这是"技能打一群怪"时 draw call 不暴涨的关键。<span class="src">（依据：Godot 官方文档《GPU optimization》https://docs.godotengine.org/en/4.7/tutorials/performance/gpu_optimization.html）</span></li>
+<li><strong>命中检测别用"每只怪两两互测"，用空间查询+批处理</strong>：你的文档里已有"批处理、空间分区或节流"方向——Godot 2D 物理自带 BVH 粗筛，配合 PhysicsDirectSpaceState2D 的空间查询（限制返回条数）按批结算；如果怪与怪的推挤还卡，可以不上逐对物理，改手写"格子+简单推离"，或换 godot-jolt 插件（第三方实测约 50 只→200 只）。<span class="src">（依据：Godot 官方文档《PhysicsDirectSpaceState2D》https://docs.godotengine.org/en/4.2/classes/class_physicsdirectspacestate2d.html；Bright Coding 实测 https://blog.brightcoding.dev/2026/05/17/darkrewars-survivorsstarterkit-build-a-vampire-survivors-clone-in-godot-4-c）</span></li>
+<li><strong>特效/飘字设上限、做 LOD、留开关</strong>：同屏怪多时按档位砍特效（怪 &lt;100 全特效、&gt;200 减半、&gt;300 只画必要的）；伤害飘字同屏设上限（如 50）；给玩家"低特效/关闭伤害数字"开关——这是 VS 和 Soulstone 都在做的。<span class="src">（依据：VS 1.6.0 补丁说明 https://gameupdatenotifier.com/g/vampire-survivors/v/1-6-0；Soulstone 官方补丁 https://steamdb.info/patchnotes/9944985/）</span></li>
+</ol>
+
+<h2>第九部分 · 完整参考来源列表（汇总）</h2>
+
+<h3>刷怪机制部分</h3>
+<ul class="src-list">
+<li>吸血鬼幸存者官方 Wiki（Fandom）：Enemies 页 https://vampire-survivors.fandom.com/wiki/Enemies ｜ Mad Forest 逐分钟波次表 https://vampire-survivors.fandom.com/wiki/Mad_Forest ｜ The Reaper https://vampire-survivors.fandom.com/wiki/The_Reaper ｜ Treasure Chest https://vampire-survivors.fandom.com/wiki/Treasure_Chest ｜ Curse https://vampire-survivors.fandom.com/wiki/Curse</li>
+<li>任天堂官方访谈（Luca Galante 谈 30 分钟设计）https://topics.nintendo.co.jp/article/3f3d9c44-6cc5-4197-a31b-1397f229c03b</li>
+<li>DTF 俄语拆解《Вскрытие механики спавна врагов в Vampire Survivors》https://dtf.ru/games/3821226-mekhanika-spavna-vragov-v-vampire-survivors</li>
+<li>Twinfinite 反编译分析（500 上限、粒子性能）https://twinfinite.net/guides/vampire-survivors-evolution-chart/ ｜ Destructoid（25 分钟 Hyper Boss）https://www.destructoid.com/how-to-unlock-hyper-mode-in-vampire-survivors/ ｜ Gameskinny（Bone Zone 实测数值）https://www.gameskinny.com/dg6f0/vampire-survivors-how-to-unlock-bone-zone ｜ rogueranker（血量/速度增长、无尽规则）https://rogueranker.com/vampire-survivors-bone-zone/ 等</li>
+<li>Brotato 官方 Wiki：Waves https://brotato.wiki.spellsandguns.com/Waves ｜ Enemies https://brotato.wiki.spellsandguns.com/Enemies ｜ Shop https://brotato.wiki.spellsandguns.com/index.php?oldid=7487&amp;title=Shop ｜ Endless https://brotato.wiki.spellsandguns.com/Endless_Mode；社区逐波拆解 Gameplay.tips https://gameplay.tips/guides/brotato-ultimate-guide-to-enemies-and-waves.html</li>
+<li>20MTD：韩国 Wiki thewiki.kr https://thewiki.kr/w/20%20Minutes%20Till%20Dawn ｜ HandWiki https://handwiki.org/wiki/Software:20_Minutes_Till_Dawn ｜ Epic 官方难度指南 https://store.epicgames.com/news/20-minutes-till-dawn-guide-how-to-survive-and-thrive-at-the-highest-difficulties ｜ 官方 1.0.2 更新日志 https://www.updatemonitor.com/app/3620890/news/1844115010495351 ｜ Steam 商店页 https://store.steampowered.com/app/1966900/20/</li>
+<li>Halls of Torment：NAGuide 全任务攻略 https://www.naguide.com/halls-of-torment-walkthrough-guide/ ｜ 官方补丁 2023-10-30（Agony/减速抗性）https://steamdb.info/patchnotes/12570578/ ｜ GamesAsylum 评测 https://www.gamesasylum.com/2025/10/28/halls-of-torment-review/ ｜ Prima Games（24 分钟 Imp Chieftain）https://primagames.com/gaming/how-to-defeat-the-imp-chieftain-and-unlock-ember-grounds-in-halls-of-torment ｜ Celxius https://celxiusgaming.com/halls-of-torment/ 等</li>
+<li>Soulstone Survivors：GamePressure（5 王/传送门/诅咒）https://www.gamepressure.com/newsroom/soulstone-survivors-overlord-mode-and-portals-explained/z14d09 ｜ Gamerscout https://www.gamerscout.io/games/soulstone-survivors ｜ FinalBoss 评测 https://finalboss.io/soulstone-survivors-1-0-launch-brings-power-fantasy ｜ GamePretty 速通攻略 https://gamepretty.com/soulstone-survivors-sub-8-sub-10-minutes-achievements-guide/ ｜ 诅咒列表 https://www.gamepressure.com/S013-amp.asp?ID=19608</li>
+<li>Magic Survival：日本 Wiki atwiki（概要/机制/深层波次表）https://w.atwiki.jp/magicsurvival/pages/52.html ｜ https://w.atwiki.jp/magicsurvival/pages/53.html ｜ https://w.atwiki.jp/magicsurvival/pages/185.html ｜ 韩国 Namu Wiki https://namu.moe/w/%EB%A7%A4%EC%A7%81%EC%84%9C%EB%B0%94%EC%9D%B4%EB%B2%8C ｜ bullethaven 评测 https://bullethaven.com/mobile-reviews/magic-survival</li>
+<li>Death Must Die：Celxius 新手指南 https://celxiusgaming.com/death-must-die/ ｜ 日文 Wiki https://dungeonrpgwiki.com/?Death+Must+Die+%E6%94%BB%E7%95%A5Wiki/%E5%88%9D%E5%BF%83%E8%80%85%E5%90%91%E3%81%91%E6%94%BB%E7%95%A5%E6%83%85%E5%A0%B1 ｜ GamePressure Boss 时间表 https://www.gamepressure.com/newsroom/death-must-die-bosses/z2665a ｜ 官方补丁 0.8.4（Darkness 数值）https://club.steam250.com/app/2334730</li>
+<li>Boneraiser Minions：官方补丁 #36 https://steamdb.info/patchnotes/13913812/ ｜ 官方 Steam 公告 https://store.steampowered.com/news/posts/?feed=steam_community_announcements&amp;enddate=1681127323 ｜ Jimquisition 评测 https://www.thejimquisition.com/post/boneraiser-minions-boning-up-review ｜ exophase 成就列表 https://www.exophase.com/game/boneraiser-minions-steam/achievements/</li>
+<li>Crimsonland：机制拆解站 crimson.banteg.xyz（Quest/Survival）https://crimson.banteg.xyz/mechanics/modes/quests/ ｜ https://crimson.banteg.xyz/mechanics/modes/survival/</li>
+<li>Vampire Hunters：Jimquisition 评测 https://www.thejimquisition.com/post/vampire-hunters-first-person-survivor-review ｜ 玩家长评（Lemmy）https://lemmy.world/post/34750724/18912674 ｜ 官方更新 https://store.steampowered.com/news/posts/?feed=steam_community_announcements&amp;enddate=1713200765</li>
+</ul>
+
+<h3>性能部分</h3>
+<ul class="src-list">
+<li>吸血鬼幸存者：Xbox Wire 官方技术文章 https://news.xbox.com/en-us/2023/04/13/vampire-survivors-dlc-2-launch/ ｜ Phaser 官方开发日志 https://phaser.io/devlogs/265 ｜ Phaser 官方教程（合批原理）https://phaser.io/tutorials/advanced-rendering-tutorial/part2 ｜ coherence 联机复盘 https://coherence.io/blog/tradecraft/vampire-survivors-online-coop-case-study ｜ DTF 拆解 https://dtf.ru/games/3821226-mekhanika-spavna-vragov-v-vampire-survivors ｜ Twinfinite https://twinfinite.net/guides/vampire-survivors-evolution-chart/ ｜ VS 1.6.0 补丁说明 https://gameupdatenotifier.com/g/vampire-survivors/v/1-6-0 ｜ Elotrolado 论坛（伤害数字）https://www.elotrolado.net/hilo_vampire-survivors_2452383 ｜ Game Developer 转述访谈 https://gamasutra.eu/design/vampire-survivors-development-sounds-like-an-open-source-fueled-fever-dream ｜ Nintendo Reporters（1.16.100）https://www.nintendoreporters.com/en/news/nintendo-switch-2/vampire-survivors-116100-live-now-with-legacy-of-the-bloodmoon-patch-notes/</li>
+<li>Brotato：Blobfish 官方博客 https://www.blobfish.dev/my-new-game-brotato/ ｜ 官方 Wiki Enemies（100 上限）https://brotato.wiki.spellsandguns.com/index.php?diff=cur&amp;oldid=8558&amp;title=Enemies</li>
+<li>20MTD：Winlator 游戏页 https://winlator.me/game/0/20-minutes-till-dawn/ ｜ CoreAPKs 评测 https://coreapks.com/apps/com_Flanne_MinutesTillDawn_roguelike_shooting_fr_gp</li>
+<li>Halls of Torment：官方 Steam 公告（Godot 重建/Vulkan）https://store.steampowered.com/news/posts/?feed=steam_community_announcements&amp;enddate=1694790549 ｜ FullCleared https://fullcleared.com/news/one-of-our-favorite-games-of-2024-gets-a-nice-update/</li>
+<li>Soulstone Survivors：SteamDB 补丁（模型重做/粒子）https://steamdb.info/patchnotes/24950092/ ｜ 官方 Steam 公告 2022-10 https://store.steampowered.com/news/posts/?feed=steam_community_announcements&amp;enddate=1666461334 ｜ SteamDB v0.9.028c https://steamdb.info/patchnotes/9944985/ ｜ 游侠网转载 https://3g.ali213.net/down/soulstonesurvivors.html</li>
+<li>魔法幸存者（反例）：Namu Wiki https://namu.moe/w/%EB%A7%A4%EC%A7%81%EC%84%9C%EB%B0%94%EC%9D%B4%EB%B2%8C ｜ uta-macross.jp https://uta-macross.jp/mobile-vansaba/</li>
+<li>Vampire Hunters（反例）：Jimquisition https://www.thejimquisition.com/post/vampire-hunters-first-person-survivor-review ｜ What's It Like? https://www.whatsitlike.com.au/vampire-hunters-switch-review/</li>
+<li>Godot 官方文档：MultiMesh https://docs.godotengine.org/en/stable/classes/class_multimesh.html ｜ MeshInstance2D https://docs.godotengine.org/en/4.7/classes/class_meshinstance2d.html ｜ GPU optimization（2D 合批）https://docs.godotengine.org/en/4.7/tutorials/performance/gpu_optimization.html ｜ CPU optimization（对象池/节点成本/物理）https://docs.godotengine.org/en/stable/tutorials/performance/cpu_optimization.html ｜ PhysicsDirectSpaceState2D https://docs.godotengine.org/en/4.2/classes/class_physicsdirectspacestate2d.html ｜ Performance https://docs.godotengine.org/es/stable/classes/class_performance.html ｜ 官方博客：4.6 dev 5（自动合批）https://godotengine.org/article/dev-snapshot-godot-4-6-dev-5/ ｜ Physics progress report #1（BVH）https://godotengine.org/article/physics-progress-report-1/ ｜ Using physics interpolation https://docs.godotengine.org/en/4.5/tutorials/physics/interpolation/using_physics_interpolation.html</li>
+<li>第三方实测（Godot 默认物理 vs Jolt）：Bright Coding https://blog.brightcoding.dev/2026/05/17/darkrewars-survivorsstarterkit-build-a-vampire-survivors-clone-in-godot-4-c</li>
+</ul>
+
+<div class="box">
+<strong>已知缺口（如实声明）：</strong>① VS 开发者 Luca Galante 亲口逐条讲性能手段的长访谈未能定位到原文，对象池/AI/碰撞结论来自官方补丁、Phaser 官方机制、coherence 联机复盘与拆解文章的交叉印证；② VS 是否使用四叉树/网格分区没有官方证据（依赖引擎自带粗筛）；③ 20MTD、HoT 内部是否用对象池/同屏上限未公开；④ "魔法幸存者玩家利用卡顿让怪刷不出来"仅有社区流传、未找到权威出处，未采信；⑤ 各游戏主线图的血量/速度精确公式多数未公开，报告中凡未注明公式处均未编造。
+</div>
+
+</body>
+</html>

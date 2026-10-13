@@ -8,7 +8,10 @@ static func apply_profile(enemy, kind: String, profile: Dictionary) -> void:
 	enemy.heavy_armor_remaining = 0.0
 	preload("res://scripts/enemies/enemy_heavy_armor_form.gd").sync_visual(enemy)
 	enemy.enemy_kind = kind
+	enemy.status_resistance = clampf(float(profile.get("status_resistance", 0.2 if kind in ["boss", "small_boss"] else 0.0)), 0.0, 1.0)
+	enemy.status_resistance_sources = []
 	enemy.archetype_id = str(profile.get("archetype", enemy.archetype_id))
+	preload("res://scripts/enemies/enemy_skull_mage.gd").reset(enemy)
 	enemy.heavy_armor_cooldown = preload("res://scripts/enemies/enemy_heavy_armor_form.gd").get_cooldown(enemy)
 	enemy.behavior_id = str(profile.get("behavior", enemy.behavior_id))
 	enemy.secondary_behavior_id = str(profile.get("secondary_behavior", ""))

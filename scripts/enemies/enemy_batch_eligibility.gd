@@ -23,6 +23,8 @@ static func can_batch(enemy) -> bool:
 static func get_ineligibility_reason(enemy) -> String:
 	if enemy == null:
 		return REASON_INACTIVE
+	if str(enemy.archetype_id) == "angry_porcupine":
+		return REASON_TIMED_TRAITS
 	if bool(enemy.pooled_inactive):
 		return REASON_INACTIVE
 	if str(enemy.enemy_kind) != "normal":

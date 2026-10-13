@@ -554,15 +554,17 @@ static func _build_role_options(owner, role_id: String, role_slot_index: int) ->
 
 static func _make_skill_upgrade_option(owner, role_id: String, role_slot_index: int, progress_id: String) -> Dictionary:
 	var level := PLAYER_SKILL_LEVEL_SYSTEM.get_skill_level(owner, role_id, progress_id)
-	if level <= 0:
+	if level <= 0 and not PLAYER_SKILL_LEVEL_SYSTEM.is_custom_basic(progress_id):
 		return {}
-	var next_level: int = mini(PLAYER_SKILL_LEVEL_SYSTEM.MAX_SKILL_LEVEL, level + 1)
+	var next_level: int = mini(9 if PLAYER_SKILL_LEVEL_SYSTEM.is_custom_basic(progress_id) else PLAYER_SKILL_LEVEL_SYSTEM.MAX_SKILL_LEVEL, level + 1)
 	var skill_title := PLAYER_SKILL_LEVEL_SYSTEM.get_progress_title(progress_id)
 	var role_name := _get_role_name(owner, role_id)
 	var build_id := "%s%s" % [SKILL_UPGRADE_BUILD_PREFIX, progress_id]
 	var summary := "%s 等级 +1：%d 级 → %d 级。" % [skill_title, level, next_level]
 	var preview := PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_upgrade_preview_text(owner, role_id, progress_id)
 	var upgrade_description := ("每级提升%s" % preview) if preview != "" else "每级提升该技能效果。"
+	if PLAYER_SKILL_LEVEL_SYSTEM.is_custom_basic(progress_id):
+		upgrade_description = "LV%d：%s" % [next_level, preview]
 	if preview != "":
 		summary += "升级效果：%s。" % preview
 	elif next_level <= PLAYER_SKILL_LEVEL_SYSTEM.TALENT_PICK_LEVEL and level < PLAYER_SKILL_LEVEL_SYSTEM.TALENT_PICK_LEVEL:

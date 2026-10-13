@@ -10,6 +10,13 @@ const GLOBAL_ENEMY_PROJECTILE_DAMAGE_MULTIPLIER := 2.0
 
 
 static func spawn_configured_enemy_at_position(main: Node, kind: String, archetype: String, health_multiplier: float, speed_multiplier: float, spawn_position: Vector2, damage_multiplier: float = 1.0) -> Node2D:
+	if archetype == "necro_priest":
+		var priest := preload("res://scripts/enemies/enemy_necro_priest.gd")
+		if priest.living(main).size() >= priest.LIMIT:
+			return null
+		spawn_position = priest.spawn_position(main)
+	if archetype == "skull_mage" and not preload("res://scripts/enemies/enemy_skull_mage.gd").can_spawn(main):
+		return null
 	if kind == "normal" and main.has_method("_can_spawn_runtime_group") and not bool(main._can_spawn_runtime_group("enemies", main.ENEMY_SPAWN_FLOW.get_runtime_enemy_limit(main))):
 		return null
 	var enemy: Variant = take_enemy_from_pool(main, kind)

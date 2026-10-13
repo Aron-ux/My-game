@@ -81,6 +81,11 @@ static func _compact_group(root: Node, group_name: String, hard_limit: int, targ
 static func _merge_exp_gem(target: Node, source: Node) -> void:
 	var source_value: int = int(source.get("value"))
 	var source_tier: int = int(source.get("tier"))
+	# Compaction must not strand experience already pulled by a vacuum pickup.
+	if bool(source.get("attraction_active")) and target.has_method("set_attraction_target"):
+		var attraction_target: Variant = source.get("attraction_target_node")
+		if is_instance_valid(attraction_target):
+			target.set_attraction_target(attraction_target)
 	if target.has_method("merge_pickup_value"):
 		target.merge_pickup_value(source_value, source_tier)
 		return

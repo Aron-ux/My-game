@@ -31,6 +31,9 @@ static func tick(enemy, delta: float) -> void:
 	if delta <= 0.0:
 		return
 	enemy.runner_haste_remaining = maxf(0.0, enemy.runner_haste_remaining - delta)
+	if enemy.stun_remaining > 0.0:
+		enemy.runner_haste_cooldown = maxf(0.0, enemy.runner_haste_cooldown - delta)
+		return
 	var next_cooldown: float = enemy.runner_haste_cooldown - delta
 	if next_cooldown > 0.0:
 		enemy.runner_haste_cooldown = next_cooldown

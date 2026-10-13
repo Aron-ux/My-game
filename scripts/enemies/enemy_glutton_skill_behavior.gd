@@ -431,7 +431,7 @@ static func _damage_player_in_shape(enemy, shape: Dictionary, damage: float, loc
 	if not _is_inside_ellipse(target_node.global_position, shape):
 		return false
 	if lock_player and enemy.target.has_method("_lock_player_actions"):
-		enemy.target._lock_player_actions(TWINE_LOCK_DURATION)
+		enemy.target._lock_player_actions(preload("res://scripts/combat/status_resistance.gd").duration(enemy.target, TWINE_LOCK_DURATION))
 		if enemy.target.has_method("_start_entangled_status"):
 			enemy.target._start_entangled_status(TWINE_LOCK_DURATION)
 	if enemy.target.has_method("take_damage"):
@@ -493,12 +493,12 @@ static func _lock_player_in_twine_shape(enemy, shape: Dictionary) -> bool:
 	if not _is_inside_ellipse(target_node.global_position, shape):
 		return false
 	if enemy.target.has_method("_lock_player_actions"):
-		enemy.target._lock_player_actions(TWINE_LOCK_DURATION)
+		enemy.target._lock_player_actions(preload("res://scripts/combat/status_resistance.gd").duration(enemy.target, TWINE_LOCK_DURATION))
 	if enemy.target.has_method("_start_entangled_status"):
 		enemy.target._start_entangled_status(TWINE_LOCK_DURATION)
 	if enemy.glutton_entangle_damage_remaining <= 0.0:
 		enemy.glutton_entangle_damage_elapsed = 0.0
-	enemy.glutton_entangle_damage_remaining = TWINE_LOCK_DURATION
+	enemy.glutton_entangle_damage_remaining = preload("res://scripts/combat/status_resistance.gd").duration(enemy.target, TWINE_LOCK_DURATION)
 	return true
 
 

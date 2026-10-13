@@ -51,7 +51,7 @@ func _run() -> void:
 
 
 func _check_core_stats(panel: Node, player: Node) -> void:
-	var labels := ["生命值", "攻击力", "基础攻击速度", "普通攻速", "护甲", "移动速度", "闪避率", "减伤率", "暴击率", "暴击伤害", "增伤", "生命回复", "冷却缩减"]
+	var labels := ["生命值", "攻击力", "基础攻击速度", "普通攻速", "护甲", "状态抗性", "移动速度", "闪避率", "减伤率", "暴击率", "暴击伤害", "增伤", "生命回复", "冷却缩减"]
 	for role in player.roles:
 		var text: String = panel._build_stats_text(role)
 		var lines := text.split("\n")
@@ -134,14 +134,14 @@ func _check_skill_tree_content(panel: Node) -> void:
 
 	detail = panel.find_child("SkillTreeDetail", true, false)
 	var text := _collect_text(detail)
-	for title in ["普通攻击", "技能等级：Lv.9 / 10", "天赋位 I", "天赋位 II"]:
+	for title in ["普通攻击", "普通攻击 LV8 / 9", "升级保留已选强化"]:
 		_expect(text.contains(title), "basic attack tree should show %s" % title)
 	_expect(
 		not text.contains("当前路径") and not text.contains("阶段 I") and not text.contains("质变后续升级"),
 		"skill build detail should no longer show the old three-stage path"
 	)
 	_expect(
-		_compact(text).contains("技能等级：Lv.9/10"),
+		_compact(text).contains("普通攻击LV8/9"),
 		"basic attack tree should keep the concrete skill level readout"
 	)
 	var header_instance_id := panel.find_child("SkillTreeHeader", true, false).get_instance_id()

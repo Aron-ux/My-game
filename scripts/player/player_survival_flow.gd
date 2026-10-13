@@ -125,6 +125,8 @@ static func physics_process(owner, delta: float) -> void:
 static func is_movement_locked(owner) -> bool:
 	if owner == null:
 		return false
+	if preload("res://scripts/player/player_vine_entangle.gd").get_remaining(owner) > 0.0:
+		return true
 	if owner.has_method("_is_player_action_locked") and owner._is_player_action_locked():
 		return true
 	return PLAYER_ABILITY_FLOW.is_gunner_infinite_reload_movement_locked(owner)
@@ -256,6 +258,11 @@ static func collect_nearby_gems(owner) -> void:
 	if owner.has_method("_get_attribute_pickup_range_bonus"):
 		effective_pickup_radius += float(owner._get_attribute_pickup_range_bonus())
 	var pickup_radius_squared: float = effective_pickup_radius * effective_pickup_radius
+	for vacuum in _get_runtime_pickups_near(owner, "experience_vacuum_pickups", attract_center, effective_pickup_radius):
+		if not is_instance_valid(vacuum) or vacuum.is_queued_for_deletion():
+			continue
+		if attract_center.distance_squared_to(vacuum.global_position) <= pickup_radius_squared:
+			vacuum.collect(owner)
 	var gems: Array = _get_runtime_pickups_near(owner, "exp_gems", attract_center, max(attract_radius, absorb_radius))
 	var gem_count: int = gems.size()
 	var gem_cursor := int(owner.get_meta(PICKUP_SCAN_CURSOR_KEY, 0)) if owner.has_meta(PICKUP_SCAN_CURSOR_KEY) else 0
@@ -434,6 +441,7 @@ static func take_damage(owner, amount: float, source_enemy: Node = null, ignore_
 	owner.current_health = max(0.0, owner.current_health - remaining_damage)
 	preload("res://scripts/player/player_blindness.gd").on_enemy_damage(owner, source_enemy, adjusted_damage)
 	preload("res://scripts/player/player_plague_flow.gd").on_enemy_damage(owner, source_enemy, adjusted_damage)
+	preload("res://scripts/player/player_vine_entangle.gd").on_damage(owner, source_enemy, adjusted_damage)
 	if adjusted_damage > 0.0 and owner.get("gunner_role") != null and owner.gunner_role.has_method("handle_damage_taken"):
 		owner.gunner_role.handle_damage_taken(owner)
 	if adjusted_damage > 0.0 and owner.has_method("_break_gunner_flash_trait"):
@@ -559,6 +567,9 @@ static func _show_gunner_flash_immunity_tag(owner) -> void:
 
 
 static func apply_enemy_slow(owner, multiplier: float, duration: float) -> void:
+	duration = preload("res://scripts/combat/status_resistance.gd").duration(owner, duration)
+	if duration <= 0.0:
+		return
 	if owner.has_method("_is_status_immune") and owner._is_status_immune():
 		return
 	owner.enemy_move_slow_multiplier = min(owner.enemy_move_slow_multiplier, clamp(multiplier, 0.15, 1.0))

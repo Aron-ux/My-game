@@ -1,20 +1,22 @@
 extends PanelContainer
 
 const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
-const DEVELOPER_OPTION_PROVIDER := preload("res://scripts/developer/developer_option_provider.gd")
 const PERFORMANCE_MONITOR := preload("res://scripts/game/performance_monitor.gd")
 const SURVIVORS_THEME := preload("res://scripts/ui/theme/survivors_ui_theme.gd")
+const CATALOG_PANEL := preload("res://scripts/developer/developer_catalog_panel.gd")
+signal catalog_action_requested(request: Dictionary)
+var catalog_tabs: TabContainer
+var catalogs: Dictionary = {}
+var collapsed := false
+var collapse_button: Button
+var menu_title: Label
+var menu_body: Control
 
 signal level_up_requested
 signal boss_spawn_requested(archetype_id: String)
 signal small_boss_spawn_requested(archetype_id: String)
 signal normal_enemy_batch_spawn_requested(archetype_id: String, count: int)
 signal enemy_spawn_requested(kind: String, archetype_id: String, count: int)
-signal skill_unlock_requested(skill_id: String, tier: int)
-signal skill_talent_grant_requested(talent_id: String)
-signal blessing_grant_requested(blessing_id: String, tier: int)
-signal all_blessings_grant_requested
-signal ruan_stone_action_requested(action_id: String)
 signal enemy_detail_display_toggled(enabled: bool)
 signal glutton_skill_test_requested(skill_id: String)
 signal endless_tier_test_requested(tier: int)
@@ -27,13 +29,8 @@ var endless_tier_spin: SpinBox
 var enemy_menu_popup: PanelContainer
 var enemy_list: VBoxContainer
 var glutton_skill_list: VBoxContainer
-var skill_list: VBoxContainer
-var blessing_list: VBoxContainer
-var ruan_stone_list: VBoxContainer
 var performance_label: Label
 var enemy_detail_display_enabled: bool = false
-var cached_skill_options: Array = []
-var skill_options_initialized: bool = false
 
 
 func _ready() -> void:
@@ -41,10 +38,10 @@ func _ready() -> void:
 	anchor_top = 0.0
 	anchor_right = 1.0
 	anchor_bottom = 0.0
-	offset_left = -280.0
-	offset_top = 96.0
+	offset_left = -660.0
+	offset_top = 60.0
 	offset_right = -18.0
-	offset_bottom = 720.0
+	offset_bottom = 680.0
 
 	add_theme_stylebox_override("panel", SURVIVORS_THEME.panel_style(Color(0.16, 0.08, 0.08, 0.84), Color(1.0, 0.54, 0.42, 0.92), 2, 10, 12.0))
 
@@ -52,15 +49,40 @@ func _ready() -> void:
 	content.add_theme_constant_override("separation", 8)
 	add_child(content)
 
-	var title := Label.new()
-	title.text = "开发者选项"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 18)
-	content.add_child(title)
+	menu_title = Label.new()
+	menu_title.text = "开发者选项"
+	menu_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	menu_title.add_theme_font_size_override("font_size", 18)
+	content.add_child(menu_title)
+	collapse_button = _build_button("收起菜单", Vector2(120, 36), 16)
+	content.add_child(collapse_button)
+	collapse_button.pressed.connect(_toggle_collapsed)
 
-	_build_top_buttons(content)
-	_build_scroll_content(content)
+	menu_body = Control.new()
+	menu_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	menu_body.clip_contents = true
+	content.add_child(menu_body)
+	_build_scroll_content(menu_body)
+	catalog_tabs.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	refresh_mode_buttons()
+	get_viewport().size_changed.connect(_fit_viewport)
+	_fit_viewport()
+
+func _toggle_collapsed() -> void:
+	collapsed = not collapsed
+	_hide_enemy_menu()
+	menu_title.visible = not collapsed
+	menu_body.visible = not collapsed
+	collapse_button.text = "展开菜单" if collapsed else "收起菜单"
+	_fit_viewport()
+
+
+func _fit_viewport() -> void:
+	var viewport_size := get_viewport_rect().size
+	offset_left = -minf(160.0 if collapsed else 660.0, viewport_size.x - 16.0)
+	offset_top = 16.0
+	offset_right = -16.0
+	offset_bottom = 76.0 if collapsed else minf(680.0, viewport_size.y - 16.0)
 
 
 func refresh_mode_buttons() -> void:
@@ -93,22 +115,6 @@ func set_normal_enemy_options(_options: Array) -> void:
 
 func set_enemy_options(options: Array) -> void:
 	_populate_enemy_option_list(options)
-
-
-func set_skill_options(options: Array) -> void:
-	if skill_options_initialized and cached_skill_options == options:
-		return
-	skill_options_initialized = true
-	cached_skill_options = options.duplicate(true)
-	_populate_option_list(skill_list, options, "暂无技能选项", Callable(self, "_on_skill_button_pressed"))
-
-
-func set_blessing_options(options: Array) -> void:
-	_populate_option_list(blessing_list, options, "暂无祝福选项", Callable(self, "_on_blessing_button_pressed"))
-
-
-func set_ruan_stone_options(options: Array) -> void:
-	_populate_option_list(ruan_stone_list, options, "暂无阮石调试选项", Callable(self, "_on_ruan_stone_button_pressed"))
 
 
 func update_performance_metrics(metrics: Dictionary) -> void:
@@ -151,26 +157,41 @@ func _build_top_buttons(parent: Control) -> void:
 	enemy_detail_button.pressed.connect(_on_enemy_detail_button_pressed)
 	parent.add_child(enemy_detail_button)
 	_refresh_enemy_detail_button_text()
+	for entry in [["临时骨头 +100", "add"], ["清空临时骨头", "clear"]]:
+		var button := _build_button(entry[0], Vector2(220, 36), 15)
+		button.pressed.connect(func(): catalog_action_requested.emit({"kind": "bones", "operation": entry[1], "amount": 100}))
+		parent.add_child(button)
 
 
 func _build_scroll_content(parent: Control) -> void:
+	catalog_tabs = TabContainer.new()
+	catalog_tabs.tab_changed.connect(func(_index): _hide_enemy_menu())
+	catalog_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	catalog_tabs.custom_minimum_size.y = 0
+	parent.add_child(catalog_tabs)
+	for entry in [["blessing", "祝福"], ["skill", "角色 build"], ["item", "商店物品"]]:
+		var page := CATALOG_PANEL.new()
+		page.kind = entry[0]
+		page.name = entry[1]
+		catalog_tabs.add_child(page)
+		catalogs[entry[0]] = page
+		page.action_requested.connect(func(request): catalog_action_requested.emit(request))
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(230.0, 480.0)
+	scroll.name = "战斗调试"
+	scroll.custom_minimum_size = Vector2(230.0, 400.0)
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	parent.add_child(scroll)
+	catalog_tabs.add_child(scroll)
 
 	var menu_content := VBoxContainer.new()
 	menu_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	menu_content.add_theme_constant_override("separation", 8)
 	scroll.add_child(menu_content)
 
+	_build_top_buttons(menu_content)
 	_build_enemy_menu_button(menu_content)
-	glutton_skill_list = _add_menu_section(menu_content, "Glutton Skill Test")
+	glutton_skill_list = _add_menu_section(menu_content, "幽影树人技能测试")
 	_populate_glutton_skill_list()
-	ruan_stone_list = _add_menu_section(menu_content, "阮狗石头调试")
-	blessing_list = _add_menu_section(menu_content, "添加祝福")
-	skill_list = _add_menu_section(menu_content, "添加技能 / 等级天赋")
 
 	performance_label = Label.new()
 	performance_label.text = "Performance: collecting..."
@@ -179,6 +200,9 @@ func _build_scroll_content(parent: Control) -> void:
 	performance_label.modulate = Color(0.8, 0.95, 1.0, 0.95)
 	menu_content.add_child(performance_label)
 
+func set_catalog_data(data: Dictionary) -> void:
+	for kind in catalogs:
+		catalogs[kind].set_catalog(data.get(kind, []))
 
 func _build_enemy_menu_button(parent: Control) -> void:
 	var button := _build_button("添加敌人  <", Vector2(220.0, 40.0), 16, "primary")
@@ -208,16 +232,9 @@ func _ensure_enemy_menu_popup() -> void:
 		return
 	enemy_menu_popup = PanelContainer.new()
 	enemy_menu_popup.visible = false
-	enemy_menu_popup.anchor_left = 0.0
-	enemy_menu_popup.anchor_top = 0.0
-	enemy_menu_popup.anchor_right = 0.0
-	enemy_menu_popup.anchor_bottom = 0.0
-	enemy_menu_popup.offset_left = -250.0
-	enemy_menu_popup.offset_top = 24.0
-	enemy_menu_popup.offset_right = -10.0
-	enemy_menu_popup.offset_bottom = 540.0
 	enemy_menu_popup.add_theme_stylebox_override("panel", SURVIVORS_THEME.panel_style(Color(0.08, 0.06, 0.05, 0.9), Color(1.0, 0.72, 0.42, 0.92), 2, 10, 10.0))
-	add_child(enemy_menu_popup)
+	menu_body.add_child(enemy_menu_popup)
+	enemy_menu_popup.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var popup_content := VBoxContainer.new()
 	popup_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -231,7 +248,8 @@ func _ensure_enemy_menu_popup() -> void:
 	popup_content.add_child(back_button)
 
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(230.0, 440.0)
+	scroll.custom_minimum_size = Vector2(230.0, 0.0)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	popup_content.add_child(scroll)
@@ -259,9 +277,9 @@ func _populate_enemy_option_list(options: Array) -> void:
 
 func _populate_glutton_skill_list() -> void:
 	var options: Array = [
-		{"id": "war_stomp", "title": "War Stomp", "description": "Force the 7 second war stomp state."},
-		{"id": "death_twine", "title": "Death Twine", "description": "Force the player-targeted entangle skill."},
-		{"id": "wood_spike", "title": "Wood Spike", "description": "Force five random wood spike warnings."}
+		{"id": "war_stomp", "title": "战争践踏", "description": "强制施放当前版本的战争践踏。"},
+		{"id": "death_twine", "title": "缠绕", "description": "强制对玩家施放缠绕。"},
+		{"id": "wood_spike", "title": "木刺", "description": "强制施放木刺。"}
 	]
 	_populate_option_list(glutton_skill_list, options, "No glutton skill test options", Callable(self, "_on_glutton_skill_button_pressed"))
 
@@ -311,7 +329,7 @@ func _populate_option_list(list: VBoxContainer, options: Array, empty_text: Stri
 		button.add_theme_font_size_override("font_size", 14)
 		var title: String = str(option.get("title", option.get("id", "未命名选项")))
 		var option_id: String = str(option.get("id", ""))
-		button.text = "%s\n%s" % [title, option_id]
+		button.text = title
 		button.tooltip_text = str(option.get("description", ""))
 		button.disabled = not bool(option.get("enabled", true))
 		SURVIVORS_THEME.apply_card_button_style(button, false, false, button.disabled)
@@ -369,37 +387,6 @@ func _on_normal_enemy_button_pressed(archetype_id: String) -> void:
 	if archetype_id == "":
 		return
 	normal_enemy_batch_spawn_requested.emit(archetype_id, 1)
-
-
-func _on_skill_button_pressed(option_id: String) -> void:
-	if option_id.begins_with(DEVELOPER_OPTION_PROVIDER.SKILL_TALENT_OPTION_PREFIX):
-		skill_talent_grant_requested.emit(option_id.trim_prefix(DEVELOPER_OPTION_PROVIDER.SKILL_TALENT_OPTION_PREFIX))
-		return
-	var parts: PackedStringArray = option_id.split(":")
-	if parts.size() < 2:
-		return
-	var skill_id: String = str(parts[0])
-	var tier: int = max(1, int(parts[1]))
-	if skill_id != "":
-		skill_unlock_requested.emit(skill_id, tier)
-
-
-func _on_blessing_button_pressed(option_id: String) -> void:
-	if option_id == DEVELOPER_OPTION_PROVIDER.ALL_BLESSINGS_OPTION_ID:
-		all_blessings_grant_requested.emit()
-		return
-	var parts: PackedStringArray = option_id.split(":")
-	if parts.size() < 2:
-		return
-	var blessing_id: String = str(parts[0])
-	var tier: int = max(1, int(parts[1]))
-	if blessing_id != "":
-		blessing_grant_requested.emit(blessing_id, tier)
-
-
-func _on_ruan_stone_button_pressed(option_id: String) -> void:
-	if option_id.begins_with(DEVELOPER_OPTION_PROVIDER.RUAN_STONE_OPTION_PREFIX):
-		ruan_stone_action_requested.emit(option_id.trim_prefix(DEVELOPER_OPTION_PROVIDER.RUAN_STONE_OPTION_PREFIX))
 
 
 func _on_glutton_skill_button_pressed(option_id: String) -> void:

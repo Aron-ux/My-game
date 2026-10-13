@@ -8,7 +8,7 @@ const PlayerSkillTalentSystem := preload("res://scripts/player/player_skill_tale
 const PlayerSkillLevelSystem := preload("res://scripts/player/player_skill_level_system.gd")
 const RoleAttributeRules := preload("res://scripts/player/roles/role_attribute_rules.gd")
 const RoleDatabase := preload("res://scripts/player/roles/role_database.gd")
-const DeveloperOptionProvider := preload("res://scripts/developer/developer_option_provider.gd")
+const DeveloperBuildTools := preload("res://scripts/developer/developer_build_tools.gd")
 
 var failures: Array[String] = []
 
@@ -633,12 +633,12 @@ func _check_developer_blessing_options_count_shared_blessings() -> void:
 	var role_option: Dictionary = _find_developer_blessing_option(owner, "divine_grace:1")
 	if int(role_option.get("tier", 0)) != 1:
 		failures.append("developer blessing option should include role-bound blessing")
-	if not str(role_option.get("title", "")).contains("x1"):
-		failures.append("developer role-bound blessing option should display shared count x1, got %s" % str(role_option.get("title", "")))
+	if int(role_option.get("count", 0)) != 1:
+		failures.append("developer role-bound blessing option should expose shared count")
 	PlayerBlessingSystem.apply_blessing(owner, "tide_rain", 1, false)
 	var skill_option: Dictionary = _find_developer_blessing_option(owner, "tide_rain:1")
-	if not str(skill_option.get("title", "")).contains("x1"):
-		failures.append("developer skill-bound blessing option should display count x1, got %s" % str(skill_option.get("title", "")))
+	if not skill_option.is_empty():
+		failures.append("developer menu must exclude legacy skill blessings")
 
 
 func _has_role_build_option(options: Array, build_id: String) -> bool:
@@ -656,9 +656,10 @@ func _find_role_build_option(options: Array, build_id: String) -> Dictionary:
 
 
 func _find_developer_blessing_option(owner, option_id: String) -> Dictionary:
-	for option in DeveloperOptionProvider.get_blessing_options(owner):
-		if option is Dictionary and str((option as Dictionary).get("id", "")) == option_id:
-			return option
+	for option in DeveloperBuildTools.blessing_catalog(owner):
+		for tier in option["tiers"]:
+			if "%s:%d" % [option["id"], tier["tier"]] == option_id:
+				return tier
 	return {}
 
 

@@ -1212,17 +1212,20 @@ func _is_status_immune() -> bool:
 	return switch_invulnerability_remaining > 0.0
 
 func apply_healing_block(duration: float) -> void:
+	duration = preload("res://scripts/combat/status_resistance.gd").duration(self, duration)
 	healing_block_remaining = max(healing_block_remaining, max(0.0, duration))
 
 func is_healing_blocked() -> bool:
 	return healing_block_remaining > 0.0 or preload("res://scripts/enemies/skulltomb_domain_effect.gd").get_remaining(self) > 0.0
 
 func apply_aging(duration: float) -> void:
+	duration = preload("res://scripts/combat/status_resistance.gd").duration(self, duration)
 	if _is_status_immune():
 		return
 	aging_remaining = max(aging_remaining, max(0.0, duration))
 
 func apply_confinement(center: Vector2, radius: float, duration: float, polygon: PackedVector2Array = PackedVector2Array()) -> void:
+	duration = preload("res://scripts/combat/status_resistance.gd").duration(self, duration)
 	if _is_status_immune():
 		return
 	confinement_center = center
@@ -2067,6 +2070,7 @@ func _sync_orbit_pull_status(remaining: float, _pull_origin: Vector2) -> void:
 	_sync_duration_status("orbit_pull", "牵引", remaining, 80, Color(0.22, 0.14, 0.28, 0.95))
 
 func _start_entangled_status(duration: float) -> void:
+	duration = preload("res://scripts/combat/status_resistance.gd").duration(self, duration)
 	if _is_status_immune():
 		return
 	_start_duration_status("entangled", "缠绕", duration, 100, Color(0.56, 0.56, 0.56, 0.95))
@@ -2686,3 +2690,6 @@ func _build_arc_band_polygon(outer_radius: float, inner_radius: float, arc_degre
 
 func _die() -> void:
 	PLAYER_RESOURCE_FLOW.die(self)
+
+func get_status_resistance(role_id: String = "") -> float:
+	return preload("res://scripts/combat/status_resistance.gd").total(self, role_id)

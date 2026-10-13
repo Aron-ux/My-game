@@ -1,8 +1,12 @@
 extends RefCounted
+const MAGE_BASIC_BUILD := preload("res://scripts/player/player_mage_basic_build.gd")
+const STORM_BUILD := preload("res://scripts/player/player_blade_storm_build.gd")
 
 const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
+const SWORDSMAN_BASIC_BUILD := preload("res://scripts/player/player_swordsman_basic_build.gd")
+const GUNNER_BASIC_BUILD := preload("res://scripts/player/player_gunner_basic_build.gd")
 
-## 技能等级系统：每个技能线 1~10 级，5 级开放天赋位选择，10 级自动补齐另一个天赋位。
+## 技能等级系统：普通技能线 1~10 级；剑士普攻独立使用 LV0~9 与三个阶段强化选择。
 const MAX_SKILL_LEVEL := 10
 const TALENT_PICK_LEVEL := 5
 const TALENT_AUTO_LEVEL := 10
@@ -93,6 +97,8 @@ static func get_skill_level(owner, role_id: String, progress_id: String) -> int:
 		return 0
 	if not is_progress_unlocked(owner, progress_id):
 		return 0
+	if is_custom_basic(progress_id):
+		return basic_build(progress_id).level(owner)
 	var state := _get_role_state(owner, role_id)
 	var levels: Dictionary = state.get(SKILL_LEVELS_KEY, {}) if state.get(SKILL_LEVELS_KEY, {}) is Dictionary else {}
 	return clampi(int(levels.get(progress_id, 1)), 1, MAX_SKILL_LEVEL)
@@ -125,7 +131,9 @@ static func is_progress_upgradeable(owner, progress_id: String) -> bool:
 		return false
 	if not is_progress_unlocked(owner, progress_id):
 		return false
-	return get_skill_level(owner, _resolve_progress_role_id(progress_id), progress_id) < MAX_SKILL_LEVEL
+	var role_id := _resolve_progress_role_id(progress_id)
+	var max_level := 9 if is_custom_basic(progress_id) else MAX_SKILL_LEVEL
+	return get_skill_level(owner, role_id, progress_id) < max_level
 
 
 static func get_upgradeable_progress_ids(owner, role_id: String) -> Array:
@@ -145,11 +153,14 @@ static func add_skill_level(owner, role_id: String, progress_id: String, amount:
 	if not is_progress_unlocked(owner, progress_id):
 		return {}
 	var current_level := get_skill_level(owner, role_id, progress_id)
-	if current_level <= 0 or current_level >= MAX_SKILL_LEVEL:
+	var max_level := 9 if is_custom_basic(progress_id) else MAX_SKILL_LEVEL
+	if (current_level <= 0 and not is_custom_basic(progress_id)) or current_level >= max_level:
 		return {}
 	var state := _get_role_state(owner, role_id)
 	var levels: Dictionary = state.get(SKILL_LEVELS_KEY, {}) if state.get(SKILL_LEVELS_KEY, {}) is Dictionary else {}
-	var next_level: int = mini(MAX_SKILL_LEVEL, current_level + maxi(1, amount))
+	var next_level: int = mini(max_level, current_level + maxi(1, amount))
+	if is_custom_basic(progress_id):
+		state[basic_build(progress_id).STATE_KEY] = basic_build(progress_id).choices(owner).duplicate()
 	levels[progress_id] = next_level
 	state[SKILL_LEVELS_KEY] = levels
 	_set_role_state(owner, role_id, state)
@@ -161,7 +172,7 @@ static func add_skill_level(owner, role_id: String, progress_id: String, amount:
 		"progress_title": get_progress_title(progress_id),
 		"previous_level": current_level,
 		"level": next_level,
-		"maxed": next_level >= MAX_SKILL_LEVEL,
+		"maxed": next_level >= max_level,
 		"pending_talent": pending_opened
 	}
 
@@ -197,6 +208,10 @@ static func has_talent_slot(owner, role_id: String, progress_id: String, slot: i
 
 
 static func is_talent_pick_pending(owner, role_id: String, progress_id: String) -> bool:
+	if not is_progress_unlocked(owner, progress_id):
+		return false
+	if is_custom_basic(progress_id):
+		return basic_build(progress_id).pending_stage(owner) > 0
 	var level := get_skill_level(owner, role_id, progress_id)
 	if level < TALENT_PICK_LEVEL:
 		return false
@@ -220,7 +235,7 @@ static func get_pending_talent_picks(owner) -> Array:
 				"progress_id": progress_id,
 				"progress_title": get_progress_title(progress_id),
 				"skill_level": get_skill_level(owner, role_id, progress_id),
-				"trigger_level": TALENT_PICK_LEVEL
+				"trigger_level": basic_build(progress_id).pending_stage(owner) if is_custom_basic(progress_id) else TALENT_PICK_LEVEL
 			})
 	return result
 
@@ -242,6 +257,23 @@ static func build_talent_offer_for(owner, role_id: String, progress_id: String) 
 		return {}
 	if not is_talent_pick_pending(owner, role_id, progress_id):
 		return {}
+	if is_custom_basic(progress_id):
+		var stage: int = basic_build(progress_id).pending_stage(owner)
+		var build_options: Array = []
+		for index in range(2):
+			var definition: Dictionary = basic_build(progress_id).OPTIONS[stage][index]
+			build_options.append({
+				"id": "%s%s:%d:%d" % [OPTION_PREFIX, role_id, stage, index + 1],
+				"offer_key": "%s:%d:%d" % [progress_id, stage, index + 1],
+				"option_category": CATEGORY_SKILL_LEVEL_TALENT,
+				"role_id": role_id, "skill_progress_id": progress_id,
+				"talent_slot": index + 1, "talent_stage": stage,
+				"title": definition["title"], "card_title": definition["title"],
+				"summary": definition["description"], "short_description": definition["description"],
+				"description": definition["description"], "preview_description": definition["description"],
+				"detail_description": definition["description"], "exact_description": definition["description"]
+			})
+		return {"options": build_options, "context": {"offer_mode": CATEGORY_SKILL_LEVEL_TALENT, "skill_talent_offer": true, "skill_level_talent_offer": true, "selection_count": 1, "role_id": role_id, "skill_progress_id": progress_id, "swordsman_basic_stage": stage, "summary": "%s LV%d 强化：请选择一项。" % [get_progress_title(progress_id), stage]}}
 	var progress_title := get_progress_title(progress_id)
 	var skill_level := get_skill_level(owner, role_id, progress_id)
 	var options: Array = []
@@ -288,6 +320,11 @@ static func apply_option_with_result(owner, option_id: String, current_offer: Di
 	var role_id := str(offered.get("role_id", ""))
 	var progress_id := str(offered.get("skill_progress_id", ""))
 	var slot := int(offered.get("talent_slot", 0))
+	if is_custom_basic(progress_id):
+		var stage := int(offered.get("talent_stage", 0))
+		if basic_build(progress_id).choose(owner, stage, slot):
+			return {"type": CATEGORY_SKILL_LEVEL_TALENT, "role_id": role_id, "progress_id": progress_id, "talent_stage": stage, "talent_slot": slot, "title": str(offered.get("title", ""))}
+		return {}
 	if not is_talent_pick_pending(owner, role_id, progress_id):
 		return {}
 	if slot < 1 or slot > TALENT_SLOT_COUNT:
@@ -331,7 +368,7 @@ static func get_role_summary_text(owner, role_id: String) -> String:
 		if is_ultimate_progress(progress_id) or not is_progress_unlocked(owner, progress_id):
 			continue
 		var level := get_skill_level(owner, role_id, progress_id)
-		if level <= 0:
+		if level <= 0 and not is_custom_basic(progress_id):
 			continue
 		parts.append("%s Lv.%d" % [get_progress_title(progress_id), level])
 	return " · ".join(parts)
@@ -339,6 +376,9 @@ static func get_role_summary_text(owner, role_id: String) -> String:
 
 static func normalize_role_state(role_id: String, value: Variant) -> Dictionary:
 	var state: Dictionary = value.duplicate(true) if value is Dictionary else {}
+	var build = basic_build(role_id + "_basic")
+	var basic_level: int = build.level_from_state(state)
+	var storm_level: int = STORM_BUILD.level_from_state(state)
 	var raw_levels: Dictionary = state.get(SKILL_LEVELS_KEY, {}) if state.get(SKILL_LEVELS_KEY, {}) is Dictionary else {}
 	var levels: Dictionary = {}
 	for progress_value in ROLE_PROGRESS_ORDER.get(role_id, []):
@@ -349,10 +389,29 @@ static func normalize_role_state(role_id: String, value: Variant) -> Dictionary:
 		if level > 1:
 			levels[progress_id] = level
 	state[SKILL_LEVELS_KEY] = levels
+	if role_id in ["swordsman", "gunner", "mage"]:
+		levels[role_id + "_basic"] = basic_level
+		var clean_choices: Dictionary = {}
+		var raw_choices: Dictionary = state.get(build.STATE_KEY, {})
+		for stage in build.STAGES:
+			for option in build.OPTIONS[stage]:
+				if basic_level >= stage and str(raw_choices.get(str(stage), "")) == option["key"]:
+					clean_choices[str(stage)] = option["key"]
+		state[build.STATE_KEY] = clean_choices
+	if role_id == "swordsman":
+		levels[STORM_BUILD.PROGRESS] = storm_level
+		var storm_choices: Dictionary = {}
+		for stage in STORM_BUILD.STAGES:
+			for option in STORM_BUILD.OPTIONS[stage]:
+				if storm_level >= stage and state.get(STORM_BUILD.STATE_KEY, {}).get(str(stage), "") == option["key"]:
+					storm_choices[str(stage)] = option["key"]
+		state[STORM_BUILD.STATE_KEY] = storm_choices
 	var raw_slots: Dictionary = state.get(SKILL_TALENT_SLOTS_KEY, {}) if state.get(SKILL_TALENT_SLOTS_KEY, {}) is Dictionary else {}
 	var slots: Dictionary = {}
 	for progress_value in ROLE_PROGRESS_ORDER.get(role_id, []):
 		var progress_id := str(progress_value)
+		if is_custom_basic(progress_id):
+			continue
 		var entry_value: Variant = raw_slots.get(progress_id, {})
 		if entry_value is not Dictionary:
 			continue
@@ -374,6 +433,9 @@ static func normalize_role_state(role_id: String, value: Variant) -> Dictionary:
 
 
 static func _refresh_talent_slots(owner, role_id: String, progress_id: String, level: int) -> bool:
+	if is_custom_basic(progress_id):
+		basic_build(progress_id).refresh_speed(owner)
+		return basic_build(progress_id).pending_stage(owner) > 0
 	if level >= TALENT_AUTO_LEVEL:
 		for slot in range(1, TALENT_SLOT_COUNT + 1):
 			if not has_talent_slot(owner, role_id, progress_id, slot):
@@ -491,3 +553,12 @@ static func _owner_has_property(owner, property_name: String) -> bool:
 		if property is Dictionary and str((property as Dictionary).get("name", "")) == property_name:
 			return true
 	return false
+
+
+static func basic_build(progress_id: String):
+	if progress_id == STORM_BUILD.PROGRESS:
+		return STORM_BUILD
+	return MAGE_BASIC_BUILD if progress_id == "mage_basic" else GUNNER_BASIC_BUILD if progress_id == "gunner_basic" else SWORDSMAN_BASIC_BUILD
+
+static func is_custom_basic(progress_id: String) -> bool:
+	return progress_id in ["swordsman_basic", "gunner_basic", "mage_basic", STORM_BUILD.PROGRESS]

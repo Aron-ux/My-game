@@ -68,6 +68,7 @@ var gunner_basic_split_lifetime_scales: PackedFloat32Array = PackedFloat32Array(
 var gunner_basic_split_speed_scales: PackedFloat32Array = PackedFloat32Array()
 var gunner_basic_split_distance_bonuses: PackedFloat32Array = PackedFloat32Array()
 var gunner_basic_split_visual_scales: PackedFloat32Array = PackedFloat32Array()
+var gunner_builds: Array[Dictionary] = []
 var scan_cursor: int = 0
 var damage_enabled_count: int = 0
 var animation_elapsed: float = 0.0
@@ -147,7 +148,7 @@ func add_projectile(data: Dictionary) -> bool:
 	var initial_hit_enemy_id := int(data.get("initial_hit_enemy_id", 0))
 	if initial_hit_enemy_id != 0:
 		hit_enemy_ids.append({initial_hit_enemy_id: true})
-	elif pierce_count > 0:
+	elif pierce_count != 0:
 		hit_enemy_ids.append({})
 	else:
 		hit_enemy_ids.append(null)
@@ -155,6 +156,7 @@ func add_projectile(data: Dictionary) -> bool:
 	damage_event_ids.append(damage_event_id)
 	entry_repulse_flags.append(bool(data.get("entry_repulse_on_first_hit", false)))
 	entry_repulse_consumed_flags.append(false)
+	gunner_builds.append(data.get("gunner_build", {}).duplicate())
 	gunner_basic_split_flags.append(bool(data.get("gunner_basic_split_enabled", false)))
 	gunner_basic_split_consumed_flags.append(false)
 	gunner_basic_split_counts.append(int(data.get("gunner_basic_split_count", 0)))
@@ -231,13 +233,14 @@ func add_projectile_values(
 	wave_origins.append(spawn_position)
 	wave_forwards.append(shot_direction)
 	wave_sides.append(shot_direction.orthogonal().normalized())
-	if pierce_count > 0:
+	if pierce_count != 0:
 		hit_enemy_ids.append({})
 	else:
 		hit_enemy_ids.append(null)
 	damage_event_ids.append(damage_event_id)
 	entry_repulse_flags.append(entry_repulse_on_first_hit)
 	entry_repulse_consumed_flags.append(false)
+	gunner_builds.append({})
 	gunner_basic_split_flags.append(false)
 	gunner_basic_split_consumed_flags.append(false)
 	gunner_basic_split_counts.append(0)
@@ -316,8 +319,9 @@ func _check_projectile_hits() -> void:
 		checks_done += 1
 		if hit_enemy != null:
 			_apply_projectile_hit(scan_cursor, hit_enemy)
-			if pierce_counts[scan_cursor] > 0:
-				pierce_counts[scan_cursor] -= 1
+			if pierce_counts[scan_cursor] != 0:
+				if pierce_counts[scan_cursor] > 0:
+					pierce_counts[scan_cursor] -= 1
 				scan_cursor += 1
 			else:
 				_remove_projectile(scan_cursor)
@@ -372,11 +376,13 @@ func _find_hit_enemy(projectile_index: int, grid: Dictionary) -> Node2D:
 	return null
 
 func _apply_projectile_hit(projectile_index: int, enemy: Node2D) -> void:
-	if pierce_counts[projectile_index] > 0:
+	if pierce_counts[projectile_index] != 0:
 		_mark_projectile_hit_enemy(projectile_index, enemy)
 	var role_id: String = role_ids[projectile_index]
+	var resolved_hit_damage: float = _build_hit_damage(projectile_index, enemy)
+	_spawn_build_split(projectile_index, enemy)
 	if damage_batcher != null:
-		var hit_damage: float = damages[projectile_index]
+		var hit_damage: float = resolved_hit_damage
 		var gunner_event_prepared := damage_event_ids[projectile_index] != "" and PLAYER_DAMAGE_RESOLVER.is_gunner_talent_damage_source(role_id)
 		if gunner_event_prepared:
 			hit_damage *= PLAYER_DAMAGE_RESOLVER.snapshot_gunner_damage_event_multiplier(source_player, role_id, hit_damage > 0.0, damage_event_ids[projectile_index])
@@ -398,12 +404,12 @@ func _apply_projectile_hit(projectile_index: int, enemy: Node2D) -> void:
 		_apply_entry_repulse(projectile_index, enemy)
 		return
 	if source_player.has_method("_deal_damage_to_enemy"):
-		PLAYER_DAMAGE_RESOLVER.queue_damage_to_enemy(source_player, enemy, damages[projectile_index], role_id, vulnerability_bonuses[projectile_index], vulnerability_durations[projectile_index], slow_multipliers[projectile_index], slow_durations[projectile_index], source_origins[projectile_index], true, false, false, damage_event_ids[projectile_index])
+		PLAYER_DAMAGE_RESOLVER.queue_damage_to_enemy(source_player, enemy, resolved_hit_damage, role_id, vulnerability_bonuses[projectile_index], vulnerability_durations[projectile_index], slow_multipliers[projectile_index], slow_durations[projectile_index], source_origins[projectile_index], true, false, false, damage_event_ids[projectile_index])
 	elif enemy.has_method("take_damage"):
 		PLAYER_DAMAGE_RESOLVER.deal_damage_to_enemy(
 			source_player,
 			enemy,
-			damages[projectile_index],
+			resolved_hit_damage,
 			role_id,
 			vulnerability_bonuses[projectile_index],
 			vulnerability_durations[projectile_index],
@@ -417,6 +423,35 @@ func _apply_projectile_hit(projectile_index: int, enemy: Node2D) -> void:
 		)
 	_try_spawn_gunner_basic_split_children(projectile_index, enemy)
 	_apply_entry_repulse(projectile_index, enemy)
+
+func _build_hit_damage(index: int, enemy: Node2D, roll: float = -1.0) -> float:
+	var build: Dictionary = gunner_builds[index]
+	if float(build.get("shock_bonus", 0.0)) > 0.0 and (randf() if roll < 0.0 else roll) < 0.3:
+		enemy.global_position += directions[index] * 25.0
+		return damages[index] + float(build["shock_bonus"])
+	return damages[index]
+
+func _spawn_build_split(index: int, enemy: Node2D) -> void:
+	var build: Dictionary = gunner_builds[index]
+	if not bool(build.get("split", false)):
+		return
+	build["split"] = false
+	for child_index in range(3):
+		var direction: Vector2 = directions[index].rotated(deg_to_rad((child_index - 1) * 30.0))
+		add_projectile({
+			"position": enemy.global_position,
+			"source_origin": source_origins[index],
+			"direction": direction, "damage": damages[index] * 0.8,
+			"role_id": "gunner_aux:split", "color": colors[index],
+			"speed": speeds[index], "lifetime": float(build["split_distance"]) / speeds[index],
+			"hit_radius": hit_radii[index], "visual_radius": visual_radii[index],
+			"visual_min_diameter": visual_min_diameters[index],
+			"enemy_hit_radius_scale": enemy_hit_radius_scales[index],
+			"enemy_hit_radius_min": enemy_hit_radius_mins[index],
+			"enemy_hit_radius_max": enemy_hit_radius_maxs[index],
+			"pierce_count": -1 if bool(build.get("split_pierce", false)) and randf() < 0.3 else 0,
+			"initial_hit_enemy_id": enemy.get_instance_id()
+		})
 
 func _has_projectile_hit_enemy(projectile_index: int, enemy: Node2D) -> bool:
 	if projectile_index < 0 or projectile_index >= hit_enemy_ids.size():
@@ -574,6 +609,7 @@ func _remove_projectile(index: int) -> void:
 		damage_event_ids[index] = damage_event_ids[last_index]
 		entry_repulse_flags[index] = entry_repulse_flags[last_index]
 		entry_repulse_consumed_flags[index] = entry_repulse_consumed_flags[last_index]
+		gunner_builds[index] = gunner_builds[last_index]
 		gunner_basic_split_flags[index] = gunner_basic_split_flags[last_index]
 		gunner_basic_split_consumed_flags[index] = gunner_basic_split_consumed_flags[last_index]
 		gunner_basic_split_counts[index] = gunner_basic_split_counts[last_index]
@@ -619,6 +655,7 @@ func _remove_projectile(index: int) -> void:
 	damage_event_ids.resize(last_index)
 	entry_repulse_flags.pop_back()
 	entry_repulse_consumed_flags.pop_back()
+	gunner_builds.pop_back()
 	gunner_basic_split_flags.pop_back()
 	gunner_basic_split_consumed_flags.pop_back()
 	gunner_basic_split_counts.resize(last_index)
@@ -668,6 +705,7 @@ func _clear_projectiles() -> void:
 	damage_event_ids.clear()
 	entry_repulse_flags.clear()
 	entry_repulse_consumed_flags.clear()
+	gunner_builds.clear()
 	gunner_basic_split_flags.clear()
 	gunner_basic_split_consumed_flags.clear()
 	gunner_basic_split_counts.clear()

@@ -29,6 +29,8 @@ static func physics_process(enemy, delta: float) -> void:
 	if enemy.pooled_inactive:
 		return
 	enemy.ENEMY_STALWART_BODY.tick(enemy, delta)
+	preload("res://scripts/enemies/enemy_porcupine.gd").tick(enemy, delta)
+	preload("res://scripts/enemies/enemy_skull_mage.gd").tick_passives(enemy, delta)
 	enemy.elite_charge_haste_remaining = maxf(0.0, enemy.elite_charge_haste_remaining - delta)
 	preload("res://scripts/enemies/enemy_heavy_armor_form.gd").tick(enemy, delta)
 	preload("res://scripts/enemies/enemy_runner_haste.gd").tick(enemy, delta)
@@ -47,6 +49,9 @@ static func physics_process(enemy, delta: float) -> void:
 	if (enemy.status_root != null or had_hit_flash or enemy.hit_flash_remaining > 0.0 or enemy._has_status_visual_pressure() or enemy.skull_damage_immune_timer > 0.0 or enemy.boss_phase_three_intro_remaining > 0.0) and (hit_flash_finished or enemy._should_update_status_visual_frame()):
 		enemy._update_status_visuals()
 
+	if preload("res://scripts/enemies/enemy_stun.gd").tick(enemy, delta):
+		return
+
 	if enemy.target == null or not is_instance_valid(enemy.target):
 		if enemy.rebirth_timer > 0.0:
 			enemy.ENEMY_TRAIT_BEHAVIOR.update_rebirth_timer(enemy, delta)
@@ -61,6 +66,10 @@ static func physics_process(enemy, delta: float) -> void:
 	enemy._cached_direction_to_target = enemy._cached_to_target.normalized() if enemy._cached_distance_to_target > 0.001 else Vector2.RIGHT
 	if enemy._has_timed_behavior_traits():
 		enemy._update_behavior_state(delta + enemy.throttled_motion_delta)
+	if enemy.behavior_id in ["tree_seed", "necro_priest"] or enemy.is_queued_for_deletion():
+		enemy.velocity = Vector2.ZERO
+		enemy.throttled_motion_delta = 0.0
+		return
 	if str(enemy.archetype_id) == "boss_spellcore" and (str(enemy.boss_routine.get("stage", "basic")) != "basic" or enemy.boss_phase_transition_target > 0 or enemy.boss_shield_break_visual_intro_active):
 		# Telegraph origins must not drift under crowd-separation forces.
 		enemy.velocity = Vector2.ZERO

@@ -384,5 +384,8 @@ static func update_fire_timer(owner) -> void:
 		return
 
 	var role_data: Dictionary = owner._get_active_role()
+	if str(role_data["id"]) == "mage" and bool(owner.get_meta("mage_casting", false)):
+		owner.fire_timer.stop()
+		return
 	owner.fire_timer.wait_time = owner._get_effective_attack_interval(str(role_data["id"]))
 	owner.fire_timer.start()

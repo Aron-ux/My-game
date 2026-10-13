@@ -8,7 +8,7 @@ static func get_role_armor(owner, role_id: String) -> float:
 			bonus = float(field.get_armor_bonus(owner))
 	for role_data in owner.roles:
 		if str(role_data.get("id", "")) == role_id:
-			return float(role_data.get("armor", 0.0)) + bonus
+			return float(role_data.get("armor", 0.0)) + bonus + preload("res://scripts/player/player_blade_storm_build.gd").bonus(owner, role_id, "armor")
 	return 0.0
 
 const ROLE_ATTRIBUTE_RULES := preload("res://scripts/player/roles/role_attribute_rules.gd")

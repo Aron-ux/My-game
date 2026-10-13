@@ -1,11 +1,14 @@
 extends RefCounted
+const MAGE_BASIC_BUILD := preload("res://scripts/player/player_mage_basic_build.gd")
+const GUNNER_BASIC_BUILD := preload("res://scripts/player/player_gunner_basic_build.gd")
+const SWORDSMAN_BASIC_BUILD := preload("res://scripts/player/player_swordsman_basic_build.gd")
 
 const PLAYER_SKILL_LEVEL_SYSTEM := preload("res://scripts/player/player_skill_level_system.gd")
 
 ## 技能等级的数值成长统一出口。
 ## 所有“每级 +X”的加成都在这里按 (等级 - 1) 线性累加，调用方只管读取，不自行计算等级。
 ## 设计口径：
-## - 百分比倍率一律绝对加法，例如普攻基础 150% 在 2 级变成 160%；
+## - 百分比倍率一律绝对加法；剑士普攻的 LV0~9 规则由独立构筑规则提供；
 ## - 范围/体积类按倍率相乘，例如 200 在 2 级变成 220；
 ## - 2/4/6/8 与 3/6/9 这类里程碑在达到对应等级时各追加一段。
 
@@ -23,12 +26,12 @@ const BATTLE_WILL_PROC_CHANCE_PER_LEVEL := 0.005
 const BATTLE_WILL_HEAL_RATIO_PER_LEVEL := 0.005
 # 骑士荣耀：每级 +0.2s 濒死无敌
 const KNIGHT_GLORY_INVULNERABILITY_PER_LEVEL := 0.2
-# 普通攻击：每级 +10% 伤害倍率（绝对加法）与 +10% 范围（相对乘法），2/4/6/8 级各多一道 60% 斩击
+# 剑士普通攻击的当前规则由 player_swordsman_basic_build.gd 提供；其他技能仍由本文件维护。
 const BASIC_ATTACK_DAMAGE_RATIO_PER_LEVEL := 0.10
 const BASIC_ATTACK_RANGE_RATIO_PER_LEVEL := 0.10
-const BASIC_ATTACK_EXTRA_SLASH_DAMAGE_SCALE := 0.60
+const BASIC_ATTACK_EXTRA_SLASH_DAMAGE_SCALE := 1.0
 ## 追加斩击的依次发射间隔：同方向同时出刀会完全重叠，看不出追加了几道
-const BASIC_ATTACK_EXTRA_SLASH_INTERVAL := 0.15
+const BASIC_ATTACK_EXTRA_SLASH_INTERVAL := 0.25
 const BASIC_ATTACK_EXTRA_SLASH_FIRST_LEVEL := 2
 const BASIC_ATTACK_EXTRA_SLASH_STEP := 2
 const BASIC_ATTACK_EXTRA_SLASH_MAX := 4
@@ -188,15 +191,15 @@ static func get_mage_arcane_surplus_damage_multiplier_bonus(owner) -> float:
 
 
 static func get_mage_basic_range_multiplier(owner) -> float:
-	return 1.0 + _mage_levels_above_first(owner, MAGE_BASIC) * MAGE_BASIC_RANGE_RATIO_PER_LEVEL
+	return MAGE_BASIC_BUILD.range_multiplier(owner)
 
 
 static func get_mage_basic_damage_ratio_bonus(owner) -> float:
-	return _mage_levels_above_first(owner, MAGE_BASIC) * MAGE_BASIC_DAMAGE_RATIO_PER_LEVEL
+	return MAGE_BASIC_BUILD.strike_ratio(owner) - 1.0
 
 
 static func get_mage_basic_extra_lightning_count(owner) -> int:
-	return _mage_milestone_count(owner, MAGE_BASIC, MAGE_BASIC_EXTRA_LIGHTNING_FIRST_LEVEL, MAGE_BASIC_EXTRA_LIGHTNING_STEP, MAGE_BASIC_EXTRA_LIGHTNING_MAX)
+	return 0
 
 
 static func get_mage_meta_field_armor_bonus(owner) -> float:
@@ -289,15 +292,15 @@ static func get_gunner_hunt_outside_damage_bonus(owner) -> float:
 
 
 static func get_gunner_basic_range_bonus(owner) -> float:
-	return _gunner_levels_above_first(owner, GUNNER_BASIC) * GUNNER_BASIC_RANGE_PER_LEVEL
+	return GUNNER_BASIC_BUILD.range_bonus(owner)
 
 
 static func get_gunner_basic_bullet_speed_bonus(owner) -> float:
-	return _gunner_levels_above_first(owner, GUNNER_BASIC) * GUNNER_BASIC_BULLET_SPEED_PER_LEVEL
+	return 0.0
 
 
 static func get_gunner_basic_split_bullet_count(owner) -> int:
-	return _gunner_milestone_count(owner, GUNNER_BASIC, GUNNER_BASIC_SPLIT_FIRST_LEVEL, GUNNER_BASIC_SPLIT_STEP, GUNNER_BASIC_SPLIT_MAX)
+	return 0
 
 
 static func get_gunner_basic_split_angle_degrees(index: int) -> float:
@@ -391,20 +394,15 @@ static func get_swordsman_knight_glory_invulnerability_bonus(owner) -> float:
 
 
 static func get_swordsman_basic_attack_damage_ratio_bonus(owner) -> float:
-	return _levels_above_first(owner, SWORDSMAN_BASIC) * BASIC_ATTACK_DAMAGE_RATIO_PER_LEVEL
+	return SWORDSMAN_BASIC_BUILD.damage_ratio(owner) - 1.0
 
 
 static func get_swordsman_basic_attack_range_multiplier(owner) -> float:
-	return 1.0 + _levels_above_first(owner, SWORDSMAN_BASIC) * BASIC_ATTACK_RANGE_RATIO_PER_LEVEL
+	return SWORDSMAN_BASIC_BUILD.range_multiplier(owner)
 
 
 static func get_swordsman_basic_attack_extra_slash_count(owner) -> int:
-	return _milestone_count(
-		_get_level(owner, SWORDSMAN_BASIC),
-		BASIC_ATTACK_EXTRA_SLASH_FIRST_LEVEL,
-		BASIC_ATTACK_EXTRA_SLASH_STEP,
-		BASIC_ATTACK_EXTRA_SLASH_MAX
-	)
+	return 1 if SWORDSMAN_BASIC_BUILD.level(owner) >= 6 else 0
 
 
 static func get_swordsman_crescent_wave_damage_ratio_bonus(owner) -> float:
@@ -425,11 +423,11 @@ static func get_swordsman_crescent_wave_extra_wave_count(owner) -> int:
 
 
 static func get_swordsman_blade_storm_damage_ratio_bonus(owner) -> float:
-	return _levels_above_first(owner, SWORDSMAN_BLADE_STORM) * BLADE_STORM_DAMAGE_RATIO_PER_LEVEL
+	return preload("res://scripts/player/player_blade_storm_build.gd").damage_ratio(owner) - 0.8
 
 
 static func get_swordsman_blade_storm_radius_bonus(owner) -> float:
-	return _levels_above_first(owner, SWORDSMAN_BLADE_STORM) * BLADE_STORM_RADIUS_PER_LEVEL
+	return preload("res://scripts/player/player_blade_storm_build.gd").radius(owner) - 150.0
 
 
 static func get_swordsman_entry_damage_ratio_bonus(owner) -> float:
@@ -495,6 +493,10 @@ static func get_upgrade_preview_text(owner, role_id: String, progress_id: String
 
 
 static func _get_swordsman_upgrade_preview(owner, progress_id: String) -> String:
+	if progress_id == SWORDSMAN_BLADE_STORM:
+		return preload("res://scripts/player/player_blade_storm_build.gd").next_preview(owner)
+	if progress_id == SWORDSMAN_BASIC:
+		return SWORDSMAN_BASIC_BUILD.next_preview(owner)
 	var level := _get_level(owner, progress_id)
 	if level <= 0 or level >= PLAYER_SKILL_LEVEL_SYSTEM.MAX_SKILL_LEVEL:
 		return ""
@@ -562,6 +564,8 @@ static func _is_milestone_level(level: int, first_level: int, step: int, max_cou
 
 
 static func _get_gunner_upgrade_preview(owner, progress_id: String) -> String:
+	if progress_id == GUNNER_BASIC:
+		return GUNNER_BASIC_BUILD.next_preview(owner)
 	var level := _gunner_level(owner, progress_id)
 	if level <= 0 or level >= PLAYER_SKILL_LEVEL_SYSTEM.MAX_SKILL_LEVEL:
 		return ""
@@ -627,6 +631,8 @@ static func _get_gunner_milestone_preview_text(progress_id: String, next_level: 
 
 
 static func _get_mage_upgrade_preview(owner, progress_id: String) -> String:
+	if progress_id == MAGE_BASIC:
+		return MAGE_BASIC_BUILD.next_preview(owner)
 	var level := _mage_level(owner, progress_id)
 	if level <= 0 or level >= PLAYER_SKILL_LEVEL_SYSTEM.MAX_SKILL_LEVEL:
 		return ""

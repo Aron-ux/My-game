@@ -22,7 +22,7 @@ static func on_enemy_damage(player, enemy: Node, damage: float) -> void:
 		return
 	if player.has_method("_is_status_immune") and player._is_status_immune():
 		return
-	player.plague_remaining = DURATION
+	player.plague_remaining = preload("res://scripts/combat/status_resistance.gd").duration(player, DURATION)
 
 
 static func get_remaining(player) -> float:

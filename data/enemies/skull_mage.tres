@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="EnemyProfile" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemy/enemy_profile.gd" id="1"]
+[ext_resource type="PackedScene" path="res://assets/enemies/skullmage/skull_mage.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+archetype = "skull_mage"
+behavior = "skull_mage"
+boss_name = "骷髅法师"
+max_health = 100.0
+attack = 15.0
+armor = 0.0
+damage_reduction_rate = 0.0
+speed = 30.0
+touch_damage = 22.5
+contact_radius = 34.0
+body_collision_radius = 35.0
+reward_tier = 1
+experience_reward = 6
+scale = 0.672
+display_color = Color(0.55, 0.35, 0.75, 1)
+visual_scene = ExtResource("2")
+extra = {
+"status_resistance": 0.0
+}

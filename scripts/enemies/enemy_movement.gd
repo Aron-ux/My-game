@@ -6,16 +6,22 @@ const GLOBAL_UNIT_MOVE_SPEED_SCALE := 0.7
 const BOSS_MOVE_SPEED_SCALE := 0.7
 
 static func compute_velocity(enemy, delta: float) -> Vector2:
+	if enemy.behavior_id == "tree_seed":
+		return Vector2.ZERO
 	var to_target: Vector2 = enemy._cached_to_target
 	var distance_to_target: float = enemy._cached_distance_to_target
 	var direction_to_target: Vector2 = enemy._cached_direction_to_target
 	var move_direction := direction_to_target
 	var move_speed: float = (enemy.speed + preload("res://scripts/enemies/enemy_runner_haste.gd").get_speed_bonus(enemy)) * enemy.slow_multiplier
+	if preload("res://scripts/enemies/enemy_porcupine.gd").is_enraged(enemy):
+		move_speed *= 2.0
 	if preload("res://scripts/enemies/enemy_heavy_armor_form.gd").is_active(enemy):
 		move_speed *= 0.5
 
 	if enemy._is_boss:
 		return compute_boss_velocity(enemy, direction_to_target, distance_to_target, delta)
+	if preload("res://scripts/enemies/enemy_skull_mage.gd").is_draining(enemy):
+		return Vector2.ZERO
 	if enemy._is_turret or enemy.behavior_id == "rose" or enemy.secondary_behavior_id == "rose" or enemy.rebirth_timer > 0.0:
 		return Vector2.ZERO
 	if enemy._is_glutton and ENEMY_GLUTTON_SKILL_BEHAVIOR.should_hold_position_for_cast(enemy):
