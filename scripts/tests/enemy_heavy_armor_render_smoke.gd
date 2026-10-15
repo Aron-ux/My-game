@@ -35,7 +35,7 @@ func _run() -> void:
 				silver_count += 1
 	assert(orange_count > 100)
 	assert(silver_count > 100)
-	image.save_png(OS.get_environment("TEMP").path_join("enemy_heavy_armor_render.png"))
+	image.save_png("user://enemy_heavy_armor_render.png")
 	armored.set_heavy_armor(false)
 	assert(armored.sprite.material == null)
 	viewport.queue_free()

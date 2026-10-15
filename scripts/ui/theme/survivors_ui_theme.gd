@@ -20,6 +20,21 @@ const CARD_HEIGHT_COMPACT := 66.0
 const BUTTON_HEIGHT := 48.0
 const BUTTON_HEIGHT_COMPACT := 40.0
 
+static var reading_font: SystemFont
+static var reading_bold_font: SystemFont
+
+static func get_reading_font() -> SystemFont:
+	if reading_font == null:
+		reading_font = SystemFont.new()
+		reading_font.font_names = PackedStringArray(["Noto Sans CJK SC", "Microsoft YaHei", "PingFang SC", "sans-serif"])
+	return reading_font
+
+static func get_reading_bold_font() -> SystemFont:
+	if reading_bold_font == null:
+		reading_bold_font = get_reading_font().duplicate()
+		reading_bold_font.font_weight = 700
+	return reading_bold_font
+
 static func viewport_size(node: Node) -> Vector2:
 	if node == null or node.get_viewport() == null:
 		return Vector2(1280.0, 720.0)

@@ -13,6 +13,7 @@ func _init() -> void:
 
 
 func _run() -> void:
+	assert(DirAccess.make_dir_recursive_absolute("res://.omx/boss-rework") == OK)
 	var viewport := SubViewport.new()
 	viewport.size = Vector2i(1280, 900)
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS

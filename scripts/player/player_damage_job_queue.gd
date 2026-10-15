@@ -1,4 +1,5 @@
 extends Node
+const SWORDSMAN_BASIC_BUILD := preload("res://scripts/player/player_swordsman_basic_build.gd")
 
 const PERFORMANCE_COUNTERS := preload("res://scripts/game/performance_counters.gd")
 const DAMAGE_METHOD_DISPATCH := preload("res://scripts/combat/damage_method_dispatch.gd")
@@ -243,15 +244,19 @@ func _flush_pending_kill_energy() -> void:
 func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float, vulnerability_duration: float, slow_multiplier: float, slow_duration: float, source_position: Variant, kill_energy_bonus: float, suppress_status_visual: bool) -> bool:
 	if not _is_enemy_damageable(enemy):
 		return false
+	if preload("res://scripts/enemies/enemy_necro_priest.gd").immune_to_source(enemy, source_role_id):
+		return false
 	var final_damage := damage_amount
 	var resolved_source_role_id: String = _resolve_damage_source_role_id(source_role_id)
 	var source_ultimate_energy_bonus: float = PLAYER_MAGE_ULTIMATE_TALENT_FLOW.get_ultimate_energy_bonus_multiplier(source_player, source_role_id, resolved_source_role_id)
+	source_ultimate_energy_bonus += preload("res://scripts/player/player_mage_basic_build.gd").energy_bonus(source_player, source_role_id)
 	var source_critical_chance_bonus: float = PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_critical_chance_bonus(source_player, source_role_id)
+	source_critical_chance_bonus += SWORDSMAN_BASIC_BUILD.critical_bonus(source_player, source_role_id)
 	var was_critical := false
-	if resolved_source_role_id != "" and source_player.has_method("_roll_critical_hit") and source_player.has_method("_get_critical_damage_multiplier"):
+	if source_role_id != "swordsman_aux:reflect" and resolved_source_role_id != "" and source_player.has_method("_roll_critical_hit") and source_player.has_method("_get_critical_damage_multiplier"):
 		was_critical = bool(source_player._roll_critical_hit(resolved_source_role_id, source_critical_chance_bonus))
 		if was_critical:
-			final_damage *= float(source_player._get_critical_damage_multiplier(resolved_source_role_id))
+			final_damage *= float(source_player._get_critical_damage_multiplier(resolved_source_role_id)) + SWORDSMAN_BASIC_BUILD.critical_damage_bonus(source_player, source_role_id)
 	var applies_gunner_target_talents := damage_amount > 0.0 and _should_apply_gunner_hunt_multiplier(source_role_id, resolved_source_role_id) and enemy is Node2D
 	if applies_gunner_target_talents:
 		if source_player.has_method("_get_gunner_distance_damage_multiplier"):
@@ -265,7 +270,9 @@ func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_rol
 	var killed := false
 	var used_batched_damage := false
 	var health_before := _get_enemy_current_health(enemy)
-	if show_feedback and enemy.has_method("take_damage"):
+	if source_role_id == "swordsman_aux:split" and enemy.has_method("take_damage_ignoring_armor"):
+		killed = bool(enemy.take_damage_ignoring_armor(final_damage, was_critical, show_feedback))
+	elif show_feedback and enemy.has_method("take_damage"):
 		killed = bool(enemy.take_damage(final_damage, was_critical))
 	elif enemy.has_method("take_batched_damage"):
 		used_batched_damage = true
@@ -279,11 +286,11 @@ func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_rol
 	if damage_amount > 0.0:
 		PLAYER_GUNNER_BASIC_TALENT_FLOW.on_basic_attack_hit(source_player, enemy, source_role_id)
 		PLAYER_GUNNER_ENTRY_TALENT_FLOW.on_entry_attack_hit(source_player, enemy, source_role_id)
-	if source_player.has_method("_record_attack_result_instance"):
+	if source_role_id != "gunner_aux:split" and source_player.has_method("_record_attack_result_instance"):
 		source_player._record_attack_result_instance(resolved_source_role_id, was_critical, killed, target_position, source_role_id)
 	if source_player.has_method("_add_switch_energy_from_damage"):
 		source_player._add_switch_energy_from_damage(final_damage, resolved_source_role_id)
-	if source_player.has_method("_apply_role_damage_lifesteal"):
+	if source_role_id != "gunner_aux:split" and source_player.has_method("_apply_role_damage_lifesteal"):
 		source_player._apply_role_damage_lifesteal(resolved_source_role_id, final_damage)
 	if str(enemy.get("enemy_kind")) in ["boss", "small_boss"] and source_player.has_method("_get_boss_damage_energy") and source_player.has_method("_add_boss_damage_energy"):
 		var boss_energy: float = source_player._get_boss_damage_energy(final_damage)
@@ -319,9 +326,14 @@ func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_rol
 			enemy.apply_slow(slow_multiplier, slow_duration)
 	if damage_amount > 0.0 and _is_basic_attack_damage_source(source_role_id):
 		PLAYER_RUAN_STONE_FLOW.apply_basic_hit(source_player, enemy, final_damage, source_role_id, "", killed, target_position, target_max_health)
+	preload("res://scripts/player/player_mage_basic_runtime.gd").after_hit(source_player, enemy, source_role_id, killed)
 	return killed
 
 func _resolve_damage_source_role_id(source_role_id: String) -> String:
+	if source_role_id == "gunner_aux:split":
+		return "gunner"
+	if source_role_id.begins_with("swordsman_aux:"):
+		return "swordsman"
 	if source_role_id == GUNNER_NO_HUNT_SOURCE_ROLE_ID:
 		return "gunner"
 	if PLAYER_GUNNER_ENTRY_TALENT_FLOW.is_entry_source(source_role_id):
@@ -365,7 +377,7 @@ func _is_enemy_damageable(enemy: Node) -> bool:
 	return true
 
 func _should_apply_gunner_hunt_multiplier(source_role_id: String, resolved_source_role_id: String) -> bool:
-	return resolved_source_role_id == "gunner" and source_role_id != GUNNER_NO_HUNT_SOURCE_ROLE_ID
+	return resolved_source_role_id == "gunner" and source_role_id not in [GUNNER_NO_HUNT_SOURCE_ROLE_ID, "gunner_aux:split"]
 
 func _apply_gunner_damage_target_talents(enemy: Node2D, resolved_source_role_id: String, source_position: Variant) -> void:
 	var gunner_role = source_player.get("gunner_role") if source_player != null else null

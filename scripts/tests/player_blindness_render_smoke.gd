@@ -38,7 +38,7 @@ func _run() -> void:
 	_check(image.get_pixel(370, 240).r > 0.9, "inside radius 60 visible")
 	_check(image.get_pixel(390, 240).r < 0.05, "outside radius 60 black, including high z enemies")
 	_check(image.get_pixel(10, 10).r > 0.9 and image.get_pixel(10, 10).g < 0.05, "HUD above mask")
-	image.save_png(OS.get_environment("TEMP").path_join("player_blindness_render.png"))
+	image.save_png("user://player_blindness_render.png")
 	viewport.canvas_transform = Transform2D(Vector2(0.5, 0), Vector2(0, 0.5), Vector2(160, 120))
 	player.position = Vector2(360, 240)
 	effect._sync_mask()

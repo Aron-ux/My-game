@@ -3,6 +3,30 @@ extends RefCounted
 const PLAYER_SKILL_COOLDOWN_SLOTS := preload("res://scripts/player/player_skill_cooldown_slots.gd")
 const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
 const GAME_SETTINGS := preload("res://scripts/game_settings.gd")
+const SKILL_LEVELS := preload("res://scripts/player/player_skill_level_system.gd")
+
+const SKILL_SUMMARIES := {
+	"blade_storm": "环绕剑刃持续切割周围敌人。",
+	"crescent_wave": "向前挥剑，释放一道穿过敌人的月牙剑气。",
+	"knight_thrust": "向前突刺；命中敌人获得临时血量。",
+	"king_blade": "降下强力斩击，优先锁定 Boss。",
+	"judgement_sword": "降下巨剑，随后释放削弱敌人护甲的全图冲击波。",
+	"infinite_reload": "持续释放贯穿火力，期间可以使用其他技能。",
+	"shrapnel_field": "在敌人密集处制造持续伤害、减速的散弹区域。",
+	"explosive_round": "发射爆破弹，命中后向前方扇形区域爆炸。",
+	"magic_grenade": "向敌人密集区域发射多枚魔法榴弹。",
+	"magic_eye": "向前连续开炮，命中削弱敌人护甲。",
+	"surging_wave": "向多个方向释放冲击波，覆盖大片敌人。",
+	"meta_field": "展开持续伤害、减速领域，期间提升自身护甲。",
+	"flame_path": "移动时留下火焰路径，灼烧经过的敌人。",
+	"dark_contract": "释放黑暗球体，吸引沿途敌人并在终点爆炸。",
+	"fireball": "在指定地点引爆火球，留下持续灼烧区域。",
+	"tulip_turret": "部署定点机炮，自动射击附近敌人。",
+	"mine": "布置感应地雷，敌人接近时爆炸。",
+	"emp_burst": "部署磁滞力场，伤害并减速敌人，为自身提供增益。",
+	"drone": "召唤跟随自身的守卫机器人，替你抵挡伤害。",
+	"missile_volley": "部署重型炮台，自动攻击附近敌人。"
+}
 
 const ROLE_ACTIVE_SKILL_PROPERTIES := {
 	"swordsman": {
@@ -54,10 +78,41 @@ static func get_role_skill_cooldown_slots(owner, role_id: String, attack_interva
 	var slots: Array = PLAYER_SKILL_COOLDOWN_SLOTS.build_slots(role_id, attack_remaining, attack_interval, extra_slots, owner)
 	_project_talent_displays(owner, slots, include_descriptions)
 	if include_descriptions:
+		for slot in slots:
+			_decorate_skill_info(owner, role_id, slot)
 		_append_requirement_text(owner, slots)
 	else:
 		_strip_frame_only_slot_text(slots)
 	return slots
+
+
+static func get_skill_info(owner, role_id: String, skill_id: String) -> Dictionary:
+	var property_name := str((ROLE_ACTIVE_SKILL_PROPERTIES.get(role_id, {}) as Dictionary).get(skill_id, ""))
+	if property_name == "":
+		return {}
+	var ability: Variant = _get_owner_property(owner, property_name)
+	if ability == null or not ability.has_method("get_cooldown_slot"):
+		return {}
+	var info: Dictionary = ability.get_cooldown_slot(owner).duplicate(true)
+	info["skill_id"] = skill_id
+	_decorate_skill_info(owner, role_id, info)
+	return info
+
+
+static func _decorate_skill_info(owner, role_id: String, slot: Dictionary) -> void:
+	var skill_id := str(slot.get("skill_id", ""))
+	var progress_id := role_id + "_basic" if skill_id.ends_with("_basic_attack") else str(SKILL_LEVELS.UNLOCKABLE_PROGRESS.find_key(skill_id))
+	slot["current_level"] = SKILL_LEVELS.get_skill_level(owner, role_id, progress_id)
+	slot["max_level"] = 9 if SKILL_LEVELS.is_custom_basic(progress_id) else SKILL_LEVELS.MAX_SKILL_LEVEL
+	slot["role_id"] = role_id
+	slot["role_name"] = str({"swordsman": "剑士", "gunner": "枪手", "mage": "法师", "mechanic": "机械师"}.get(role_id, role_id))
+	if SKILL_SUMMARIES.has(skill_id):
+		slot["effect_summary"] = SKILL_SUMMARIES[skill_id]
+	if SKILL_LEVELS.is_custom_basic(progress_id):
+		slot["effect_summary"] = SKILL_LEVELS.basic_build(progress_id).description(owner)
+	var rows: Array = slot.get("effect_rows", []).duplicate(true)
+	rows.append({"label": "攻击间隔" if skill_id.ends_with("_basic_attack") else "冷却时间", "value": "%.2f 秒" % float(slot.get("duration", 0.0))})
+	slot["effect_rows"] = rows
 
 
 static func _project_talent_displays(owner, slots: Array, include_descriptions: bool) -> void:
@@ -188,7 +243,7 @@ static func _append_ability_slot_if_unlocked(owner, extra_slots: Array, skill_id
 	if slot.is_empty():
 		return
 	slot["skill_id"] = skill_id
-	slot["slot_label"] = str(slot.get("slot_label", "祝福技能"))
+	slot["slot_label"] = str(slot.get("slot_label", "主动技能"))
 	slot["manual_slot_index"] = extra_slots.size() + 1
 	extra_slots.append(slot)
 

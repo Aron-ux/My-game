@@ -28,7 +28,11 @@ static func save_run_state(main: Node) -> void:
 		"enemy_projectiles": [],
 		"gems": [],
 		"heart_pickups": [],
-		"bone_pickups": []
+		"bone_pickups": [],
+		"experience_vacuum_pickups": [],
+		"swordsman_ground_cracks": [],
+		"skull_mage_domains": [],
+		"parasite_seeds": []
 	}
 	if main.endless_mode_active:
 		save_data["run_tier"] = main.endless_tier
@@ -39,6 +43,10 @@ static func save_run_state(main: Node) -> void:
 	RUN_SAVE_RUNTIME_FLOW.append_group_save_data(main, save_data, "gems", "exp_gems")
 	RUN_SAVE_RUNTIME_FLOW.append_group_save_data(main, save_data, "heart_pickups", "heart_pickups")
 	RUN_SAVE_RUNTIME_FLOW.append_group_save_data(main, save_data, "bone_pickups", "bone_pickups")
+	RUN_SAVE_RUNTIME_FLOW.append_group_save_data(main, save_data, "experience_vacuum_pickups", "experience_vacuum_pickups")
+	RUN_SAVE_RUNTIME_FLOW.append_group_save_data(main, save_data, "swordsman_ground_cracks", "swordsman_ground_cracks")
+	RUN_SAVE_RUNTIME_FLOW.append_group_save_data(main, save_data, "skull_mage_domains", "skull_mage_domains")
+	RUN_SAVE_RUNTIME_FLOW.append_group_save_data(main, save_data, "parasite_seeds", "parasite_seeds")
 
 	var payload_chars: int = int(SAVE_MANAGER.save_run(save_data))
 	PERFORMANCE_RECORDER.end_scope("save_run_ms")
@@ -81,6 +89,10 @@ static func load_saved_run(main: Node) -> bool:
 	_restore_gems(main, save_data.get("gems", []))
 	_restore_heart_pickups(main, save_data.get("heart_pickups", []))
 	_restore_bone_pickups(main, save_data.get("bone_pickups", []))
+	RUN_SAVE_RUNTIME_FLOW.restore_experience_vacuum_pickups(main, save_data.get("experience_vacuum_pickups", []))
+	RUN_SAVE_RUNTIME_FLOW.restore_swordsman_ground_cracks(main, save_data.get("swordsman_ground_cracks", []))
+	RUN_SAVE_RUNTIME_FLOW.restore_skull_mage_domains(main, save_data.get("skull_mage_domains", []))
+	RUN_SAVE_RUNTIME_FLOW.restore_parasite_seeds(main, save_data.get("parasite_seeds", []))
 
 	var game_bgm = main._get_game_bgm()
 	if game_bgm != null and game_bgm.has_method("restore_playback_position"):

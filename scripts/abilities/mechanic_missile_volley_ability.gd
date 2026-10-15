@@ -18,9 +18,9 @@ const BIG_BULLET_HIT_RADIUS := 24.0
 const BIG_BULLET_VISUAL_SCALE := 3.6
 const BIG_BULLET_SPEED := 380.0
 const CANNON_COLOR := Color(1.0, 0.72, 0.3, 1.0)
-const CANNON_VISUAL_SCALE := 0.8
-const CANNON_VISUAL_TINT := Color(0.85, 0.9, 1.0, 1.0)
-const CANNON_VISUAL_OFFSET := Vector2(-2.0, -104.0)
+const CANNON_VISUAL_SCALE := 0.65
+const CANNON_VISUAL_TINT := Color.WHITE
+const CANNON_VISUAL_OFFSET := Vector2(0.0, -96.0)
 const CANNON_VISUAL_FPS := 9.0
 
 var cooldown_remaining: float = 0.0
@@ -64,6 +64,7 @@ func try_trigger(owner) -> bool:
 	if deploy_cannon(owner) == null:
 		return false
 	cooldown_remaining = get_cooldown(owner)
+	owner.mechanic_role.play_command(owner)
 	return true
 
 
@@ -84,9 +85,12 @@ func deploy_cannon(owner):
 	sprite.offset = CANNON_VISUAL_OFFSET
 	sprite.scale = Vector2.ONE * CANNON_VISUAL_SCALE
 	sprite.modulate = CANNON_VISUAL_TINT
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	sprite.animation_finished.connect(func(): sprite.frame = 0)
 	cannon.add_child(sprite)
 	cannon.global_position = owner.global_position + direction.normalized() * DEPLOY_OFFSET
 	cannon.rotation = direction.angle()
+	_update_facing(cannon)
 	scene.add_child(cannon)
 	active_cannons.append({
 		"node": cannon,
@@ -106,8 +110,18 @@ func get_cooldown_slot(owner = null) -> Dictionary:
 		"remaining": clamp(cooldown_remaining, 0.0, COOLDOWN),
 		"duration": get_cooldown(owner),
 		"color": CANNON_COLOR,
-		"description": "部署一座重型炮台，持续 10 秒，每 1.2 秒发射一枚大子弹，造成 200% 伤害（受战场改装零件加成）。"
+		"description": "部署重型炮台，自动向附近敌人发射大口径炮弹。",
+		"effect_rows": [
+			{"label": "单发伤害倍率", "value": "%.0f%%" % (_get_damage_ratio(owner) * 100.0)},
+			{"label": "射击间隔", "value": "%.1f 秒" % FIRE_INTERVAL},
+			{"label": "持续时间", "value": "%.1f 秒" % _get_duration(owner)}
+		],
+		"effect_note": "按当前强化下的标准部署计算；实际伤害还受角色攻击力、暴击和目标防御影响。"
 	}
+
+
+func _get_damage_ratio(owner) -> float:
+	return DAMAGE_RATIO * _get_cannon_damage_multiplier(owner) * _get_summon_damage_multiplier(owner)
 
 
 func get_save_data() -> Dictionary:
@@ -150,6 +164,7 @@ func restore_effect_if_active(owner) -> void:
 			continue
 		cannon.global_position = _decode_vector2(saved_data.get("position", []), owner.global_position)
 		cannon.rotation = float(saved_data.get("rotation", 0.0))
+		_update_facing(cannon)
 		for index in range(active_cannons.size()):
 			if active_cannons[index].get("node", null) == cannon:
 				var data: Dictionary = active_cannons[index]
@@ -167,19 +182,29 @@ func _fire(owner, data: Dictionary) -> void:
 	var target: Node2D = owner._get_enemy_nearest_to_position(cannon.global_position)
 	if target == null or not is_instance_valid(target):
 		return
+	cannon.rotation = cannon.global_position.direction_to(target.global_position).angle()
+	_update_facing(cannon)
 	var sprite := cannon.get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
 	if sprite != null:
-		sprite.frame = 1
-		sprite.frame_progress = 0.0
 		sprite.play("fire")
-	var damage_amount: float = owner._get_role_damage("mechanic") * DAMAGE_RATIO * _get_cannon_damage_multiplier(owner) * _get_summon_damage_multiplier(owner)
-	var bullet = owner._spawn_bullet(target, damage_amount, CANNON_COLOR, "mechanic", cannon.global_position)
+		sprite.set_frame_and_progress(1, 0.0)
+	var damage_amount: float = owner._get_role_damage("mechanic") * _get_damage_ratio(owner)
+	var muzzle := Vector2(-100.0 if cos(cannon.rotation) < 0.0 else 100.0, -82.0) * CANNON_VISUAL_SCALE
+	var bullet = owner._spawn_bullet(target, damage_amount, CANNON_COLOR, "mechanic", cannon.global_position + muzzle)
 	if bullet != null and is_instance_valid(bullet):
 		bullet.speed = BIG_BULLET_SPEED
 		bullet.hit_radius = BIG_BULLET_HIT_RADIUS
 		bullet.visual_scale_multiplier = BIG_BULLET_VISUAL_SCALE
 		if bullet.has_method("_refresh_bullet_visual"):
 			bullet._refresh_bullet_visual(true)
+
+
+func _update_facing(cannon: Node2D) -> void:
+	var sprite := cannon.get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
+	if sprite == null:
+		return
+	sprite.rotation = -cannon.rotation
+	sprite.flip_h = cos(cannon.rotation) < 0.0
 
 
 func _get_cannon_frames() -> SpriteFrames:

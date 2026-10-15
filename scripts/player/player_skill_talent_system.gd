@@ -829,6 +829,9 @@ const EVOLVED_BUILD_TEXT_OVERRIDES := {
 
 
 static func get_display(owner, role_id: String, progress_id: String) -> Dictionary:
+	if PLAYER_SKILL_LEVEL_SYSTEM.is_custom_basic(progress_id):
+		var build = PLAYER_SKILL_LEVEL_SYSTEM.basic_build(progress_id)
+		return {"base_name": "普通攻击", "name": "普通攻击", "hud_name": "普攻", "role_id": role_id, "progress_id": progress_id, "description": build.description(owner), "upgrade_note": build.next_preview(owner), "stages": [], "talent_ids": [], "talent_title": "", "path": ""}
 	var base_name := str(PROGRESS_TITLES.get(progress_id, progress_id))
 	var talent_ids := get_selected_talents(owner, role_id, progress_id)
 	var titles: Array[String] = []
@@ -890,6 +893,11 @@ static func get_talent_definition(progress_id: String, talent_id: String) -> Dic
 static func project_skill_payload(owner, skill_id: String, payload: Dictionary, include_description: bool = true) -> Dictionary:
 	var result := payload.duplicate(true)
 	var display := get_display_for_skill_id(owner, skill_id)
+	if PLAYER_SKILL_LEVEL_SYSTEM.is_custom_basic(str(display.get("progress_id", ""))):
+		result["skill_progress_id"] = str(display.get("progress_id", ""))
+		if include_description:
+			result["description"] = str(display.get("description", ""))
+		return result
 	var talent_ids: Array = display.get("talent_ids", [])
 	result["hud_name"] = str(display.get("hud_name", str(result.get("name", skill_id)).left(2)))
 	if talent_ids.is_empty():

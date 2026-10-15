@@ -21,6 +21,10 @@ static func release_after_defeat(enemy) -> bool:
 
 static func prepare_for_pool(enemy) -> void:
 	enemy.pooled_inactive = true
+	preload("res://scripts/enemies/enemy_porcupine.gd").reset(enemy)
+	preload("res://scripts/enemies/enemy_necro_priest.gd").reset(enemy)
+	preload("res://scripts/enemies/enemy_plant_behavior.gd").reset(enemy)
+	preload("res://scripts/enemies/enemy_skull_mage.gd").reset(enemy)
 	enemy.velocity = Vector2.ZERO
 	enemy.separation_push = Vector2.ZERO
 	enemy.cached_separation_velocity = Vector2.ZERO
@@ -29,6 +33,7 @@ static func prepare_for_pool(enemy) -> void:
 	enemy.slow_timer = 0.0
 	enemy.damage_reduction_value = 0.0
 	enemy.armor = 0.0
+	enemy.storm_armor_shred_timers.clear()
 	enemy.attack = 0.0
 	enemy.damage_reduction_rate = 0.0
 	enemy.stalwart_body_cooldown = 0.0
@@ -40,6 +45,10 @@ static func prepare_for_pool(enemy) -> void:
 	preload("res://scripts/enemies/enemy_runner_haste.gd").reset(enemy)
 	preload("res://scripts/enemies/enemy_heavy_armor_form.gd").sync_visual(enemy)
 	enemy.vulnerability_bonus = 0.0
+	enemy.status_resistance_sources.clear()
+	enemy.stun_remaining = 0.0
+	enemy.electric_stacks = 0
+	enemy.boss_direct_health_loss = 0.0
 	enemy.fury_armor_shred = 0.0
 	enemy.fury_armor_shred_remaining = 0.0
 	enemy.vulnerability_timer = 0.0

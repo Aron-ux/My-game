@@ -25,10 +25,13 @@ func _run() -> void:
 		failures.append("rose enemy should never move")
 	var boss := BossEnemyStub.new()
 	var boss_velocity := ENEMY_MOVEMENT.compute_velocity(boss, 0.016)
-	if boss_velocity.length() >= 30.0:
+	boss._cached_distance_to_target = boss.preferred_distance + 100.0
+	var approach_velocity := ENEMY_MOVEMENT.compute_velocity(boss, 0.016)
+	if boss_velocity.length() >= approach_velocity.length():
 		failures.append("boss should slow orbit movement near preferred distance")
-	if boss_velocity.y >= 25.0:
-		failures.append("boss preferred-distance orbit should not keep moving downward at full speed")
+	boss.boss_routine.stage = "performance"
+	if ENEMY_MOVEMENT.compute_velocity(boss, 0.016) != Vector2.ZERO:
+		failures.append("spellcore should hold position during its performance")
 	if failures.is_empty():
 		print("ENEMY_ROSE_BEHAVIOR_SMOKE_OK")
 		quit(0)
@@ -70,6 +73,8 @@ class RoseEnemyStub:
 class BossEnemyStub:
 	extends RefCounted
 
+	var archetype_id := "boss_spellcore"
+	var boss_routine := {"stage": "basic"}
 	var behavior_id := "boss"
 	var secondary_behavior_id := ""
 	var rebirth_timer := 0.0

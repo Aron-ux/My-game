@@ -4,6 +4,7 @@ const ROLE_DATABASE := preload("res://scripts/player/roles/role_database.gd")
 const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
 const PLAYER_SKILL_LEVEL_SYSTEM := preload("res://scripts/player/player_skill_level_system.gd")
 const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
+const PLAYER_SKILL_COOLDOWN_FLOW := preload("res://scripts/player/player_skill_cooldown_flow.gd")
 
 const OPTION_PREFIX := "role_build:"
 const CATEGORY_ROLE_BUILD := "role_build"
@@ -554,19 +555,14 @@ static func _build_role_options(owner, role_id: String, role_slot_index: int) ->
 
 static func _make_skill_upgrade_option(owner, role_id: String, role_slot_index: int, progress_id: String) -> Dictionary:
 	var level := PLAYER_SKILL_LEVEL_SYSTEM.get_skill_level(owner, role_id, progress_id)
-	if level <= 0:
+	if level <= 0 and not PLAYER_SKILL_LEVEL_SYSTEM.is_custom_basic(progress_id):
 		return {}
-	var next_level: int = mini(PLAYER_SKILL_LEVEL_SYSTEM.MAX_SKILL_LEVEL, level + 1)
+	var next_level: int = mini(9 if PLAYER_SKILL_LEVEL_SYSTEM.is_custom_basic(progress_id) else PLAYER_SKILL_LEVEL_SYSTEM.MAX_SKILL_LEVEL, level + 1)
 	var skill_title := PLAYER_SKILL_LEVEL_SYSTEM.get_progress_title(progress_id)
 	var role_name := _get_role_name(owner, role_id)
 	var build_id := "%s%s" % [SKILL_UPGRADE_BUILD_PREFIX, progress_id]
-	var summary := "%s 等级 +1：%d 级 → %d 级。" % [skill_title, level, next_level]
-	var preview := PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_upgrade_preview_text(owner, role_id, progress_id)
-	var upgrade_description := ("每级提升%s" % preview) if preview != "" else "每级提升该技能效果。"
-	if preview != "":
-		summary += "升级效果：%s。" % preview
-	elif next_level <= PLAYER_SKILL_LEVEL_SYSTEM.TALENT_PICK_LEVEL and level < PLAYER_SKILL_LEVEL_SYSTEM.TALENT_PICK_LEVEL:
-		summary += "达到 %d 级时开启天赋位选择。" % PLAYER_SKILL_LEVEL_SYSTEM.TALENT_PICK_LEVEL
+	var display := PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_upgrade_display(owner, role_id, progress_id)
+	var upgrade_description := str(display["description"])
 	var option := {
 		"id": "%s%s:%s" % [OPTION_PREFIX, role_id, build_id],
 		"offer_key": "%s:%s" % [role_id, build_id],
@@ -588,13 +584,14 @@ static func _make_skill_upgrade_option(owner, role_id: String, role_slot_index: 
 		"preview_description": upgrade_description,
 		"detail_description": upgrade_description,
 		"exact_description": upgrade_description,
-		"card_title": "升级：%s" % skill_title,
+		"card_title": skill_title,
 		"hide_card_title": false,
 		"unlock_skill": "",
 		"build_card_scene": "stone",
 		"blessing_tier": 1,
 		"evolved": false
 	}
+	option.merge(display, true)
 	return _project_role_option(owner, option)
 
 
@@ -634,6 +631,15 @@ static func _make_role_option(owner, role_id: String, role_slot_index: int, defi
 		"blessing_tier": 1,
 		"evolved": false
 	}
+	if unlock_skill != "":
+		var info := PLAYER_SKILL_COOLDOWN_FLOW.get_skill_info(owner, role_id, skill_id)
+		if not info.is_empty():
+			option["card_highlight"] = str(info.get("effect_summary", ""))
+			option["effect_rows"] = info.get("effect_rows", [])
+			option["effect_note"] = str(info.get("effect_note", ""))
+			for key in ["description", "preview_description", "detail_description", "exact_description"]:
+				option[key] = str(info.get("description", description))
+			option["card_lines"] = ["冷却 %.1f 秒" % float(info.get("duration", 0.0))]
 	return _project_role_option(owner, option)
 
 

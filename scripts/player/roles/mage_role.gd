@@ -31,6 +31,9 @@ const BASIC_FROST_SLOW_DURATION := 0.8
 var basic_damage_event_serial: int = 0
 
 func perform_attack(owner) -> void:
+	preload("res://scripts/player/player_mage_basic_runtime.gd").perform(owner)
+
+func _perform_legacy_attack(owner) -> void:
 	var basic_source_id := _create_basic_source_id(owner)
 	var contexts: Array = _build_attack_contexts(owner, basic_source_id)
 	if (contexts[0] as Array).is_empty():

@@ -8,6 +8,7 @@ const FRAME_TIME_REFRESH_INTERVAL := HUD_PRESENTATION_REFRESH_INTERVAL
 const FRAME_STATS_REFRESH_INTERVAL := HUD_PRESENTATION_REFRESH_INTERVAL
 const LAST_FRAME_TIME_REFRESH_META := "last_frame_time_refresh_time"
 const LAST_FRAME_STATS_REFRESH_META := "last_frame_stats_refresh_time"
+const DEVELOPER_BUILD_TOOLS := preload("res://scripts/developer/developer_build_tools.gd")
 
 # Handoff note:
 # HUD projection lives here. main.gd should expose scene state and thin callback
@@ -51,12 +52,12 @@ static func refresh_hud(main: Node) -> void:
 		main.hud.set_developer_normal_enemy_options(main._get_developer_normal_enemy_options())
 	if main.hud.has_method("set_developer_enemy_options"):
 		main.hud.set_developer_enemy_options(main._get_developer_enemy_options())
-	if main.hud.has_method("set_developer_skill_options"):
-		main.hud.set_developer_skill_options(main._get_developer_skill_options())
-	if main.hud.has_method("set_developer_blessing_options"):
-		main.hud.set_developer_blessing_options(main._get_developer_blessing_options())
-	if main.hud.has_method("set_developer_ruan_stone_options"):
-		main.hud.set_developer_ruan_stone_options(main._get_developer_ruan_stone_options())
+	if main._is_developer_mode() and main.hud.has_method("set_developer_catalog_data"):
+		main.hud.set_developer_catalog_data({
+			"skill": DEVELOPER_BUILD_TOOLS.skill_catalog(main.player),
+			"blessing": DEVELOPER_BUILD_TOOLS.blessing_catalog(main.player),
+			"item": DEVELOPER_BUILD_TOOLS.item_catalog(main.player)
+		})
 	update_boss_hud(main)
 
 static func _get_boss_ui_data(enemy, default_name: String) -> Dictionary:

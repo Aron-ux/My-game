@@ -20,6 +20,10 @@ class TalentOwner:
 	func _has_skill_talent(talent_id: String) -> bool:
 		return live_talents.has(talent_id)
 
+class EffectOwner:
+	extends Node2D
+	var blessing_skill_state: Dictionary = {"unlocked": {"crescent_wave": true}}
+
 class AbilityOwner:
 	extends RefCounted
 	var swordsman_blade_storm_ability = null
@@ -137,7 +141,7 @@ func _run() -> void:
 	var scene := Node2D.new()
 	root.add_child(scene)
 	current_scene = scene
-	var effect_owner := Node2D.new()
+	var effect_owner := EffectOwner.new()
 	scene.add_child(effect_owner)
 	crescent_copy.restore_effect_if_active(effect_owner)
 	shrapnel_copy.restore_effect_if_active(effect_owner)

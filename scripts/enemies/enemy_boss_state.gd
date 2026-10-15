@@ -32,9 +32,11 @@ static func get_boss_spawn_health(enemy) -> float:
 static func has_boss_shield(enemy) -> bool:
 	if str(enemy.enemy_kind) != "boss" or bool(enemy.boss_shield_break_intro_played):
 		return false
-	return float(enemy.current_health) > get_phase_bar_max_health(enemy)
+	return float(enemy.current_health) > get_phase_bar_max_health(enemy) - enemy.boss_direct_health_loss
 
 static func start_phase_transition(enemy, next_phase: int) -> void:
+	enemy.stun_remaining = 0.0
+	enemy.boss_direct_health_loss = 0.0
 	enemy.boss_phase_transition_target = clamp(next_phase, 2, 3)
 	if int(enemy.boss_phase_transition_target) >= 3:
 		enemy.boss_shield_break_intro_played = true
@@ -44,10 +46,11 @@ static func start_phase_transition(enemy, next_phase: int) -> void:
 	enemy._spawn_status_burst(Color(1.0, 0.84, 0.42, 0.24), 54.0 + enemy.scale.x * 12.0)
 
 static func start_shield_break_intro(enemy) -> void:
+	enemy.stun_remaining = 0.0
 	enemy.boss_shield_break_intro_played = true
 	enemy.boss_shield_break_visual_intro_active = true
 	enemy.boss_phase_three_intro_remaining = BOSS_PHASE_THREE_CHARGE_DURATION
-	enemy.current_health = get_phase_bar_max_health(enemy)
+	enemy.current_health = get_phase_bar_max_health(enemy) - enemy.boss_direct_health_loss
 	_prepare_transition_state(enemy)
 	enemy._spawn_status_burst(Color(1.0, 0.84, 0.42, 0.24), 54.0 + enemy.scale.x * 12.0)
 
@@ -84,7 +87,8 @@ static func update_boss_shield_break_intro(enemy, delta: float) -> void:
 	enemy.boss_phase_three_intro_remaining = 0.0
 	enemy.boss_shield_break_visual_intro_active = false
 	ENEMY_BOSS_VISUALS.clear_boss_phase_three_charge_visuals(enemy)
-	enemy.current_health = get_phase_bar_max_health(enemy)
+	enemy.current_health = get_phase_bar_max_health(enemy) - enemy.boss_direct_health_loss
+	enemy.boss_direct_health_loss = 0.0
 	enemy._spawn_status_burst(Color(0.2, 0.42, 1.0, 0.34), 84.0 + enemy.scale.x * 12.0)
 	if enemy.target != null and is_instance_valid(enemy.target) and enemy.target.has_method("queue_external_camera_shake"):
 		enemy.target.queue_external_camera_shake(BOSS_PHASE_THREE_SHAKE_STRENGTH, BOSS_PHASE_THREE_SHAKE_DURATION)

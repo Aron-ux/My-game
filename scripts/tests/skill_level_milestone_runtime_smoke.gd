@@ -24,11 +24,17 @@ func _run() -> void:
 
 func _check_basic_attack_extra_slashes() -> void:
 	var role := PLAYER_SWORDSMAN_ROLE.new()
-	var expectations := {1: 0, 2: 1, 3: 1, 4: 2, 6: 3, 8: 4, 10: 4}
+	var expectations := {0: 0, 1: 0, 4: 0, 5: 0, 6: 1, 8: 1, 9: 1}
 	for level in expectations.keys():
 		var owner := SwordsmanRuntimeStub.new()
 		_set_level(owner, "swordsman_basic", int(level))
 		role._apply_basic_talent_followup(owner, Vector2.RIGHT, 1.0, "swordsman_basic:test")
+		if int(level) >= 6:
+			_expect_equal(owner.extra_slash_hits, 0, "combo must wait for its timer")
+			owner.global_position = Vector2(300.0, 150.0)
+			owner.delayed_callback.call(0)
+			_expect_equal(owner.last_slash_center, Vector2(360.0, 150.0), "combo follows current position with the existing slash visual offset")
+			_expect_equal(owner.last_interval, 0.25, "combo delay is 0.25 seconds")
 		_expect_equal(
 			PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_basic_attack_extra_slash_count(owner),
 			int(expectations[level]),
@@ -56,6 +62,9 @@ func _set_level(owner, progress_id: String, level: int) -> void:
 	else:
 		levels[progress_id] = level
 	role_state["skill_levels"] = levels
+	if progress_id == "swordsman_basic":
+		levels[progress_id] = level
+		role_state["swordsman_basic_build"] = {}
 	states["swordsman"] = role_state
 	owner.role_special_states = states
 
@@ -77,11 +86,17 @@ class SwordsmanRuntimeStub:
 	var global_position := Vector2.ZERO
 	var extra_slash_hits: int = 0
 	var scheduled_sequences: int = 0
+	var delayed_callback: Callable
+	var last_slash_center := Vector2.ZERO
+	var last_interval := 0.0
 	var SWORD_SLASH_SCENE_VISIBLE_BOUNDS := Rect2(0.0, 0.0, 100.0, 100.0)
 	var SWORD_SLASH_SCENE_SIZE := Vector2(200.0, 200.0)
 
 	func _get_active_role() -> Dictionary:
 		return roles[0]
+
+	func _get_active_role_id() -> String:
+		return "swordsman"
 
 	func _get_role_damage(_role_id: String) -> float:
 		return 10.0
@@ -112,6 +127,7 @@ class SwordsmanRuntimeStub:
 
 	func _damage_enemies_in_oriented_rect_unique(_center: Vector2, _axis: Vector2, _length: float, _rect_width: float, _damage: float, _vulnerability: float, _slow_multiplier: float, _slow_duration: float, _hit_registry: Dictionary, _source_id: String) -> int:
 		extra_slash_hits += 1
+		last_slash_center = _center
 		return 1
 
 	func _schedule_swordsman_slash_followthrough(_center: Vector2, _axis: Vector2, _length: float, _rect_width: float, _damage: float, _vulnerability: float, _slow_multiplier: float, _slow_duration: float, _animation_duration: float, _source_id: String, _hit_registry: Dictionary) -> void:
@@ -131,5 +147,5 @@ class SwordsmanRuntimeStub:
 
 	func _schedule_repeating_sequence(_interval: float, repeat_count: int, callback: Callable, _initial_delay: float = 0.0) -> void:
 		scheduled_sequences += 1
-		for index in range(repeat_count):
-			callback.call(index)
+		last_interval = _initial_delay
+		delayed_callback = callback

@@ -12,8 +12,8 @@ const WIZARD_VISUAL_SCENE := preload("res://assets/players/wizard/wizard.tscn")
 const WIZARD_VISUAL_SCALE := Vector2(1.7, 1.7)
 const WIZARD_VISUAL_BASE_POSITION := Vector2(0.0, -8.0)
 const MECHANIC_VISUAL_SCENE := preload("res://assets/players/mechanic/mechanic.tscn")
-const MECHANIC_VISUAL_SCALE := Vector2(1.7, 1.7)
-const MECHANIC_VISUAL_BASE_POSITION := Vector2(0.0, -8.0)
+const MECHANIC_VISUAL_SCALE := Vector2(1.1, 1.1)
+const MECHANIC_VISUAL_BASE_POSITION := Vector2(0.0, -4.0)
 const ROLE_BODY_CENTER_OFFSETS := {
 	"swordsman": Vector2.ZERO,
 	"gunner": Vector2.ZERO,
@@ -197,6 +197,8 @@ static func _update_role_scene_visual(owner: Node, scene_visual: Node2D, role_id
 	if base_position_value is Vector2:
 		base_position = base_position_value
 	var bob_strength := (2.0 if role_id == "mage" else 1.4) * _get_idle_visual_bob_factor(owner)
+	if role_id == "mechanic":
+		bob_strength = 0.0
 	scene_visual.position = base_position + Vector2(0.0, sin(role_visual_time * 4.4) * bob_strength)
 	scene_visual.position = scene_visual.position.round()
 	scene_visual.rotation = 0.012 * sin(role_visual_time * 2.8) if role_id == "mage" else 0.0
@@ -384,5 +386,8 @@ static func update_fire_timer(owner) -> void:
 		return
 
 	var role_data: Dictionary = owner._get_active_role()
+	if str(role_data["id"]) == "mage" and bool(owner.get_meta("mage_casting", false)):
+		owner.fire_timer.stop()
+		return
 	owner.fire_timer.wait_time = owner._get_effective_attack_interval(str(role_data["id"]))
 	owner.fire_timer.start()

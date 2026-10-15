@@ -20,10 +20,10 @@ const DAMAGE_RATIO := 2.0
 const DEPLOY_RADIUS := 48.0
 const MINE_COLOR := Color(0.95, 0.68, 0.25, 1.0)
 const MINE_VISUAL_SCALE := 0.2
-const MINE_VISUAL_OFFSET := Vector2(-2.0, -30.0)
+const MINE_VISUAL_OFFSET := Vector2(0.0, -64.0)
 const MINE_IDLE_FPS := 4.0
 const MINE_BLAST_FPS := 12.0
-const MINE_BLAST_VISUAL_MAX_RADIUS := 172.0
+const MINE_BLAST_VISUAL_MAX_RADIUS := 123.8
 const TALENT_MINE_1 := "mechanic_level_talent_mine_1"
 const TALENT_MINE_2 := "mechanic_level_talent_mine_2"
 const TALENT_COUNT_BONUS := 2
@@ -68,6 +68,7 @@ func try_trigger(owner) -> bool:
 	for index in range(mine_count):
 		var angle: float = TAU * float(index) / float(mine_count) - PI * 0.5
 		_spawn_mine(owner, scene, owner.global_position + Vector2.RIGHT.rotated(angle) * DEPLOY_RADIUS)
+	owner.mechanic_role.play_command(owner)
 	return true
 
 
@@ -126,6 +127,7 @@ func _spawn_mine(_owner, scene: Node, position: Vector2) -> Node2D:
 	sprite.animation = StringName("idle")
 	sprite.offset = MINE_VISUAL_OFFSET
 	sprite.scale = Vector2.ONE * MINE_VISUAL_SCALE
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	mine.add_child(sprite)
 	mine.global_position = position
 	scene.add_child(mine)

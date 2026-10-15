@@ -11,9 +11,9 @@ func _init() -> void:
 	owner.hit_results = [2, 1, 1]
 	role.perform_attack(owner)
 	assert(owner.damage_amounts.size() == 3)
-	assert(is_equal_approx(owner.damage_amounts[0], 180.0))
-	assert(is_equal_approx(owner.damage_amounts[1], 81.0))
-	assert(is_equal_approx(owner.damage_amounts[2], 126.0))
+	assert(is_equal_approx(owner.damage_amounts[0], 120.0))
+	assert(is_equal_approx(owner.damage_amounts[1], 54.0))
+	assert(is_equal_approx(owner.damage_amounts[2], 84.0))
 	assert(is_zero_approx(float(owner.role_special_states["swordsman"]["blood_surge_remaining"])))
 
 	owner.damage_amounts.clear()

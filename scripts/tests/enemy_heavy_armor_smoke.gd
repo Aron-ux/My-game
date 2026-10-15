@@ -27,6 +27,14 @@ func _run() -> void:
 	assert(is_equal_approx(enemy.attack, 15.0))
 	assert(is_equal_approx(enemy.max_health, 60.0))
 	assert(is_equal_approx(enemy.armor, 20.0))
+	enemy.armor = 0.0
+	enemy.current_health = 100.0
+	enemy.vulnerability_bonus = 0.2
+	DAMAGE.apply_damage(enemy, 10.0, false)
+	assert(is_equal_approx(enemy.current_health, 88.0), "enemy vulnerability should multiply damage after armor")
+	enemy.vulnerability_bonus = 0.0
+	enemy.current_health = enemy.max_health
+	enemy.armor = 20.0
 	assert(is_equal_approx(MOVEMENT.compute_velocity(enemy, 0.0).length(), 42.0))
 	assert(not FORM.is_active(enemy))
 	FORM.tick(enemy, 19.0)

@@ -1,0 +1,11 @@
+ONE production game special-effect pixel sprite sheet, transparent background. Eight animation frames of an INDUSTRIAL ARTILLERY EXPLOSION, no characters or machines. Sharp chunky orange, amber and warm-white fire clusters followed by charcoal-grey smoke and tiny copper-orange embers. Traditional arcade pixel art native 64x64 per frame, square pixels, limited colors, no soft blur or gradient haze.
+Layout exactly FOUR COLUMNS by TWO ROWS of equally sized square cells. Animation read left to right top row then bottom row. Explosion center stays at the EXACT CENTER of every cell throughout; ring-shaped symmetrical outward blast, frontal/top-down effect so it fits an overhead action RPG. Preserve the REAL relative size growth, do not enlarge the tiny first or last frames to fill their cells.
+Frame1: tiny 12%-cell-width white-yellow ignition spark.
+Frame2: small 30%-width pointed amber fire burst.
+Frame3: medium 55%-width expanding orange blast with white hot core.
+Frame4: peak large 78%-width fireball, starburst tips and small angular shockwave fragments, fully contained inside cell.
+Frame5: cooling 75%-width orange and dark grey smoke ring with opening middle.
+Frame6: thinner 65%-width separated dark smoke clusters and embers.
+Frame7: 45%-width few separated smoke fragments and dim embers.
+Frame8: 25%-width three fading tiny ember clusters.
+Center and cell boundaries must be exact; ample transparent gaps between all cells; all content fits inside each cell. No text, labels, grid lines, background, ground, people, guns, skulls or icons.

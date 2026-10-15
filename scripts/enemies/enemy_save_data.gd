@@ -16,11 +16,21 @@ static func get_save_data(enemy) -> Dictionary:
 		"current_health": enemy.current_health,
 		"damage_reduction_value": enemy.damage_reduction_value,
 		"armor": enemy.armor,
+		"storm_armor_shred_timers": enemy.storm_armor_shred_timers.duplicate(),
+		"status_resistance": enemy.status_resistance,
+		"status_resistance_sources": enemy.status_resistance_sources.duplicate(),
+		"stun_remaining": enemy.stun_remaining,
+		"electric_stacks": enemy.electric_stacks,
+		"boss_direct_health_loss": enemy.boss_direct_health_loss,
 		"fury_armor_shred": enemy.fury_armor_shred,
 		"fury_armor_shred_remaining": enemy.fury_armor_shred_remaining,
 		"attack": enemy.attack,
 		"damage_reduction_rate": enemy.damage_reduction_rate,
 		"stalwart_body_cooldown": enemy.stalwart_body_cooldown,
+		"skull_mage_state": enemy.skull_mage_state.duplicate(true),
+		"plant_state": enemy.plant_state.duplicate(true),
+		"necro_priest_state": enemy.necro_priest_state.duplicate(true),
+		"porcupine_state": enemy.porcupine_state.duplicate(true),
 		"basic_shot_timer": enemy.basic_shot_timer,
 		"heavy_armor_remaining": enemy.heavy_armor_remaining,
 		"heavy_armor_cooldown": enemy.heavy_armor_cooldown,
@@ -180,11 +190,29 @@ static func apply_save_data(enemy, data: Dictionary, target_node: Node2D) -> voi
 	enemy.current_health = float(data.get("current_health", enemy.max_health))
 	enemy.damage_reduction_value = float(data.get("damage_reduction_value", 0.0))
 	enemy.armor = float(data.get("armor", 0.0))
+	enemy.storm_armor_shred_timers = []
+	for remaining in data.get("storm_armor_shred_timers", []):
+		if float(remaining) > 0.0:
+			enemy.storm_armor_shred_timers.append(float(remaining))
+	enemy.status_resistance = clampf(float(data.get("status_resistance", 0.2 if enemy.enemy_kind in ["boss", "small_boss"] else 0.0)), 0.0, 1.0)
+	enemy.status_resistance_sources = data.get("status_resistance_sources", []).duplicate()
+	enemy.stun_remaining = maxf(0.0, float(data.get("stun_remaining", 0.0)))
+	enemy.electric_stacks = clampi(int(data.get("electric_stacks", 0)), 0, 3)
+	enemy.boss_direct_health_loss = maxf(0.0, float(data.get("boss_direct_health_loss", 0.0)))
 	enemy.fury_armor_shred_remaining = clampf(float(data.get("fury_armor_shred_remaining", 0.0)), 0.0, 2.0)
 	enemy.fury_armor_shred = maxf(0.0, float(data.get("fury_armor_shred", 0.0))) if enemy.fury_armor_shred_remaining > 0.0 else 0.0
 	enemy.attack = max(0.0, float(data.get("attack", enemy.attack)))
 	enemy.damage_reduction_rate = clampf(float(data.get("damage_reduction_rate", 0.0)), 0.0, 1.0)
 	enemy.stalwart_body_cooldown = clampf(float(data.get("stalwart_body_cooldown", 0.0)), 0.0, 1.0)
+	preload("res://scripts/enemies/enemy_skull_mage.gd").reset(enemy)
+	var mage_data: Variant = data.get("skull_mage_state", {})
+	if mage_data is Dictionary:
+		enemy.skull_mage_state.merge(mage_data, true)
+	enemy.plant_state = data.get("plant_state", {}).duplicate(true)
+	preload("res://scripts/enemies/enemy_necro_priest.gd").reset(enemy)
+	enemy.necro_priest_state.merge(data.get("necro_priest_state", {}), true)
+	preload("res://scripts/enemies/enemy_porcupine.gd").reset(enemy)
+	enemy.porcupine_state.merge(data.get("porcupine_state", {}), true)
 	enemy.basic_shot_timer = maxf(0.0, float(data.get("basic_shot_timer", 2.6)))
 	var heavy_armor_form := preload("res://scripts/enemies/enemy_heavy_armor_form.gd")
 	enemy.heavy_armor_remaining = clampf(float(data.get("heavy_armor_remaining", 0.0)), 0.0, heavy_armor_form.get_duration(enemy))
@@ -346,6 +374,8 @@ static func apply_save_data(enemy, data: Dictionary, target_node: Node2D) -> voi
 	enemy._ensure_status_visuals()
 	enemy._apply_visuals(enemy.display_color)
 	preload("res://scripts/enemies/enemy_heavy_armor_form.gd").sync_visual(enemy)
+	preload("res://scripts/enemies/enemy_skull_mage.gd").sync_visual(enemy)
+	preload("res://scripts/enemies/enemy_porcupine.gd").sync_visual(enemy)
 	if enemy.behavior_id == "skulltomb":
 		preload("res://scripts/enemies/enemy_skulltomb_behavior.gd").restore_domain(enemy, data.get("skulltomb_domain", {}))
 	if enemy.enemy_kind == "boss":

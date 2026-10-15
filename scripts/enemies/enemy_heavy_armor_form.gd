@@ -49,7 +49,7 @@ static func tick(enemy, delta: float) -> void:
 	var was_active := is_active(enemy)
 	enemy.heavy_armor_remaining = maxf(0.0, enemy.heavy_armor_remaining - delta)
 	enemy.heavy_armor_cooldown = maxf(0.0, enemy.heavy_armor_cooldown - delta)
-	if enemy.heavy_armor_cooldown <= 0.0 and enemy.target != null and is_instance_valid(enemy.target):
+	if enemy.heavy_armor_cooldown <= 0.0 and enemy.stun_remaining <= 0.0 and enemy.target != null and is_instance_valid(enemy.target):
 		enemy.heavy_armor_remaining = get_duration(enemy)
 		enemy.heavy_armor_cooldown = get_cooldown(enemy)
 	if was_active != is_active(enemy):

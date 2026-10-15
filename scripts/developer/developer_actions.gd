@@ -3,12 +3,17 @@ extends RefCounted
 const DEVELOPER_MODE := preload("res://scripts/developer_mode.gd")
 const ENEMY_ARCHETYPE_DATABASE := preload("res://scripts/enemy/enemy_archetype_database.gd")
 const ENEMY_GLUTTON_SKILL_BEHAVIOR := preload("res://scripts/enemies/enemy_glutton_skill_behavior.gd")
-const PLAYER_BLESSING_SYSTEM := preload("res://scripts/player/player_blessing_system.gd")
 const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
-const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
-const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_talent_system.gd")
-const DEVELOPER_OPTION_PROVIDER := preload("res://scripts/developer/developer_option_provider.gd")
 const DIFFICULTY_PROFILE := preload("res://scripts/game/difficulty_profile.gd")
+const BUILD_TOOLS := preload("res://scripts/developer/developer_build_tools.gd")
+
+static func apply_catalog_action(main: Node, request: Dictionary) -> bool:
+	if not DEVELOPER_MODE.is_enabled() or main == null or main.player == null:
+		return false
+	var changed := BUILD_TOOLS.apply(main.player, request)
+	if changed:
+		main._refresh_hud()
+	return changed
 
 static func activate(main: Node) -> void:
 	DEVELOPER_MODE.set_ignore_damage_enabled(true)
@@ -147,84 +152,6 @@ static func unlock_skill(main: Node, skill_id: String, tier: int) -> void:
 	if main.player.has_signal("stats_changed") and main.player.has_method("get_stat_summary"):
 		main.player.stats_changed.emit(main.player.get_stat_summary())
 	main._refresh_hud()
-
-static func grant_skill_talent(main: Node, talent_id: String) -> void:
-	if main == null or main.player == null:
-		return
-	if talent_id == DEVELOPER_OPTION_PROVIDER.CLEAR_SKILL_TALENTS_OPTION_ID:
-		_clear_all_level_talents(main.player)
-		_finish_player_change(main)
-		return
-	var role_id := _find_level_talent_role(talent_id)
-	if role_id == "":
-		return
-	var states: Dictionary = main.player.role_special_states if main.player.role_special_states is Dictionary else {}
-	var role_state: Dictionary = states.get(role_id, {}) if states.get(role_id, {}) is Dictionary else {}
-	var selected := PLAYER_SKILL_TALENT_SYSTEM.get_selected_level_talents(main.player, role_id)
-	if selected.has(talent_id):
-		return
-	selected.append(talent_id)
-	role_state[PLAYER_SKILL_TALENT_SYSTEM.LEVEL_TALENTS_KEY] = selected
-	role_state[PLAYER_SKILL_TALENT_SYSTEM.TALENTS_KEY] = {}
-	states[role_id] = role_state
-	main.player.role_special_states = states
-	_finish_player_change(main)
-
-
-static func _find_level_talent_role(talent_id: String) -> String:
-	for role_id in PLAYER_SKILL_TALENT_SYSTEM.LEVEL_TALENT_DEFINITIONS.keys():
-		for talent_value in PLAYER_SKILL_TALENT_SYSTEM.LEVEL_TALENT_DEFINITIONS.get(role_id, []):
-			if talent_value is Dictionary and str((talent_value as Dictionary).get("id", "")) == talent_id:
-				return str(role_id)
-	return ""
-
-
-static func _clear_all_level_talents(player) -> void:
-	for role_id in PLAYER_SKILL_TALENT_SYSTEM.LEVEL_TALENT_DEFINITIONS.keys():
-		var role_state: Dictionary = player.role_special_states.get(role_id, {})
-		role_state[PLAYER_SKILL_TALENT_SYSTEM.LEVEL_TALENTS_KEY] = []
-		role_state[PLAYER_SKILL_TALENT_SYSTEM.LEVEL_TALENT_GROUP_LOCKS_KEY] = {}
-		role_state[PLAYER_SKILL_TALENT_SYSTEM.TALENTS_KEY] = {}
-		player.role_special_states[role_id] = role_state
-
-
-static func _finish_player_change(main: Node) -> void:
-	if main.player.has_method("_update_fire_timer"):
-		main.player._update_fire_timer()
-	if main.player.has_signal("stats_changed") and main.player.has_method("get_stat_summary"):
-		main.player.stats_changed.emit(main.player.get_stat_summary())
-	main._refresh_hud()
-	if main.has_method("_save_run_state"):
-		main._save_run_state()
-
-static func grant_blessing(main: Node, blessing_id: String, tier: int) -> void:
-	if main == null or main.player == null:
-		return
-	if not PLAYER_BLESSING_SYSTEM.apply_blessing(main.player, blessing_id, tier):
-		return
-	if main.player.has_signal("stats_changed") and main.player.has_method("get_stat_summary"):
-		main.player.stats_changed.emit(main.player.get_stat_summary())
-	main._refresh_hud()
-
-static func grant_all_blessings(main: Node) -> void:
-	if main == null or main.player == null:
-		return
-	var granted_any := false
-	for blessing_id_value in PLAYER_BLESSING_SYSTEM.DEFINITIONS.keys():
-		var blessing_id := str(blessing_id_value)
-		var definition: Dictionary = PLAYER_BLESSING_SYSTEM.DEFINITIONS.get(blessing_id, {})
-		var tier_values: Dictionary = definition.get("tier_values", {})
-		for tier in range(1, PLAYER_BLESSING_SYSTEM.MAX_BLESSING_TIER + 1):
-			if not tier_values.has(tier):
-				continue
-			if PLAYER_BLESSING_SYSTEM.apply_blessing(main.player, blessing_id, tier):
-				granted_any = true
-	if not granted_any:
-		return
-	if main.player.has_signal("stats_changed") and main.player.has_method("get_stat_summary"):
-		main.player.stats_changed.emit(main.player.get_stat_summary())
-	main._refresh_hud()
-
 
 static func force_glutton_skill(main: Node, skill_id: String) -> void:
 	if main == null:

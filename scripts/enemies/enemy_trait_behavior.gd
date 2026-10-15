@@ -14,6 +14,12 @@ static func update_behavior_state(enemy, delta: float, skip_rebirth: bool = fals
 
 static func _tick_trait(enemy, trait_id: String, delta: float, skip_rebirth: bool = false) -> void:
 	match trait_id:
+		"necro_priest":
+			preload("res://scripts/enemies/enemy_necro_priest.gd").update(enemy, delta)
+		"vine", "shadow_tree", "tree_seed":
+			preload("res://scripts/enemies/enemy_plant_behavior.gd").update(enemy, delta)
+		"skull_mage":
+			preload("res://scripts/enemies/enemy_skull_mage.gd").update(enemy, delta)
 		"shooter":
 			_update_shooter_trait(enemy, delta)
 		"accelerator":

@@ -1,5 +1,7 @@
 extends Node2D
 
+var storm_armor_shred_timers: Array = []
+
 @warning_ignore("unused_signal")
 signal defeated(enemy_kind: String)
 
@@ -40,6 +42,10 @@ const ENEMY_SKULLTOMB_BEHAVIOR := preload("res://scripts/enemies/enemy_skulltomb
 @export var damage_reduction_rate: float = 0.0
 var stalwart_body_cooldown: float = 0.0
 var basic_shot_timer: float = 0.0
+var skull_mage_state: Dictionary = {}
+var plant_state: Dictionary = {}
+var necro_priest_state: Dictionary = {}
+var porcupine_state: Dictionary = {}
 var heavy_armor_remaining: float = 0.0
 var heavy_armor_cooldown: float = 20.0
 var runner_haste_remaining: float = 0.0
@@ -65,6 +71,11 @@ const ENEMY_STALWART_BODY := preload("res://scripts/enemies/enemy_stalwart_body.
 var target: Node2D
 var current_health: float
 var slow_multiplier: float = 1.0
+@export var status_resistance: float = 0.0
+var status_resistance_sources: Array = []
+var stun_remaining: float = 0.0
+var electric_stacks: int = 0
+var boss_direct_health_loss: float = 0.0
 var slow_timer: float = 0.0
 var vulnerability_bonus: float = 0.0
 var fury_armor_shred: float = 0.0
@@ -375,11 +386,11 @@ func get_boss_ui_payload() -> Dictionary:
 	if enemy_kind == "boss":
 		boss_bar_max_health = ENEMY_BOSS_STATE.get_phase_bar_max_health(self)
 		shield_max_health = ENEMY_BOSS_STATE.get_boss_shield_max_health(self)
-	var shield_health: float = clamp(current_health - boss_bar_max_health, 0.0, shield_max_health)
+	var shield_health: float = clamp(current_health - boss_bar_max_health + boss_direct_health_loss, 0.0, shield_max_health) if not boss_shield_break_intro_played else 0.0
 	var payload: Dictionary = {
 		"name": boss_display_name,
 		"enemy_kind": enemy_kind,
-		"current_health": current_health,
+		"current_health": minf(current_health, boss_bar_max_health - boss_direct_health_loss),
 		"max_health": boss_bar_max_health,
 		"shield_health": shield_health,
 		"shield_max_health": shield_max_health,
@@ -511,6 +522,9 @@ func _update_bleed(delta: float) -> void:
 func take_damage(amount: float, is_critical: bool = false) -> bool:
 	return ENEMY_DAMAGE.take_damage(self, amount, is_critical)
 
+func take_damage_ignoring_armor(amount: float, is_critical: bool = false, show_feedback: bool = true) -> bool:
+	return ENEMY_DAMAGE.apply_damage(self, amount, show_feedback, is_critical, true)
+
 func try_stalwart_body_damage() -> float:
 	return ENEMY_STALWART_BODY.try_trigger(self)
 
@@ -541,7 +555,7 @@ func apply_fury_armor_shred(amount: float, duration: float) -> void:
 	if amount <= 0.0 or duration <= 0.0:
 		return
 	fury_armor_shred = maxf(fury_armor_shred, amount)
-	fury_armor_shred_remaining = duration
+	fury_armor_shred_remaining = preload("res://scripts/combat/status_resistance.gd").duration(self, duration)
 	_spawn_status_burst(Color(1.0, 0.4, 0.2, 0.5), 22.0)
 
 func apply_bleed(damage_per_second: float, duration: float) -> void:
@@ -612,3 +626,9 @@ func _register_runtime_enemy() -> void:
 
 func _unregister_runtime_enemy() -> void:
 	ENEMY_POOL_LIFECYCLE.unregister_runtime_enemy(self)
+
+func apply_stun(duration: float) -> bool:
+	return preload("res://scripts/enemies/enemy_stun.gd").apply(self, duration)
+
+func take_direct_damage(amount: float) -> bool:
+	return ENEMY_DAMAGE.apply_damage(self, amount, true, false, true, true)

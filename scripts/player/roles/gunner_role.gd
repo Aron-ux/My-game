@@ -1,4 +1,5 @@
 extends RefCounted
+const BASIC_BUILD := preload("res://scripts/player/player_gunner_basic_build.gd")
 
 const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
@@ -61,6 +62,42 @@ var ultimate_attack_lock_id: int = 0
 var damage_event_serial: int = 0
 
 func perform_attack(owner) -> void:
+	if ultimate_attack_locked or owner.is_gunner_infinite_reload_active():
+		return
+	_fire_build_shot(owner)
+	if BASIC_BUILD.has_choice(owner, "rapid"):
+		owner._schedule_repeating_sequence(0.25, 1, func(_index: int) -> void:
+			if is_instance_valid(owner) and not owner.is_dead and str(owner._get_active_role().get("id", "")) == "gunner":
+				_fire_build_shot(owner)
+		, 0.25)
+
+func _fire_build_shot(owner) -> void:
+	var direction: Vector2 = owner.facing_direction.normalized()
+	if direction.is_zero_approx():
+		direction = Vector2.RIGHT
+	var speed: float = BASIC_BULLET_BASE_SPEED * _get_basic_attack_projectile_speed_multiplier(owner) * (1.1 if BASIC_BUILD.has_choice(owner, "rapid") else 1.0) * (2.0 if BASIC_BUILD.has_choice(owner, "sniper") else 1.0)
+	var distance: float = BASIC_BULLET_TRAVEL_DISTANCE + BASIC_BUILD.range_bonus(owner) + PLAYER_BUILD_SYSTEM.get_basic_attack_range_flat_bonus(owner, "gunner")
+	var ratio: float = BASIC_BUILD.damage_ratio(owner)
+	var attack: float = owner._get_role_damage("gunner") * PLAYER_BUILD_SYSTEM.get_basic_attack_damage_multiplier(owner, "gunner")
+	var event_id := create_damage_event_id(owner, "gunner_basic")
+	var split: bool = BASIC_BUILD.has_choice(owner, "split")
+	var config := {
+		"speed": speed, "lifetime": distance / speed, "hit_radius": 14.0,
+		"visual_radius": _get_scaled_visual_radius(BASIC_BULLET_VISUAL_RADIUS),
+		"visual_min_diameter": GUNNER_BATCHED_BULLET_VISUAL_MIN_DIAMETER,
+		"enemy_hit_radius_scale": 0.42, "enemy_hit_radius_min": 10.0, "enemy_hit_radius_max": 28.0,
+		"damage_event_id": event_id,
+		"pierce_count": -1 if not split and BASIC_BUILD.has_choice(owner, "pierce") and randf() < 0.3 else 0,
+		"gunner_build": {
+			"shock_bonus": attack * 0.5 if BASIC_BUILD.has_choice(owner, "shock") else 0.0,
+			"split": split, "split_distance": distance * 0.6,
+			"split_pierce": split and BASIC_BUILD.has_choice(owner, "pierce")
+		}
+	}
+	if owner._spawn_batched_directional_bullet(direction, attack * ratio, Color(1.0, 0.42, 0.34, 1.0), "gunner_basic:" + event_id, owner.global_position + direction * 18.0, config):
+		BASIC_BUILD.on_shot(owner)
+
+func _perform_legacy_attack(owner) -> void:
 	if ultimate_attack_locked:
 		return
 	if owner.is_gunner_infinite_reload_active():
@@ -796,6 +833,7 @@ func apply_lock(owner, target_enemy: Node2D, lock_level: int) -> void:
 func update_talent_states(owner, delta: float) -> void:
 	if owner == null or delta <= 0.0:
 		return
+	BASIC_BUILD.tick(owner, delta)
 	var state := _get_talent_state(owner)
 	state["follow_fire_remaining"] = max(0.0, float(state.get("follow_fire_remaining", 0.0)) - delta)
 	state["escape_step_remaining"] = max(0.0, float(state.get("escape_step_remaining", 0.0)) - delta)

@@ -89,7 +89,8 @@ var runtime_spawn_counts: Dictionary = {}
 var runtime_pickup_nodes: Dictionary = {
 	"exp_gems": {},
 	"heart_pickups": {},
-	"bone_pickups": {}
+	"bone_pickups": {},
+	"experience_vacuum_pickups": {}
 }
 var runtime_pickup_cache: Dictionary = {}
 var runtime_pickup_cache_dirty: Dictionary = {}
@@ -575,6 +576,9 @@ func _update_developer_mode(_delta: float) -> void:
 func _on_developer_level_up_requested() -> void:
 	DEVELOPER_ACTIONS.grant_level_up(self)
 
+func _on_developer_catalog_action_requested(request: Dictionary) -> void:
+	DEVELOPER_ACTIONS.apply_catalog_action(self, request)
+
 func _on_developer_boss_spawn_requested(archetype_id: String) -> void:
 	DEVELOPER_ACTIONS.spawn_boss(self, archetype_id)
 
@@ -587,9 +591,6 @@ func _on_developer_normal_enemy_batch_spawn_requested(archetype_id: String, coun
 func _on_developer_enemy_spawn_requested(kind: String, archetype_id: String, count: int) -> void:
 	DEVELOPER_ACTIONS.spawn_enemy(self, kind, archetype_id, count)
 
-func _on_developer_skill_unlock_requested(skill_id: String, tier: int) -> void:
-	DEVELOPER_ACTIONS.unlock_skill(self, skill_id, tier)
-
 func _on_skill_mode_toggle_requested(skill_id: String) -> void:
 	if player != null and is_instance_valid(player) and player.has_method("_toggle_skill_manual_by_id"):
 		player._toggle_skill_manual_by_id(skill_id)
@@ -597,18 +598,6 @@ func _on_skill_mode_toggle_requested(skill_id: String) -> void:
 func _on_skill_slot_swap_requested(role_id: String, from_slot: int, to_slot: int) -> void:
 	if player != null and is_instance_valid(player) and player.has_method("_swap_skill_slot_order"):
 		player._swap_skill_slot_order(role_id, from_slot, to_slot)
-
-func _on_developer_skill_talent_grant_requested(talent_id: String) -> void:
-	DEVELOPER_ACTIONS.grant_skill_talent(self, talent_id)
-
-func _on_developer_blessing_grant_requested(blessing_id: String, tier: int) -> void:
-	DEVELOPER_ACTIONS.grant_blessing(self, blessing_id, tier)
-
-func _on_developer_all_blessings_grant_requested() -> void:
-	DEVELOPER_ACTIONS.grant_all_blessings(self)
-
-func _on_developer_ruan_stone_action_requested(action_id: String) -> void:
-	DEVELOPER_ACTIONS.apply_ruan_stone_action(self, action_id)
 
 func _on_developer_glutton_skill_test_requested(skill_id: String) -> void:
 	DEVELOPER_ACTIONS.force_glutton_skill(self, skill_id)
@@ -638,15 +627,6 @@ func _get_developer_normal_enemy_options() -> Array:
 
 func _get_developer_enemy_options() -> Array:
 	return DEVELOPER_OPTION_PROVIDER.get_enemy_options()
-
-func _get_developer_skill_options() -> Array:
-	return DEVELOPER_OPTION_PROVIDER.get_skill_options(player)
-
-func _get_developer_blessing_options() -> Array:
-	return DEVELOPER_OPTION_PROVIDER.get_blessing_options(player)
-
-func _get_developer_ruan_stone_options() -> Array:
-	return DEVELOPER_OPTION_PROVIDER.get_ruan_stone_options(player)
 
 func _spawn_developer_boss(archetype_id: String = "boss_spellcore") -> void:
 	DEVELOPER_ACTIONS.spawn_boss(self, archetype_id)

@@ -8,6 +8,7 @@ const ROLE_DATA := [
 	{
 		"id": "swordsman",
 		"armor": 10.0,
+		"status_resistance": 0.1,
 		"name": "\u5251\u58EB",
 		"color": Color(1.0, 0.66, 0.35, 1.0),
 		"speed_scale": 1.0,
@@ -28,6 +29,7 @@ const ROLE_DATA := [
 	{
 		"id": "gunner",
 		"armor": -15.0,
+		"status_resistance": 0.0,
 		"name": "\u67AA\u624B",
 		"color": Color(1.0, 0.35, 0.32, 1.0),
 		"speed_scale": 1.0,
@@ -48,6 +50,7 @@ const ROLE_DATA := [
 	{
 		"id": "mage",
 		"armor": 0.0,
+		"status_resistance": 0.0,
 		"name": "\u6CD5\u5E08",
 		"color": Color(0.44, 0.86, 1.0, 1.0),
 		"speed_scale": 1.0,
@@ -68,6 +71,7 @@ const ROLE_DATA := [
 	{
 		"id": "mechanic",
 		"armor": 0.0,
+		"status_resistance": 0.0,
 		"name": "机械师",
 		"color": Color(0.95, 0.68, 0.25, 1.0),
 		"speed_scale": 1.0,

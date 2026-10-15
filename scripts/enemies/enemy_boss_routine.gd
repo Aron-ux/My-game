@@ -41,7 +41,7 @@ static func get_duration(enemy, stage: String) -> float:
 		"performance":
 			return 18.0 if enemy.boss_phase >= 3 else 15.0
 		_:
-			return RECOVERY_DURATION
+			return RECOVERY_DURATION + float(enemy.boss_routine.get("stun_extension", 0.0))
 
 
 static func get_status(enemy) -> Dictionary:
@@ -50,8 +50,8 @@ static func get_status(enemy) -> Dictionary:
 		return {}
 	return {
 		"label": "瘫痪 · 护甲降低50",
-		"remaining": maxf(0.0, RECOVERY_DURATION - float(state.get("elapsed", 0.0))),
-		"duration": RECOVERY_DURATION
+		"remaining": maxf(0.0, get_duration(enemy, "recovery") - float(state.get("elapsed", 0.0))),
+		"duration": get_duration(enemy, "recovery")
 	}
 
 
@@ -169,7 +169,7 @@ static func _finished(enemy) -> bool:
 
 
 static func _shielded(enemy) -> bool:
-	return not enemy.boss_shield_break_intro_played and enemy.current_health > maxf(1.0, enemy.max_health / 3.0)
+	return not enemy.boss_shield_break_intro_played and enemy.current_health > maxf(1.0, enemy.max_health / 3.0) - enemy.boss_direct_health_loss
 
 
 static func _update_basic(enemy, delta: float) -> void:
@@ -273,8 +273,11 @@ static func restore(enemy, saved: Variant) -> void:
 		reset(enemy)
 		return
 	var stage := str(saved.stage)
+	enemy.boss_routine["stun_extension"] = maxf(0.0, float(saved.get("stun_extension", 0.0)))
 	enemy.boss_routine = {
 		"stage": stage,
+		"stun_extension": maxf(0.0, float(saved.get("stun_extension", 0.0))),
+		"stun_extension_recorded": bool(saved.get("stun_extension_recorded", false)),
 		"elapsed": maxf(0.0, float(saved.get("elapsed", 0.0))) if stage == "finishing" else clampf(float(saved.get("elapsed", 0.0)), 0.0, get_duration(enemy, stage)),
 		"theme": posmod(int(saved.get("theme", 0)), THEMES.size()),
 		"events": int(saved.get("events", 0)),

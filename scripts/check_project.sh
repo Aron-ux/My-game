@@ -64,10 +64,15 @@ if [[ -n "$GODOT_BIN" ]]; then
     local script="$1"
     local name
     local log
+    local display_args=(--headless)
     name="$(basename "${script%.gd}")"
     log="/tmp/my-game-${name//_/-}.log"
+    # Pixel assertions need a real renderer; CI supplies a virtual X display.
+    if [[ "$name" == *_render_smoke ]]; then
+      display_args=(--rendering-method gl_compatibility --audio-driver Dummy)
+    fi
     echo "== Godot ${name//_/ } =="
-    if ! "$GODOT_BIN" --headless --path . --script "$script" 2>&1 | tee "$log"; then
+    if ! "$GODOT_BIN" "${display_args[@]}" --path . --script "$script" 2>&1 | tee "$log"; then
       echo "${name^^}_FAILED"
       exit 1
     fi
@@ -92,11 +97,11 @@ else
   echo "== Godot checks skipped: set GODOT_BIN or install godot =="
 fi
 
-if command -v graphify >/dev/null 2>&1; then
+if [[ -f graphify-out/graph.json ]] && command -v graphify >/dev/null 2>&1; then
   echo "== graphify update =="
   graphify update .
 else
-  echo "== graphify skipped: command not found =="
+  echo "== graphify skipped: no existing index or command not found =="
 fi
 
 echo "PROJECT_CHECK_OK"

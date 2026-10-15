@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="EnemyProfile" load_steps=3 format=3]
+[ext_resource type="Script" path="res://scripts/enemy/enemy_profile.gd" id="1"]
+[ext_resource type="PackedScene" path="res://assets/enemies/plants/shadow_tree.tscn" id="2"]
+[resource]
+script = ExtResource("1")
+archetype = "shadow_tree"
+behavior = "shadow_tree"
+max_health = 100.0
+attack = 15.0
+armor = 5.0
+speed = 60.0
+damage_reduction_rate = 0.0
+touch_damage = 22.5
+contact_radius = 30.0
+body_collision_radius = 30.0
+experience_reward = 6
+scale = 1.0
+visual_scene = ExtResource("2")
+extra = {"status_resistance": 0.0}

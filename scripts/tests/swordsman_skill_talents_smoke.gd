@@ -108,6 +108,7 @@ class TalentOwner:
 	const SWORDSMAN_DEATH_DEFIANCE_COOLDOWN := 80.0
 
 	var talents: Dictionary = {}
+	var blessing_skill_state: Dictionary = {"unlocked": {"crescent_wave": true, "blade_storm": true}}
 	var role_special_states: Dictionary = {"swordsman": {"build_levels": {}}}
 	var roles: Array = [{"id": "swordsman"}, {"id": "gunner"}, {"id": "mage"}]
 	var active_role_index := 1

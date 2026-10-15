@@ -1143,6 +1143,13 @@ static func _make_option(owner, blessing_id: String, tier: int) -> Dictionary:
 	var title := title_base
 	var tier_text_color: Color = BLESSING_TEXT_COLOR
 	var description := effect_text
+	var shared := str(definition.get("binding", ROLE_BOUND)) == ROLE_BOUND
+	var held := 0
+	if owner != null:
+		var bindings: Array = normalize_role_state(owner.role_blessing_levels, owner.roles).values() if shared else [normalize_skill_state(owner.skill_blessing_levels)]
+		for levels in bindings:
+			var tier_counts: Dictionary = levels.get(blessing_id, {})
+			held = maxi(held, int(tier_counts.get(tier, tier_counts.get(str(tier), 0))))
 	return {
 		"id": "%s%s:%d" % [OPTION_PREFIX, blessing_id, tier],
 		"offer_key": blessing_id,
@@ -1159,6 +1166,8 @@ static func _make_option(owner, blessing_id: String, tier: int) -> Dictionary:
 		"blessing_id": blessing_id,
 		"blessing_tier": tier,
 		"blessing_binding": str(definition.get("binding", ROLE_BOUND)),
+		"effect_rows": [{"label": "%s 阶持有份数" % _tier_label(tier), "before": str(held), "after": str(held + 1)}],
+		"effect_note": "作用于全队，本阶祝福增加 1 份；各阶独立叠加。" if shared else "作用于匹配的技能，本阶祝福增加 1 份；各阶独立叠加。",
 		"blessing_category": str(definition.get("category", CATEGORY_GENERAL_BLESSING)),
 		"tier_text_font_color": tier_text_color,
 		"tier_text_outline_size": 0,

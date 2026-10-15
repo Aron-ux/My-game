@@ -22,6 +22,9 @@ const LIFESTEAL_MAX_ROLL_HITS := 6
 const LIFESTEAL_MAX_PROC_CHANCE := 0.80
 const SWORDSMAN_TRAIT_MAX_ROLL_HITS := ROLE_ATTRIBUTE_RULES.SWORDSMAN_TRAIT_MAX_ROLL_HITS
 
+static func hit_proc_multiplier(owner) -> float:
+	return 2.0 if owner.has_method("_has_attack_result_context_tag") and owner._has_attack_result_context_tag("windblade_double_proc") else 1.0
+
 
 static func add_kill_energy(owner, amount: float, bypass_lock_role_id: String = "", source_role_id: String = "") -> void:
 	if amount <= 0.0:
@@ -145,7 +148,7 @@ static func apply_swordsman_trait_heal_on_hit(owner, role_id: String, hit_count:
 	var forced_trigger: bool = bool(context.get("forced_trigger", false))
 	if owner.swordsman_trait_heal_cooldown_remaining > 0.0 and not forced_trigger:
 		return
-	var proc_chance: float = float(context.get("proc_chance", 0.0))
+	var proc_chance: float = float(context.get("proc_chance", 0.0)) * hit_proc_multiplier(owner)
 	var heal_ratio: float = float(context.get("heal_ratio", 0.0))
 	var missing_heal_ratio: float = float(context.get("missing_heal_ratio", 0.0))
 	if proc_chance <= 0.0 and not forced_trigger:
@@ -275,7 +278,7 @@ static func apply_greed_heal_on_hit(owner, role_id: String, hit_count: int) -> v
 		return
 	if owner.greed_heal_cooldown_remaining > 0.0:
 		return
-	var proc_chance: float = PLAYER_BLESSING_SYSTEM.get_greed_proc_chance(owner)
+	var proc_chance: float = PLAYER_BLESSING_SYSTEM.get_greed_proc_chance(owner) * hit_proc_multiplier(owner)
 	var heal_amount_per_trigger: float = PLAYER_BLESSING_SYSTEM.get_greed_heal_amount(owner, role_id)
 	if proc_chance <= 0.0 or heal_amount_per_trigger <= 0.0:
 		return
@@ -342,7 +345,7 @@ static func apply_role_flat_heal_on_hit(owner, role_id: String, hit_count: int) 
 		return
 	if owner.lifesteal_proc_cooldown_remaining > 0.0:
 		return
-	var proc_chance: float = owner._get_role_blessing_stat_bonus(role_id, "flat_heal_on_hit")
+	var proc_chance: float = owner._get_role_blessing_stat_bonus(role_id, "flat_heal_on_hit") * hit_proc_multiplier(owner)
 	if proc_chance <= 0.0:
 		return
 	if role_id == "swordsman":

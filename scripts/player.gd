@@ -195,13 +195,13 @@ const ROLE_SKETCH_PATHS := {
 	"swordsman": "人设草图/剑士草图.jpg",
 	"gunner": "人设草图/枪手草图.jpg",
 	"mage": "人设草图/术师草图.jpg",
-	"mechanic": "人设草图/机械师草图.jpg"
+	"mechanic": "res://assets/players/mechanic/mechanic-standing.png"
 }
 const ROLE_SKETCH_FULL_SIZES := {
 	"swordsman": Vector2(589.0, 527.0),
 	"gunner": Vector2(589.0, 582.0),
 	"mage": Vector2(589.0, 527.0),
-	"mechanic": Vector2(589.0, 527.0)
+	"mechanic": Vector2(96.0, 96.0)
 }
 const ROLE_SKETCH_SCALE_MULTIPLIERS := {
 	"swordsman": 1.0,
@@ -219,7 +219,7 @@ const ROLE_SKETCH_VISIBLE_BOUNDS := {
 	"swordsman": Rect2(161.0, 49.0, 368.0, 430.0),
 	"gunner": Rect2(94.0, 16.0, 415.0, 539.0),
 	"mage": Rect2(142.0, 31.0, 377.0, 424.0),
-	"mechanic": Rect2(70.0, 8.0, 450.0, 512.0)
+	"mechanic": Rect2(22.0, 8.0, 44.0, 80.0)
 }
 const SWORD_SLASH_TEXTURE_RELATIVE_PATH := "技能特效/斩击.jpg"
 const SWORD_SLASH_TEXTURE_SIZE := Vector2(1200.0, 1600.0)
@@ -282,6 +282,7 @@ var global_damage_multiplier: float = 1.0
 var background_interval_multiplier: float = 1.0
 var ultimate_cost_multiplier: float = 1.0
 var damage_taken_multiplier: float = 1.0
+var vulnerability_rate: float = 0.0
 var passive_damage_reduction_value: float = 0.0
 var role_switch_cooldown_bonus: float = 0.0
 
@@ -1167,6 +1168,9 @@ func _get_priority_target_bonus(enemy: Node) -> float:
 func _get_effective_damage_taken_multiplier() -> float:
 	return PLAYER_COMBAT_MODIFIERS.get_effective_damage_taken_multiplier(self)
 
+func _get_effective_vulnerability_multiplier() -> float:
+	return PLAYER_COMBAT_MODIFIERS.get_effective_vulnerability_multiplier(self)
+
 func _get_equipment_low_health_damage_taken_multiplier() -> float:
 	return PLAYER_EQUIPMENT_FLOW.get_low_health_damage_taken_multiplier(self)
 
@@ -1212,17 +1216,20 @@ func _is_status_immune() -> bool:
 	return switch_invulnerability_remaining > 0.0
 
 func apply_healing_block(duration: float) -> void:
+	duration = preload("res://scripts/combat/status_resistance.gd").duration(self, duration)
 	healing_block_remaining = max(healing_block_remaining, max(0.0, duration))
 
 func is_healing_blocked() -> bool:
 	return healing_block_remaining > 0.0 or preload("res://scripts/enemies/skulltomb_domain_effect.gd").get_remaining(self) > 0.0
 
 func apply_aging(duration: float) -> void:
+	duration = preload("res://scripts/combat/status_resistance.gd").duration(self, duration)
 	if _is_status_immune():
 		return
 	aging_remaining = max(aging_remaining, max(0.0, duration))
 
 func apply_confinement(center: Vector2, radius: float, duration: float, polygon: PackedVector2Array = PackedVector2Array()) -> void:
+	duration = preload("res://scripts/combat/status_resistance.gd").duration(self, duration)
 	if _is_status_immune():
 		return
 	confinement_center = center
@@ -2067,6 +2074,7 @@ func _sync_orbit_pull_status(remaining: float, _pull_origin: Vector2) -> void:
 	_sync_duration_status("orbit_pull", "牵引", remaining, 80, Color(0.22, 0.14, 0.28, 0.95))
 
 func _start_entangled_status(duration: float) -> void:
+	duration = preload("res://scripts/combat/status_resistance.gd").duration(self, duration)
 	if _is_status_immune():
 		return
 	_start_duration_status("entangled", "缠绕", duration, 100, Color(0.56, 0.56, 0.56, 0.95))
@@ -2686,3 +2694,6 @@ func _build_arc_band_polygon(outer_radius: float, inner_radius: float, arc_degre
 
 func _die() -> void:
 	PLAYER_RESOURCE_FLOW.die(self)
+
+func get_status_resistance(role_id: String = "") -> float:
+	return preload("res://scripts/combat/status_resistance.gd").total(self, role_id)

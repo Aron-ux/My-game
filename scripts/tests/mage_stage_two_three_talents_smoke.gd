@@ -62,6 +62,7 @@ class TalentOwner:
 	extends Node2D
 
 	var talents: Dictionary = {}
+	var blessing_skill_state: Dictionary = {"unlocked": {"meta_field": true, "surging_wave": true}}
 	var role_special_states := {"mage": {"build_levels": {}}}
 	var radius_candidates: Array = []
 	var radius_query_count := 0
@@ -118,6 +119,9 @@ class ProjectileStub:
 	var hit_radius := 0.0
 	var pierce_count := 0
 	var visual_scale_multiplier := 1.0
+	var animated_scene_size := Vector2.ZERO
+	var animated_visible_bounds := Rect2()
+	var visual_cache_ready := false
 	var enemy_hit_radius_scale := 0.0
 	var enemy_hit_radius_min := 0.0
 	var enemy_hit_radius_max := 0.0

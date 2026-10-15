@@ -2,14 +2,41 @@ extends RefCounted
 
 const PICKUP_COMPACTOR := preload("res://scripts/game/pickup_compactor.gd")
 const BONE_PICKUP_SCENE := preload("res://scenes/bone_pickup.tscn")
+const EXPERIENCE_VACUUM_SCENE := preload("res://scenes/experience_vacuum_pickup.tscn")
 
 const HEART_HEAL_AMOUNT := 50.0
 const HEART_DROP_CHANCE := 0.001
 const HEART_DROP_CHANCE_ELITE := 0.005
 const HEART_DROP_CHANCE_BOSS := 1.0
 const NORMAL_BONE_DROP_CHANCE := 0.01
+const EXPERIENCE_VACUUM_DROP_CHANCE := 0.0005
+
+
+static func maybe_drop_experience_vacuum(enemy, random_roll: float = -1.0) -> Node2D:
+	if str(enemy.get("archetype_id")) == "tree_seed":
+		return null
+	# Tree-devoured enemies are not player kills.
+	if _get_valid_drop_absorber(enemy) != null:
+		return null
+	var roll: float = randf() if random_roll < 0.0 else random_roll
+	if roll >= EXPERIENCE_VACUUM_DROP_CHANCE:
+		return null
+	var current_scene := _get_enemy_current_scene(enemy)
+	if current_scene == null:
+		return null
+	var pickup := _take_pickup_from_pool(current_scene, "experience_vacuum_pickups") as Node2D
+	if pickup == null:
+		pickup = EXPERIENCE_VACUUM_SCENE.instantiate() as Node2D
+	current_scene.add_child(pickup)
+	pickup.reset_pickup(enemy.global_position)
+	return pickup
+
 
 static func drop_experience_gem(enemy) -> void:
+	if str(enemy.get("archetype_id")) == "tree_seed":
+		return
+	if preload("res://scripts/developer_mode.gd").is_enabled():
+		return
 	if enemy.exp_gem_scene == null:
 		return
 
@@ -40,6 +67,8 @@ static func drop_experience_gem(enemy) -> void:
 	_absorb_drop_if_requested(drop_absorber, gem, "exp_gems")
 
 static func maybe_drop_heart(enemy) -> void:
+	if str(enemy.get("archetype_id")) == "tree_seed":
+		return
 	if enemy.heart_pickup_scene == null:
 		return
 	if _get_valid_drop_absorber(enemy) != null:
@@ -81,6 +110,8 @@ static func get_heart_drop_chance(enemy_kind: String) -> float:
 
 
 static func maybe_drop_bones(enemy) -> void:
+	if str(enemy.get("archetype_id")) == "tree_seed":
+		return
 	var current_scene: Node = _get_enemy_current_scene(enemy)
 	if current_scene == null or current_scene.get("endless_mode_active") != true:
 		return

@@ -59,12 +59,12 @@ func _check_level_cap_and_pending() -> void:
 	var owner := _make_owner()
 	for _index in range(4):
 		PLAYER_SKILL_LEVEL_SYSTEM.add_skill_level(owner, "swordsman", "swordsman_basic")
-	_expect_equal(PLAYER_SKILL_LEVEL_SYSTEM.get_skill_level(owner, "swordsman", "swordsman_basic"), 5, "four upgrades should reach level 5")
-	_expect(PLAYER_SKILL_LEVEL_SYSTEM.is_talent_pick_pending(owner, "swordsman", "swordsman_basic"), "level 5 should open a pending talent pick")
+	_expect_equal(PLAYER_SKILL_LEVEL_SYSTEM.get_skill_level(owner, "swordsman", "swordsman_basic"), 4, "four upgrades should reach level 4 from LV0")
+	_expect(PLAYER_SKILL_LEVEL_SYSTEM.is_talent_pick_pending(owner, "swordsman", "swordsman_basic"), "level 4 should open a pending stage-4 pick")
 	_expect(PLAYER_SKILL_LEVEL_SYSTEM.has_pending_talent_pick(owner), "pending talent picks should be reported")
 	for _index in range(10):
 		PLAYER_SKILL_LEVEL_SYSTEM.add_skill_level(owner, "swordsman", "swordsman_basic")
-	_expect_equal(PLAYER_SKILL_LEVEL_SYSTEM.get_skill_level(owner, "swordsman", "swordsman_basic"), PLAYER_SKILL_LEVEL_SYSTEM.MAX_SKILL_LEVEL, "skill levels should clamp to the cap")
+	_expect_equal(PLAYER_SKILL_LEVEL_SYSTEM.get_skill_level(owner, "swordsman", "swordsman_basic"), 9, "skill levels should clamp to the cap")
 	_expect(not PLAYER_SKILL_LEVEL_SYSTEM.get_upgradeable_progress_ids(owner, "swordsman").has("swordsman_basic"), "maxed skills should leave the upgrade pool")
 	owner.free()
 
@@ -85,8 +85,7 @@ func _check_talent_offer_and_pick() -> void:
 	_expect(PLAYER_SKILL_LEVEL_SYSTEM.is_skill_talent_option_id(first_id), "talent option ids should use the skill-level prefix")
 	var result: Dictionary = PLAYER_SKILL_LEVEL_SYSTEM.apply_option_with_result(owner, first_id, offer)
 	_expect(not result.is_empty(), "picking a talent slot should apply")
-	_expect_equal(PLAYER_SKILL_LEVEL_SYSTEM.get_granted_talent_slots(owner, "swordsman", "swordsman_basic"), [1], "picked slot should be recorded")
-	_expect_equal(PLAYER_SKILL_LEVEL_SYSTEM.get_picked_talent_slot(owner, "swordsman", "swordsman_basic"), 1, "picked slot index should be recorded")
+	_expect_equal(str(owner.role_special_states["swordsman"].get("swordsman_basic_build", {}).get("4", "")), "heavy", "stage-4 choice should be recorded")
 	_expect(not PLAYER_SKILL_LEVEL_SYSTEM.is_talent_pick_pending(owner, "swordsman", "swordsman_basic"), "picking should clear the pending state")
 	_expect(PLAYER_SKILL_LEVEL_SYSTEM.apply_option_with_result(owner, first_id, offer).is_empty(), "the same pending pick should not be applied twice")
 	owner.free()
@@ -137,7 +136,7 @@ func _check_build_pool_composition() -> void:
 	_expect(has_blade_storm_upgrade, "unlocked active skills should offer upgrade cards")
 	var applied: Dictionary = PLAYER_BUILD_SYSTEM.apply_option_with_result(owner, "role_build:swordsman:skill_up_swordsman_basic")
 	_expect(not applied.is_empty(), "applying an upgrade card should succeed")
-	_expect_equal(PLAYER_SKILL_LEVEL_SYSTEM.get_skill_level(owner, "swordsman", "swordsman_basic"), 2, "upgrade cards should raise the skill level by one")
+	_expect_equal(PLAYER_SKILL_LEVEL_SYSTEM.get_skill_level(owner, "swordsman", "swordsman_basic"), 1, "upgrade cards should raise LV0 to LV1")
 	owner.free()
 
 

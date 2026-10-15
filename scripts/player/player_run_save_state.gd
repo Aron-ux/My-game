@@ -86,6 +86,9 @@ static func get_save_data(player) -> Dictionary:
 		"enemy_move_slow_multiplier": player.enemy_move_slow_multiplier,
 		"enemy_move_slow_remaining": player.enemy_move_slow_remaining,
 		"plague_remaining": player.plague_remaining,
+		"necro_mark_remaining": preload("res://scripts/player/player_necro_mark.gd").remaining(player),
+		"vine_entangle_state": player.get_meta("vine_entangle_state", {}).duplicate(true),
+		"skull_mage_cold_remaining": preload("res://scripts/player/player_skull_mage_effects.gd").get_cold_remaining(player),
 		"ability_runtime": _get_ability_runtime(player),
 		"gunner_infinite_reload_cooldown_remaining": player.gunner_infinite_reload_ability.cooldown_remaining if player.gunner_infinite_reload_ability != null else 0.0,
 		"gunner_infinite_reload_remaining": player.gunner_infinite_reload_ability.active_remaining if player.gunner_infinite_reload_ability != null else 0.0,
@@ -119,6 +122,7 @@ static func get_save_data(player) -> Dictionary:
 		"background_interval_multiplier": player.background_interval_multiplier,
 		"ultimate_cost_multiplier": player.ultimate_cost_multiplier,
 		"damage_taken_multiplier": player.damage_taken_multiplier,
+		"vulnerability_rate": player.vulnerability_rate,
 		"passive_damage_reduction_value": player.passive_damage_reduction_value,
 		"blindness": preload("res://scripts/player/player_blindness.gd").save_state(player),
 		"equipment_damage_multiplier_bonus": player.equipment_damage_multiplier_bonus,
@@ -256,6 +260,9 @@ static func apply_save_data(player, data: Dictionary) -> void:
 	player.enemy_move_slow_multiplier = float(data.get("enemy_move_slow_multiplier", 1.0))
 	player.enemy_move_slow_remaining = max(0.0, float(data.get("enemy_move_slow_remaining", 0.0)))
 	player.plague_remaining = clampf(float(data.get("plague_remaining", 0.0)), 0.0, preload("res://scripts/player/player_plague_flow.gd").DURATION)
+	player.set_meta("necro_mark_remaining", clampf(float(data.get("necro_mark_remaining", 0.0)), 0.0, 5.0))
+	player.set_meta("vine_entangle_state", data.get("vine_entangle_state", {}).duplicate(true))
+	player.set_meta("skull_mage_cold_remaining", clampf(float(data.get("skull_mage_cold_remaining", 0.0)), 0.0, 3.0))
 	_apply_ability_save_data(player, data)
 	_apply_stat_save_data(player, data)
 	_apply_switch_buff_save_data(player, data)
@@ -542,6 +549,7 @@ static func _apply_stat_save_data(player, data: Dictionary) -> void:
 	player.background_interval_multiplier = float(data.get("background_interval_multiplier", player.background_interval_multiplier))
 	player.ultimate_cost_multiplier = float(data.get("ultimate_cost_multiplier", player.ultimate_cost_multiplier))
 	player.damage_taken_multiplier = float(data.get("damage_taken_multiplier", player.damage_taken_multiplier))
+	player.vulnerability_rate = maxf(0.0, float(data.get("vulnerability_rate", player.vulnerability_rate)))
 	preload("res://scripts/player/player_blindness.gd").restore_state(player, data.get("blindness", {}))
 	if data.has("passive_damage_reduction_value"):
 		player.passive_damage_reduction_value = float(data.get("passive_damage_reduction_value", player.passive_damage_reduction_value))

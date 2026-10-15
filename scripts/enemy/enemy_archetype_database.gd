@@ -8,6 +8,13 @@ const PROFILE_PATHS := {
 	"swarm": "res://data/enemies/swarm.tres",
 	"dasher": "res://data/enemies/dasher.tres",
 	"shotgunner": "res://data/enemies/shotgunner.tres",
+	"skull_mage": "res://data/enemies/skull_mage.tres",
+	"vine": "res://data/enemies/vine.tres",
+	"shadow_tree": "res://data/enemies/shadow_tree.tres",
+	"shadow_tree_young": "res://data/enemies/shadow_tree_young.tres",
+	"tree_seed": "res://data/enemies/tree_seed.tres",
+	"necro_priest": "res://data/enemies/necro_priest.tres",
+	"angry_porcupine": "res://data/enemies/angry_porcupine.tres",
 	"elite_ram_trail": "res://data/enemies/elite_ram_trail.tres",
 	"elite_splitshot": "res://data/enemies/elite_splitshot.tres",
 	"smallboss_glutton": "res://data/enemies/smallboss_glutton.tres",
@@ -19,7 +26,7 @@ const PROFILE_PATHS := {
 const BOSS_ARCHETYPES: Array[String] = ["boss_spellcore"]
 const SMALL_BOSS_ARCHETYPES: Array[String] = ["smallboss_glutton", "smallboss_rebirth", "smallboss_turret"]
 const ELITE_ARCHETYPES: Array[String] = ["elite_ram_trail", "elite_splitshot"]
-const NORMAL_ARCHETYPES: Array[String] = ["chaser", "runner", "swarm", "shooter", "brute", "dasher", "shotgunner"]
+const NORMAL_ARCHETYPES: Array[String] = ["chaser", "runner", "swarm", "shooter", "brute", "dasher", "shotgunner", "skull_mage", "vine", "shadow_tree", "shadow_tree_young", "necro_priest", "angry_porcupine"]
 const NORMAL_ARCHETYPE_LABELS := {
 	"chaser": "追击菇",
 	"runner": "疾行史莱姆",
@@ -27,7 +34,13 @@ const NORMAL_ARCHETYPE_LABELS := {
 	"shooter": "远程骷髅",
 	"brute": "重甲南瓜",
 	"dasher": "冲锋怪",
-	"shotgunner": "散弹骷髅"
+	"shotgunner": "散弹骷髅",
+	"skull_mage": "骷髅法师",
+	"vine": "藤蔓怪",
+	"shadow_tree": "幽影树怪",
+	"shadow_tree_young": "幽影树怪·幼年",
+	"necro_priest": "亡灵牧师",
+	"angry_porcupine": "愤怒豪猪"
 }
 const ELITE_ARCHETYPE_LABELS := {
 	"elite_ram_trail": "精英冲锋骷髅",

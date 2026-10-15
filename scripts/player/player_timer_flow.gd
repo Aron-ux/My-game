@@ -14,6 +14,9 @@ const MAGE_ARCANE_SURPLUS_EXPIRE_CHARGE_STACKS := 3
 static func update_timers(owner, delta: float) -> void:
 	owner.role_visual_time += delta
 	preload("res://scripts/player/player_plague_flow.gd").tick(owner, delta)
+	preload("res://scripts/player/player_necro_mark.gd").tick(owner, delta)
+	preload("res://scripts/player/player_vine_entangle.gd").tick(owner, delta)
+	preload("res://scripts/player/player_skull_mage_effects.gd").tick(owner, delta)
 	if owner.has_method("_tick_duration_statuses"):
 		owner._tick_duration_statuses(delta)
 	if owner.has_method("_tick_temporary_health_stacks"):
@@ -64,6 +67,8 @@ static func update_timers(owner, delta: float) -> void:
 		owner._tick_gunner_flash_trait(delta)
 	if owner.get("gunner_role") != null and owner.gunner_role.has_method("update_talent_states"):
 		owner.gunner_role.update_talent_states(owner, delta)
+	if owner.get("mage_role") != null:
+		preload("res://scripts/player/player_mage_basic_runtime.gd").update_speed(owner)
 	if owner.get("mechanic_role") != null and owner.mechanic_role.has_method("update_trait_state"):
 		owner.mechanic_role.update_trait_state(owner, delta)
 	PLAYER_SWORDSMAN_BATTLE_WILL_FLOW.tick(owner, delta)
@@ -76,6 +81,7 @@ static func update_timers(owner, delta: float) -> void:
 		owner.enemy_move_slow_remaining = max(0.0, owner.enemy_move_slow_remaining - delta)
 		if owner.enemy_move_slow_remaining <= 0.0:
 			owner.enemy_move_slow_multiplier = 1.0
+	preload("res://scripts/player/player_skull_mage_effects.gd").slow_cooldowns_before_update(owner, delta)
 	if owner.gunner_infinite_reload_ability != null:
 		PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.apply_skill_cooldown_tick_bonus(owner, owner.gunner_infinite_reload_ability, "gunner", delta)
 		owner.gunner_infinite_reload_ability.update(owner, delta)

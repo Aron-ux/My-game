@@ -1,4 +1,6 @@
 extends Node2D
+var reflected := false
+var incident_velocity := Vector2.ZERO
 
 const ENEMY_BULLET_SCENE_PATH := "res://scenes/enemy_bullet.tscn"
 const ENEMY_BULLET_SCENE := preload("res://scenes/enemy_bullet.tscn")
@@ -162,6 +164,8 @@ func _get_source_enemy_archetype() -> String:
 	return str(get_meta("source_enemy_archetype")) if has_meta("source_enemy_archetype") else ""
 
 func reset_projectile(config: Dictionary) -> void:
+	reflected = false
+	incident_velocity = Vector2.ZERO
 	_release_split_volley_membership()
 	pooled = false
 	batch_simulation_enabled = false
@@ -299,6 +303,9 @@ func begin_clear_fade(duration: float) -> void:
 func _run_physics_tick(delta: float, context: FRAME_CONTEXT = null) -> void:
 	if pooled:
 		return
+	if reflected:
+		_tick_reflected(delta)
+		return
 	if clear_fade_remaining > 0.0:
 		clear_fade_remaining = maxf(0.0, clear_fade_remaining - delta)
 		modulate.a = clear_fade_alpha * clear_fade_remaining / clear_fade_duration
@@ -337,6 +344,7 @@ func _run_physics_tick(delta: float, context: FRAME_CONTEXT = null) -> void:
 		remote_update_elapsed = 0.0
 
 	travel_time += delta
+	var motion_start := global_position
 
 	match motion_mode:
 		"danmaku":
@@ -364,12 +372,71 @@ func _run_physics_tick(delta: float, context: FRAME_CONTEXT = null) -> void:
 		_:
 			_update_straight_motion(delta)
 
+	incident_velocity = (global_position - motion_start) / maxf(delta, 0.00001)
 	if split_after_time > 0.0 and not split_performed and travel_time >= split_after_time:
 		_spawn_split_bullets()
 		recycle()
 		return
 
 	_try_hit_player(context)
+	if is_instance_valid(boss_render_owner):
+		boss_render_owner.update_transform(self)
+
+func reflect_from_slash(player: Node2D, normal: Vector2) -> bool:
+	if pooled or reflected or clear_fade_remaining > 0.0 or normal.length_squared() < 0.001:
+		return false
+	var velocity_at_hit := incident_velocity if incident_velocity.length_squared() > 0.001 else direction * speed
+	direction = velocity_at_hit.normalized().bounce(normal.normalized())
+	speed = velocity_at_hit.length()
+	base_direction = direction
+	reflected = true
+	damage *= 2.0
+	target = player
+	split_performed = true
+	split_after_time = 0.0
+	split_on_return = false
+	_release_split_volley_membership()
+	_clear_source_enemy_meta()
+	lifetime = maxf(lifetime, 2.0)
+	clear_fade_remaining = 0.0
+	return true
+
+func _tick_reflected(delta: float) -> void:
+	if not is_instance_valid(target):
+		recycle()
+		return
+	lifetime -= delta
+	if lifetime <= 0.0:
+		recycle()
+		return
+	var start := global_position
+	var finish := start + direction * speed * delta
+	var nearest: Node2D = null
+	var nearest_distance := INF
+	var candidates: Array = target._get_candidate_enemies_for_circle(start.lerp(finish, 0.5), start.distance_to(finish) * 0.5 + hit_radius + 96.0)
+	for enemy in candidates:
+		if not is_instance_valid(enemy) or enemy.is_queued_for_deletion() or bool(enemy.get("pooled_inactive")) or float(enemy.get("current_health")) <= 0.0:
+			continue
+		var radius: float = hit_radius + target._get_enemy_hit_radius(enemy)
+		var offset: Vector2 = enemy.global_position - start
+		var along: float = offset.dot(direction)
+		var lateral_sq: float = maxf(0.0, offset.length_squared() - along * along)
+		if lateral_sq > radius * radius:
+			continue
+		var reach := sqrt(maxf(0.0, radius * radius - lateral_sq))
+		if along + reach < 0.0:
+			continue
+		var contact: float = maxf(0.0, along - reach)
+		if contact <= speed * delta and contact < nearest_distance:
+			nearest_distance = contact
+			nearest = enemy
+	if nearest != null:
+		global_position = start + direction * nearest_distance
+		target._deal_damage_to_enemy(nearest, damage, "swordsman_aux:reflect")
+		recycle()
+		return
+	global_position = finish
+	rotation = direction.angle()
 	if is_instance_valid(boss_render_owner):
 		boss_render_owner.update_transform(self)
 
@@ -945,6 +1012,8 @@ func _get_visual_scale() -> Vector2:
 
 func get_save_data() -> Dictionary:
 	return {
+		"reflected": reflected,
+		"incident_velocity": [incident_velocity.x, incident_velocity.y],
 		"boss_finishing_shot": bool(get_meta(&"boss_finishing_shot", false)),
 		"clear_fade_remaining": clear_fade_remaining,
 		"clear_fade_duration": clear_fade_duration,
@@ -1011,6 +1080,9 @@ func get_save_data() -> Dictionary:
 	}
 
 func apply_save_data(data: Dictionary, target_node: Node2D) -> void:
+	reflected = bool(data.get("reflected", false))
+	var incident_data: Array = data.get("incident_velocity", [0.0, 0.0])
+	incident_velocity = Vector2(float(incident_data[0]), float(incident_data[1]))
 	_sync_boss_finishing_shot(bool(data.get("boss_finishing_shot", false)))
 	clear_fade_remaining = maxf(0.0, float(data.get("clear_fade_remaining", 0.0)))
 	clear_fade_duration = maxf(0.001, float(data.get("clear_fade_duration", 0.45)))

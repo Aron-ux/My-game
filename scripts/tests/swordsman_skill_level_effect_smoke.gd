@@ -30,7 +30,7 @@ func _check_flat_bonuses() -> void:
 	var owner := _make_owner()
 	_set_level(owner, "swordsman_trait", 1)
 	_set_level(owner, "swordsman_entry", 1)
-	_set_level(owner, "swordsman_basic", 1)
+	_set_level(owner, "swordsman_basic", 0)
 	_set_level(owner, "swordsman_blade_storm", 1)
 	_set_level(owner, "swordsman_crescent_wave", 1)
 	_set_level(owner, "swordsman_knight_thrust", 1)
@@ -51,10 +51,10 @@ func _check_flat_bonuses() -> void:
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_knight_glory_invulnerability_bonus(owner), 0.6, "trait level 4 should add 0.6s death defiance invulnerability")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_entry_damage_ratio_bonus(owner), 0.20, "entry level 3 should add 20% damage ratio")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_entry_distance_bonus(owner), 40.0, "entry level 3 should add 40 dash distance")
-	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_basic_attack_damage_ratio_bonus(owner), 0.40, "basic level 5 should add 40% damage ratio")
-	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_basic_attack_range_multiplier(owner), 1.40, "basic level 5 should add 40% range")
-	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_blade_storm_damage_ratio_bonus(owner), 0.10, "blade storm level 6 should add 10% tick ratio")
-	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_blade_storm_radius_bonus(owner), 37.5, "blade storm level 6 should add 37.5 radius")
+	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_basic_attack_damage_ratio_bonus(owner), 0.50, "basic level 5 should add 50% damage ratio")
+	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_basic_attack_range_multiplier(owner), 1.0, "basic level 5 should keep normal range without heavy")
+	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_blade_storm_damage_ratio_bonus(owner), 0.15, "legacy stored level 6 maps to storm LV5 with 15 percentage points growth")
+	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_blade_storm_radius_bonus(owner), 0.0, "storm range needs the gale branch")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_crescent_wave_damage_ratio_bonus(owner), 0.30, "crescent level 3 should add 30% damage ratio")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_crescent_wave_speed_bonus(owner), 20.0, "crescent level 3 should add 20 speed")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_knight_thrust_damage_ratio_bonus(owner), 0.15, "knight thrust level 4 should add 15% damage ratio")
@@ -69,7 +69,7 @@ func _check_flat_bonuses() -> void:
 func _check_milestone_counts() -> void:
 	var owner := _make_owner()
 	var expectations := {
-		"swordsman_basic": {1: 0, 2: 1, 3: 1, 4: 2, 6: 3, 8: 4, 9: 4, 10: 4},
+		"swordsman_basic": {0: 0, 1: 0, 5: 0, 6: 1, 8: 1, 9: 1},
 		"swordsman_crescent_wave": {1: 0, 2: 1, 3: 1, 4: 2, 6: 3, 8: 4, 10: 4},
 		"swordsman_knight_thrust": {2: 0, 3: 1, 5: 1, 6: 2, 9: 3, 10: 3}
 	}
@@ -99,15 +99,12 @@ func _check_milestone_counts() -> void:
 
 func _check_preview_text() -> void:
 	var owner := _make_owner()
-	_set_level(owner, "swordsman_basic", 1)
+	_set_level(owner, "swordsman_basic", 0)
 	var level_two_preview := PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_upgrade_preview_text(owner, "swordsman", "swordsman_basic")
-	_expect(level_two_preview.contains("伤害倍率 +10%"), "basic level 1 preview should mention +10% damage")
-	_expect(level_two_preview.contains("追加一道 60% 伤害的斩击"), "basic level 1 preview should mention the level-2 extra slash")
-	_expect(level_two_preview.contains("开启天赋位选择") == false, "level 2 preview should not open talent slots")
-	_set_level(owner, "swordsman_basic", 4)
+	_expect(level_two_preview.contains("伤害倍率 +10"), "basic level 0 preview should mention +10% damage")
+	_set_level(owner, "swordsman_basic", 3)
 	var level_five_preview := PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_upgrade_preview_text(owner, "swordsman", "swordsman_basic")
-	_expect(level_five_preview.contains("开启天赋位选择"), "level 5 preview should mention the talent slot pick")
-	_expect(level_five_preview.contains("追加一道") == false, "level 5 basic attack preview should not add a milestone slash")
+	_expect(level_five_preview.contains("重剑") or level_five_preview.contains("轻剑"), "level 4 preview should offer a basic attack branch")
 	_set_level(owner, "swordsman_judgement_sword", 2)
 	var judgement_preview := PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_upgrade_preview_text(owner, "swordsman", "swordsman_judgement_sword")
 	_expect(judgement_preview.contains("追加一道冲击波"), "judgement level 3 preview should mention the extra shockwave")
@@ -133,7 +130,7 @@ func _check_upgrade_card_text() -> void:
 	_expect_equal(int(basic_option.get("skill_level", 0)), 3, "upgrade card should expose the current skill level")
 	_expect_equal(int(basic_option.get("skill_level_next", 0)), 4, "upgrade card should expose the next skill level")
 	var summary := str(basic_option.get("summary", ""))
-	_expect(summary.contains("追加一道 60% 伤害的斩击"), "level 4 upgrade card should preview the milestone slash, got %s" % summary)
+	_expect(summary.contains("重剑") or summary.contains("轻剑"), "level 4 upgrade card should preview the branch, got %s" % summary)
 	owner.free()
 
 
@@ -146,6 +143,9 @@ func _set_level(owner, progress_id: String, level: int) -> void:
 	else:
 		levels[progress_id] = level
 	role_state["skill_levels"] = levels
+	if progress_id == "swordsman_basic":
+		levels[progress_id] = level
+		role_state["swordsman_basic_build"] = {}
 	states["swordsman"] = role_state
 	owner.role_special_states = states
 

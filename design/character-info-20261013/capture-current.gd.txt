@@ -1,0 +1,84 @@
+extends SceneTree
+const PLAYER = preload("res://scenes/player.tscn")
+const PANEL = preload("res://scripts/ui/hud/character_panel.gd")
+const LEVELS = preload("res://scripts/player/player_skill_level_system.gd")
+const SKILLS = preload("res://scripts/player/player_blessing_skill_state.gd")
+const BLESSINGS = preload("res://scripts/player/player_blessing_system.gd")
+var player
+var panel
+var out = "/tmp/my-game-character-audit"
+var report = {}
+func _init():
+    call_deferred("_run")
+func settle():
+    for i in range(6):
+        await process_frame
+func capture(name):
+    await settle()
+    await RenderingServer.frame_post_draw
+    root.get_texture().get_image().save_png(out.path_join(name + ".png"))
+    var labels = []
+    collect(panel, labels)
+    report[name] = {"text": labels, "stats_height": panel.stats_label.size.y, "stats_content_height": panel.stats_label.get_content_height(), "panel_rect": str(panel.panel.get_global_rect())}
+func collect(node, list):
+    if node is Control and not node.is_visible_in_tree():
+        return
+    if node is Label or node is Button or node is RichTextLabel:
+        list.append(str(node.text))
+    for child in node.get_children():
+        collect(child, list)
+func _run():
+    DirAccess.make_dir_recursive_absolute(out)
+    root.size = Vector2i(1280,720)
+    root.content_scale_size = Vector2i(1280,720)
+    var world = Node2D.new()
+    root.add_child(world)
+    current_scene = world
+    player = PLAYER.instantiate()
+    world.add_child(player)
+    player.configure_story_loadout(["swordsman", "gunner", "mechanic"])
+    player.set_process(false)
+    player.set_physics_process(false)
+    player.visible = false
+    panel = PANEL.new()
+    root.add_child(panel)
+    paused = true
+    panel.show_for_player(player)
+    await capture("01-starting-swordsman")
+    LEVELS.add_skill_level(player,"swordsman","swordsman_basic",3)
+    LEVELS.add_skill_level(player,"swordsman","swordsman_entry",2)
+    SKILLS.force_unlock_skill(player,"blade_storm",1)
+    SKILLS.force_unlock_skill(player,"tulip_turret",1)
+    SKILLS.force_unlock_skill(player,"missile_volley",1)
+    BLESSINGS.apply_blessing(player,"blazing_sun",1)
+    BLESSINGS.apply_blessing(player,"blazing_sun",1)
+    BLESSINGS.apply_blessing(player,"divine_grace",1)
+    BLESSINGS.apply_blessing(player,"divine_grace",2)
+    BLESSINGS.apply_blessing(player,"divine_grace",2)
+    BLESSINGS.apply_blessing(player,"burst",1)
+    BLESSINGS.apply_blessing(player,"tailwind",1)
+    panel.refresh()
+    panel._select_skill_tree(2)
+    await capture("02-swordsman-basic")
+    panel._set_archive_tab("blessing")
+    panel._toggle_blessing_row("role:divine_grace")
+    await capture("03-owned-blessings")
+    panel._view_role(2)
+    panel._set_archive_tab("build")
+    panel._select_skill_tree(6)
+    await capture("04-mechanic-turret")
+    root.size = Vector2i(960,540)
+    await capture("05-minimum-window")
+    root.size = Vector2i(1280,720)
+    var stat_text = {}
+    for role in player.roles:
+        stat_text[str(role.id)] = panel._build_stats_text(role)
+    report["role_stats"] = stat_text
+    report["blessing_rows"] = panel.blessing_rows.keys()
+    FileAccess.open(out.path_join("runtime.json"),FileAccess.WRITE).store_string(JSON.stringify(report,"  "))
+    panel.queue_free()
+    world.queue_free()
+    await process_frame
+    paused = false
+    print("CHARACTER_AUDIT_CAPTURE_OK")
+    quit(0)

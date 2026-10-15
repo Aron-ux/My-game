@@ -14,11 +14,7 @@ signal developer_boss_spawn_requested(archetype_id: String)
 signal developer_small_boss_spawn_requested(archetype_id: String)
 signal developer_normal_enemy_batch_spawn_requested(archetype_id: String, count: int)
 signal developer_enemy_spawn_requested(kind: String, archetype_id: String, count: int)
-signal developer_skill_unlock_requested(skill_id: String, tier: int)
-signal developer_skill_talent_grant_requested(talent_id: String)
-signal developer_blessing_grant_requested(blessing_id: String, tier: int)
-signal developer_all_blessings_grant_requested
-signal developer_ruan_stone_action_requested(action_id: String)
+signal developer_catalog_action_requested(request: Dictionary)
 signal developer_enemy_detail_display_toggled(enabled: bool)
 signal developer_glutton_skill_test_requested(skill_id: String)
 signal developer_endless_tier_test_requested(tier: int)
@@ -550,16 +546,12 @@ func _schedule_attack_mode_hint_fade() -> void:
 func _build_developer_panel(root: Control) -> void:
 	developer_panel = DEVELOPER_PANEL.new()
 	root.add_child(developer_panel)
+	developer_panel.catalog_action_requested.connect(func(request): developer_catalog_action_requested.emit(request))
 	developer_panel.level_up_requested.connect(func(): developer_level_up_requested.emit())
 	developer_panel.boss_spawn_requested.connect(func(archetype_id: String): developer_boss_spawn_requested.emit(archetype_id))
 	developer_panel.small_boss_spawn_requested.connect(func(archetype_id: String): developer_small_boss_spawn_requested.emit(archetype_id))
 	developer_panel.normal_enemy_batch_spawn_requested.connect(func(archetype_id: String, count: int): developer_normal_enemy_batch_spawn_requested.emit(archetype_id, count))
 	developer_panel.enemy_spawn_requested.connect(func(kind: String, archetype_id: String, count: int): developer_enemy_spawn_requested.emit(kind, archetype_id, count))
-	developer_panel.skill_unlock_requested.connect(func(skill_id: String, tier: int): developer_skill_unlock_requested.emit(skill_id, tier))
-	developer_panel.skill_talent_grant_requested.connect(func(talent_id: String): developer_skill_talent_grant_requested.emit(talent_id))
-	developer_panel.blessing_grant_requested.connect(func(blessing_id: String, tier: int): developer_blessing_grant_requested.emit(blessing_id, tier))
-	developer_panel.all_blessings_grant_requested.connect(func(): developer_all_blessings_grant_requested.emit())
-	developer_panel.ruan_stone_action_requested.connect(func(action_id: String): developer_ruan_stone_action_requested.emit(action_id))
 	developer_panel.enemy_detail_display_toggled.connect(func(enabled: bool): developer_enemy_detail_display_toggled.emit(enabled))
 	developer_panel.glutton_skill_test_requested.connect(func(skill_id: String): developer_glutton_skill_test_requested.emit(skill_id))
 	developer_panel.endless_tier_test_requested.connect(func(tier: int): developer_endless_tier_test_requested.emit(tier))
@@ -584,17 +576,9 @@ func set_developer_enemy_options(options: Array) -> void:
 	if developer_panel != null and developer_panel.has_method("set_enemy_options"):
 		developer_panel.set_enemy_options(options)
 
-func set_developer_skill_options(options: Array) -> void:
-	if developer_panel != null and developer_panel.has_method("set_skill_options"):
-		developer_panel.set_skill_options(options)
-
-func set_developer_blessing_options(options: Array) -> void:
-	if developer_panel != null and developer_panel.has_method("set_blessing_options"):
-		developer_panel.set_blessing_options(options)
-
-func set_developer_ruan_stone_options(options: Array) -> void:
-	if developer_panel != null and developer_panel.has_method("set_ruan_stone_options"):
-		developer_panel.set_ruan_stone_options(options)
+func set_developer_catalog_data(data: Dictionary) -> void:
+	if developer_panel != null:
+		developer_panel.set_catalog_data(data)
 
 func update_performance_metrics(metrics: Dictionary) -> void:
 	if not performance_overlay_visible:
