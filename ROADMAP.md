@@ -1,55 +1,38 @@
 # Roadmap
 
-This roadmap tracks project direction, not a promise of release dates.
+This roadmap tracks direction, not release dates. For implemented behavior and current handoff, start with [the status entry](docs/08_当前实现状态与后续重点.md).
 
-## Now: stabilize prototype foundation
+## Now: finish the current progression
 
-- Keep the current survivor-like combat loop playable.
-- Stabilize save/load and continue-game behavior.
-- Validate the current every-three-player-level talent loop: role choice, up-to-three eligible role-detail cards, one-refresh-per-card behavior, skill prerequisites, pair locks, save restoration, and exhaustion at high levels.
-- Add a read-only player-level talent ledger to the character panel; the existing skill-build page already shows exact ordinary build cards and stack counts.
-- Identify the Boss referenced by the meeting, then measure its difficulty and high-tier blessing timing before changing values.
-- Keep dense-combat and autosave optimization evidence-driven through the existing benchmark, evaluator, trace, and feature-flag paths.
+- Keep the playable route explicit: ordinary four-card/select-two rewards offer skill unlocks and skill-level upgrades; skill level 5 queues a two-slot choice and level 10 grants the other slot.
+- Validate the implemented growth of all four roles in full runs. Mechanic now has eight growth lines, numeric previews and independent entry/active turret sources; keep its summon density and high-tier balance under review.
+- Design actual skill-slot effects for swordsman, gunner and mage. Mechanic's 16 effects are implemented, including their selection UI and save regression; balance tuning was explicitly excluded from that task.
+- Keep player-level talent acquisition disabled until redesigned. Preserve saved `level_talents`, their effects and the character sheet's read-only list.
+- Decide the fate of the retired 108-node catalog and 63 dormant stat-build definitions. Their presence in data or tests does not make them formal progression.
+- Keep direct role-build cards as the formal active-skill unlock route. Restoring recipes requires a complete decision about material supply, binding, locks and evolution.
 
-## Now: close the progression migration
+## Now: stabilize architecture and interaction
 
-- Decide explicitly whether the residual 18-tree/108-node definitions, projections, developer options, and old smokes are deleted, archived as test fixtures, or restored through a new approved design. Do not leave them half-authoritative.
-- Keep formal player progression on one route: ordinary four-card/select-two rewards, followed by queued player-level talents at level multiples of three.
-- Verify `level_talents`, pair locks, pending choices, and active talent context survive continue-save roundtrips while legacy `skill_talents` remain empty.
-- Resolve naming that makes `_1`/`_2` alternatives look like sequential ranks, and define behavior once all 21 current talent groups are exhausted.
-- Keep direct role-build cards as the only formal active-skill unlock route unless a separate review explicitly restores legacy blessing materials, binding, recipe locks, and evolution balance as one complete feature.
-- Align the character-panel hint, tutorial copy, current docs, and tests with the chosen source of truth.
-- Treat `docs/13_会议目标与三层技能天赋规划.md` and `docs/14_三角色完整三层技能天赋设计.md` as historical input until a new review explicitly reactivates that design.
+- Keep `main.gd` and `player.gd` as coordination points; put new behavior in the existing game/player/ability modules.
+- Keep definitions separate from runtime state. Skill-level and build queries must stay read-only; writes and save loading own initialization and normalization.
+- Preserve independent HUD widgets and their visibility-driven animation lifecycle. Keep layout rebuilds from retaining stale interaction objects.
+- Preserve settings scrolling, keyboard focus, rebinding and shared modal initialization with regression checks.
+- Continue consolidating UI where a concrete defect or feature needs it. Keep the character-sheet, shared modal and illustrated reward-card variants explicit in `DESIGN.md`.
+- Replace remaining static tutorial parameters and shortcut hints through current value/keybinding providers.
+- Protect save/load and reward pause ownership with roundtrip and flow checks. Do not change serialized IDs for a presentation refactor.
 
-## Next: rewards
+## Next: validate balance and performance
 
-- Rebuild elite and Boss reward identity through the existing reward modules.
-- Define whether a Boss talent reward targets one role, lets several roles choose separately, or is a true team reward.
-- Improve Boss pressure, readability, and phase identity after the current difficulty evidence is collected.
-- Balance the implemented endless meta loop: normal/elite/Boss bone income, linear Ruan-stone costs, five-stone pick rates, and long-session proc performance.
+- Identify the Boss referenced by the meeting before adjusting its difficulty or blessing timing.
+- Validate N1/N3/N6/N11 runs: survival, completion, reached level, build completion, bone income and shop usage.
+- Balance the implemented meta loop: each carried Ruan Gou item copy costs 5 bones, duplicate effects stack, and capacity follows the highest unlocked N tier.
+- Keep dense-combat and autosave optimization evidence-driven through existing benchmarks, evaluators, traces and feature flags. A getter microbenchmark is not an overall frame-rate claim.
+- Clarify elite and Boss reward identity through existing reward modules before adding reward types.
 
-## Later: minimum meta loop and main story
+## Later: story and release
 
-- The first complete meta loop is implemented: persistent bones feed Ruan Gou's five infinitely upgradable stones and one team-wide active slot.
-- Give the blacksmith one clear sink only after bone income and Ruan-stone balance are stable.
-- Keep the story on a fixed route with entry/Boss dialogue and replayable cleared maps; do not add room-selection structure.
-- Add quest-style equipment or limited consumables only after equipment ownership and the first meta loop are stable.
-- Defer complex camp gambling/buff facilities, large RPG equipment-slot trees, and dedicated crafting catalogs.
-- Do not restore the retired three-in-one blessing, all-team role traits, pre-equipped skill loadouts, or the old seven-second switch cooldown.
-
-## Continuous guardrails
-
-- Keep the local achievement system independent from Steam APIs until platform integration.
-- Maintain display settings: window/fullscreen and 16:9 window sizing.
-- Keep docs synchronized with implemented systems.
-- Protect UI modal/card/hover components and save serialization with automated checks.
-- Keep automated checks for settings, achievements, save serialization, hero-trait persistence, and theme-unlock persistence.
-
-## Later: release preparation
-
-- Add clearer achievement categories once progression goals settle.
-- Replace placeholder/non-commercial media.
-- Finalize asset licensing and third-party notices.
-- Add export presets and release checklist automation.
-- Integrate GodotSteam behind `AchievementService` adapter.
-- Add Steam achievement API names matching local achievement IDs.
+- Keep the story on a fixed route with dialogue and replayable cleared maps; do not add branching room selection.
+- Keep the implemented camp loop coherent: permanent items survive return, separate per-copy buy/refund actions, four-role residents, ordered team preparation and loadout confirmation. The blacksmith reuses the equipment filter of the existing shop. Defer elaborate facilities, crafting trees and new camp currencies.
+- Replace placeholder or non-commercial media, finalize licensing, add export checks and build the missing combat SFX system.
+- Keep achievements local until platform integration; use the existing `AchievementService` boundary for Steam.
+- Do not restore retired three-in-one blessings, all-team role traits, pre-equipped skill loadouts, the seven-second switch cooldown or the old talent tree as incidental cleanup.

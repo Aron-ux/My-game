@@ -8,6 +8,9 @@ const GUARD_TEXTURES := [
 ]
 
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
+const SKILL_LEVEL_EFFECTS := preload("res://scripts/player/player_skill_level_effect_flow.gd")
+const LEVELS := preload("res://scripts/player/player_skill_level_system.gd")
+const TALENTS := LEVELS.MECHANIC_TALENTS
 
 const SKILL_ID := "drone"
 const COOLDOWN := 14.0
@@ -62,13 +65,14 @@ func try_trigger(owner) -> bool:
 	if scene == null:
 		return false
 	cooldown_remaining = get_cooldown(owner)
-	while active_guards.size() >= _get_max_guards(owner):
-		var oldest: Dictionary = active_guards[0]
-		var oldest_node: Node2D = oldest.get("node", null) as Node2D
-		if oldest_node != null and is_instance_valid(oldest_node):
-			oldest_node.queue_free()
-		active_guards.remove_at(0)
-	_spawn_guard(owner, scene, _get_max_charges(owner))
+	for _index in range(_get_deploy_count(owner)):
+		while active_guards.size() >= _get_max_guards(owner):
+			var oldest: Dictionary = active_guards[0]
+			var oldest_node: Node2D = oldest.get("node", null) as Node2D
+			if oldest_node != null and is_instance_valid(oldest_node):
+				oldest_node.queue_free()
+			active_guards.remove_at(0)
+		_spawn_guard(owner, scene, _get_max_charges(owner))
 	owner.mechanic_role.play_command(owner)
 	return true
 
@@ -84,6 +88,10 @@ func try_block_damage(owner) -> bool:
 		data["charges"] = charges
 		active_guards[index] = data
 		_play_block_feedback(owner, guard)
+		if LEVELS.has_talent_slot(owner, "mechanic", SKILL_LEVEL_EFFECTS.MECHANIC_DRONE, 2) and owner.has_method("_heal_role"):
+			var role_id := str(owner._get_active_role().get("id", ""))
+			if role_id != "":
+				owner._heal_role(role_id, float(owner._get_role_max_health(role_id)) * TALENTS.GUARD_HEAL_RATIO)
 		if charges <= 0:
 			guard.queue_free()
 			active_guards.remove_at(index)
@@ -91,8 +99,8 @@ func try_block_damage(owner) -> bool:
 	return false
 
 
-func get_cooldown(_owner) -> float:
-	return COOLDOWN
+func get_cooldown(owner) -> float:
+	return max(4.0, COOLDOWN - SKILL_LEVEL_EFFECTS.get_mechanic_guard_cooldown_reduction(owner))
 
 
 func get_cooldown_slot(owner = null) -> Dictionary:
@@ -100,10 +108,10 @@ func get_cooldown_slot(owner = null) -> Dictionary:
 	var max_guards: int = _get_max_guards(owner) if owner != null else MAX_ACTIVE_GUARDS
 	return {
 		"name": "守卫机器人",
-		"remaining": clamp(cooldown_remaining, 0.0, COOLDOWN),
+		"remaining": clamp(cooldown_remaining, 0.0, get_cooldown(owner)),
 		"duration": get_cooldown(owner),
 		"color": GUARD_COLOR,
-		"description": "召唤 1 台跟随自身的守卫机器人，最多同时存在 %d 台；每台替你抵挡 %d 次伤害，抵挡次数耗尽后销毁。" % [max_guards, max_charges]
+		"description": "召唤 %d 台跟随自身的守卫机器人，最多同时存在 %d 台；每台替你抵挡 %d 次伤害，抵挡次数耗尽后销毁。" % [_get_deploy_count(owner), max_guards, max_charges]
 	}
 
 
@@ -171,7 +179,7 @@ func _play_block_feedback(owner, guard: Node2D) -> void:
 			tween.tween_property(sprite, "modulate", Color.WHITE, 0.25)
 	if owner != null and is_instance_valid(owner):
 		if owner.has_method("_spawn_combat_tag"):
-			owner._spawn_combat_tag(guard.global_position + Vector2(0.0, -18.0), "格挡", GUARD_COLOR)
+			owner._spawn_combat_tag(guard.global_position + Vector2(0.0, -18.0), "格挡·维修" if LEVELS.has_talent_slot(owner, "mechanic", SKILL_LEVEL_EFFECTS.MECHANIC_DRONE, 2) else "格挡", GUARD_COLOR)
 		if owner.has_method("_spawn_ring_effect"):
 			owner._spawn_ring_effect(guard.global_position, 26.0, Color(0.95, 0.68, 0.25, 0.85), 2.0, 0.18)
 
@@ -191,7 +199,7 @@ func _get_guard_frames() -> SpriteFrames:
 
 
 func _get_max_charges(owner) -> int:
-	var charges: int = BLOCK_CHARGES + PLAYER_BUILD_SYSTEM.get_mechanic_guard_block_bonus(owner)
+	var charges: int = BLOCK_CHARGES + PLAYER_BUILD_SYSTEM.get_mechanic_guard_block_bonus(owner) + SKILL_LEVEL_EFFECTS.get_mechanic_guard_block_bonus(owner)
 	if _has_talent(owner, TALENT_DRONE_1):
 		charges += TALENT_CHARGES_BONUS
 	return max(1, charges)
@@ -199,9 +207,15 @@ func _get_max_charges(owner) -> int:
 
 func _get_max_guards(owner) -> int:
 	var cap: int = MAX_ACTIVE_GUARDS + PLAYER_BUILD_SYSTEM.get_mechanic_guard_cap_bonus(owner)
+	if LEVELS.has_talent_slot(owner, "mechanic", SKILL_LEVEL_EFFECTS.MECHANIC_DRONE, 1):
+		cap += TALENTS.GUARD_CAP_BONUS
 	if _has_talent(owner, TALENT_DRONE_2):
 		cap += TALENT_CAP_BONUS
 	return max(1, cap)
+
+
+func _get_deploy_count(owner) -> int:
+	return TALENTS.GUARD_DEPLOY_COUNT if LEVELS.has_talent_slot(owner, "mechanic", SKILL_LEVEL_EFFECTS.MECHANIC_DRONE, 1) else 1
 
 
 func _clear_guards() -> void:

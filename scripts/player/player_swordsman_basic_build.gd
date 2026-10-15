@@ -21,7 +21,8 @@ const OPTIONS := {
 static func state(owner) -> Dictionary:
 	if owner == null or owner.get("role_special_states") is not Dictionary:
 		return {}
-	return owner.role_special_states.get("swordsman", {})
+	var role_state: Variant = owner.role_special_states.get("swordsman", {})
+	return role_state if role_state is Dictionary else {}
 
 static func level(owner) -> int:
 	return level_from_state(state(owner))

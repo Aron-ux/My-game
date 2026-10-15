@@ -4,3 +4,7 @@
 .godot/
 graphify-out/
 addons/godot_mcp/
+# Superseded implementations and retired design specifications are provenance.
+archive/legacy/
+docs/13_*
+docs/14_*

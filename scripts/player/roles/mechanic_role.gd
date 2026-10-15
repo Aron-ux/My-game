@@ -1,6 +1,9 @@
 extends RefCounted
 
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
+const SKILL_LEVEL_EFFECTS := preload("res://scripts/player/player_skill_level_effect_flow.gd")
+const LEVELS := preload("res://scripts/player/player_skill_level_system.gd")
+const TALENTS := LEVELS.MECHANIC_TALENTS
 
 const ULT_WARNING_TEXTURES := [
 	preload("res://effects/mechanic/ult_warning/1.png"),
@@ -73,10 +76,8 @@ func _create_basic_source_id(owner) -> String:
 	return "mechanic_basic:%s:%s" % [owner.get_instance_id() if owner != null else 0, basic_damage_event_serial]
 
 func perform_attack(owner) -> void:
-	var damage_amount: float = owner._get_role_damage("mechanic") * PLAYER_BUILD_SYSTEM.get_basic_attack_damage_multiplier(owner, "mechanic")
-	if _has_talent(owner, TALENT_BASIC_ATTACK_1):
-		damage_amount *= BASIC_TALENT_DAMAGE_MULTIPLIER
-	var attack_range: float = BASIC_RANGE * PLAYER_BUILD_SYSTEM.get_basic_attack_range_multiplier(owner, "mechanic")
+	var damage_amount: float = owner._get_role_damage("mechanic") * get_basic_attack_damage_ratio(owner)
+	var attack_range: float = get_basic_attack_range(owner)
 	var target: Node2D = owner._get_closest_enemy()
 	if target == null or not is_instance_valid(target):
 		return
@@ -84,8 +85,36 @@ func perform_attack(owner) -> void:
 		return
 	if _has_talent(owner, TALENT_BASIC_ATTACK_2) and target.get("damage_reduction_value") != null:
 		target.set("damage_reduction_value", float(target.get("damage_reduction_value")) - BASIC_TALENT_SHRED_VALUE)
-	_spawn_spider(owner, owner._spawn_bullet(target, damage_amount, BASIC_BULLET_COLOR, _create_basic_source_id(owner)))
+	var source_id := _create_basic_source_id(owner)
+	var count := get_spider_count(owner)
+	var side: Vector2 = owner.global_position.direction_to(target.global_position).orthogonal()
+	for index in range(count):
+		var origin: Vector2 = owner.global_position + side * (float(index) - float(count - 1) * 0.5) * 14.0
+		var bullet = owner._spawn_bullet(target, damage_amount, BASIC_BULLET_COLOR, source_id, origin)
+		_spawn_spider(owner, bullet)
+		if bullet != null and is_instance_valid(bullet):
+			bullet.pierce_count += get_spider_pierce_bonus(owner)
 	play_command(owner)
+
+func get_basic_attack_damage_ratio(owner) -> float:
+	var ratio := PLAYER_BUILD_SYSTEM.get_basic_attack_damage_multiplier(owner, "mechanic") + SKILL_LEVEL_EFFECTS.get_mechanic_damage_ratio_bonus(owner, SKILL_LEVEL_EFFECTS.MECHANIC_BASIC)
+	return ratio * (BASIC_TALENT_DAMAGE_MULTIPLIER if _has_talent(owner, TALENT_BASIC_ATTACK_1) else 1.0)
+
+func get_basic_attack_range(owner) -> float:
+	return (BASIC_RANGE + SKILL_LEVEL_EFFECTS.get_mechanic_range_bonus(owner, SKILL_LEVEL_EFFECTS.MECHANIC_BASIC)) * PLAYER_BUILD_SYSTEM.get_basic_attack_range_multiplier(owner, "mechanic")
+
+func get_spider_speed(owner) -> float:
+	var speed := SPIDER_SPEED + SKILL_LEVEL_EFFECTS.get_mechanic_spider_speed_bonus(owner)
+	return speed * (TALENTS.SPIDER_SPEED_MULTIPLIER if LEVELS.has_talent_slot(owner, "mechanic", SKILL_LEVEL_EFFECTS.MECHANIC_BASIC, 2) else 1.0)
+
+func get_spider_count(owner) -> int:
+	return TALENTS.SPIDER_COUNT if LEVELS.has_talent_slot(owner, "mechanic", SKILL_LEVEL_EFFECTS.MECHANIC_BASIC, 1) else 1
+
+func get_spider_pierce_bonus(owner) -> int:
+	return TALENTS.SPIDER_PIERCE_BONUS if LEVELS.has_talent_slot(owner, "mechanic", SKILL_LEVEL_EFFECTS.MECHANIC_BASIC, 2) else 0
+
+func get_entry_turret_count(owner) -> int:
+	return 1 + (1 if _has_talent(owner, TALENT_ENTRY_2) else 0) + (1 if LEVELS.has_talent_slot(owner, "mechanic", SKILL_LEVEL_EFFECTS.MECHANIC_ENTRY, 1) else 0)
 
 func play_command(owner) -> void:
 	var visual := owner.get_node_or_null("RoleVisualRoot/RoleSceneVisual") as Node2D
@@ -105,7 +134,7 @@ func _spawn_spider(owner, bullet) -> void:
 	bullet.custom_sprite_frames = _get_spider_frames()
 	bullet.animated_scene_size = SPIDER_SCENE_SIZE
 	bullet.animated_visible_bounds = SPIDER_VISIBLE_BOUNDS
-	bullet.speed = SPIDER_SPEED
+	bullet.speed = get_spider_speed(owner)
 	bullet.visual_scale_multiplier = SPIDER_VISUAL_SCALE
 	if bullet.has_method("_refresh_bullet_visual"):
 		bullet._refresh_bullet_visual(true)
@@ -128,9 +157,8 @@ func perform_enter(owner, _role_id: String, _assault_level: int, assault_multipl
 	owner._show_switch_banner("进场", "紧急部署", ENTRY_BANNER_COLOR)
 	var turret_ability = owner.get("mechanic_tulip_turret_ability")
 	if turret_ability != null and turret_ability.has_method("deploy_turret"):
-		turret_ability.deploy_turret(owner, assault_multiplier)
-		if _has_talent(owner, TALENT_ENTRY_2):
-			turret_ability.deploy_turret(owner, assault_multiplier, -1.0)
+		for index in range(get_entry_turret_count(owner)):
+			turret_ability.deploy_turret(owner, assault_multiplier, 1.0 if index % 2 == 0 else -1.0, SKILL_LEVEL_EFFECTS.MECHANIC_ENTRY)
 	return 0
 
 func perform_exit(_owner, _role_id: String, _rearguard_level: int) -> int:
@@ -255,19 +283,25 @@ func _build_ult_explosion_frames() -> SpriteFrames:
 func update_trait_state(owner, delta: float) -> void:
 	if owner == null or not is_instance_valid(owner) or bool(owner.get("is_dead")):
 		return
-	if not owner.has_method("_get_active_role") or str(owner._get_active_role().get("id", "")) != "mechanic":
+	if not owner.has_method("_get_active_role"):
 		return
+	if str(owner._get_active_role().get("id", "")) != "mechanic":
+		if not LEVELS.has_talent_slot(owner, "mechanic", SKILL_LEVEL_EFFECTS.MECHANIC_TRAIT, 1):
+			return
+		var in_team := false
+		for role in owner.roles:
+			if str(role.get("id", "")) == "mechanic":
+				in_team = true
+				break
+		if not in_team:
+			return
 	var state: Dictionary = _get_talent_state(owner)
 	var parts: int = int(state.get("parts", 0))
-	var parts_max: int = TRAIT_PART_MAX + PLAYER_BUILD_SYSTEM.get_mechanic_part_max_bonus(owner)
-	if _has_talent(owner, TALENT_TRAIT_2):
-		parts_max += TRAIT_TALENT_PART_MAX_BONUS
+	var parts_max: int = get_parts_max(owner)
 	if parts >= parts_max:
 		state["parts_elapsed"] = 0.0
 		return
-	var part_interval: float = max(1.0, TRAIT_PART_INTERVAL - PLAYER_BUILD_SYSTEM.get_mechanic_part_interval_reduction(owner))
-	if _has_talent(owner, TALENT_TRAIT_1):
-		part_interval = min(part_interval, TRAIT_TALENT_PART_INTERVAL)
+	var part_interval: float = get_part_interval(owner)
 	var elapsed: float = float(state.get("parts_elapsed", 0.0)) + delta
 	while elapsed >= part_interval and parts < parts_max:
 		elapsed -= part_interval
@@ -281,11 +315,29 @@ func get_parts_count(owner) -> int:
 	var role_state: Dictionary = owner.role_special_states.get("mechanic", {})
 	return int((role_state.get("talent_runtime", {}) as Dictionary).get("parts", 0))
 
-func get_summon_damage_multiplier(owner) -> float:
+func get_parts_max(owner) -> int:
+	var bonus := SKILL_LEVEL_EFFECTS.get_mechanic_part_max_bonus(owner)
+	if LEVELS.has_talent_slot(owner, "mechanic", SKILL_LEVEL_EFFECTS.MECHANIC_TRAIT, 2):
+		bonus += TALENTS.PART_CAP_BONUS
+	return TRAIT_PART_MAX + PLAYER_BUILD_SYSTEM.get_mechanic_part_max_bonus(owner) + bonus + (TRAIT_TALENT_PART_MAX_BONUS if _has_talent(owner, TALENT_TRAIT_2) else 0)
+
+func get_part_interval(owner) -> float:
+	var interval: float = max(1.0, TRAIT_PART_INTERVAL - PLAYER_BUILD_SYSTEM.get_mechanic_part_interval_reduction(owner))
+	if _has_talent(owner, TALENT_TRAIT_1):
+		interval = min(interval, TRAIT_TALENT_PART_INTERVAL)
+	interval = max(1.0, interval - SKILL_LEVEL_EFFECTS.get_mechanic_part_interval_reduction(owner))
+	return interval * (TALENTS.PART_INTERVAL_MULTIPLIER if LEVELS.has_talent_slot(owner, "mechanic", SKILL_LEVEL_EFFECTS.MECHANIC_TRAIT, 1) else 1.0)
+
+func get_part_damage_bonus(owner) -> float:
 	var per_part_bonus: float = TRAIT_PART_DAMAGE_BONUS + PLAYER_BUILD_SYSTEM.get_mechanic_part_damage_bonus(owner)
 	if _has_talent(owner, TALENT_TRAIT_2):
 		per_part_bonus = max(per_part_bonus, TRAIT_TALENT_PART_DAMAGE_BONUS)
-	return 1.0 + per_part_bonus * float(get_parts_count(owner))
+	if LEVELS.has_talent_slot(owner, "mechanic", SKILL_LEVEL_EFFECTS.MECHANIC_TRAIT, 2):
+		per_part_bonus += TALENTS.PART_DAMAGE_BONUS
+	return per_part_bonus + SKILL_LEVEL_EFFECTS.get_mechanic_part_damage_bonus(owner)
+
+func get_summon_damage_multiplier(owner) -> float:
+	return 1.0 + get_part_damage_bonus(owner) * float(get_parts_count(owner))
 
 func get_basic_attack_interval_multiplier(_owner) -> float:
 	return 1.0

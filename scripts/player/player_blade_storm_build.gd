@@ -19,7 +19,10 @@ const OPTIONS := {
 }
 
 static func state(owner) -> Dictionary:
-	return owner.role_special_states.get("swordsman", {}) if owner != null and owner.get("role_special_states") is Dictionary else {}
+	if owner == null or owner.get("role_special_states") is not Dictionary:
+		return {}
+	var role_state: Variant = owner.role_special_states.get("swordsman", {})
+	return role_state if role_state is Dictionary else {}
 
 static func level_from_state(value: Dictionary) -> int:
 	var stored: int = int(value.get("skill_levels", {}).get(PROGRESS, 0))

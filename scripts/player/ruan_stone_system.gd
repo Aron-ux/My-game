@@ -6,7 +6,7 @@ const STONE_POISON := "poison"
 const STONE_FLAME := "flame"
 const STONE_FURY := "fury"
 const FAILED_ASSASSIN_DAGGER := "failed_assassin_dagger"
-const STONE_IDS := [STONE_THUNDER, STONE_FROST, STONE_FURY, STONE_FLAME, "useless_pendant", "broken_sword", "keen_fragment", "tattered_cloak", "ground_branch", "guild_token", "broken_magic_stone", "rusted_dagger", "used_potion", "broken_chestplate", "unknown_spellbook", FAILED_ASSASSIN_DAGGER]
+const STONE_IDS := [STONE_THUNDER, STONE_FROST, STONE_POISON, STONE_FURY, STONE_FLAME, "useless_pendant", "broken_sword", "keen_fragment", "tattered_cloak", "ground_branch", "guild_token", "broken_magic_stone", "rusted_dagger", "used_potion", "broken_chestplate", "unknown_spellbook", FAILED_ASSASSIN_DAGGER]
 
 const DEFINITIONS := {
 	STONE_THUNDER: {"title": "雷石", "summary": "普攻触发电流连锁。"},
@@ -17,7 +17,7 @@ const DEFINITIONS := {
 	,"broken_sword": {"title": "冒险者破剑", "summary": "攻击力 +2，增伤 +2%。"}
 	,"keen_fragment": {"title": "基恩碎片", "summary": "远程攻击距离 +25，近战攻击范围 +25%。"}
 	,"tattered_cloak": {"title": "残破披风", "summary": "移动速度 +10，闪避率 +10%（每件独立计算）。"}
-	,"ground_branch": {"title": "地上的树枝", "summary": "攻击速度 +5%，攻击力 +2。"}
+	,"ground_branch": {"title": "地上的树枝", "summary": "攻击速度 +0.05 次/秒，攻击力 +2。"}
 	,"guild_token": {"title": "工会令牌碎片", "summary": "每 10 秒回复 20 点生命。"}
 	,"broken_magic_stone": {"title": "残破的魔石", "summary": "经验获取效率 +10%。"}
 	,"rusted_dagger": {"title": "生锈的匕首", "summary": "暴击率 +8%，暴击伤害 +8%。"}
@@ -25,7 +25,7 @@ const DEFINITIONS := {
 	,"broken_chestplate": {"title": "残破胸甲", "summary": "生命 +30，减伤 +3%。"}
 	,"unknown_spellbook": {"title": "不知名魔法书残页", "summary": "大招伤害 +20%，其他技能冷却减少 5%。"}
 	,"useless_pendant": {"title": "无用挂件", "summary": "每秒回复1点大招能量，大招伤害增加10%。"}
-	,FAILED_ASSASSIN_DAGGER: {"title": "失败刺客的短匕", "summary": "移动速度 +2%，攻击速度 +3%。"}
+	,FAILED_ASSASSIN_DAGGER: {"title": "失败刺客的短匕", "summary": "移动速度 +2%，攻击速度 +0.03 次/秒。"}
 }
 
 
@@ -273,8 +273,31 @@ static func get_effect_text(stone_id: String, level: int) -> String:
 			return "普攻击杀爆炸：%d范围，造成死者最大生命%s%%伤害" % [int(values["radius"]), _percent(values["damage_ratio"])]
 		STONE_FURY:
 			return "普攻使目标护甲降低%s点，持续%s秒；重复命中刷新时间" % [_number(values["armor_shred"]), _decimal(values["duration"])]
+		"useless_pendant":
+			return "每秒回复 %s 大招能量；大招伤害 +%s%%" % [_number(values["energy_per_second"]), _percent(values["ultimate_damage_bonus"])]
+		"broken_sword":
+			return "攻击力 +%s；增伤 +%s%%" % [_number(values["attack_bonus"]), _percent(values["damage_bonus"])]
+		"keen_fragment":
+			return "远程距离 +%s；近战范围 +%s%%" % [_number(values["range_bonus"]), _percent(float(values["melee_range_multiplier"]) - 1.0)]
+		"tattered_cloak":
+			var single_chance: float = float(get_effect_values(stone_id, 1)["dodge_chance"])
+			return "移动速度 +%s；独立闪避合计 %s%%" % [_number(values["speed_bonus"]), _percent(1.0 - pow(1.0 - single_chance, level))]
+		"ground_branch":
+			return "攻击速度 +%s 次/秒；攻击力 +%s" % [_number(values["attack_speed_percent"]), _number(values["attack_bonus"])]
+		"guild_token":
+			return "每 10 秒回复 %s 生命" % _number(values["heal_amount"])
+		"broken_magic_stone":
+			return "经验获取 +%s%%" % _percent(float(values["experience_multiplier"]) - 1.0)
+		"rusted_dagger":
+			return "暴击率 +%s%%；暴击伤害 +%s%%" % [_percent(values["critical_chance_bonus"]), _percent(values["critical_damage_bonus"])]
+		"used_potion":
+			return "每秒回复 %s 生命、%s 大招能量" % [_number(values["heal_per_second"]), _number(values["energy_per_second"])]
+		"broken_chestplate":
+			return "最大生命 +%s；额外减伤率 %s%%" % [_number(values["max_health_bonus"]), _percent(values["damage_reduction_rate"])]
+		"unknown_spellbook":
+			return "大招伤害 +%s%%；技能冷却缩减 %s%%" % [_percent(values["ultimate_damage_bonus"]), _percent(1.0 - float(values["cooldown_multiplier"]))]
 		FAILED_ASSASSIN_DAGGER:
-			return "移动速度 +%s%%，攻击速度 +%s%%" % [_percent(values["move_speed_percent"]), _percent(values["attack_speed_percent"])]
+			return "移动速度 +%s%%；攻击速度 +%s 次/秒" % [_percent(values["move_speed_percent"]), _number(values["attack_speed_percent"])]
 	return ""
 
 

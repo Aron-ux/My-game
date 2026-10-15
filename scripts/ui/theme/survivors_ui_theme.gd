@@ -118,11 +118,13 @@ static func apply_button_style(button: Button, kind: String = "normal", selected
 	var pressed := action_button_style(kind, selected)
 	pressed.bg_color = pressed.bg_color.darkened(0.08)
 	button.add_theme_stylebox_override("pressed", pressed)
-	button.add_theme_stylebox_override("focus", hover)
+	button.add_theme_stylebox_override("focus", panel_style(Color.TRANSPARENT, COLOR_TEXT_GOLD, 2, 10))
+	button.add_theme_stylebox_override("disabled", action_button_style())
 	var font_color := COLOR_TEXT_GOLD if (kind == "primary" or selected) else COLOR_TEXT
 	button.add_theme_color_override("font_color", font_color)
 	button.add_theme_color_override("font_hover_color", font_color.lightened(0.10))
 	button.add_theme_color_override("font_pressed_color", font_color.darkened(0.08))
+	button.add_theme_color_override("font_disabled_color", COLOR_TEXT_MUTED)
 
 static func apply_card_button_style(button: Button, selected: bool = false, accented: bool = false, disabled: bool = false) -> void:
 	if button == null:

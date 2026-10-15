@@ -35,6 +35,7 @@ func _check_level_talent_definitions() -> void:
 	var candidates: Array = PLAYER_SKILL_TALENT_SYSTEM._collect_level_talent_candidates(owner, definitions, {}, false)
 	_expect(_has_candidate(candidates, MAGE_ENTRY_TALENT_FLOW.TALENT_DENSE_LIGHTNING_1), "dense lightning I should refresh because hero_entry is a shared entry skill")
 	_expect(_has_candidate(candidates, MAGE_ENTRY_TALENT_FLOW.TALENT_DENSE_LIGHTNING_2), "dense lightning II should refresh because hero_entry is a shared entry skill")
+	owner.free()
 
 
 func _check_extra_ring_centers() -> void:
@@ -47,6 +48,7 @@ func _check_extra_ring_centers() -> void:
 	_expect(centers.size() == MAGE_ROLE.ENTRY_LIGHTNING_COUNT * 2, "dense lightning should add one extra outer ring in the same 5 directions")
 	if centers.size() == MAGE_ROLE.ENTRY_LIGHTNING_COUNT * 2:
 		_expect(is_equal_approx(centers[5].length(), MAGE_ROLE.ENTRY_LIGHTNING_DISTANCE * MAGE_ENTRY_TALENT_FLOW.EXTRA_RING_DISTANCE_MULTIPLIER), "dense lightning outer ring should use the configured outer distance")
+	owner.free()
 
 
 func _check_kill_hooks_through_resolver() -> void:
@@ -85,6 +87,7 @@ func _check_pending_surplus_bonus() -> void:
 	MAGE_ENTRY_TALENT_FLOW.on_entry_lightning_killed(owner, MAGE_ENTRY_TALENT_FLOW.make_damage_source_id(), "mage")
 	_expect(is_equal_approx(MAGE_ENTRY_TALENT_FLOW.consume_pending_arcane_surplus_bonus(owner), 0.2), "dense lightning II should store pending surplus duration when surplus is not active yet")
 	_expect(is_equal_approx(MAGE_ENTRY_TALENT_FLOW.consume_pending_arcane_surplus_bonus(owner), 0.0), "pending surplus duration should be consumed only once")
+	owner.free()
 
 
 func _has_candidate(candidates: Array, talent_id: String) -> bool:

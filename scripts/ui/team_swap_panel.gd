@@ -13,10 +13,10 @@ const SURVIVORS_THEME := preload("res://scripts/ui/theme/survivors_ui_theme.gd")
 const TEAM_SIZE := 3
 
 const TEXT_TITLE := "队伍整备"
-const TEXT_HINT := "选择一名候补成员与一名上场队员进行替换。"
+const TEXT_HINT := "选择候补与队员进行替换；选中队员后可前移 / 后移。1 号位为下一局首发。"
 const TEXT_TEAM_SECTION := "当前队伍（3人）"
 const TEXT_CANDIDATE_SECTION := "候补成员"
-const TEXT_CANDIDATE_EMPTY := "暂无候补成员。\n新角色会随 roster 扩充加入，届时可在此调整队伍。"
+const TEXT_CANDIDATE_EMPTY := "暂无候补成员。\n已解锁角色都在当前队伍中。"
 const TEXT_SWAP := "替换"
 const TEXT_CLOSE := "关闭"
 const TEXT_SWAP_DONE := "已将%s替换为%s，新阵容将在下一局战斗生效。"
@@ -42,6 +42,9 @@ var candidate_empty_label: Label
 var feedback_label: Label
 var swap_button: Button
 var close_button: Button
+var move_up_button: Button
+var move_down_button: Button
+var preview_label: Label
 var team_buttons: Dictionary = {}
 var candidate_buttons: Dictionary = {}
 
@@ -112,6 +115,16 @@ static func build_swapped_team(team_order: Array, out_role_id: String, in_role_i
 		return {"success": false, "error": str(validation.get("error", "")), "team_order": team_order.duplicate()}
 	return {"success": true, "error": "", "team_order": swapped}
 
+static func build_reordered_team(team_order: Array, role_id: String, direction: int) -> Dictionary:
+	var validation := validate_team(team_order)
+	var index := team_order.find(role_id)
+	if not validation["valid"] or index < 0 or absi(direction) != 1 or index + direction < 0 or index + direction >= TEAM_SIZE:
+		return {"success": false, "error": "该队员无法继续向此方向移动。"}
+	var reordered := team_order.duplicate()
+	reordered[index] = reordered[index + direction]
+	reordered[index + direction] = role_id
+	return {"success": true, "team_order": reordered}
+
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -159,13 +172,13 @@ func _persist_profile() -> bool:
 	if mode == SAVE_MANAGER.MODE_ENDLESS:
 		return SAVE_MANAGER.save_endless_profile(profile) > 0
 	if mode == SAVE_MANAGER.MODE_STORY:
-		SAVE_MANAGER.save_story_profile(profile)
+		return SAVE_MANAGER.save_story_profile(profile) > 0
 	return true
 
 func _build_panel() -> void:
 	modal = SURVIVORS_MODAL.new()
 	add_child(modal)
-	modal.configure(Vector2(920.0, 600.0), 0.68, 0.78, Vector2(520.0, 380.0))
+	modal.configure(Vector2(1040.0, 650.0), 0.84, 0.91, Vector2(620.0, 440.0))
 	modal.set_title(TEXT_TITLE)
 	modal.set_hint(TEXT_HINT)
 
@@ -205,6 +218,16 @@ func _build_panel() -> void:
 	candidate_empty_label.add_theme_font_size_override("font_size", 16)
 	candidate_empty_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_MUTED)
 	candidate_column.add_child(candidate_empty_label)
+	var preview_scroll := ScrollContainer.new()
+	preview_scroll.custom_minimum_size.y = 100
+	preview_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	body.add_child(preview_scroll)
+	preview_label = Label.new()
+	preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	preview_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	preview_label.add_theme_font_size_override("font_size", 16)
+	preview_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT)
+	preview_scroll.add_child(preview_label)
 
 	feedback_label = Label.new()
 	feedback_label.custom_minimum_size = Vector2(0.0, 30.0)
@@ -217,6 +240,10 @@ func _build_panel() -> void:
 
 	modal.clear_footer()
 	close_button = modal.add_footer_button(TEXT_CLOSE, Callable(self, "close_panel"), "normal")
+	move_up_button = modal.add_footer_button("前移", _on_reorder_pressed.bind(-1))
+	move_down_button = modal.add_footer_button("后移", _on_reorder_pressed.bind(1))
+	move_up_button.custom_minimum_size.x = 100
+	move_down_button.custom_minimum_size.x = 100
 	swap_button = modal.add_footer_button(TEXT_SWAP, Callable(self, "_on_swap_pressed"), "primary")
 
 func _make_section_label(text_value: String) -> Label:
@@ -245,6 +272,7 @@ func _refresh_lists() -> void:
 		candidate_list.add_child(_build_role_entry(str(role_id), -1, false, role_colors))
 	candidate_empty_label.visible = candidates.is_empty()
 	_update_swap_state()
+	_update_preview(selected_candidate_role if selected_candidate_role != "" else selected_team_role)
 
 func _build_role_entry(role_id: String, slot_index: int, is_team: bool, role_colors: Array) -> Control:
 	var row := HBoxContainer.new()
@@ -271,7 +299,7 @@ func _build_role_entry(role_id: String, slot_index: int, is_team: bool, role_col
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	button.focus_mode = Control.FOCUS_ALL
-	button.custom_minimum_size = Vector2(0.0, 76.0)
+	button.custom_minimum_size = Vector2(0.0, 62.0)
 	button.add_theme_font_size_override("font_size", 17)
 	button.set_meta("base_title", title_text)
 	button.set_meta("info_text", " · ".join(info_parts))
@@ -303,6 +331,17 @@ func _refresh_selection_styles() -> void:
 func _update_swap_state() -> void:
 	if swap_button != null:
 		swap_button.disabled = profile.is_empty() or selected_team_role == "" or selected_candidate_role == ""
+	if move_up_button != null:
+		var index := get_team_ids(profile).find(selected_team_role)
+		move_up_button.disabled = profile.is_empty() or index <= 0
+		move_down_button.disabled = profile.is_empty() or index < 0 or index >= TEAM_SIZE - 1
+
+func _update_preview(role_id: String) -> void:
+	preview_label.text = "选择一名角色查看定位与基础属性。队伍与顺序调整用于下一局，进行中的战局保持原阵容。"
+	for role in ROLE_DATABASE.ROLE_DATA:
+		if str(role["id"]) == role_id:
+			preview_label.text = "%s · 基础生命 %.0f · 攻击 %.0f · 攻速 %.2f 次/秒\n%s" % [ROLE_PRESENTER.get_role_name(role_id), role["base_health"], role["damage"], role["base_attack_speed"], ROLE_PRESENTER.ROLE_DESCRIPTIONS.get(role_id, "")]
+			break
 
 func _on_team_entry_pressed(role_id: String) -> void:
 	if selected_team_role == role_id:
@@ -310,6 +349,7 @@ func _on_team_entry_pressed(role_id: String) -> void:
 	selected_team_role = role_id
 	feedback_label.text = ""
 	_refresh_selection_styles()
+	_update_preview(role_id)
 
 func _on_candidate_entry_pressed(role_id: String) -> void:
 	if selected_candidate_role == role_id:
@@ -317,6 +357,24 @@ func _on_candidate_entry_pressed(role_id: String) -> void:
 	selected_candidate_role = role_id
 	feedback_label.text = ""
 	_refresh_selection_styles()
+	_update_preview(role_id)
+
+func _on_reorder_pressed(direction: int) -> void:
+	var previous_team := get_team_ids(profile)
+	var result := build_reordered_team(previous_team, selected_team_role, direction)
+	if profile.is_empty() or not bool(result.get("success", false)):
+		feedback_label.text = str(result.get("error", TEXT_PROFILE_MISSING))
+		return
+	profile["team_order"] = result["team_order"]
+	if not _persist_profile():
+		profile["team_order"] = previous_team
+		feedback_label.text = TEXT_SAVE_FAILED
+		return
+	_refresh_lists()
+	feedback_label.text = "队伍顺序已保存，1 号位为下一局首发；进行中的战局保持原阵容。"
+	team_changed.emit(get_team_ids(profile))
+	if team_buttons.has(selected_team_role):
+		team_buttons[selected_team_role].grab_focus()
 
 func _on_swap_pressed() -> void:
 	if profile.is_empty():

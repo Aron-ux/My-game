@@ -590,8 +590,11 @@ func _show_skill(record: Dictionary) -> void:
 	_detail_text("天赋位", GOLD)
 	var granted := LEVELS.get_granted_talent_slots(cached_player, str(record.role_id), progress_id)
 	for slot in [1, 2]:
-		var state := "已获得 · 效果尚未实装" if granted.has(slot) else ("待选择 / 满级补齐" if level >= 5 else "5 级开放选择")
-		_detail_text("%s   %s" % ["I" if slot == 1 else "II", state])
+		var definition := LEVELS.get_talent_definition(str(record.role_id), progress_id, slot)
+		var state := ("已生效" if not definition.is_empty() else "已获得 · 效果尚未实装") if granted.has(slot) else ("待选择 / 10 级补齐" if level >= 5 else "5 级开放选择")
+		_detail_text("%s   %s   %s" % ["I" if slot == 1 else "II", str(definition.get("title", "")), state], GOLD if granted.has(slot) else MUTED)
+		if not definition.is_empty():
+			_detail_text(str(definition["description"]), TEXT)
 
 
 func _build_blessings(role_id: String) -> void:
@@ -662,11 +665,7 @@ func _show_equipment(record: Dictionary) -> void:
 			counts[id] = int(counts.get(id, 0)) + 1
 		for id in counts:
 			_detail_text("%s × %d" % [RUAN_STONE_SYSTEM.get_definition(id).get("title", id), counts[id]], TEXT)
-			var effect := RUAN_STONE_SYSTEM.get_effect_text(id, 1)
-			# Combat currently consumes only this item's critical-chance bonus.
-			if id == "rusted_dagger":
-				effect = "暴击率 +%.0f%%。" % (float(RUAN_STONE_SYSTEM.get_effect_values(id, 1).get("critical_chance_bonus", 0.0)) * 100.0)
-			_detail_text("每份：" + (effect if effect != "" else str(RUAN_STONE_SYSTEM.get_definition(id).get("summary", ""))))
+			_detail_text("累计：" + RUAN_STONE_SYSTEM.get_effect_text(id, int(counts[id])))
 		if counts.is_empty():
 			_detail_text("尚未携带阮石。")
 		return

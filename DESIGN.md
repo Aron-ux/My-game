@@ -1,6 +1,6 @@
 ---
 name: My Game
-description: A tactical dark-gold build archive for a three-role survivors-like game.
+description: A tactical dark-gold build archive for a survivors-like game with three active roles from a four-role roster.
 colors:
   archive-backdrop: "#000000B8"
   archive-bg: "#0B0D14FA"
@@ -130,6 +130,23 @@ Depth is structural: nested navy surfaces, thin borders, and modest dark shadows
 
 ## Components
 
+The shared modal shell and the character sheet have distinct existing variants. The colors and rounded corners above describe the shared shell; the Character Overview section defines the flatter, muted character-sheet variant. Reward cards keep their illustrated paper treatment. Reuse the corresponding component rather than mixing these values within one screen.
+
+### Shared Modal and Settings
+
+- Shared modals use the existing Chinese sans-serif reading font. Title and hint values set before the node enters the tree must survive initialization; empty headers take no space.
+- Settings has one title, a fixed category rail, a scrolling content area and a fixed close action. Category selection, keyboard focus and disabled controls remain visually distinct; the focus outline has a transparent fill.
+- Keyboard focus follows scrolling, stays inside the visible modal and returns to the opener on close. While capturing a binding, Tab, Enter and Space are ordinary bindable keys; Esc cancels capture before it can close the modal.
+- Audio controls include a labeled mute checkbox. Display controls include HUD layout and the temporary performance-recording switch. Persist existing setting IDs across presentation changes.
+
+### Camp Preparation
+
+Use the existing pixel terrain, buildings and hero art for the world, with functional zones and a nearest-interaction highlight. Keep a small top action bar and bottom status recap: bones, unlocked N, next team, carry count/summary and the latest clear or active run. Avoid permanent notification badges or new currencies.
+
+The shop uses four filters (all, stones, equipment, owned), a scrolling item list and a separate effect inspector. Show cumulative current and next-copy values and distinct buy/refund actions; capacity and insufficient funds disable only buying. Keep save failures visible and preserve the prior inventory. Team preparation supports replacement and adjacent reordering, with base-stat/role previews and an explicit first slot.
+
+All camp overlays use the shared modal, stop world movement and suppress world interaction. Restore focus on close. Role/N-tier details explain when edits apply: team changes affect the next new run; current permanent carried items apply on continue. Validate action bounds at 1280×720 and 960×540.
+
 ### Buttons
 - **Shape:** restrained rounded rectangle (10–12px).
 - **Primary:** archive-soft surface, gold border/text, at least 40px high.
@@ -169,6 +186,8 @@ Character-sheet surfaces use `#111620` / `#181F2B`, sparse `#CBB581` gold, `#EDE
 ### Skill Record
 
 Group innate abilities, five active skills and the ultimate; retain the gunner's extra hunt record. Show current effect and available runtime parameters before next-level changes and talent slots. Unowned actives point to acquisition cards, ultimates have no invented level progression, and saved `level_talents` get a separate read-only list. Explicitly label placeholder effects and missing growth descriptions.
+
+Mechanic's 16 implemented skill talents show their names, full rules and explicit owned/pending status in the detail pane. Reward cards use a talent name plus two short effect lines; the hover panel carries lifecycle and combination rules. Other roles keep explicit placeholder labels until their effects are implemented.
 
 ### Blessing and Equipment Records
 

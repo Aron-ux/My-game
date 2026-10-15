@@ -100,10 +100,6 @@ func _exit_tree() -> void:
 	if menu_bgm != null:
 		menu_bgm.set("stream", null)
 
-func _unhandled_input(event: InputEvent) -> void:
-	if settings_panel != null and settings_panel.has_method("handle_unhandled_input"):
-		settings_panel.handle_unhandled_input(event)
-
 func _make_main_button(text_value: String) -> Button:
 	var button := Button.new()
 	button.text = text_value

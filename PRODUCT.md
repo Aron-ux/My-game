@@ -19,6 +19,10 @@ The interface must answer four questions quickly:
 
 The character sheet opens on an eleven-stat overview with a fixed source inspector. Skills, blessings, and equipment share the same team / list / detail structure. Saved `level_talents` appear as a read-only list; their disabled acquisition flow stays disabled. Placeholder effects are explicitly labeled.
 
+Mechanic skill talents use the current level-5 choice and level-10 completion route. Its eight skill lines show 16 named effects with owned/pending status, while other roles' unimplemented slots remain labeled as placeholders. Runtime values and talent descriptions must agree across reward cards, combat hover and the character sheet.
+
+The camp supports one preparation loop: inspect permanent gains and carried items, choose and order the next three-role team, then review the loadout before selecting or continuing an N tier. All four roster members, including mechanic, have camp representation and useful role information. Permanent purchases survive return to camp; transactions only appear as complete after the save succeeds.
+
 ## Personality
 
 Tactical, weighty, readable, and restrained. The visual metaphor is a dark-gold build archive: dense enough for experienced players, but organized like a dependable tool rather than a decorative fantasy book.

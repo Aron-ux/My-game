@@ -369,13 +369,19 @@ class TalentOwner:
 		pass
 
 	func _spawn_ring_effect(_position: Vector2, _radius: float, _color: Color, _segments: float, _duration: float) -> Node2D:
-		return Node2D.new()
+		var effect := Node2D.new()
+		add_child(effect)
+		return effect
 
 	func _spawn_burst_effect(_position: Vector2, _radius: float, _color: Color, _duration: float) -> Node2D:
-		return Node2D.new()
+		var effect := Node2D.new()
+		add_child(effect)
+		return effect
 
 	func _spawn_gunner_intersect_scene_effect(_center: Vector2, _direction: Vector2, _visual_length: float = 112.0, _visual_thickness: float = 18.0, _gather_visual_length: float = -1.0) -> Node2D:
-		return Node2D.new()
+		var effect := Node2D.new()
+		add_child(effect)
+		return effect
 
 	func _schedule_repeating_sequence(_interval: float, _count: int, callback: Callable, _initial_delay: float = 0.0) -> void:
 		scheduled_counts.append(_count)

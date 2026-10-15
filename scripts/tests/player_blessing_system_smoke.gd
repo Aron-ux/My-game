@@ -158,8 +158,8 @@ func _check_role_build_skill_gating() -> void:
 		failures.append("gunner basic upgrade card should show 普通攻击 as card title, got %s" % str(gunner_basic_upgrade))
 	var mage_options: Array = PlayerBuildSystem._build_role_options(owner, "mage", 2)
 	var mage_trait_upgrade := _find_role_build_option(mage_options, "skill_up_mage_trait")
-	if not str(mage_trait_upgrade.get("card_title", "")).contains("术师特性"):
-		failures.append("mage trait upgrade card should show 术师特性 as card title, got %s" % str(mage_trait_upgrade))
+	if not str(mage_trait_upgrade.get("card_title", "")).contains("法师特性"):
+		failures.append("mage trait upgrade card should show 法师特性 as card title, got %s" % str(mage_trait_upgrade))
 	var unlock_option := _find_role_build_option(before_unlock, "unlock_blade_storm")
 	if bool(unlock_option.get("hide_card_title", true)) or str(unlock_option.get("card_title", "")) != "剑刃风暴":
 		failures.append("skill unlock build should show skill name as card title, got %s" % str(unlock_option))

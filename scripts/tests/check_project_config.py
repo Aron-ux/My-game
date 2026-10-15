@@ -21,6 +21,11 @@ REQUIRED_SETTINGS = {
     "window/stretch/aspect": '"keep"',
     "window/vsync/vsync_mode": "0",
 }
+# Godot 4.6.2 omits unchanged engine defaults when saving project.godot.
+ENGINE_DEFAULT_SETTINGS = {
+    "window/size/resizable": "true",
+    "window/stretch/aspect": '"keep"',
+}
 REQUIRED_FILES = [
     "scripts/game/game_map_flow.gd",
     "scripts/map/map_boundary_view.gd",
@@ -58,7 +63,7 @@ def main() -> int:
 
     for key, expected in REQUIRED_SETTINGS.items():
         section = app if key.startswith("run/") else display
-        actual = section.get(key)
+        actual = section.get(key, ENGINE_DEFAULT_SETTINGS.get(key))
         if actual != expected:
             failures.append(f"{key}: expected {expected}, got {actual}")
 

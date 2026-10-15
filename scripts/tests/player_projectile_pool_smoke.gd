@@ -24,6 +24,7 @@ func _run() -> void:
 		failures.append("first projectile should spawn")
 	else:
 		_assert_size(scene.get_runtime_player_projectiles(), 1, "spawned projectile should register as active")
+		first.impact_blast_radius = 140.0
 		first.lifetime = 0.001
 		await physics_frame
 		await process_frame
@@ -35,6 +36,8 @@ func _run() -> void:
 	if first != null and second != first:
 		failures.append("second projectile should reuse pooled bullet instance")
 	if second != null:
+		if not is_zero_approx(second.impact_blast_radius):
+			failures.append("reused ordinary bullets must not retain a mechanic explosive payload")
 		_assert_size(scene.get_runtime_player_projectiles(), 1, "reused projectile should register as active")
 		if scene.get_total_pooled_projectiles() != 0:
 			failures.append("reused projectile should be removed from pool")

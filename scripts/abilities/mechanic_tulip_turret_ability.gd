@@ -8,6 +8,9 @@ const TURRET_TEXTURES := [
 
 const SKILL_ID := "tulip_turret"
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
+const SKILL_LEVEL_EFFECTS := preload("res://scripts/player/player_skill_level_effect_flow.gd")
+const LEVELS := preload("res://scripts/player/player_skill_level_system.gd")
+const TALENTS := LEVELS.MECHANIC_TALENTS
 const COOLDOWN := 20.0
 const DURATION := 8.0
 const FIRE_INTERVAL := 0.8
@@ -49,7 +52,7 @@ func update(owner, delta: float) -> void:
 		data["remaining"] = remaining
 		data["tick_elapsed"] = tick_elapsed
 		active_turrets[index] = data
-		if tick_elapsed >= _get_fire_interval(owner):
+		if tick_elapsed >= _get_fire_interval(owner, str(data.get("progress_id", SKILL_LEVEL_EFFECTS.MECHANIC_TULIP_TURRET))):
 			data["tick_elapsed"] = 0.0
 			active_turrets[index] = data
 			_fire(owner, data)
@@ -69,9 +72,11 @@ func try_trigger(owner) -> bool:
 	return true
 
 
-func deploy_turret(owner, damage_scale: float = 1.0, direction_sign: float = 1.0):
+func deploy_turret(owner, damage_scale: float = 1.0, direction_sign: float = 1.0, progress_id: String = SKILL_LEVEL_EFFECTS.MECHANIC_TULIP_TURRET):
 	if owner == null or not is_instance_valid(owner):
 		return null
+	if progress_id != SKILL_LEVEL_EFFECTS.MECHANIC_ENTRY:
+		progress_id = SKILL_LEVEL_EFFECTS.MECHANIC_TULIP_TURRET
 	var scene: Node = owner.get_tree().current_scene if owner.get_tree() != null else null
 	if scene == null:
 		return null
@@ -96,9 +101,10 @@ func deploy_turret(owner, damage_scale: float = 1.0, direction_sign: float = 1.0
 	scene.add_child(turret)
 	active_turrets.append({
 		"node": turret,
-		"remaining": _get_duration(owner),
+		"remaining": _get_duration(owner, progress_id),
 		"tick_elapsed": 0.0,
-		"damage_scale": max(0.0, damage_scale)
+		"damage_scale": max(0.0, damage_scale),
+		"progress_id": progress_id
 	})
 	return turret
 
@@ -117,21 +123,25 @@ func get_cooldown_slot(owner = null) -> Dictionary:
 		"effect_rows": [
 			{"label": "单发伤害倍率", "value": "%.0f%%" % (_get_damage_ratio(owner) * 100.0)},
 			{"label": "射击间隔", "value": "%.1f 秒" % _get_fire_interval(owner)},
-			{"label": "持续时间", "value": "%.1f 秒" % _get_duration(owner)}
+			{"label": "持续时间", "value": "%.1f 秒" % _get_duration(owner)},
+			{"label": "每次射击", "value": "%d 发" % _get_shot_count(owner, SKILL_LEVEL_EFFECTS.MECHANIC_TULIP_TURRET)}
 		],
 		"effect_note": "按当前强化下的标准部署计算；实际伤害还受角色攻击力、暴击和目标防御影响。"
 	}
 
 
-func _get_duration(owner) -> float:
+func _get_duration(owner, progress_id: String = SKILL_LEVEL_EFFECTS.MECHANIC_TULIP_TURRET) -> float:
 	var duration: float = DURATION + PLAYER_BUILD_SYSTEM.get_mechanic_turret_duration_bonus(owner)
 	if _has_talent(owner, TALENT_TURRET_2) or _has_talent(owner, TALENT_ENTRY_1):
 		duration += TALENT_DURATION_BONUS
-	return duration
+	if LEVELS.has_talent_slot(owner, "mechanic", progress_id, 2):
+		duration += TALENTS.ENTRY_DURATION_BONUS if progress_id == SKILL_LEVEL_EFFECTS.MECHANIC_ENTRY else TALENTS.TURRET_DURATION_BONUS
+	return duration + SKILL_LEVEL_EFFECTS.get_mechanic_duration_bonus(owner, progress_id)
 
 
-func _get_damage_ratio(owner) -> float:
+func _get_damage_ratio(owner, progress_id: String = SKILL_LEVEL_EFFECTS.MECHANIC_TULIP_TURRET) -> float:
 	var ratio: float = TALENT_DAMAGE_RATIO if _has_talent(owner, TALENT_TURRET_2) else DAMAGE_RATIO
+	ratio += SKILL_LEVEL_EFFECTS.get_mechanic_damage_ratio_bonus(owner, progress_id)
 	return ratio * PLAYER_BUILD_SYSTEM.get_mechanic_turret_damage_multiplier(owner) * _get_summon_damage_multiplier(owner)
 
 
@@ -146,7 +156,8 @@ func get_save_data() -> Dictionary:
 			"rotation": turret.rotation,
 			"remaining": max(0.0, float(data.get("remaining", 0.0))),
 			"tick_elapsed": max(0.0, float(data.get("tick_elapsed", 0.0))),
-			"damage_scale": max(0.0, float(data.get("damage_scale", 1.0)))
+			"damage_scale": max(0.0, float(data.get("damage_scale", 1.0))),
+			"progress_id": str(data.get("progress_id", SKILL_LEVEL_EFFECTS.MECHANIC_TULIP_TURRET))
 		})
 	return {"cooldown_remaining": cooldown_remaining, "turrets": turrets}
 
@@ -171,7 +182,7 @@ func restore_effect_if_active(owner) -> void:
 		var remaining: float = max(0.0, float(saved_data.get("remaining", 0.0)))
 		if remaining <= 0.0:
 			continue
-		var turret = deploy_turret(owner, float(saved_data.get("damage_scale", 1.0)))
+		var turret = deploy_turret(owner, float(saved_data.get("damage_scale", 1.0)), 1.0, str(saved_data.get("progress_id", SKILL_LEVEL_EFFECTS.MECHANIC_TULIP_TURRET)))
 		if turret == null:
 			continue
 		turret.global_position = _decode_vector2(saved_data.get("position", []), owner.global_position)
@@ -200,9 +211,12 @@ func _fire(owner, data: Dictionary) -> void:
 	if sprite != null:
 		sprite.play("fire")
 		sprite.set_frame_and_progress(1, 0.0)
-	var damage_amount: float = owner._get_role_damage("mechanic") * _get_damage_ratio(owner) * float(data.get("damage_scale", 1.0))
+	var progress_id := str(data.get("progress_id", SKILL_LEVEL_EFFECTS.MECHANIC_TULIP_TURRET))
+	var damage_amount: float = owner._get_role_damage("mechanic") * _get_damage_ratio(owner, progress_id) * float(data.get("damage_scale", 1.0))
 	var muzzle := Vector2(-96.0 if cos(turret.rotation) < 0.0 else 96.0, -90.0) * TURRET_VISUAL_SCALE
-	owner._spawn_bullet(target, damage_amount, TURRET_COLOR, "mechanic", turret.global_position + muzzle)
+	var count := _get_shot_count(owner, progress_id)
+	for index in range(count):
+		owner._spawn_bullet(target, damage_amount, TURRET_COLOR, "mechanic", turret.global_position + muzzle + Vector2(0.0, (float(index) - float(count - 1) * 0.5) * 12.0))
 
 
 func _update_facing(turret: Node2D) -> void:
@@ -232,8 +246,15 @@ func _build_turret_frames() -> SpriteFrames:
 	return frames
 
 
-func _get_fire_interval(owner) -> float:
-	return TALENT_FIRE_INTERVAL if _has_talent(owner, TALENT_TURRET_1) else FIRE_INTERVAL
+func _get_fire_interval(owner, progress_id: String = SKILL_LEVEL_EFFECTS.MECHANIC_TULIP_TURRET) -> float:
+	var interval := TALENT_FIRE_INTERVAL if _has_talent(owner, TALENT_TURRET_1) else FIRE_INTERVAL
+	if LEVELS.has_talent_slot(owner, "mechanic", progress_id, 2):
+		interval *= TALENTS.ENTRY_FIRE_INTERVAL_MULTIPLIER if progress_id == SKILL_LEVEL_EFFECTS.MECHANIC_ENTRY else TALENTS.TURRET_FIRE_INTERVAL_MULTIPLIER
+	return interval
+
+
+func _get_shot_count(owner, progress_id: String) -> int:
+	return TALENTS.TURRET_SHOT_COUNT if progress_id == SKILL_LEVEL_EFFECTS.MECHANIC_TULIP_TURRET and LEVELS.has_talent_slot(owner, "mechanic", progress_id, 1) else 1
 
 
 func _clear_turrets() -> void:

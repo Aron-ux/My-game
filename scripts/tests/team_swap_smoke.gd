@@ -2,6 +2,7 @@ extends SceneTree
 
 const SAVE_FILE_STORE := preload("res://scripts/save/save_file_store.gd")
 const SAVE_PROFILE_DEFAULTS := preload("res://scripts/save/save_profile_defaults.gd")
+const SAVE := preload("res://scripts/save_manager.gd")
 const ROLE_DATABASE := preload("res://scripts/player/roles/role_database.gd")
 const TEAM_SWAP_PANEL := preload("res://scripts/ui/team_swap_panel.gd")
 const TEAM_SWAP_PANEL_SCENE := preload("res://scenes/UI/team_swap_panel.tscn")
@@ -18,6 +19,8 @@ func _init() -> void:
 func _run() -> void:
 	_check_team_order_io()
 	_check_swap_validation()
+	_check_reorder_validation()
+	_check_story_persist_failure()
 	await _check_panel_ui()
 	await _check_camp_wiring()
 	if failures.is_empty():
@@ -95,6 +98,42 @@ func _check_swap_validation() -> void:
 	_expect(bool(TEAM_SWAP_PANEL.validate_team(["swordsman", "gunner", "mechanic"]).get("valid", false)), "3 人不重复队伍必须判定合法。")
 
 
+func _check_reorder_validation() -> void:
+	var team := ["swordsman", "gunner", "mage"]
+	_expect(TEAM_SWAP_PANEL.build_reordered_team(team, "mage", -1).get("team_order") == ["swordsman", "mage", "gunner"], "队内前移应交换相邻位置。")
+	_expect(not TEAM_SWAP_PANEL.build_reordered_team(team, "swordsman", -1).get("success"), "首位不能继续前移。")
+	_expect(not TEAM_SWAP_PANEL.build_reordered_team(team, "mage", 1).get("success"), "末位不能继续后移。")
+	_expect(not TEAM_SWAP_PANEL.build_reordered_team(["mage", "mage", "gunner"], "mage", 1).get("success"), "不能重排非法队伍。")
+
+
+func _check_story_persist_failure() -> void:
+	var path := SAVE_FILE_STORE.story_profile_path(3)
+	var originals := {}
+	for file_path in [path, SAVE_FILE_STORE.META_PATH]:
+		originals[file_path] = FileAccess.get_file_as_bytes(file_path) if FileAccess.file_exists(file_path) else null
+	var previous_mode := SAVE.active_mode
+	var previous_slot := SAVE.active_slot_id
+	SAVE.set_active_slot(3)
+	var profile := SAVE_PROFILE_DEFAULTS.ensure_story_profile_defaults({}, 3)
+	_expect(SAVE.save_story_profile(profile) > 0, "故事档写入应返回成功状态。")
+	var blocked_path := ProjectSettings.globalize_path(path + ".tmp")
+	DirAccess.make_dir_recursive_absolute(blocked_path)
+	var panel := TEAM_SWAP_PANEL.new()
+	panel.mode = SAVE.MODE_STORY
+	panel.profile = profile
+	_expect(not panel._persist_profile(), "共用整备面板也应识别故事档写入失败。")
+	panel.free()
+	DirAccess.remove_absolute(blocked_path)
+	for file_path in originals:
+		if originals[file_path] == null:
+			SAVE_FILE_STORE.remove_if_exists(file_path)
+		else:
+			var file := FileAccess.open(file_path, FileAccess.WRITE)
+			file.store_buffer(originals[file_path])
+	SAVE.active_mode = previous_mode
+	SAVE.active_slot_id = previous_slot
+
+
 func _check_panel_ui() -> void:
 	var panel := TEAM_SWAP_PANEL_SCENE.instantiate()
 	root.add_child(panel)
@@ -146,7 +185,7 @@ func _check_panel_ui() -> void:
 	})
 	await process_frame
 	_expect(candidate_list.get_child_count() == 0, "无候补时候补列表应为空。")
-	_expect(candidate_empty.visible and candidate_empty.text.contains("roster"), "无候补时必须显示 roster 扩充教学。")
+	_expect(candidate_empty.visible and candidate_empty.text.contains("已解锁角色"), "无候补时应说明当前已解锁角色都在队伍中。")
 
 	var escape_event := InputEventKey.new()
 	escape_event.keycode = KEY_ESCAPE

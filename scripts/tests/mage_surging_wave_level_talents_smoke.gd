@@ -42,6 +42,8 @@ func _check_level_talent_definitions() -> void:
 	owner.role_special_states["mage"] = {"level_talents": [MAGE_SURGE_LEVEL_TALENT_FLOW.TALENT_SURGING_WAVE_1]}
 	candidates = PLAYER_SKILL_TALENT_SYSTEM._collect_level_talent_candidates(owner, definitions, {}, false)
 	_expect(not _has_candidate(candidates, MAGE_SURGE_LEVEL_TALENT_FLOW.TALENT_SURGING_WAVE_2), "same-scope surging wave II should be locked after picking I")
+	locked_owner.free()
+	owner.free()
 
 
 func _check_ability_modifiers() -> void:
@@ -59,6 +61,7 @@ func _check_ability_modifiers() -> void:
 	owner.level_talents = {MAGE_SURGE_LEVEL_TALENT_FLOW.TALENT_SURGING_WAVE_2: true}
 	owner.quantity_count = 0
 	_expect(is_equal_approx(surge._get_lifetime(owner), MAGE_SURGE_ABILITY.WAVE_LIFETIME + 2.0), "surging wave II should extend wave lifetime by 2 seconds")
+	owner.free()
 
 
 func _check_path_trail() -> void:

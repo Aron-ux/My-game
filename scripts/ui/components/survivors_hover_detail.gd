@@ -82,6 +82,8 @@ func show_item(item: Dictionary, cursor: Vector2, anchor_rect: Rect2 = Rect2(), 
 	if role_effect_text != "" and not detail.contains("对应效果"):
 		detail += "\n\n" + role_effect_text
 	title_label.text = str(item.get("card_title", item.get("title", item.get("name", "选项")))).trim_prefix("升级：")
+	if str(item.get("option_category", "")) == "skill_level_talent" and bool(item.get("talent_implemented", false)):
+		title_label.text = str(item.get("title", title_label.text))
 	category_label.text = _get_category_text(item)
 	category_label.visible = category_label.text != ""
 	if card_detail:

@@ -5,6 +5,7 @@ const STORM_BUILD := preload("res://scripts/player/player_blade_storm_build.gd")
 const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
 const SWORDSMAN_BASIC_BUILD := preload("res://scripts/player/player_swordsman_basic_build.gd")
 const GUNNER_BASIC_BUILD := preload("res://scripts/player/player_gunner_basic_build.gd")
+const MECHANIC_TALENTS := preload("res://scripts/player/data/mechanic_skill_talent_catalog.gd")
 
 ## 技能等级系统：普通技能线 1~10 级；剑士普攻独立使用 LV0~9 与三个阶段强化选择。
 const MAX_SKILL_LEVEL := 10
@@ -44,7 +45,7 @@ const PROGRESS_TITLES := {
 	"gunner_magic_grenade": "魔法榴弹",
 	"gunner_magic_eye": "魔眼聚合",
 	"gunner_ultimate": "火箭弹幕",
-	"mage_trait": "术师特性",
+	"mage_trait": "法师特性",
 	"mage_entry": "密集雷群",
 	"mage_basic": "范围轰炸",
 	"mage_meta_field": "梅塔领域",
@@ -177,7 +178,7 @@ static func add_skill_level(owner, role_id: String, progress_id: String, amount:
 	}
 
 
-## 升级效果的接入点：等级写入后调用。具体数值成长由后续设计补充。
+## 预留一次性升级事件；持续数值由 player_skill_level_effect_flow 按当前等级读取。
 static func apply_level_effect(_owner, _role_id: String, _progress_id: String, _level: int) -> void:
 	pass
 
@@ -205,6 +206,13 @@ static func get_picked_talent_slot(owner, role_id: String, progress_id: String) 
 
 static func has_talent_slot(owner, role_id: String, progress_id: String, slot: int) -> bool:
 	return get_granted_talent_slots(owner, role_id, progress_id).has(slot)
+
+
+static func get_talent_definition(role_id: String, progress_id: String, slot: int) -> Dictionary:
+	if role_id != "mechanic" or slot < 1 or slot > TALENT_SLOT_COUNT:
+		return {}
+	var definitions: Array = MECHANIC_TALENTS.DEFINITIONS.get(progress_id, [])
+	return definitions[slot - 1].duplicate(true) if slot <= definitions.size() else {}
 
 
 static func is_talent_pick_pending(owner, role_id: String, progress_id: String) -> bool:
@@ -331,10 +339,11 @@ static func apply_option_with_result(owner, option_id: String, current_offer: Di
 		return {}
 	_record_talent_slot(owner, role_id, progress_id, slot, true)
 	var progress_title := get_progress_title(progress_id)
+	var title := str(offered.get("title", "%s 天赋位 %s" % [progress_title, _get_slot_roman(slot)]))
 	if owner.has_method("_spawn_combat_tag"):
 		owner._spawn_combat_tag(
 			owner.global_position + Vector2(0.0, -62.0),
-			"%s 天赋位 %s" % [progress_title, _get_slot_roman(slot)],
+			title,
 			Color(0.86, 0.80, 1.0, 1.0)
 		)
 	return {
@@ -343,7 +352,7 @@ static func apply_option_with_result(owner, option_id: String, current_offer: Di
 		"progress_id": progress_id,
 		"progress_title": progress_title,
 		"talent_slot": slot,
-		"title": "%s 天赋位 %s" % [progress_title, _get_slot_roman(slot)]
+		"title": title
 	}
 
 
@@ -467,6 +476,10 @@ static func _make_talent_option(role_id: String, progress_id: String, slot: int)
 	var slot_roman := _get_slot_roman(slot)
 	var summary := "天赋位 %s：占用「%s」的天赋位，具体效果尚未实装。" % [slot_roman, progress_title]
 	var description := "选择后占用「%s」的天赋位 %s。该位效果尚未实装；技能满 %d 级时会自动获得另一个天赋位。" % [progress_title, slot_roman, TALENT_AUTO_LEVEL]
+	var definition := get_talent_definition(role_id, progress_id, slot)
+	if not definition.is_empty():
+		summary = str(definition["summary"])
+		description = str(definition["description"]) + "技能满 10 级时自动获得另一个天赋。"
 	return {
 		"id": "%s%s:%s:%d" % [OPTION_PREFIX, role_id, progress_id, slot],
 		"offer_key": "%s:%s:%d" % [role_id, progress_id, slot],
@@ -477,8 +490,11 @@ static func _make_talent_option(role_id: String, progress_id: String, slot: int)
 		"skill_progress_id": progress_id,
 		"talent_slot": slot,
 		"talent_stage": slot,
-		"title": "%s 天赋位 %s" % [progress_title, slot_roman],
+		"title": "%s · %s" % [progress_title, definition["title"]] if not definition.is_empty() else "%s 天赋位 %s" % [progress_title, slot_roman],
 		"card_title": progress_title,
+		"talent_implemented": not definition.is_empty(),
+		"card_highlight": str(definition.get("title", "效果尚未实装")),
+		"card_lines": definition.get("card_lines", ["选择后记录该天赋位", "满 10 级获得另一天赋位"]).duplicate(),
 		"hide_card_title": false,
 		"summary": summary,
 		"short_description": summary,
@@ -525,15 +541,11 @@ static func _get_team_role_ids(owner) -> Array:
 static func _get_role_state(owner, role_id: String) -> Dictionary:
 	if owner == null or role_id == "":
 		return {}
-	if not _owner_has_property(owner, "role_special_states"):
+	var states: Variant = owner.get("role_special_states")
+	if states is not Dictionary:
 		return {}
-	if owner.get("role_special_states") is not Dictionary:
-		owner.set("role_special_states", {})
-	var states: Dictionary = owner.get("role_special_states")
-	if not states.has(role_id) or states.get(role_id, {}) is not Dictionary:
-		states[role_id] = {}
-		owner.set("role_special_states", states)
-	return states[role_id]
+	var state: Variant = states.get(role_id, {})
+	return state if state is Dictionary else {}
 
 
 static func _set_role_state(owner, role_id: String, state: Dictionary) -> void:

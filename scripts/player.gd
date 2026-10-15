@@ -698,7 +698,7 @@ func _get_role_critical_overflow_chance(role_id: String) -> float:
 func _get_critical_damage_multiplier(role_id: String) -> float:
 	var overflow_bonus: float = _get_role_critical_overflow_chance(role_id) * CRITICAL_OVERFLOW_DAMAGE_RATIO
 	var blessing_bonus: float = float(_get_role_blessing_stat_bonus(role_id, "critical_damage_bonus"))
-	return BASE_CRITICAL_DAMAGE_MULTIPLIER + overflow_bonus + blessing_bonus
+	return BASE_CRITICAL_DAMAGE_MULTIPLIER + overflow_bonus + blessing_bonus + PLAYER_RUAN_STONE_STAT_FLOW.get_critical_damage_bonus(self)
 
 func _roll_critical_hit(role_id: String, chance_bonus: float = 0.0) -> bool:
 	var critical_chance: float = _get_role_critical_chance(role_id) + chance_bonus

@@ -7,6 +7,15 @@ const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_t
 
 var failures: Array[String] = []
 
+class StateOwner:
+	extends RefCounted
+	var role_special_states: Variant = {}
+	var property_list_reads := 0
+
+	func _get_property_list() -> Array[Dictionary]:
+		property_list_reads += 1
+		return []
+
 
 func _init() -> void:
 	call_deferred("_run")
@@ -14,6 +23,7 @@ func _init() -> void:
 
 func _run() -> void:
 	seed(20260218)
+	_check_read_only_queries()
 	_check_initial_levels()
 	_check_unlock_gate()
 	_check_level_cap_and_pending()
@@ -29,6 +39,25 @@ func _run() -> void:
 		for failure in failures:
 			push_error(failure)
 		quit(1)
+
+
+func _check_read_only_queries() -> void:
+	var owner := StateOwner.new()
+	for raw_state in [{}, {"gunner": {"sentinel": 7}}, {"swordsman": null}, {"swordsman": {"build_levels": []}}, null]:
+		owner.role_special_states = raw_state
+		var before: Variant = raw_state.duplicate(true) if raw_state is Dictionary else raw_state
+		_expect_equal(PLAYER_SKILL_LEVEL_SYSTEM.get_skill_level(owner, "swordsman", "swordsman_basic"), 0, "missing or malformed state should use LV0")
+		_expect_equal(PLAYER_BUILD_SYSTEM.get_count(owner, "swordsman", "attack"), 0, "missing or malformed build state should report zero")
+		_expect_equal(owner.role_special_states, before, "queries must not initialize or repair saved state")
+	_expect_equal(owner.property_list_reads, 0, "queries must not enumerate the player's properties")
+	PLAYER_SKILL_LEVEL_SYSTEM.add_skill_level(owner, "swordsman", "swordsman_basic")
+	_expect_equal(PLAYER_SKILL_LEVEL_SYSTEM.get_skill_level(owner, "swordsman", "swordsman_basic"), 1, "a write should initialize absent LV0 skill state")
+	PLAYER_BUILD_SYSTEM._increment_build_count(owner, "swordsman", "attack")
+	_expect_equal(PLAYER_BUILD_SYSTEM.get_count(owner, "swordsman", "attack"), 1, "a write should initialize absent build state")
+	_expect_equal(PLAYER_SKILL_LEVEL_SYSTEM.get_skill_level(owner, "swordsman", "swordsman_basic"), 1, "build writes should preserve skill levels")
+	var untyped_owner := RefCounted.new()
+	_expect_equal(PLAYER_SKILL_LEVEL_SYSTEM.get_skill_level(untyped_owner, "swordsman", "swordsman_basic"), 0, "owners without saved state should use LV0")
+	_expect_equal(PLAYER_BUILD_SYSTEM.get_count(untyped_owner, "swordsman", "attack"), 0, "owners without saved state should report zero builds")
 
 
 func _check_initial_levels() -> void:

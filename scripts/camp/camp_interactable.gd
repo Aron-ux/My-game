@@ -10,6 +10,17 @@ signal interacted(interactable: Node)
 @export var enabled: bool = true
 
 var _player_inside: bool = false
+var highlighted := false
+
+func set_highlighted(value: bool) -> void:
+	if highlighted != value:
+		highlighted = value
+		queue_redraw()
+
+func _draw() -> void:
+	if highlighted:
+		draw_arc(Vector2.ZERO, 28.0, 0, TAU, 32, Color(1, 0.82, 0.36, 0.95), 2.0, true)
+		draw_circle(Vector2(0, 30), 4.0, Color(1, 0.82, 0.36))
 
 func _ready() -> void:
 	body_entered.connect(_on_body_entered)

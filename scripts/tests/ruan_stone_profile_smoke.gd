@@ -21,6 +21,11 @@ func _run() -> void:
 	_expect(profile.get("legacy_field") == "kept", "旧档案字段未保留。")
 	_expect(not profile.has("difficulty"), "旧四难度字段仍被保留。")
 	_expect(profile.get("highest_cleared_tier") == 0 and profile.get("selected_tier") == 1, "N 层进度默认值错误。")
+	_expect(profile.get("last_clear_summary") == {}, "旧档案缺少通关摘要时应安全回退。")
+	for malformed in [null, [], "bad", {"tier": []}, {"tier": -1}]:
+		_expect(PROFILE_DEFAULTS.ensure_endless_profile_defaults({"last_clear_summary": malformed}, 1).last_clear_summary == {}, "非法通关摘要应清空。")
+	var summary: Dictionary = PROFILE_DEFAULTS.ensure_endless_profile_defaults({"last_clear_summary": {"tier": 2, "bones": []}}, 1).last_clear_summary
+	_expect(summary.tier == 2 and summary.bones == 0, "非法结算骨头必须回退为零。")
 	_expect(profile.get("bones") == 0, "骨头数量未归一化。")
 	_expect(profile.get("equipped_ruan_stone") == "", "未拥有的石头仍被装备。")
 	var levels: Dictionary = profile.get("ruan_stone_levels", {})
@@ -45,12 +50,12 @@ func _run() -> void:
 	_expect(not RUAN_STONES.equip(profile, "poison") and RUAN_STONES.get_equipped(profile) == "thunder", "未拥有石头可装备或失败装备覆盖当前选择。")
 	_expect(RUAN_STONES.get_effect_text("flame", 1).contains("最大生命8%"), "炎石效果文本错误。")
 	_expect(RUAN_STONES.get_effect_text("fury", 1).contains("护甲降低5点"), "烈石效果文本错误。")
-	_expect(RUAN_STONES.get_definition("ground_branch").get("summary", "").contains("攻击速度 +5%") and RUAN_STONES.get_definition("ground_branch").get("summary", "").contains("攻击力 +2"), "地上的树枝文案错误。")
+	_expect(RUAN_STONES.get_definition("ground_branch").get("summary", "").contains("攻击速度 +0.05 次/秒") and RUAN_STONES.get_definition("ground_branch").get("summary", "").contains("攻击力 +2"), "地上的树枝文案错误。")
 	_expect(is_equal_approx(float(RUAN_STONES.get_effect_values("ground_branch", 1).get("attack_speed_percent", 0.0)), 0.05) and is_equal_approx(float(RUAN_STONES.get_effect_values("ground_branch", 1).get("attack_bonus", 0.0)), 2.0), "地上的树枝数值错误。")
 	_expect(RUAN_STONES.get_definition("broken_chestplate").get("summary", "").contains("减伤 +3%") and is_equal_approx(float(RUAN_STONES.get_effect_values("broken_chestplate", 1).get("damage_reduction_rate", 0.0)), 0.03), "残破胸甲数值或文案错误。")
 	_expect(RUAN_STONES.STONE_IDS.has("failed_assassin_dagger"), "失败刺客的短匕未登记到阮狗商店。")
 	_expect(RUAN_STONES.get_definition("failed_assassin_dagger").get("title", "") == "失败刺客的短匕", "失败刺客的短匕名称错误。")
-	_expect(RUAN_STONES.get_effect_text("failed_assassin_dagger", 1).contains("移动速度 +2%") and RUAN_STONES.get_effect_text("failed_assassin_dagger", 1).contains("攻击速度 +3%"), "失败刺客的短匕效果文本错误。")
+	_expect(RUAN_STONES.get_effect_text("failed_assassin_dagger", 1).contains("移动速度 +2%") and RUAN_STONES.get_effect_text("failed_assassin_dagger", 1).contains("攻击速度 +0.03 次/秒"), "失败刺客的短匕效果文本错误。")
 	var dagger_values := RUAN_STONES.get_stacked_effect_values("failed_assassin_dagger", 2)
 	_expect(is_equal_approx(float(dagger_values.get("move_speed_percent", 0.0)), 0.04) and is_equal_approx(float(dagger_values.get("attack_speed_percent", 0.0)), 0.06), "失败刺客的短匕重复携带未按份数叠加。")
 	# 取消购买（退款）：逐件移除并退还骨头，退到 0 后不再可退
@@ -62,6 +67,11 @@ func _run() -> void:
 	_expect(bool(refund_again.get("success", false)) and RUAN_STONES.get_count(profile, "thunder") == 0, "重复取消购买未逐件移除。")
 	_expect(int(profile.get("bones", 0)) == 10, "逐件退款未累计退还骨头。")
 	_expect(not bool(RUAN_STONES.refund(profile, "thunder").get("success", false)), "未携带的物件仍可退款。")
+	for id in RUAN_STONES.STONE_IDS:
+		_expect(not RUAN_STONES.get_effect_text(id, 1).is_empty() and not RUAN_STONES.get_effect_text(id, 2).is_empty(), "商品 %s 缺少当前或叠加效果。" % id)
+	var poison_profile := PROFILE_DEFAULTS.ensure_endless_profile_defaults({"ruan_stone_purchased": ["poison", "poison"]}, 1)
+	_expect(RUAN_STONES.get_count(poison_profile, "poison") == 2, "瘴石不应被档案归一化丢弃。")
+	_expect(RUAN_STONES.get_effect_text("tattered_cloak", 2).contains("19%"), "披风累计闪避应为独立判定合并后的 19%。")
 	if failures.is_empty():
 		print("RUAN_STONE_PROFILE_SMOKE_OK")
 		quit(0)
