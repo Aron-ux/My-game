@@ -20,10 +20,15 @@ var width_ratio := DEFAULT_WIDTH_RATIO
 var height_ratio := DEFAULT_HEIGHT_RATIO
 var edge_margin := DEFAULT_MARGIN
 var compact := false
+var _title := ""
+var _hint := ""
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	theme = Theme.new()
+	theme.default_font = SURVIVORS_THEME.get_reading_font()
+	theme.default_font_size = 16
 
 	dimmer = ColorRect.new()
 	dimmer.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -46,10 +51,12 @@ func _ready() -> void:
 	content.add_theme_constant_override("separation", 10)
 	margin.add_child(content)
 
-	title_label = SURVIVORS_THEME.make_title_label("")
+	title_label = SURVIVORS_THEME.make_title_label(_title)
+	title_label.visible = not _title.is_empty()
 	content.add_child(title_label)
 
-	hint_label = SURVIVORS_THEME.make_hint_label("")
+	hint_label = SURVIVORS_THEME.make_hint_label(_hint)
+	hint_label.visible = not _hint.is_empty()
 	content.add_child(hint_label)
 
 	body_host = Control.new()
@@ -75,10 +82,13 @@ func configure(target_max_size: Vector2, target_width_ratio: float = DEFAULT_WID
 	apply_layout()
 
 func set_title(text_value: String) -> void:
+	_title = text_value
 	if title_label != null:
 		title_label.text = text_value
+		title_label.visible = not text_value.is_empty()
 
 func set_hint(text_value: String) -> void:
+	_hint = text_value
 	if hint_label != null:
 		hint_label.text = text_value
 		hint_label.visible = text_value != ""

@@ -30,6 +30,7 @@ static func get_stats(owner, role: Dictionary) -> Array[Dictionary]:
 	sources = [_source("基础暴击伤害", owner.BASE_CRITICAL_DAMAGE_MULTIPLIER, "=")]
 	sources.append(_source("暴击率溢出", owner._get_role_critical_overflow_chance(id) * owner.CRITICAL_OVERFLOW_DAMAGE_RATIO))
 	sources.append(_source("祝福", owner._get_role_blessing_stat_bonus(id, "critical_damage_bonus")))
+	sources.append(_source("共享阮石", STONES.get_critical_damage_bonus(owner)))
 	value = owner._get_critical_damage_multiplier(id)
 	rows.append(_row("crit_damage", "暴击伤害", "输出", value, _percent(value), sources,
 		"暴击时的伤害倍率；150% 表示造成普通命中的 1.5 倍伤害。", true))
@@ -190,10 +191,23 @@ static func get_innate_skill_info(owner, role_id: String, progress_id: String) -
 			var preview: Dictionary = preload("res://scripts/player/player_skill_level_effect_flow.gd").get_upgrade_display(owner, role_id, progress_id)
 			for row in preview.get("effect_rows", []):
 				rows.append({"label": row.label, "value": row.before})
+		elif role_id == "mechanic":
+			rows.append({"label": "伤害倍率", "value": "%.0f%%" % (owner.mechanic_role.get_basic_attack_damage_ratio(owner) * 100.0)})
+			rows.append({"label": "索敌距离", "value": "%.1f" % owner.mechanic_role.get_basic_attack_range(owner)})
+			rows.append({"label": "蜘蛛速度", "value": "%.1f" % owner.mechanic_role.get_spider_speed(owner)})
+			rows.append({"label": "每次释放", "value": "%d 只蜘蛛" % owner.mechanic_role.get_spider_count(owner)})
+			rows.append({"label": "额外穿透", "value": "%d 个敌人" % owner.mechanic_role.get_spider_pierce_bonus(owner)})
 		note = "攻击力已包含通用增伤；实际命中另计普攻倍率、暴击、专属强化和目标防御。"
 	elif progress_id.ends_with("_entry"):
 		rows.append({"label": "当前登场能量", "value": "%.0f / %.0f" % [owner._get_role_switch_energy(role_id), owner.SWITCH_ENTRY_ENERGY_REQUIRED]})
 		note = "需切换角色并满足登场能量条件；查看人物页不会触发登场。"
+		if role_id == "mechanic":
+			var turret = owner.mechanic_tulip_turret_ability
+			rows.append({"label": "标准单发伤害倍率", "value": "%.0f%%" % (turret._get_damage_ratio(owner, progress_id) * 100.0)})
+			rows.append({"label": "射击间隔", "value": "%.1f 秒" % turret._get_fire_interval(owner, "mechanic_entry")})
+			rows.append({"label": "登场机炮数量", "value": "%d 台" % owner.mechanic_role.get_entry_turret_count(owner)})
+			rows.append({"label": "持续时间", "value": "%.1f 秒" % turret._get_duration(owner, progress_id)})
+			note = "按登场技等级与当前零件计算标准部署；本次切换的额外伤害倍率另算，与主动机炮的等级独立。"
 	elif progress_id == "swordsman_trait":
 		var effects := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 		var runtime := preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")
@@ -205,8 +219,11 @@ static func get_innate_skill_info(owner, role_id: String, progress_id: String) -
 		rows.append({"label": "最大生命回复比例", "value": _percent(heal)})
 		note = "战意还会回复部分已损失生命；后台共享、必定触发和治疗增减按对应条件计算。"
 	elif progress_id == "mechanic_trait":
-		rows.append({"label": "当前零件", "value": "%d" % owner.mechanic_role.get_parts_count(owner)})
+		rows.append({"label": "当前零件", "value": "%d / %d" % [owner.mechanic_role.get_parts_count(owner), owner.mechanic_role.get_parts_max(owner)]})
+		rows.append({"label": "零件产出间隔", "value": "%.2f 秒" % owner.mechanic_role.get_part_interval(owner)})
+		rows.append({"label": "每零件伤害加成", "value": "%.1f%%" % (owner.mechanic_role.get_part_damage_bonus(owner) * 100.0)})
 		rows.append({"label": "当前召唤伤害倍率", "value": "%.0f%%" % (owner.mechanic_role.get_summon_damage_multiplier(owner) * 100.0)})
+		note = "已获得离线工厂时，待命期间也按当前间隔生产零件；否则仅机械师站场时生产。"
 	elif progress_id == "gunner_trait":
 		rows.append({"label": "当前伤害倍率", "value": "%.0f%%" % (owner._get_gunner_flash_damage_multiplier() * 100.0)})
 		rows.append({"label": "每层闪避来源", "value": "%.1f%%" % (owner._get_gunner_flash_dodge_chance(role_id) * 100.0)})
@@ -223,7 +240,7 @@ static func _decorate_item_sources(owner, role_id: String, rows: Array[Dictionar
 	var stone_system := preload("res://scripts/player/ruan_stone_system.gd")
 	var equipped: Dictionary = owner._get_role_equipment_levels(role_id)
 	var equipment_keys := {"attack": "damage_multiplier_bonus", "attack_speed": "attack_speed_percent_bonus", "health": "max_health_bonus", "regen": "regen_bonus", "move": "speed_bonus", "cooldown": "cooldown_multiplier"}
-	var stone_ids := {"attack": ["broken_sword", "ground_branch"], "attack_speed": ["ground_branch", "failed_assassin_dagger"], "crit": ["rusted_dagger"], "health": ["broken_chestplate"], "dodge": ["tattered_cloak"], "reduction": ["broken_chestplate"], "move": ["failed_assassin_dagger"]}
+	var stone_ids := {"attack": ["broken_sword", "ground_branch"], "attack_speed": ["ground_branch", "failed_assassin_dagger"], "crit": ["rusted_dagger"], "crit_damage": ["rusted_dagger"], "health": ["broken_chestplate"], "dodge": ["tattered_cloak"], "reduction": ["broken_chestplate"], "move": ["failed_assassin_dagger"]}
 	for row in rows:
 		var item_names: PackedStringArray = []
 		for id in equipped:

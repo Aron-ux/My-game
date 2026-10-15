@@ -7,6 +7,9 @@ const TOWER_TEXTURES := [
 ]
 
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
+const SKILL_LEVEL_EFFECTS := preload("res://scripts/player/player_skill_level_effect_flow.gd")
+const LEVELS := preload("res://scripts/player/player_skill_level_system.gd")
+const TALENTS := LEVELS.MECHANIC_TALENTS
 
 const SKILL_ID := "emp_burst"
 const COOLDOWN := 18.0
@@ -70,11 +73,22 @@ func update(owner, delta: float) -> void:
 	if owner == null or not is_instance_valid(owner) or bool(owner.get("is_dead")):
 		_clear_field()
 		return
+	var active_delta := minf(delta, field_remaining)
 	field_remaining = max(0.0, field_remaining - delta)
-	self_buff_active = owner.global_position.distance_to(field_position) <= FIELD_RADIUS
-	tick_elapsed += delta
-	while tick_elapsed >= TICK_INTERVAL:
-		tick_elapsed -= TICK_INTERVAL
+	if LEVELS.has_talent_slot(owner, "mechanic", SKILL_LEVEL_EFFECTS.MECHANIC_EMP_BURST, 2):
+		field_position = owner.global_position
+		if field_node != null and is_instance_valid(field_node):
+			field_node.global_position = field_position
+	var radius := _get_radius(owner)
+	self_buff_active = owner.global_position.distance_to(field_position) <= radius
+	if field_node != null and is_instance_valid(field_node):
+		var ripple := field_node.get_node_or_null("Ripple") as FieldRippleVisual
+		if ripple != null:
+			ripple.radius = radius
+	tick_elapsed += active_delta
+	var interval := _get_tick_interval(owner)
+	while tick_elapsed >= interval:
+		tick_elapsed -= interval
 		_tick_field(owner)
 	if field_remaining <= 0.0:
 		_clear_field()
@@ -108,11 +122,12 @@ func is_field_active() -> bool:
 func _tick_field(owner) -> void:
 	if owner == null or not is_instance_valid(owner) or bool(owner.get("is_dead")):
 		return
-	var damage_amount: float = owner._get_role_damage("mechanic") * TICK_DAMAGE_RATIO * _get_field_damage_multiplier(owner) * _get_summon_damage_multiplier(owner)
-	var hits: int = owner._damage_enemies_in_radius(field_position, FIELD_RADIUS, damage_amount, 0.0, SLOW_MULTIPLIER, SLOW_DURATION, "mechanic")
+	var damage_amount: float = owner._get_role_damage("mechanic") * _get_damage_ratio(owner)
+	var radius: float = _get_radius(owner)
+	var hits: int = owner._damage_enemies_in_radius(field_position, radius, damage_amount, 0.0, _get_slow_multiplier(owner), SLOW_DURATION, "mechanic")
 	if hits > 0 and owner.has_method("_register_attack_result"):
 		owner._register_attack_result("mechanic", hits, false)
-	self_buff_active = owner.global_position.distance_to(field_position) <= FIELD_RADIUS
+	self_buff_active = owner.global_position.distance_to(field_position) <= radius
 	if not self_buff_active:
 		return
 	var active_role: Dictionary = owner._get_active_role() if owner.has_method("_get_active_role") else {}
@@ -120,7 +135,7 @@ func _tick_field(owner) -> void:
 	if active_role_id != "" and owner.has_method("_heal_role"):
 		var max_health: float = float(owner._get_role_max_health(active_role_id))
 		if max_health > 0.0:
-			owner._heal_role(active_role_id, max_health * HEAL_RATIO_PER_TICK)
+			owner._heal_role(active_role_id, max_health * _get_heal_ratio(owner))
 
 
 func _spawn_field_visual(_owner) -> void:
@@ -136,7 +151,7 @@ func _spawn_field_visual(_owner) -> void:
 
 	var ripple := FieldRippleVisual.new()
 	ripple.name = "Ripple"
-	ripple.radius = FIELD_RADIUS
+	ripple.radius = _get_radius(_owner)
 	ripple.ring_color = FIELD_COLOR
 	container.add_child(ripple)
 
@@ -192,7 +207,17 @@ func get_cooldown_slot(owner = null) -> Dictionary:
 		"remaining": clamp(cooldown_remaining, 0.0, get_cooldown(owner)),
 		"duration": get_cooldown(owner),
 		"color": FIELD_COLOR,
-		"description": "在当前位置部署一座力场塔，展开半径 450 的磁滞力场，持续 10 秒：范围内敌人每 0.5 秒受到 30% 伤害并被减速 40%；自身处于力场范围内时移速提升 30% 且每 0.5 秒回复 1.5% 最大生命（伤害受战场改装零件加成）。"
+		"description": ("部署跟随当前角色移动的力场" if LEVELS.has_talent_slot(owner, "mechanic", SKILL_LEVEL_EFFECTS.MECHANIC_EMP_BURST, 2) else "在当前位置部署驻留力场") + "，持续伤害并减速范围内敌人；自身在力场内时获得移速与回复。",
+		"effect_rows": [
+			{"label": "每跳伤害倍率", "value": "%.0f%%" % (_get_damage_ratio(owner) * 100.0)},
+			{"label": "作用半径", "value": "%.1f" % _get_radius(owner)},
+			{"label": "持续时间", "value": "%.1f 秒" % FIELD_DURATION},
+			{"label": "伤害与回复间隔", "value": "%.2f 秒" % _get_tick_interval(owner)},
+			{"label": "敌人减速", "value": "%.0f%%" % ((1.0 - _get_slow_multiplier(owner)) * 100.0)},
+			{"label": "自身移速增加", "value": "%.0f%%" % ((SELF_HASTE_MULTIPLIER - 1.0) * 100.0)},
+			{"label": "每跳回复最大生命", "value": "%.1f%%" % (_get_heal_ratio(owner) * 100.0)}
+		],
+		"effect_note": "伤害已计入当前零件与已有强化；切换角色后力场继续存在，移速与回复只作用于站在力场内的当前角色。"
 	}
 
 
@@ -206,6 +231,7 @@ func get_save_data() -> Dictionary:
 
 
 func apply_save_data(data: Dictionary) -> void:
+	_clear_field()
 	cooldown_remaining = clamp(float(data.get("cooldown_remaining", 0.0)), 0.0, COOLDOWN)
 	field_remaining = clamp(float(data.get("field_remaining", 0.0)), 0.0, FIELD_DURATION)
 	tick_elapsed = clamp(float(data.get("tick_elapsed", 0.0)), 0.0, TICK_INTERVAL)
@@ -218,11 +244,34 @@ func apply_save_data(data: Dictionary) -> void:
 
 func restore_effect_if_active(owner) -> void:
 	if field_remaining > 0.0:
+		if LEVELS.has_talent_slot(owner, "mechanic", SKILL_LEVEL_EFFECTS.MECHANIC_EMP_BURST, 2):
+			field_position = owner.global_position
 		_spawn_field_visual(owner)
+		self_buff_active = owner.global_position.distance_to(field_position) <= _get_radius(owner)
+
+
+func _get_tick_interval(owner) -> float:
+	return TALENTS.FIELD_TICK_INTERVAL if LEVELS.has_talent_slot(owner, "mechanic", SKILL_LEVEL_EFFECTS.MECHANIC_EMP_BURST, 1) else TICK_INTERVAL
+
+
+func _get_slow_multiplier(owner) -> float:
+	return TALENTS.FIELD_SLOW_MULTIPLIER if LEVELS.has_talent_slot(owner, "mechanic", SKILL_LEVEL_EFFECTS.MECHANIC_EMP_BURST, 1) else SLOW_MULTIPLIER
+
+
+func _get_heal_ratio(owner) -> float:
+	return TALENTS.FIELD_HEAL_RATIO if LEVELS.has_talent_slot(owner, "mechanic", SKILL_LEVEL_EFFECTS.MECHANIC_EMP_BURST, 2) else HEAL_RATIO_PER_TICK
 
 
 func _get_field_damage_multiplier(owner) -> float:
 	return 1.0 + 0.25 * float(PLAYER_BUILD_SYSTEM.get_mechanic_field_damage_bonus_count(owner))
+
+
+func _get_damage_ratio(owner) -> float:
+	return (TICK_DAMAGE_RATIO + SKILL_LEVEL_EFFECTS.get_mechanic_damage_ratio_bonus(owner, SKILL_LEVEL_EFFECTS.MECHANIC_EMP_BURST)) * _get_field_damage_multiplier(owner) * _get_summon_damage_multiplier(owner)
+
+
+func _get_radius(owner) -> float:
+	return FIELD_RADIUS + SKILL_LEVEL_EFFECTS.get_mechanic_range_bonus(owner, SKILL_LEVEL_EFFECTS.MECHANIC_EMP_BURST)
 
 
 func _get_summon_damage_multiplier(owner) -> float:

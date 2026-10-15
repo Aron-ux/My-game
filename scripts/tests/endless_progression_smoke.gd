@@ -18,15 +18,18 @@ func _init() -> void:
 	assert(profile.get("bones") == 26)
 	assert(profile.get("highest_cleared_tier") == 1)
 	assert(profile.get("selected_tier") == 2)
+	assert(profile.get("last_clear_summary") == {"tier": 1, "bones": 16, "first_clear": true})
 
 	var duplicate := SAVE_MANAGER.settle_endless_profile(profile, 1, "run-1")
 	assert(not duplicate.get("applied"))
+	assert(profile.get("last_clear_summary").get("bones") == 16)
 	assert(profile.get("bones") == 26)
 
 	var replay := SAVE_MANAGER.settle_endless_profile(profile, 1, "run-2")
 	assert(replay.get("applied"))
 	assert(replay.get("total_reward") == 8)
 	assert(profile.get("bones") == 34)
+	assert(profile.get("last_clear_summary") == {"tier": 1, "bones": 8, "first_clear": false})
 	assert(SAVE_MANAGER.get_endless_unlocked_max(profile) == 2)
 	_test_atomic_save_replacement()
 	print("ENDLESS_PROGRESSION_SMOKE_OK")

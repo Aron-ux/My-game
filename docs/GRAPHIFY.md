@@ -21,7 +21,7 @@ This should rebuild the AST/code graph without API cost.
 
 ## Godot/GDScript note
 
-The installed `graphifyy 0.4.18` did not originally recognize Godot files (`.gd`, `.tscn`, `.tres`, `.godot`). The local environment was patched so `graphify update .` can classify and lightly extract GDScript/Godot text assets.
+This project relies on local Godot support in Graphify (`.gd`, `.tscn`, `.tres`, `.godot`). The local extractor lets `graphify update .` classify and lightly extract GDScript/Godot text assets; package upgrades must preserve that support.
 
 If a future reinstall or upgrade makes graphify print:
 
@@ -29,7 +29,7 @@ If a future reinstall or upgrade makes graphify print:
 No code files found - nothing to rebuild.
 ```
 
-check whether `.gd` is present in `graphify.detect.CODE_EXTENSIONS` and whether `graphify.extract` has a GDScript extractor/dispatch.
+check whether `.gd` is present in `graphify.detect.CODE_EXTENSIONS` and whether `graphify.extract` has a GDScript extractor/dispatch. A successful update can still process only Python/shell files when Godot support is missing: also confirm that the changed `.gd` source files have nodes in `graphify-out/graph.json`. Do not use a successful CLI exit alone as evidence of GDScript coverage.
 
 ## Noise control
 
@@ -38,5 +38,7 @@ The project root maintains `.graphifyignore` to keep the graph focused on gamepl
 - `.godot/`
 - `graphify-out/`
 - `addons/godot_mcp/`
+- `archive/legacy/`
+- `docs/13_*` and `docs/14_*` (retired design specifications)
 
 Without this ignore file, editor MCP tooling can dominate the graph with utility nodes such as `_success()`, `_error()`, and `_find_node_by_path()`, making architecture review less useful.

@@ -150,7 +150,7 @@ static func get_endless_tier_profile(tier: int) -> Dictionary:
 	profile["boss_health_scale"] = 1.0 + float(tier_steps) * ENDLESS_BOSS_HEALTH_INCREASE_PER_TIER
 	profile["enemy_speed_scale"] = 1.0 + float(tier_steps) * ENDLESS_ENEMY_SPEED_INCREASE_PER_TIER
 	profile["projectile_speed_bonus"] = float(tier_steps) * ENDLESS_PROJECTILE_SPEED_BONUS_PER_TIER
-	profile["description"] = "12 分钟内击败最终 Boss；生命与伤害随 N 层线性提升。"
+	profile["description"] = "12:00 最终 Boss 到场，击败后结算；生命与伤害随 N 层线性提升。"
 	return profile
 
 static func get_scale(profile: Dictionary, key: String, fallback: float = 1.0) -> float:

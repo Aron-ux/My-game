@@ -7,6 +7,9 @@ const CANNON_TEXTURES := [
 ]
 
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
+const SKILL_LEVEL_EFFECTS := preload("res://scripts/player/player_skill_level_effect_flow.gd")
+const LEVELS := preload("res://scripts/player/player_skill_level_system.gd")
+const TALENTS := LEVELS.MECHANIC_TALENTS
 
 const SKILL_ID := "missile_volley"
 const COOLDOWN := 22.0
@@ -114,14 +117,15 @@ func get_cooldown_slot(owner = null) -> Dictionary:
 		"effect_rows": [
 			{"label": "单发伤害倍率", "value": "%.0f%%" % (_get_damage_ratio(owner) * 100.0)},
 			{"label": "射击间隔", "value": "%.1f 秒" % FIRE_INTERVAL},
-			{"label": "持续时间", "value": "%.1f 秒" % _get_duration(owner)}
+			{"label": "持续时间", "value": "%.1f 秒" % _get_duration(owner)},
+			{"label": "每次齐射", "value": "%d 发" % _get_shot_count(owner)}
 		],
 		"effect_note": "按当前强化下的标准部署计算；实际伤害还受角色攻击力、暴击和目标防御影响。"
 	}
 
 
 func _get_damage_ratio(owner) -> float:
-	return DAMAGE_RATIO * _get_cannon_damage_multiplier(owner) * _get_summon_damage_multiplier(owner)
+	return (DAMAGE_RATIO + SKILL_LEVEL_EFFECTS.get_mechanic_damage_ratio_bonus(owner, SKILL_LEVEL_EFFECTS.MECHANIC_MISSILE_VOLLEY)) * _get_cannon_damage_multiplier(owner) * _get_summon_damage_multiplier(owner)
 
 
 func get_save_data() -> Dictionary:
@@ -190,13 +194,22 @@ func _fire(owner, data: Dictionary) -> void:
 		sprite.set_frame_and_progress(1, 0.0)
 	var damage_amount: float = owner._get_role_damage("mechanic") * _get_damage_ratio(owner)
 	var muzzle := Vector2(-100.0 if cos(cannon.rotation) < 0.0 else 100.0, -82.0) * CANNON_VISUAL_SCALE
-	var bullet = owner._spawn_bullet(target, damage_amount, CANNON_COLOR, "mechanic", cannon.global_position + muzzle)
-	if bullet != null and is_instance_valid(bullet):
-		bullet.speed = BIG_BULLET_SPEED
-		bullet.hit_radius = BIG_BULLET_HIT_RADIUS
-		bullet.visual_scale_multiplier = BIG_BULLET_VISUAL_SCALE
-		if bullet.has_method("_refresh_bullet_visual"):
-			bullet._refresh_bullet_visual(true)
+	var count := _get_shot_count(owner)
+	for index in range(count):
+		var origin: Vector2 = cannon.global_position + muzzle + Vector2(0.0, (float(index) - float(count - 1) * 0.5) * 20.0)
+		var bullet = owner._spawn_bullet(target, damage_amount, CANNON_COLOR, "mechanic", origin)
+		if bullet != null and is_instance_valid(bullet):
+			bullet.speed = BIG_BULLET_SPEED
+			bullet.hit_radius = BIG_BULLET_HIT_RADIUS
+			bullet.visual_scale_multiplier = BIG_BULLET_VISUAL_SCALE
+			if LEVELS.has_talent_slot(owner, "mechanic", SKILL_LEVEL_EFFECTS.MECHANIC_MISSILE_VOLLEY, 2):
+				bullet.impact_blast_radius = TALENTS.CANNON_BLAST_RADIUS
+			if bullet.has_method("_refresh_bullet_visual"):
+				bullet._refresh_bullet_visual(true)
+
+
+func _get_shot_count(owner) -> int:
+	return TALENTS.CANNON_SHOT_COUNT if LEVELS.has_talent_slot(owner, "mechanic", SKILL_LEVEL_EFFECTS.MECHANIC_MISSILE_VOLLEY, 1) else 1
 
 
 func _update_facing(cannon: Node2D) -> void:
@@ -222,7 +235,7 @@ func _get_cannon_frames() -> SpriteFrames:
 
 
 func _get_duration(owner) -> float:
-	return DURATION + PLAYER_BUILD_SYSTEM.get_mechanic_cannon_duration_bonus(owner)
+	return DURATION + PLAYER_BUILD_SYSTEM.get_mechanic_cannon_duration_bonus(owner) + SKILL_LEVEL_EFFECTS.get_mechanic_duration_bonus(owner, SKILL_LEVEL_EFFECTS.MECHANIC_MISSILE_VOLLEY)
 
 
 func _get_cannon_damage_multiplier(owner) -> float:

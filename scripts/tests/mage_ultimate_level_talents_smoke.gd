@@ -35,6 +35,7 @@ func _check_level_talent_definitions() -> void:
 	var candidates: Array = PLAYER_SKILL_TALENT_SYSTEM._collect_level_talent_candidates(owner, definitions, {}, false)
 	_expect(_has_candidate(candidates, MAGE_ULTIMATE_TALENT_FLOW.TALENT_ARCANE_BOMBARDMENT_1), "arcane bombardment I should refresh because mage ultimate is inherent")
 	_expect(_has_candidate(candidates, MAGE_ULTIMATE_TALENT_FLOW.TALENT_ARCANE_BOMBARDMENT_2), "arcane bombardment II should refresh because mage ultimate is inherent")
+	owner.free()
 
 
 func _check_flow_values() -> void:
@@ -48,6 +49,7 @@ func _check_flow_values() -> void:
 	MAGE_ULTIMATE_TALENT_FLOW.on_ultimate_bombardment_killed(owner, "mage_ultimate:1", "mage")
 	MAGE_ULTIMATE_TALENT_FLOW.on_ultimate_bombardment_killed(owner, "mage_ultimate:2", "mage")
 	_expect(is_equal_approx(MAGE_ULTIMATE_TALENT_FLOW.get_pulse_damage_multiplier(owner), 1.051), "arcane bombardment II should add 0.05 percent permanent pulse damage per kill")
+	owner.free()
 
 
 func _check_job_queue_energy_bonus() -> void:

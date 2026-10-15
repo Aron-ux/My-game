@@ -800,19 +800,20 @@ static func _get_role_name(owner, role_id: String) -> String:
 static func _get_build_levels(owner, role_id: String) -> Dictionary:
 	if owner == null or role_id == "":
 		return {}
-	if not _owner_has_property(owner, "role_special_states"):
+	var states: Variant = owner.get("role_special_states")
+	if states is not Dictionary:
 		return {}
-	_ensure_role_special_state(owner, role_id)
-	var special_data: Dictionary = owner.role_special_states[role_id]
-	if not special_data.has(BUILD_LEVELS_KEY) or special_data.get(BUILD_LEVELS_KEY) is not Dictionary:
-		special_data[BUILD_LEVELS_KEY] = {}
-		owner.role_special_states[role_id] = special_data
-	return special_data[BUILD_LEVELS_KEY]
+	var special_data: Variant = states.get(role_id, {})
+	if special_data is not Dictionary:
+		return {}
+	var levels: Variant = special_data.get(BUILD_LEVELS_KEY, {})
+	return levels if levels is Dictionary else {}
 
 
 static func _increment_build_count(owner, role_id: String, build_id: String) -> void:
 	if owner == null or not _owner_has_property(owner, "role_special_states"):
 		return
+	_ensure_role_special_state(owner, role_id)
 	var levels := _get_build_levels(owner, role_id)
 	levels[build_id] = int(levels.get(build_id, 0)) + 1
 	var special_data: Dictionary = owner.role_special_states[role_id]

@@ -173,7 +173,41 @@ func _run() -> void:
 			await create_timer(0.4, true).timeout
 			await _settle()
 			_check_card_bounds(ui)
+			if role_id == "mechanic":
+				for candidate in candidates.slice(offset, offset + 4):
+					assert(not (candidate.get("effect_rows", []) as Array).is_empty(), "Mechanic upgrades need numeric comparison rows")
+				ui._show_build_item_detail(ui.build_card_entries[0]["button"], candidates[offset])
+				await _settle()
+				assert(ui.hover_detail.stats_label.get_content_height() <= ui.hover_detail.stats_label.size.y + 1, "Mechanic comparison rows must fit")
+				await _capture("mechanic-growth-%d" % offset)
+				root.size = Vector2i(960, 540)
+				await _settle()
+				_check_card_bounds(ui)
+				await _capture("mechanic-growth-%d-960" % offset)
+				root.size = Vector2i(1280, 720)
 	ui.hide_ui()
+	for progress_id in LEVELS.MECHANIC_TALENTS.DEFINITIONS:
+		LEVELS.add_skill_level(player, "mechanic", progress_id, 1)
+		var mechanic_talent := LEVELS.build_talent_offer_for(player, "mechanic", progress_id)
+		ui.show_options(mechanic_talent["options"], [], mechanic_talent["context"])
+		await create_timer(0.4, true).timeout
+		await _settle()
+		_check_card_bounds(ui)
+		for entry in ui.build_card_entries:
+			var content: Node = entry["button"].get_node("Margin/Content")
+			var text := str(content.get_node("HighlightLabel").text) + str(content.get_node("SummaryLabel").text)
+			assert(not text.contains("尚未实装") and not text.contains("选择后记录"), "Mechanic talent cards must show their real effects")
+		if progress_id in ["mechanic_basic", "mechanic_emp_burst", "mechanic_missile_volley"]:
+			ui._show_build_item_detail(ui.build_card_entries[1]["button"], mechanic_talent["options"][1])
+			await _settle()
+			assert(ui.hover_detail.title_label.text.contains(LEVELS.get_talent_definition("mechanic", progress_id, 2)["title"]), "Talent details must name the inspected talent")
+			await _capture(progress_id + "-talents")
+			root.size = Vector2i(960, 540)
+			await _settle()
+			_check_card_bounds(ui)
+			await _capture(progress_id + "-talents-960")
+			root.size = Vector2i(1280, 720)
+		ui.hide_ui()
 	ui.queue_free()
 	world.queue_free()
 	await process_frame

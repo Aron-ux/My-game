@@ -13,6 +13,9 @@ const MINE_TEXTURES := [
 
 const SKILL_ID := "mine"
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
+const SKILL_LEVEL_EFFECTS := preload("res://scripts/player/player_skill_level_effect_flow.gd")
+const LEVELS := preload("res://scripts/player/player_skill_level_system.gd")
+const TALENTS := LEVELS.MECHANIC_TALENTS
 const COOLDOWN := 16.0
 const MINE_COUNT := 3
 const TRIGGER_RADIUS := 80.0
@@ -64,10 +67,11 @@ func try_trigger(owner) -> bool:
 	if scene == null:
 		return false
 	cooldown_remaining = get_cooldown(owner)
-	var mine_count: int = MINE_COUNT + PLAYER_BUILD_SYSTEM.get_mechanic_mine_count_bonus(owner) + (TALENT_COUNT_BONUS if _has_talent(owner, TALENT_MINE_1) else 0)
+	var mine_count: int = _get_mine_count(owner)
 	for index in range(mine_count):
 		var angle: float = TAU * float(index) / float(mine_count) - PI * 0.5
-		_spawn_mine(owner, scene, owner.global_position + Vector2.RIGHT.rotated(angle) * DEPLOY_RADIUS)
+		var deploy_radius := TALENTS.MINE_DEPLOY_RADIUS if LEVELS.has_talent_slot(owner, "mechanic", SKILL_LEVEL_EFFECTS.MECHANIC_MINE, 1) else DEPLOY_RADIUS
+		_spawn_mine(owner, scene, owner.global_position + Vector2.RIGHT.rotated(angle) * deploy_radius)
 	owner.mechanic_role.play_command(owner)
 	return true
 
@@ -82,7 +86,13 @@ func get_cooldown_slot(owner = null) -> Dictionary:
 		"remaining": clamp(cooldown_remaining, 0.0, COOLDOWN),
 		"duration": get_cooldown(owner),
 		"color": MINE_COLOR,
-		"description": "在自身周围布置 3 枚感应地雷，敌人进入 80 半径时爆炸，造成 200% 范围伤害（受战场改装零件加成）。"
+		"description": "在自身周围布置感应地雷，敌人进入感应范围后引爆。",
+		"effect_rows": [
+			{"label": "地雷数量", "value": "%d 枚" % _get_mine_count(owner)},
+			{"label": "单次伤害倍率", "value": "%.0f%%" % (_get_damage_ratio(owner) * 100.0)},
+			{"label": "感应与爆炸半径", "value": "%.1f" % _get_radius(owner)}
+		],
+		"effect_note": "伤害已计入当前零件与已有强化，实际伤害还受角色攻击力、暴击和目标防御影响。"
 	}
 
 
@@ -137,7 +147,7 @@ func _spawn_mine(_owner, scene: Node, position: Vector2) -> Node2D:
 
 
 func _has_enemy_in_range(owner, center: Vector2) -> bool:
-	var trigger_radius: float = TRIGGER_RADIUS * (TALENT_RADIUS_MULTIPLIER if _has_talent(owner, TALENT_MINE_2) else 1.0)
+	var trigger_radius: float = _get_radius(owner)
 	for enemy in owner._get_live_enemies():
 		if enemy == null or not is_instance_valid(enemy) or not (enemy is Node2D):
 			continue
@@ -147,16 +157,31 @@ func _has_enemy_in_range(owner, center: Vector2) -> bool:
 
 
 func _explode(owner, center: Vector2) -> void:
-	var damage_amount: float = owner._get_role_damage("mechanic") * DAMAGE_RATIO * PLAYER_BUILD_SYSTEM.get_mechanic_mine_damage_multiplier(owner) * _get_summon_damage_multiplier(owner)
-	var blast_radius: float = TRIGGER_RADIUS
+	var damage_amount: float = owner._get_role_damage("mechanic") * _get_damage_ratio(owner)
+	var blast_radius: float = _get_radius(owner)
 	var slow_multiplier: float = 1.0
 	var slow_duration: float = 0.0
 	if _has_talent(owner, TALENT_MINE_2):
-		blast_radius *= TALENT_RADIUS_MULTIPLIER
 		slow_multiplier = TALENT_SLOW_MULTIPLIER
 		slow_duration = TALENT_SLOW_DURATION
+	if LEVELS.has_talent_slot(owner, "mechanic", SKILL_LEVEL_EFFECTS.MECHANIC_MINE, 2):
+		slow_multiplier = minf(slow_multiplier, TALENTS.MINE_SLOW_MULTIPLIER)
+		slow_duration = maxf(slow_duration, TALENTS.MINE_SLOW_DURATION)
 	_spawn_blast_visual(owner, center, blast_radius)
 	owner._damage_enemies_in_radius(center, blast_radius, damage_amount, 0.0, slow_multiplier, slow_duration, "mechanic")
+
+
+func _get_mine_count(owner) -> int:
+	return MINE_COUNT + PLAYER_BUILD_SYSTEM.get_mechanic_mine_count_bonus(owner) + (TALENT_COUNT_BONUS if _has_talent(owner, TALENT_MINE_1) else 0) + (TALENTS.MINE_COUNT_BONUS if LEVELS.has_talent_slot(owner, "mechanic", SKILL_LEVEL_EFFECTS.MECHANIC_MINE, 1) else 0)
+
+
+func _get_damage_ratio(owner) -> float:
+	return (DAMAGE_RATIO + SKILL_LEVEL_EFFECTS.get_mechanic_damage_ratio_bonus(owner, SKILL_LEVEL_EFFECTS.MECHANIC_MINE)) * PLAYER_BUILD_SYSTEM.get_mechanic_mine_damage_multiplier(owner) * _get_summon_damage_multiplier(owner)
+
+
+func _get_radius(owner) -> float:
+	var radius := (TRIGGER_RADIUS + SKILL_LEVEL_EFFECTS.get_mechanic_range_bonus(owner, SKILL_LEVEL_EFFECTS.MECHANIC_MINE)) * (TALENT_RADIUS_MULTIPLIER if _has_talent(owner, TALENT_MINE_2) else 1.0)
+	return radius * (TALENTS.MINE_RADIUS_MULTIPLIER if LEVELS.has_talent_slot(owner, "mechanic", SKILL_LEVEL_EFFECTS.MECHANIC_MINE, 2) else 1.0)
 
 
 func _spawn_blast_visual(owner, center: Vector2, blast_radius: float) -> void:

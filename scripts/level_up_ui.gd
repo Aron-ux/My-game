@@ -623,8 +623,8 @@ func _populate_build_card_scene(button: TextureButton, option: Dictionary) -> vo
 	elif str(option.get("option_category", "")) == "skill_level_talent":
 		kind = "技能天赋"
 		level_text = "天赋位 " + ("I" if int(option.get("talent_slot", 1)) == 1 else "II")
-		primary = "效果尚未实装"
-		lines = ["选择后记录该天赋位", "满 10 级获得另一天赋位"]
+		primary = str(option.get("card_highlight", "效果尚未实装"))
+		lines = option.get("card_lines", ["选择后记录该天赋位", "满 10 级获得另一天赋位"]).duplicate()
 	elif option.has("blessing_id"):
 		owner_text = "全队" if str(option.get("blessing_binding", "")) == "role" else "技能"
 		if owner_text == "技能":

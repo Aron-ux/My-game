@@ -166,6 +166,105 @@ const DARK_CONTRACT_DAMAGE_RATIO_PER_LEVEL := 0.10
 const FLAME_PATH_DAMAGE_PER_SECOND_PER_LEVEL := 0.025
 const FLAME_PATH_MOVE_SPEED_PER_LEVEL := 0.005
 
+# 机械师：强化单体部署与阵地效率，不通过等级增加召唤物数量。
+const MECHANIC_TRAIT := "mechanic_trait"
+const MECHANIC_ENTRY := "mechanic_entry"
+const MECHANIC_BASIC := "mechanic_basic"
+const MECHANIC_DRONE := "mechanic_drone"
+const MECHANIC_MINE := "mechanic_mine"
+const MECHANIC_EMP_BURST := "mechanic_emp_burst"
+const MECHANIC_TULIP_TURRET := "mechanic_tulip_turret"
+const MECHANIC_MISSILE_VOLLEY := "mechanic_missile_volley"
+const MECHANIC_PART_INTERVAL_PER_LEVEL := 0.15
+const MECHANIC_PART_DAMAGE_PER_LEVEL := 0.005
+const MECHANIC_BASIC_DAMAGE_PER_LEVEL := 0.10
+const MECHANIC_BASIC_RANGE_PER_LEVEL := 10.0
+const MECHANIC_SPIDER_SPEED_PER_LEVEL := 10.0
+const MECHANIC_TURRET_DAMAGE_PER_LEVEL := 0.10
+const MECHANIC_TURRET_DURATION_PER_LEVEL := 0.3
+const MECHANIC_MINE_DAMAGE_PER_LEVEL := 0.15
+const MECHANIC_MINE_RADIUS_PER_LEVEL := 4.0
+const MECHANIC_FIELD_DAMAGE_PER_LEVEL := 0.02
+const MECHANIC_FIELD_RADIUS_PER_LEVEL := 7.5
+const MECHANIC_GUARD_COOLDOWN_PER_LEVEL := 0.3
+const MECHANIC_CANNON_DAMAGE_PER_LEVEL := 0.15
+const MECHANIC_CANNON_DURATION_PER_LEVEL := 0.4
+
+
+static func get_mechanic_part_interval_reduction(owner) -> float:
+	return _mechanic_levels_above_first(owner, MECHANIC_TRAIT) * MECHANIC_PART_INTERVAL_PER_LEVEL
+
+
+static func get_mechanic_part_damage_bonus(owner) -> float:
+	return _mechanic_levels_above_first(owner, MECHANIC_TRAIT) * MECHANIC_PART_DAMAGE_PER_LEVEL
+
+
+static func get_mechanic_part_max_bonus(owner) -> int:
+	return _milestone_count(PLAYER_SKILL_LEVEL_SYSTEM.get_skill_level(owner, "mechanic", MECHANIC_TRAIT), 3, 3, 3)
+
+
+static func get_mechanic_damage_ratio_bonus(owner, progress_id: String) -> float:
+	return _mechanic_levels_above_first(owner, progress_id) * _mechanic_damage_per_level(progress_id)
+
+
+static func get_mechanic_range_bonus(owner, progress_id: String) -> float:
+	return _mechanic_levels_above_first(owner, progress_id) * _mechanic_range_per_level(progress_id)
+
+
+static func get_mechanic_duration_bonus(owner, progress_id: String) -> float:
+	return _mechanic_levels_above_first(owner, progress_id) * _mechanic_duration_per_level(progress_id)
+
+
+static func get_mechanic_spider_speed_bonus(owner) -> float:
+	return _mechanic_levels_above_first(owner, MECHANIC_BASIC) * MECHANIC_SPIDER_SPEED_PER_LEVEL
+
+
+static func get_mechanic_guard_cooldown_reduction(owner) -> float:
+	return _mechanic_levels_above_first(owner, MECHANIC_DRONE) * MECHANIC_GUARD_COOLDOWN_PER_LEVEL
+
+
+static func get_mechanic_guard_block_bonus(owner) -> int:
+	return _milestone_count(PLAYER_SKILL_LEVEL_SYSTEM.get_skill_level(owner, "mechanic", MECHANIC_DRONE), 5, 5, 2)
+
+
+static func _mechanic_levels_above_first(owner, progress_id: String) -> int:
+	return maxi(0, PLAYER_SKILL_LEVEL_SYSTEM.get_skill_level(owner, "mechanic", progress_id) - 1)
+
+
+static func _mechanic_damage_per_level(progress_id: String) -> float:
+	match progress_id:
+		MECHANIC_BASIC:
+			return MECHANIC_BASIC_DAMAGE_PER_LEVEL
+		MECHANIC_ENTRY, MECHANIC_TULIP_TURRET:
+			return MECHANIC_TURRET_DAMAGE_PER_LEVEL
+		MECHANIC_MINE:
+			return MECHANIC_MINE_DAMAGE_PER_LEVEL
+		MECHANIC_EMP_BURST:
+			return MECHANIC_FIELD_DAMAGE_PER_LEVEL
+		MECHANIC_MISSILE_VOLLEY:
+			return MECHANIC_CANNON_DAMAGE_PER_LEVEL
+	return 0.0
+
+
+static func _mechanic_range_per_level(progress_id: String) -> float:
+	match progress_id:
+		MECHANIC_BASIC:
+			return MECHANIC_BASIC_RANGE_PER_LEVEL
+		MECHANIC_MINE:
+			return MECHANIC_MINE_RADIUS_PER_LEVEL
+		MECHANIC_EMP_BURST:
+			return MECHANIC_FIELD_RADIUS_PER_LEVEL
+	return 0.0
+
+
+static func _mechanic_duration_per_level(progress_id: String) -> float:
+	match progress_id:
+		MECHANIC_ENTRY, MECHANIC_TULIP_TURRET:
+			return MECHANIC_TURRET_DURATION_PER_LEVEL
+		MECHANIC_MISSILE_VOLLEY:
+			return MECHANIC_CANNON_DURATION_PER_LEVEL
+	return 0.0
+
 
 static func get_mage_arcane_charge_proc_chance_bonus(owner) -> float:
 	return _mage_levels_above_first(owner, MAGE_TRAIT) * ARCANE_CHARGE_PROC_CHANCE_PER_LEVEL
@@ -491,6 +590,8 @@ static func get_upgrade_preview_text(owner, role_id: String, progress_id: String
 			return _get_gunner_upgrade_preview(owner, progress_id)
 		"mage":
 			return _get_mage_upgrade_preview(owner, progress_id)
+		"mechanic":
+			return _get_mechanic_upgrade_preview(owner, progress_id)
 	return ""
 
 
@@ -507,7 +608,12 @@ static func get_upgrade_display(owner, role_id: String, progress_id: String) -> 
 	if not lines.is_empty():
 		highlight = lines[0]
 		for line in lines:
-			if line.contains("追加") or line.contains("多发射") or line.contains("分裂") or line.contains("开启天赋") or line.contains("多一个"):
+			var is_milestone := line.contains("追加") or line.contains("多发射") or line.contains("分裂") or line.contains("多一个")
+			if role_id == "mechanic":
+				is_milestone = is_milestone or line.begins_with("零件上限") or line.begins_with("每台抵挡次数")
+			else:
+				is_milestone = is_milestone or line.contains("开启天赋")
+			if is_milestone:
 				highlight = line
 		lines.erase(highlight)
 	var rows: Array = []
@@ -526,6 +632,9 @@ static func get_upgrade_display(owner, role_id: String, progress_id: String) -> 
 			lines = ["伤害倍率 +%.0f 个百分点" % (BASIC_ATTACK_DAMAGE_RATIO_PER_LEVEL * 100.0), "范围倍率 %.0f%% → %.0f%%" % [range_multiplier * 100.0, (range_multiplier + BASIC_ATTACK_RANGE_RATIO_PER_LEVEL) * 100.0]]
 		detail = "挥剑攻击前方敌人。" + ("\n本次新增 1 道追加斩击。" if added > 0 else "\n本次提升伤害与攻击范围。")
 		note = "追加斩击为主斩击 %.0f%% 的伤害。右表仅列等级成长，不含其他强化。" % (BASIC_ATTACK_EXTRA_SLASH_DAMAGE_SCALE * 100.0)
+	if role_id == "mechanic" and preview != "":
+		rows = _get_mechanic_upgrade_rows(owner, progress_id)
+		note = "表中为累计等级加成，不含零件和其他强化。伤害增量加到基础倍率后再计算强化。"
 	if preview == "":
 		lines = ["数值成长说明待补充"]
 		note = "该技能暂未提供具体数值成长说明。"
@@ -664,6 +773,70 @@ static func _get_gunner_milestone_preview_text(progress_id: String, next_level: 
 			if _is_milestone_level(next_level, MAGIC_GRENADE_EXTRA_FIRST_LEVEL, MAGIC_GRENADE_EXTRA_STEP, MAGIC_GRENADE_EXTRA_MAX):
 				return "多发射一枚魔法榴弹"
 	return ""
+
+
+static func _get_mechanic_upgrade_preview(owner, progress_id: String) -> String:
+	var level := PLAYER_SKILL_LEVEL_SYSTEM.get_skill_level(owner, "mechanic", progress_id)
+	if level <= 0 or level >= PLAYER_SKILL_LEVEL_SYSTEM.MAX_SKILL_LEVEL:
+		return ""
+	var parts: Array[String] = []
+	var damage := _mechanic_damage_per_level(progress_id) * 100.0
+	if damage > 0.0:
+		parts.append("伤害 +%.0f%%" % damage)
+	var radius := _mechanic_range_per_level(progress_id)
+	if radius > 0.0:
+		parts.append(("索敌距离 +%.0f" if progress_id == MECHANIC_BASIC else "作用半径 +%.1f") % radius)
+	var duration := _mechanic_duration_per_level(progress_id)
+	if duration > 0.0:
+		parts.append("持续时间 +%.1f 秒" % duration)
+	match progress_id:
+		MECHANIC_TRAIT:
+			parts.append("零件产出间隔 -%.2f 秒" % MECHANIC_PART_INTERVAL_PER_LEVEL)
+			parts.append("每零件伤害 +%.1f 个百分点" % (MECHANIC_PART_DAMAGE_PER_LEVEL * 100.0))
+			if _is_milestone_level(level + 1, 3, 3, 3):
+				parts.append("零件上限 +1")
+		MECHANIC_BASIC:
+			parts.append("蜘蛛速度 +%.0f" % MECHANIC_SPIDER_SPEED_PER_LEVEL)
+		MECHANIC_DRONE:
+			parts.append("冷却时间 -%.1f 秒" % MECHANIC_GUARD_COOLDOWN_PER_LEVEL)
+			if _is_milestone_level(level + 1, 5, 5, 2):
+				parts.append("每台抵挡次数 +1")
+	if parts.is_empty():
+		return ""
+	if level + 1 == PLAYER_SKILL_LEVEL_SYSTEM.TALENT_PICK_LEVEL:
+		parts.append("开启天赋位选择")
+	return "；".join(parts)
+
+
+static func _get_mechanic_upgrade_rows(owner, progress_id: String) -> Array:
+	var rows: Array = []
+	var above_first := _mechanic_levels_above_first(owner, progress_id)
+	var next_above := above_first + 1
+	var damage := _mechanic_damage_per_level(progress_id) * 100.0
+	if damage > 0.0:
+		rows.append(_mechanic_change_row("伤害倍率加成", above_first * damage, next_above * damage, "+%.0f 个百分点"))
+	var radius := _mechanic_range_per_level(progress_id)
+	if radius > 0.0:
+		var label := "索敌距离加成" if progress_id == MECHANIC_BASIC else "作用半径加成"
+		rows.append(_mechanic_change_row(label, above_first * radius, next_above * radius, "+%.1f"))
+	var duration := _mechanic_duration_per_level(progress_id)
+	if duration > 0.0:
+		rows.append(_mechanic_change_row("持续时间加成", above_first * duration, next_above * duration, "+%.1f 秒"))
+	match progress_id:
+		MECHANIC_TRAIT:
+			rows.append(_mechanic_change_row("产出间隔缩短", above_first * MECHANIC_PART_INTERVAL_PER_LEVEL, next_above * MECHANIC_PART_INTERVAL_PER_LEVEL, "%.2f 秒"))
+			rows.append(_mechanic_change_row("每零件伤害加成", above_first * MECHANIC_PART_DAMAGE_PER_LEVEL * 100.0, next_above * MECHANIC_PART_DAMAGE_PER_LEVEL * 100.0, "+%.1f 个百分点"))
+			rows.append(_mechanic_change_row("额外零件上限", _milestone_count(above_first + 1, 3, 3, 3), _milestone_count(next_above + 1, 3, 3, 3), "+%.0f 个"))
+		MECHANIC_BASIC:
+			rows.append(_mechanic_change_row("蜘蛛速度加成", above_first * MECHANIC_SPIDER_SPEED_PER_LEVEL, next_above * MECHANIC_SPIDER_SPEED_PER_LEVEL, "+%.1f"))
+		MECHANIC_DRONE:
+			rows.append(_mechanic_change_row("冷却时间缩短", above_first * MECHANIC_GUARD_COOLDOWN_PER_LEVEL, next_above * MECHANIC_GUARD_COOLDOWN_PER_LEVEL, "%.1f 秒"))
+			rows.append(_mechanic_change_row("每台额外抵挡次数", _milestone_count(above_first + 1, 5, 5, 2), _milestone_count(next_above + 1, 5, 5, 2), "+%.0f 次"))
+	return rows
+
+
+static func _mechanic_change_row(label: String, before: float, after: float, number_format: String) -> Dictionary:
+	return {"label": label, "before": number_format % before, "after": number_format % after}
 
 
 static func _get_mage_upgrade_preview(owner, progress_id: String) -> String:

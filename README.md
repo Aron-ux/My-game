@@ -4,15 +4,9 @@ Godot 4 2D survivor-like prototype focused on three-character switching combat.
 
 ## Current Status
 
-The project currently includes:
+A desktop prototype with endless combat, camp preparation, save/continue, a character sheet, settings, achievements, and developer tools. Combat uses three selected characters from the swordsman, gunner, mage, and mechanic roster. Story and challenge entry points are currently disabled.
 
-- Main menu, save selection, endless mode, pause menu, HUD, BGM, and developer mode.
-- Three playable roles: swordsman, gunner, and mage.
-- Role switching, normal attacks, ultimate skills, skill cooldown HUD, and character panel.
-- Four-card/select-two level-up rewards, blessings, and player-level talent choices every three levels.
-- Small-boss equipment rewards and mode-specific final-Boss settlement. Endless final-Boss victories settle the tier and return to camp; legacy final-core applicators remain in code but are not currently offered by the reward menu.
-- Map-bounded wave spawning, spawn warnings, elite/small boss/boss flow, and difficulty profiles.
-- Local achievements and project health checks.
+The maintained implementation status and priorities live in [docs/08_当前实现状态与后续重点.md](docs/08_当前实现状态与后续重点.md). Read that entry before treating older design reviews as current requirements.
 
 ## Controls
 
@@ -21,7 +15,9 @@ The project currently includes:
 - `TAB`: switch attack mode between auto target and mouse-follow
 - `Q` / `E`: switch role
 - `R`: ultimate
-- `1`–`6`: route to the matching active-skill slot; the current player-facing manual action is Gunner's talent-enabled Infinite Reload toggle
+- `1`–`6`: cast the matching active skill when it is in manual mode
+- `Ctrl` + skill hotkey, or right-click a skill slot: switch auto/manual casting
+- Drag between two skill slots of the same role: swap their order
 - `C`: character panel
 - `F`: interact in camp/tutorial scenes
 - `ESC`: pause
@@ -39,17 +35,15 @@ The project currently includes:
 
 ## Current Progression Model
 
-Level-up progression currently uses a four-card build offer:
+- Each level-up offers three role cards from the current team plus one general-blessing card; choose two, with one refresh per card.
+- Role cards unlock an active skill or raise an eligible skill line from level 1 to 10. At skill level 5, choose one of two talent slots; level 10 grants the other. Mechanic's 16 slot effects are implemented; other roles still use explicit placeholders.
+- Swordsman, gunner, mage, and mechanic skill-level effects are read by the combat modules and shown in upgrade previews. Mechanic entry and active turrets keep independent skill levels across saves.
+- The every-three-player-level talent acquisition flow is disabled. Saved `level_talents` remain readable and appear in the character sheet. The older 108-node `skill_talents` route is also disabled.
+- Direct acquisition cards are the formal active-skill unlock route; legacy recipe materials are not offered in normal rewards.
 
-- Each level-up shows one role-build card for each of the three team slots plus one general-blessing card.
-- The player selects two of the four cards, and each displayed card can be refreshed once for that offer.
-- Role-build cards cover role traits, basic attacks, entry skills, ultimates, direct skill unlocks, and upgrades for unlocked skills.
-- At player levels 3, 6, 9, and every later multiple of three, one additional talent choice is queued after the ordinary reward flow. The player first chooses a role, then one of up to three eligible talents for that role; each displayed talent card can be refreshed once.
-- Current player-facing talents come from 42 active definitions arranged as 21 mutually exclusive pairs. A picked `_1`/`_2` talent locks its sibling for the current scope; these suffixes are alternatives, not sequential tiers.
-- The formal general-blessing pool currently contains seven entries: Divine Grace, Support, Greed, Tailwind, Blazing Sun, Burst, and Unyielding. They remain shared progression with independent tiers; blessing composition has been removed.
-- Character panel displays ordinary skill-build stacks, owned blessings, stats, and equipment. It does not currently display the active player-level talent ledger.
-- Direct role-build cards are the formal player route for unlocking active skills. Blessing-recipe unlock/evolution code and legacy material definitions remain in source, but those materials are excluded from the formal reward generators, so a clean formal run cannot currently use that path.
-- The older 18-tree/108-node Lv.3/Lv.6/Lv.9 skill-build design remains in source and historical specifications, but its player reward/apply/save path is disabled and legacy `skill_talents` are cleared during normalization.
+Camp now includes all four resident roles, team replacement/reordering and a departure loadout check. Its 17-item shop has separate per-copy buy/refund actions and cumulative previews. Permanent purchases survive return to camp; failed saves preserve the previous inventory.
+
+See [current build rules](docs/04_构筑系统与文案交互规范.md) for the complete contract.
 
 ## Run
 

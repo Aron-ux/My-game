@@ -11,7 +11,7 @@ const TEXT_DISPLAY_SETTINGS := "\u663e\u793a\u8bbe\u7f6e"
 const TEXT_KEY_SETTINGS := "\u6309\u952e\u8bbe\u7f6e"
 const TEXT_MUSIC_VOLUME := "\u80cc\u666f\u97f3\u4e50\u97f3\u91cf"
 const TEXT_PERFORMANCE_TRACE := "\u8bb0\u5f55\u6027\u80fd\u65e5\u5fd7"
-const TEXT_PERFORMANCE_TRACE_HINT := "\u5f00\u542f\u540e\u5199\u5165 user://performance_trace_latest.jsonl\uff1b\u7528\u4e8e\u77ed\u65f6\u95f4\u5b9a\u4f4d\u5361\u987f\uff0c\u6d4b\u5b8c\u5efa\u8bae\u5173\u95ed\u3002"
+const TEXT_PERFORMANCE_TRACE_HINT := "临时记录卡顿信息，完成排查后关闭。"
 const TEXT_CLOSE := "\u5173\u95ed"
 const TEXT_RESET_DEFAULTS := "\u6062\u590d\u9ed8\u8ba4\u952e\u4f4d"
 const TEXT_WINDOW_MODE := "\u7a97\u53e3\u6a21\u5f0f"
@@ -19,7 +19,7 @@ const TEXT_WINDOWED := "\u7a97\u53e3"
 const TEXT_FULLSCREEN := "\u5168\u5c4f"
 const TEXT_WINDOW_SIZE := "\u7a97\u53e3\u5927\u5c0f"
 const TEXT_HUD_LAYOUT := "HUD \u5e03\u5c40"
-const TEXT_HUD_LAYOUT_HINT := "\u9ed8\u8ba4\u4f7f\u7528\u65e7\u7248\u5e95\u90e8\u6280\u80fd\u680f\uff1b\u65b0\u7248\u4e09\u884c\u961f\u4f0d\u72b6\u6001\u5e26\u53ef\u540c\u65f6\u67e5\u770b\u4e09\u540d\u89d2\u8272\u7684 HP\u3001MP/\u5927\u62db\u80fd\u91cf\u548c\u6280\u80fd\u51b7\u5374\u3002"
+const TEXT_HUD_LAYOUT_HINT := "底部技能栏聚焦当前角色；三行队伍状态带同时显示三名角色的生命、大招能量与技能冷却。"
 const TEXT_ASPECT_LOCKED := "\u753b\u9762\u6bd4\u4f8b\u5df2\u56fa\u5b9a\u4e3a 16:9\uff1b\u7a97\u53e3\u62d6\u62fd\u8c03\u6574\u65f6\u4f1a\u81ea\u52a8\u6821\u6b63\u6bd4\u4f8b\u3002"
 const TEXT_KEY_HELP := "\u70b9\u51fb\u53f3\u4fa7\u6309\u94ae\u540e\uff0c\u6309\u4e0b\u65b0\u6309\u952e\u3002"
 const TEXT_WAITING_KEY := "\u6309\u4e0b\u65b0\u6309\u952e\uff0cESC \u53d6\u6d88"
@@ -47,11 +47,13 @@ const KEYBIND_LABELS := {
 	"interact": "\u4ea4\u4e92"
 }
 
-var settings_title_label: Label
 var volume_page: VBoxContainer
 var display_page: VBoxContainer
-var display_page_scroll: ScrollContainer
 var keybind_page: VBoxContainer
+var page_scroll: ScrollContainer
+var category_buttons: Array[Button] = []
+var close_button: Button
+var previous_focus: Control
 var volume_slider: HSlider
 var volume_value_label: Label
 var mute_checkbox: CheckBox
@@ -80,6 +82,7 @@ func _notification(what: int) -> void:
 		_fit_to_viewport()
 
 func open() -> void:
+	previous_focus = get_viewport().gui_get_focus_owner()
 	waiting_for_key_action = ""
 	_refresh_audio_controls()
 	_refresh_gameplay_controls()
@@ -88,36 +91,36 @@ func open() -> void:
 	_show_volume_settings()
 	_fit_to_viewport()
 	visible = true
+	category_buttons[0].grab_focus()
 
 func close_panel() -> void:
 	waiting_for_key_action = ""
 	visible = false
+	if is_instance_valid(previous_focus) and previous_focus.is_visible_in_tree():
+		previous_focus.grab_focus()
 
-func handle_unhandled_input(event: InputEvent) -> bool:
-	if waiting_for_key_action == "":
-		return false
-	if event is not InputEventKey:
-		return false
-
+func _input(event: InputEvent) -> void:
+	if not is_visible_in_tree() or event is not InputEventKey:
+		return
 	var key_event := event as InputEventKey
 	if not key_event.pressed or key_event.echo:
-		return false
-
+		return
+	if waiting_for_key_action.is_empty():
+		if key_event.keycode == KEY_ESCAPE:
+			close_panel()
+			get_viewport().set_input_as_handled()
+		return
+	if key_event.keycode == KEY_NONE:
+		return
+	# Capture before GUI navigation consumes Tab, Enter or Space during rebinding.
 	if key_event.keycode == KEY_ESCAPE:
-		waiting_for_key_action = ""
-		if keybind_status_label != null:
-			keybind_status_label.text = TEXT_KEY_CANCELLED
-		_refresh_keybind_controls()
-		get_viewport().set_input_as_handled()
-		return true
-
-	_save_keybind(waiting_for_key_action, key_event.keycode)
-	waiting_for_key_action = ""
-	if keybind_status_label != null:
+		keybind_status_label.text = TEXT_KEY_CANCELLED
+	else:
+		_save_keybind(waiting_for_key_action, key_event.keycode)
 		keybind_status_label.text = TEXT_KEY_SAVED
+	waiting_for_key_action = ""
 	_refresh_keybind_controls()
 	get_viewport().set_input_as_handled()
-	return true
 
 func _build_panel() -> void:
 	modal = SURVIVORS_MODAL.new()
@@ -133,25 +136,6 @@ func _build_panel() -> void:
 	content.add_theme_constant_override("separation", 12)
 	modal.set_body(content)
 
-	var header := HBoxContainer.new()
-	header.add_theme_constant_override("separation", 10)
-	content.add_child(header)
-
-	settings_title_label = Label.new()
-	settings_title_label.text = TEXT_SETTINGS
-	settings_title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	settings_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	settings_title_label.add_theme_font_size_override("font_size", 28)
-	settings_title_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT)
-	header.add_child(settings_title_label)
-
-	var close_button := Button.new()
-	close_button.text = TEXT_CLOSE
-	close_button.custom_minimum_size = Vector2(100, 38)
-	SURVIVORS_THEME.apply_button_style(close_button)
-	close_button.pressed.connect(close_panel)
-	header.add_child(close_button)
-
 	var body := HBoxContainer.new()
 	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -163,51 +147,38 @@ func _build_panel() -> void:
 	category_column.add_theme_constant_override("separation", 10)
 	body.add_child(category_column)
 
-	var volume_category_button := Button.new()
-	volume_category_button.text = TEXT_VOLUME_SETTINGS
-	volume_category_button.custom_minimum_size = Vector2(0, 48)
-	volume_category_button.add_theme_font_size_override("font_size", 18)
-	SURVIVORS_THEME.apply_button_style(volume_category_button)
-	volume_category_button.pressed.connect(_show_volume_settings)
-	category_column.add_child(volume_category_button)
+	for title in [TEXT_VOLUME_SETTINGS, TEXT_DISPLAY_SETTINGS, TEXT_KEY_SETTINGS]:
+		var button := Button.new()
+		button.text = title
+		button.toggle_mode = true
+		button.custom_minimum_size = Vector2(0, 48)
+		button.add_theme_font_size_override("font_size", 18)
+		button.pressed.connect(_show_page.bind(category_buttons.size()))
+		category_column.add_child(button)
+		category_buttons.append(button)
 
-	var display_category_button := Button.new()
-	display_category_button.text = TEXT_DISPLAY_SETTINGS
-	display_category_button.custom_minimum_size = Vector2(0, 48)
-	display_category_button.add_theme_font_size_override("font_size", 18)
-	SURVIVORS_THEME.apply_button_style(display_category_button)
-	display_category_button.pressed.connect(_show_display_settings)
-	category_column.add_child(display_category_button)
-
-	var keybind_category_button := Button.new()
-	keybind_category_button.text = TEXT_KEY_SETTINGS
-	keybind_category_button.custom_minimum_size = Vector2(0, 48)
-	keybind_category_button.add_theme_font_size_override("font_size", 18)
-	SURVIVORS_THEME.apply_button_style(keybind_category_button)
-	keybind_category_button.pressed.connect(_show_keybind_settings)
-	category_column.add_child(keybind_category_button)
-
-	var page_root := Control.new()
+	page_scroll = ScrollContainer.new()
+	page_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	page_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	page_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	page_scroll.follow_focus = true
+	body.add_child(page_scroll)
+	var page_root := VBoxContainer.new()
 	page_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	page_root.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_child(page_root)
+	page_scroll.add_child(page_root)
 
 	volume_page = _build_volume_page()
-	volume_page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	page_root.add_child(volume_page)
-
-	display_page_scroll = ScrollContainer.new()
-	display_page_scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	display_page_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	page_root.add_child(display_page_scroll)
 
 	display_page = _build_display_page()
 	display_page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	display_page_scroll.add_child(display_page)
+	page_root.add_child(display_page)
 
 	keybind_page = _build_keybind_page()
-	keybind_page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	page_root.add_child(keybind_page)
+	close_button = modal.add_footer_button(TEXT_CLOSE, close_panel)
+	close_button.focus_next = close_button.get_path_to(category_buttons[0])
+	category_buttons[0].focus_previous = category_buttons[0].get_path_to(close_button)
 
 	_fit_to_viewport()
 
@@ -251,21 +222,9 @@ func _build_volume_page() -> VBoxContainer:
 	page.add_child(volume_value_label)
 
 	mute_checkbox = CheckBox.new()
-	mute_checkbox.text = ""
+	mute_checkbox.text = "静音"
 	mute_checkbox.toggled.connect(_on_mute_toggled)
 	page.add_child(mute_checkbox)
-
-	performance_trace_checkbox = CheckBox.new()
-	performance_trace_checkbox.text = TEXT_PERFORMANCE_TRACE
-	performance_trace_checkbox.toggled.connect(_on_performance_trace_toggled)
-	page.add_child(performance_trace_checkbox)
-
-	var performance_trace_hint := Label.new()
-	performance_trace_hint.text = TEXT_PERFORMANCE_TRACE_HINT
-	performance_trace_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	performance_trace_hint.add_theme_font_size_override("font_size", 14)
-	performance_trace_hint.modulate = Color(0.82, 0.88, 0.95, 0.96)
-	page.add_child(performance_trace_hint)
 
 	return page
 
@@ -331,6 +290,13 @@ func _build_display_page() -> VBoxContainer:
 	hud_layout_hint.add_theme_font_size_override("font_size", 14)
 	hud_layout_hint.modulate = Color(0.82, 0.88, 0.95, 0.96)
 	page.add_child(hud_layout_hint)
+	performance_trace_checkbox = CheckBox.new()
+	performance_trace_checkbox.text = TEXT_PERFORMANCE_TRACE
+	performance_trace_checkbox.toggled.connect(_on_performance_trace_toggled)
+	page.add_child(performance_trace_checkbox)
+	var performance_trace_hint := SURVIVORS_THEME.make_hint_label(TEXT_PERFORMANCE_TRACE_HINT)
+	performance_trace_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	page.add_child(performance_trace_hint)
 
 	return page
 
@@ -356,6 +322,7 @@ func _build_keybind_page() -> VBoxContainer:
 		var label := Label.new()
 		label.text = str(KEYBIND_LABELS.get(action_id, action_id))
 		label.custom_minimum_size = Vector2(210, 34)
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		label.add_theme_font_size_override("font_size", 17)
 		row.add_child(label)
@@ -383,35 +350,24 @@ func _build_keybind_page() -> VBoxContainer:
 	return page
 
 func _show_volume_settings() -> void:
-	if settings_title_label != null:
-		settings_title_label.text = TEXT_VOLUME_SETTINGS
-	if volume_page != null:
-		volume_page.visible = true
-	if display_page != null:
-		display_page_scroll.visible = false
-	if keybind_page != null:
-		keybind_page.visible = false
+	_show_page(0)
 
 func _show_display_settings() -> void:
-	if settings_title_label != null:
-		settings_title_label.text = TEXT_DISPLAY_SETTINGS
-	if volume_page != null:
-		volume_page.visible = false
-	if display_page != null:
-		display_page_scroll.visible = true
-	if keybind_page != null:
-		keybind_page.visible = false
-	_refresh_display_controls()
+	_show_page(1)
 
 func _show_keybind_settings() -> void:
-	if settings_title_label != null:
-		settings_title_label.text = TEXT_KEY_SETTINGS
-	if volume_page != null:
-		volume_page.visible = false
-	if display_page != null:
-		display_page_scroll.visible = false
-	if keybind_page != null:
-		keybind_page.visible = true
+	_show_page(2)
+
+func _show_page(index: int) -> void:
+	waiting_for_key_action = ""
+	keybind_status_label.text = ""
+	var pages := [volume_page, display_page, keybind_page]
+	for page_index in range(pages.size()):
+		pages[page_index].visible = page_index == index
+		category_buttons[page_index].set_pressed_no_signal(page_index == index)
+		SURVIVORS_THEME.apply_button_style(category_buttons[page_index], "normal", page_index == index)
+	page_scroll.scroll_vertical = 0
+	_refresh_display_controls()
 	_refresh_keybind_controls()
 
 func _refresh_display_controls() -> void:
@@ -440,7 +396,7 @@ func _refresh_keybind_controls() -> void:
 		if button == null:
 			continue
 		if waiting_for_key_action == action_id:
-			button.text = TEXT_WAITING_KEY
+			button.text = "等待按键…"
 		else:
 			button.text = GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(action_id))
 

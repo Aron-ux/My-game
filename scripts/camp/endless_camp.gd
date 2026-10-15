@@ -5,552 +5,332 @@ const MOVEMENT_TUTORIAL_SCENE_PATH := "res://scenes/movement_tutorial.tscn"
 const MAIN_MENU_SCENE_PATH := "res://scenes/main_menu.tscn"
 const SAVE_MANAGER := preload("res://scripts/save_manager.gd")
 const GAME_SETTINGS := preload("res://scripts/game_settings.gd")
-const RUAN_STONE_SYSTEM := preload("res://scripts/player/ruan_stone_system.gd")
-const SURVIVORS_THEME := preload("res://scripts/ui/theme/survivors_ui_theme.gd")
+const ROLES := preload("res://scripts/player/roles/role_database.gd")
+const PRESENTER := preload("res://scripts/player/player_role_presenter.gd")
+const UI := preload("res://scripts/ui/theme/survivors_ui_theme.gd")
+const MODAL := preload("res://scripts/ui/core/survivors_modal.gd")
+const OVERVIEW := preload("res://scripts/camp/camp_overview.gd")
+const SHOP_PANEL := preload("res://scripts/camp/camp_shop_panel.gd")
+const ROLE_PANEL := preload("res://scripts/camp/camp_role_panel.gd")
 const ENDLESS_TIER_OVERLAY := preload("res://scripts/ui/save/endless_tier_overlay.gd")
 const TEAM_SWAP_PANEL_SCENE := preload("res://scenes/UI/team_swap_panel.tscn")
-
+const STAND_NAMES := {"swordsman": "Swordsman", "gunner": "Gunner", "mage": "Mage", "mechanic": "Mechanic"}
 const INTERACTABLE_TEXT := {
-	"swordsman": {
-		"name": "\u5251\u58eb",
-		"prompt": "\u5251\u58eb\u6682\u672a\u5f00\u653e\u5bf9\u8bdd"
-	},
-	"gunner": {
-		"name": "\u67aa\u624b",
-		"prompt": "\u67aa\u624b\u6682\u672a\u5f00\u653e\u5bf9\u8bdd"
-	},
-	"mage": {
-		"name": "\u672f\u5e08",
-		"prompt": "\u672f\u5e08\u6682\u672a\u5f00\u653e\u5bf9\u8bdd"
-	},
-	"mechanic": {
-		"name": "\u673a\u68b0\u5e08",
-		"prompt": "\u673a\u68b0\u5e08\u6682\u672a\u5f00\u653e\u5bf9\u8bdd"
-	},
-	"blacksmith": {
-		"name": "\u94c1\u5320",
-		"prompt": "\u6253\u5f00\u94c1\u5320\u5546\u5e97"
-	},
-	"ruan_dog": {
-		"name": "阮狗",
-		"prompt": "和阮狗说话"
-	},
-	"tutorial_entrance": {
-		"name": "新手教学入口",
-		"prompt": "进入新手教学"
-	},
-	"endless_portal": {
-		"name": "\u65e0\u5c3d\u4f20\u9001\u95e8",
-		"prompt": "选择无尽 N 层"
-	},
-	"prep_station": {
-		"name": "整备台",
-		"prompt": "调整队伍"
-	}
-}
-const DIALOGUE_LINES := {
-	"ruan_dog": [
-		"汪。骨头带来了吗？",
-		"我收藏的石头都在这，挑一颗吧。"
-	]
+	"blacksmith": {"name": "铁匠 · 装备", "prompt": "选购装备"},
+	"ruan_dog": {"name": "阮狗 · 携带物品", "prompt": "查看携带物品"},
+	"tutorial_entrance": {"name": "训练场", "prompt": "进入新手教学"},
+	"endless_portal": {"name": "无尽传送门", "prompt": "选择 N 层 / 继续战局"},
+	"prep_station": {"name": "整备台", "prompt": "调整队伍与顺序"}
 }
 
-@onready var prompt_label: Label = $CanvasLayer/PromptLabel
-@onready var message_label: Label = $CanvasLayer/MessageLabel
-@onready var dialogue_panel: PanelContainer = $CanvasLayer/DialoguePanel
-@onready var dialogue_title: Label = $CanvasLayer/DialoguePanel/MarginContainer/DialogueContent/TextContent/Title
-@onready var dialogue_body: Label = $CanvasLayer/DialoguePanel/MarginContainer/DialogueContent/TextContent/Body
-@onready var dialogue_hint: Label = $CanvasLayer/DialoguePanel/MarginContainer/DialogueContent/TextContent/Hint
-@onready var shop_panel: PanelContainer = $CanvasLayer/ShopPanel
-@onready var shop_title: Label = $CanvasLayer/ShopPanel/MarginContainer/ShopContent/Title
-@onready var shop_body: Label = $CanvasLayer/ShopPanel/MarginContainer/ShopContent/Body
-@onready var ruan_stone_panel: PanelContainer = $CanvasLayer/RuanStonePanel
-@onready var ruan_stone_status: Label = $CanvasLayer/RuanStonePanel/MarginContainer/StoneContent/Status
-@onready var ruan_stone_cards: GridContainer = $CanvasLayer/RuanStonePanel/MarginContainer/StoneContent/Cards/CardList
-@onready var ruan_stone_feedback: Label = $CanvasLayer/RuanStonePanel/MarginContainer/StoneContent/Feedback
-@onready var ruan_stone_close_button: Button = $CanvasLayer/RuanStonePanel/MarginContainer/StoneContent/CloseButton
-@onready var tutorial_prompt_panel: PanelContainer = $CanvasLayer/TutorialPromptPanel
-@onready var tutorial_prompt_title: Label = $CanvasLayer/TutorialPromptPanel/MarginContainer/TutorialPromptContent/Title
-@onready var tutorial_prompt_body: Label = $CanvasLayer/TutorialPromptPanel/MarginContainer/TutorialPromptContent/Body
-@onready var tutorial_yes_button: Button = $CanvasLayer/TutorialPromptPanel/MarginContainer/TutorialPromptContent/ButtonRow/YesButton
-@onready var tutorial_no_button: Button = $CanvasLayer/TutorialPromptPanel/MarginContainer/TutorialPromptContent/ButtonRow/NoButton
 @onready var camp_player: Node2D = $CampPlayer
 @onready var characters_root: Node2D = $Characters
+@onready var canvas: CanvasLayer = $CanvasLayer
 
+var camp_role_id := "swordsman"
 var focused_interactables: Array[Node] = []
-var camp_role_id: String = "swordsman"
-var active_dialogue_lines: Array[String] = []
-var active_dialogue_index: int = 0
-var active_dialogue_id: String = ""
-var ruan_stone_profile: Dictionary = {}
-var ruan_stone_purchase_buttons: Dictionary = {}
+var highlighted_interactable: Node
+var prompt_label: Label
+var message_label: Label
+var overview: Control
+var shop_panel: Control
+var role_panel: Control
 var tier_overlay: Control
 var team_swap_panel: Control
+var tutorial_prompt_panel: Control
+var last_focus: WeakRef
+
 
 func _ready() -> void:
 	get_tree().paused = false
-	camp_role_id = _resolve_camp_role_id()
-	_apply_camp_player_role(camp_role_id)
-	_apply_character_stand_visibility(camp_role_id)
-	_setup_ui()
-	_setup_tier_overlay()
-	_setup_team_swap_panel()
-	_apply_interactable_texts()
-	_connect_interactables()
+	_build_ui()
+	_refresh_camp()
+	for node in get_tree().get_nodes_in_group("camp_interactable"):
+		node.focus_changed.connect(_on_interactable_focus_changed)
+		node.interacted.connect(_on_interactable_interacted)
+		var id := str(node.get("interactable_id"))
+		var text: Dictionary = INTERACTABLE_TEXT.get(id, {})
+		if not text.is_empty():
+			node.set("display_name", text["name"])
+			node.set("prompt_text", text["prompt"])
+		var label := node.get_parent().get_node_or_null("NameLabel") as Label
+		if label != null:
+			label.add_theme_font_override("font", UI.get_reading_font())
+			label.add_theme_font_size_override("font_size", 15)
+			label.add_theme_color_override("font_color", Color(0.96, 0.96, 0.88))
+			label.add_theme_color_override("font_shadow_color", Color(0.03, 0.05, 0.04))
+			label.add_theme_constant_override("shadow_offset_x", 1)
+			label.add_theme_constant_override("shadow_offset_y", 2)
+			if not text.is_empty():
+				label.text = str(text["name"])
 	_update_prompt()
+
+
+func _build_ui() -> void:
+	overview = OVERVIEW.new()
+	overview.name = "CampOverview"
+	canvas.add_child(overview)
+	overview.shop_requested.connect(_open_ruan_stone_shop)
+	overview.team_requested.connect(_open_team_swap_panel)
+	overview.departure_requested.connect(_open_tier_overlay)
+	overview.menu_requested.connect(_return_to_menu)
+	shop_panel = SHOP_PANEL.new()
+	shop_panel.name = "CampShopPanel"
+	canvas.add_child(shop_panel)
+	shop_panel.closed.connect(_on_panel_closed)
+	shop_panel.profile_changed.connect(_refresh_camp)
+	role_panel = ROLE_PANEL.new()
+	role_panel.name = "CampRolePanel"
+	canvas.add_child(role_panel)
+	role_panel.closed.connect(_on_panel_closed)
+	role_panel.prepare_requested.connect(_open_team_swap_panel)
+	tier_overlay = ENDLESS_TIER_OVERLAY.new()
+	tier_overlay.name = "EndlessTierOverlay"
+	canvas.add_child(tier_overlay)
+	tier_overlay.closed.connect(_on_panel_closed)
+	tier_overlay.tier_selected.connect(_on_endless_tier_selected)
+	team_swap_panel = TEAM_SWAP_PANEL_SCENE.instantiate()
+	team_swap_panel.name = "TeamSwapPanel"
+	canvas.add_child(team_swap_panel)
+	team_swap_panel.closed.connect(_on_panel_closed)
+	team_swap_panel.team_changed.connect(func(_team: Array): _refresh_camp())
+	tutorial_prompt_panel = MODAL.new()
+	tutorial_prompt_panel.name = "TutorialPromptPanel"
+	canvas.add_child(tutorial_prompt_panel)
+	tutorial_prompt_panel.configure(Vector2(560, 300), 0.5, 0.45, Vector2(360, 250))
+	tutorial_prompt_panel.set_title("进入训练场")
+	tutorial_prompt_panel.set_hint("练习移动、切换角色与基础战斗。教学结束后返回营地，携带物品与骨头保持不变。")
+	tutorial_prompt_panel.add_footer_button("留在营地", _close_tutorial_prompt)
+	tutorial_prompt_panel.add_footer_button("进入教学", _enter_movement_tutorial, "primary")
+	tutorial_prompt_panel.hide()
+	prompt_label = Label.new()
+	prompt_label.name = "PromptLabel"
+	prompt_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	prompt_label.position = Vector2(400, 560)
+	prompt_label.size = Vector2(480, 40)
+	prompt_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	prompt_label.add_theme_font_override("font", UI.get_reading_bold_font())
+	prompt_label.add_theme_font_size_override("font_size", 20)
+	prompt_label.add_theme_color_override("font_color", UI.COLOR_TEXT_GOLD)
+	prompt_label.add_theme_color_override("font_shadow_color", Color.BLACK)
+	prompt_label.add_theme_constant_override("shadow_offset_y", 2)
+	prompt_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	canvas.add_child(prompt_label)
+	message_label = Label.new()
+	message_label.name = "MessageLabel"
+	message_label.position = Vector2(220, 110)
+	message_label.size = Vector2(840, 38)
+	message_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	message_label.add_theme_font_override("font", UI.get_reading_font())
+	message_label.add_theme_font_size_override("font_size", 17)
+	message_label.add_theme_color_override("font_color", UI.COLOR_TEXT_GOLD)
+	message_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	canvas.add_child(message_label)
+
+
+func _refresh_camp() -> void:
+	var profile := SAVE_MANAGER.get_current_endless_profile()
+	var team: Array = team_swap_panel.get_team_ids(profile)
+	var role_id := str(team[0])
+	if camp_role_id != role_id or camp_player.role_visual == null:
+		camp_role_id = role_id
+		camp_player.set_role_visual(role_id)
+	for id in STAND_NAMES:
+		var stand: Node2D = characters_root.get_node(STAND_NAMES[id])
+		stand.visible = id != camp_role_id
+		var interactable: Node = stand.get_node("Interactable")
+		interactable.set("enabled", stand.visible)
+		interactable.set("display_name", PRESENTER.get_role_name(id))
+		interactable.set("prompt_text", "了解" + PRESENTER.get_role_name(id))
+		var label: Label = stand.get_node("NameLabel")
+		label.text = PRESENTER.get_role_name(id) + (" · 队员" if team.has(id) else " · 候补")
+	var moves: PackedStringArray = []
+	for action in [GAME_SETTINGS.ACTION_MOVE_UP, GAME_SETTINGS.ACTION_MOVE_LEFT, GAME_SETTINGS.ACTION_MOVE_DOWN, GAME_SETTINGS.ACTION_MOVE_RIGHT]:
+		moves.append(GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(action)))
+	var key := GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(GAME_SETTINGS.ACTION_INTERACT))
+	overview.refresh(profile, SAVE_MANAGER.load_run(-1, SAVE_MANAGER.MODE_ENDLESS), team, "%s 移动  ·  %s 交互  ·  Esc 返回" % ["/".join(moves), key])
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
-		if team_swap_panel != null and team_swap_panel.visible:
-			team_swap_panel.close_panel()
-		elif tier_overlay != null and tier_overlay.visible:
-			tier_overlay.close_overlay()
-		elif dialogue_panel.visible:
-			_close_dialogue()
-		elif tutorial_prompt_panel.visible:
-			_close_tutorial_prompt()
-		elif ruan_stone_panel.visible:
-			_close_ruan_stone_shop()
-		elif shop_panel.visible:
-			_close_shop()
+		if _panel_open():
+			_close_panels()
 		else:
-			get_tree().change_scene_to_file(MAIN_MENU_SCENE_PATH)
-		_mark_input_handled()
-		return
-	if event is InputEventKey and event.pressed and not event.echo:
-		if GAME_SETTINGS.event_matches_action(event, GAME_SETTINGS.ACTION_INTERACT):
-			_handle_interact()
-			_mark_input_handled()
-			return
+			_return_to_menu()
+		get_viewport().set_input_as_handled()
+	elif GAME_SETTINGS.event_matches_action(event, GAME_SETTINGS.ACTION_INTERACT):
+		_handle_interact()
+		get_viewport().set_input_as_handled()
 
-func _setup_ui() -> void:
-	prompt_label.text = ""
-	prompt_label.visible = false
+
+func _process(_delta: float) -> void:
+	if focused_interactables.size() > 1 and camp_player.velocity.length_squared() > 0.01 and not _panel_open():
+		_update_prompt()
+
+
+func _panel_open() -> bool:
+	for panel in [shop_panel, role_panel, tier_overlay, team_swap_panel, tutorial_prompt_panel]:
+		if panel != null and panel.visible:
+			return true
+	return false
+
+
+func _close_panels() -> void:
+	for panel in [shop_panel, role_panel, tier_overlay, team_swap_panel]:
+		if panel.visible:
+			if panel == tier_overlay:
+				panel.close_overlay()
+			else:
+				panel.close_panel()
+	tutorial_prompt_panel.hide()
+	_on_panel_closed()
+
+
+func _begin_panel() -> void:
+	_close_panels()
+	var focus := get_viewport().gui_get_focus_owner()
+	last_focus = weakref(focus) if focus != null else null
 	message_label.text = ""
-	message_label.visible = false
-	dialogue_panel.visible = false
-	dialogue_title.text = ""
-	dialogue_body.text = ""
-	dialogue_hint.text = ""
-	dialogue_panel.add_theme_stylebox_override("panel", SURVIVORS_THEME.panel_style(SURVIVORS_THEME.COLOR_BG, SURVIVORS_THEME.COLOR_BORDER_GOLD, 2, 16, 16.0))
-	shop_panel.visible = false
-	shop_title.text = "\u94c1\u5320"
-	shop_body.text = "\u5546\u5e97\u6682\u65e0\u5546\u54c1"
-	shop_panel.add_theme_stylebox_override("panel", SURVIVORS_THEME.panel_style(SURVIVORS_THEME.COLOR_BG, SURVIVORS_THEME.COLOR_BORDER_GOLD, 2, 16, 16.0))
-	ruan_stone_panel.visible = false
-	ruan_stone_panel.add_theme_stylebox_override("panel", SURVIVORS_THEME.panel_style(SURVIVORS_THEME.COLOR_BG, SURVIVORS_THEME.COLOR_BORDER_GOLD, 2, 16, 16.0))
-	SURVIVORS_THEME.apply_button_style(ruan_stone_close_button)
-	ruan_stone_close_button.pressed.connect(_close_ruan_stone_shop)
-	tutorial_prompt_panel.visible = false
-	tutorial_prompt_title.text = "\u65b0\u624b\u6559\u5b66"
-	tutorial_prompt_body.text = "\u662f\u5426\u8fdb\u5165\u65b0\u624b\u6559\u5b66\uff1f"
-	tutorial_yes_button.pressed.connect(_enter_movement_tutorial)
-	tutorial_no_button.pressed.connect(_close_tutorial_prompt)
 
-func _setup_tier_overlay() -> void:
-	tier_overlay = ENDLESS_TIER_OVERLAY.new()
-	tier_overlay.name = "EndlessTierOverlay"
-	tier_overlay.tier_selected.connect(_on_endless_tier_selected)
-	tier_overlay.closed.connect(_on_tier_overlay_closed)
-	$CanvasLayer.add_child(tier_overlay)
 
-func _setup_team_swap_panel() -> void:
-	team_swap_panel = TEAM_SWAP_PANEL_SCENE.instantiate()
-	team_swap_panel.name = "TeamSwapPanel"
-	team_swap_panel.closed.connect(_on_team_swap_closed)
-	$CanvasLayer.add_child(team_swap_panel)
+func _sync_modal_state() -> void:
+	var locked := _panel_open()
+	camp_player.set_physics_process(not locked)
+	if locked:
+		camp_player.stop_movement()
+	overview.set_actions_enabled(not locked)
+	_update_prompt()
 
-func _resolve_camp_role_id() -> String:
-	var run_data: Dictionary = SAVE_MANAGER.load_run(-1, SAVE_MANAGER.MODE_ENDLESS)
-	if run_data.is_empty():
-		return "swordsman"
-	var player_data: Dictionary = run_data.get("player", {}) if run_data.get("player", {}) is Dictionary else {}
-	var roles: Array = player_data.get("roles", [])
-	if roles.is_empty():
-		return "swordsman"
-	var active_role_index: int = clampi(int(player_data.get("active_role_index", 0)), 0, roles.size() - 1)
-	var role_data: Variant = roles[active_role_index]
-	if role_data is Dictionary:
-		var role_id := str((role_data as Dictionary).get("id", "swordsman"))
-		if INTERACTABLE_TEXT.has(role_id):
-			return role_id
-	return "swordsman"
 
-func _apply_camp_player_role(role_id: String) -> void:
-	if camp_player != null and camp_player.has_method("set_role_visual"):
-		camp_player.set_role_visual(role_id)
+func _on_panel_closed() -> void:
+	_sync_modal_state()
+	if not _panel_open() and last_focus != null:
+		var focus: Control = last_focus.get_ref() as Control
+		if focus != null and focus.is_visible_in_tree():
+			focus.grab_focus()
 
-func _apply_character_stand_visibility(role_id: String) -> void:
-	var stand_name := _get_character_stand_name(role_id)
-	if stand_name == "" or characters_root == null:
-		return
-	var stand := characters_root.get_node_or_null(stand_name) as Node2D
-	if stand != null:
-		stand.visible = false
-		var interactable := stand.get_node_or_null("Interactable")
-		if interactable != null:
-			interactable.set("enabled", false)
-
-func _get_character_stand_name(role_id: String) -> String:
-	match role_id:
-		"swordsman":
-			return "Swordsman"
-		"gunner":
-			return "Gunner"
-		"mage":
-			return "Mage"
-		_:
-			return ""
-
-func _apply_interactable_texts() -> void:
-	for node in get_tree().get_nodes_in_group("camp_interactable"):
-		var interactable_id := str(node.get("interactable_id"))
-		var text_data: Dictionary = INTERACTABLE_TEXT.get(interactable_id, {})
-		if text_data.is_empty():
-			continue
-		node.set("display_name", str(text_data.get("name", interactable_id)))
-		node.set("prompt_text", str(text_data.get("prompt", "")))
-		var label := node.get_parent().get_node_or_null("NameLabel") as Label
-		if label != null:
-			label.text = str(text_data.get("name", interactable_id))
-
-func _connect_interactables() -> void:
-	for node in get_tree().get_nodes_in_group("camp_interactable"):
-		if not node.has_signal("focus_changed") or not node.has_signal("interacted"):
-			continue
-		if not node.is_connected("focus_changed", Callable(self, "_on_interactable_focus_changed")):
-			node.connect("focus_changed", Callable(self, "_on_interactable_focus_changed"))
-		if not node.is_connected("interacted", Callable(self, "_on_interactable_interacted")):
-			node.connect("interacted", Callable(self, "_on_interactable_interacted"))
 
 func _handle_interact() -> void:
-	if team_swap_panel != null and team_swap_panel.visible:
+	if _panel_open():
 		return
-	if dialogue_panel.visible:
-		_advance_dialogue()
-		return
-	if tutorial_prompt_panel.visible:
-		return
-	if ruan_stone_panel.visible:
-		return
-	if shop_panel.visible:
-		_close_shop()
-		return
-	var interactable: Node = _get_best_interactable()
-	if interactable == null or not interactable.has_method("try_interact"):
-		return
-	interactable.try_interact()
+	var interactable := _get_best_interactable()
+	if interactable != null:
+		interactable.try_interact()
+
 
 func _on_interactable_focus_changed(interactable: Node, focused: bool) -> void:
-	if focused:
-		if not focused_interactables.has(interactable):
-			focused_interactables.append(interactable)
-	else:
+	if focused and not focused_interactables.has(interactable):
+		focused_interactables.append(interactable)
+	elif not focused:
 		focused_interactables.erase(interactable)
 	_update_prompt()
 
-func _on_interactable_interacted(interactable: Node) -> void:
-	var kind := str(interactable.get("interaction_kind"))
-	match kind:
-		"portal":
-			_open_tier_overlay()
-		"team_swap":
-			_open_team_swap_panel()
-		"tutorial":
-			_open_tutorial_prompt()
-		"shop":
-			_open_shop()
-		"dialogue":
-			_open_dialogue(interactable)
-		_:
-			_show_message("\u73b0\u5728\u8fd8\u4e0d\u80fd\u4ea4\u4e92")
 
 func _get_best_interactable() -> Node:
+	var best: Node
+	var closest := INF
 	for index in range(focused_interactables.size() - 1, -1, -1):
 		var interactable: Node = focused_interactables[index]
-		if interactable == null or not is_instance_valid(interactable):
+		if not is_instance_valid(interactable):
 			focused_interactables.remove_at(index)
-			continue
-		if interactable.has_method("can_interact") and bool(interactable.can_interact()):
-			return interactable
-	return null
+		elif interactable.can_interact():
+			var distance: float = camp_player.global_position.distance_squared_to(interactable.global_position)
+			if distance < closest:
+				closest = distance
+				best = interactable
+	return best
+
 
 func _update_prompt() -> void:
-	if dialogue_panel.visible or shop_panel.visible or ruan_stone_panel.visible or tutorial_prompt_panel.visible or (tier_overlay != null and tier_overlay.visible) or (team_swap_panel != null and team_swap_panel.visible):
-		prompt_label.visible = false
-		prompt_label.text = ""
+	if prompt_label == null:
 		return
-	var interactable: Node = _get_best_interactable()
-	if interactable == null:
-		prompt_label.visible = false
-		prompt_label.text = ""
-		return
-	var key_name := GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(GAME_SETTINGS.ACTION_INTERACT))
-	var text := str(interactable.get_prompt_text()) if interactable.has_method("get_prompt_text") else str(interactable.get("display_name"))
-	prompt_label.text = "[%s] %s" % [key_name, text]
-	prompt_label.visible = true
+	if is_instance_valid(highlighted_interactable):
+		highlighted_interactable.set_highlighted(false)
+	highlighted_interactable = null if _panel_open() else _get_best_interactable()
+	prompt_label.visible = highlighted_interactable != null
+	if highlighted_interactable != null:
+		highlighted_interactable.set_highlighted(true)
+		var key := GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(GAME_SETTINGS.ACTION_INTERACT))
+		prompt_label.text = "[%s] %s" % [key, highlighted_interactable.get_prompt_text()]
 
-func _open_dialogue(interactable: Node) -> void:
-	var interactable_id := str(interactable.get("interactable_id"))
-	var lines_value: Variant = DIALOGUE_LINES.get(interactable_id, [])
-	if not (lines_value is Array) or (lines_value as Array).is_empty():
-		_show_message("\u73b0\u5728\u8fd8\u4e0d\u80fd\u4ea4\u4e92")
-		return
-	active_dialogue_lines.clear()
-	for line in lines_value:
-		active_dialogue_lines.append(str(line))
-	active_dialogue_id = interactable_id
-	active_dialogue_index = 0
-	_close_shop()
-	_close_ruan_stone_shop()
-	_close_tutorial_prompt()
-	_show_message("")
-	dialogue_title.text = str(interactable.get("display_name"))
-	dialogue_panel.visible = true
-	_set_camp_player_movement_enabled(false)
-	_show_dialogue_line()
-	_update_prompt()
 
-func _advance_dialogue() -> void:
-	if not dialogue_panel.visible:
+func _on_interactable_interacted(interactable: Node) -> void:
+	if _panel_open():
 		return
-	active_dialogue_index += 1
-	if active_dialogue_index >= active_dialogue_lines.size():
-		var completed_dialogue_id := active_dialogue_id
-		_close_dialogue()
-		if completed_dialogue_id == "ruan_dog":
-			_open_ruan_stone_shop()
-		return
-	_show_dialogue_line()
+	match str(interactable.get("interaction_kind")):
+		"portal": _open_tier_overlay()
+		"team_swap": _open_team_swap_panel()
+		"tutorial": _open_tutorial_prompt()
+		"shop": _open_shop()
+		"dialogue":
+			var id := str(interactable.get("interactable_id"))
+			if id == "ruan_dog":
+				_open_ruan_stone_shop()
+			elif ROLES.ROLE_IDS.has(id):
+				_begin_panel()
+				role_panel.open(id, team_swap_panel.get_team_ids(SAVE_MANAGER.get_current_endless_profile()))
+				_sync_modal_state()
 
-func _show_dialogue_line() -> void:
-	dialogue_body.text = active_dialogue_lines[active_dialogue_index]
-	var key_name := GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(GAME_SETTINGS.ACTION_INTERACT))
-	var action_text := "结束" if active_dialogue_index == active_dialogue_lines.size() - 1 else "下一句"
-	dialogue_hint.text = "[%s] %s  ·  [Esc] 结束" % [key_name, action_text]
-
-func _close_dialogue() -> void:
-	if not dialogue_panel.visible:
-		return
-	dialogue_panel.visible = false
-	active_dialogue_lines.clear()
-	active_dialogue_index = 0
-	active_dialogue_id = ""
-	dialogue_title.text = ""
-	dialogue_body.text = ""
-	dialogue_hint.text = ""
-	_set_camp_player_movement_enabled(true)
-	_update_prompt()
-
-func _set_camp_player_movement_enabled(enabled: bool) -> void:
-	if camp_player == null:
-		return
-	camp_player.set_physics_process(enabled)
-	if not enabled and camp_player.has_method("stop_movement"):
-		camp_player.stop_movement()
 
 func _open_shop() -> void:
-	_close_ruan_stone_shop()
-	shop_panel.visible = true
-	_show_message("")
-	_update_prompt()
+	_begin_panel()
+	shop_panel.open("equipment")
+	_sync_modal_state()
 
-func _close_shop() -> void:
-	shop_panel.visible = false
-	_update_prompt()
 
 func _open_ruan_stone_shop() -> void:
-	_close_shop()
-	_close_tutorial_prompt()
-	ruan_stone_feedback.text = ""
-	ruan_stone_profile = RUAN_STONE_SYSTEM.normalize_profile(SAVE_MANAGER.get_current_endless_profile())
-	_rebuild_ruan_stone_cards()
-	ruan_stone_panel.visible = true
-	ruan_stone_panel.move_to_front()
-	_set_camp_player_movement_enabled(false)
-	var first_stone_id := str(RUAN_STONE_SYSTEM.STONE_IDS[0])
-	var first_button := ruan_stone_purchase_buttons.get(first_stone_id) as Button
-	if first_button != null:
-		first_button.grab_focus()
-	_update_prompt()
+	_begin_panel()
+	shop_panel.open("all")
+	_sync_modal_state()
 
-func _close_ruan_stone_shop() -> void:
-	ruan_stone_panel.visible = false
-	_set_camp_player_movement_enabled(true)
-	_update_prompt()
 
-func _rebuild_ruan_stone_cards() -> void:
-	for child in ruan_stone_cards.get_children():
-		ruan_stone_cards.remove_child(child)
-		child.queue_free()
-	ruan_stone_purchase_buttons.clear()
-	var purchased: Array = ruan_stone_profile.get("ruan_stone_purchased", [])
-	var carry_limit := RUAN_STONE_SYSTEM.get_carry_limit(ruan_stone_profile)
-	ruan_stone_status.text = "骨头：%d    已携带：%d/%d（上限 = 档案最高解锁 N）" % [int(ruan_stone_profile.get("bones", 0)), purchased.size(), carry_limit]
-	for stone_id_value in RUAN_STONE_SYSTEM.STONE_IDS:
-		_add_ruan_stone_card(str(stone_id_value), "")
+func _open_team_swap_panel() -> void:
+	_begin_panel()
+	team_swap_panel.open(SAVE_MANAGER.MODE_ENDLESS)
+	_sync_modal_state()
 
-func _add_ruan_stone_card(stone_id: String, equipped_id: String) -> void:
-	var definition := RUAN_STONE_SYSTEM.get_definition(stone_id)
-	var count := RUAN_STONE_SYSTEM.get_count(ruan_stone_profile, stone_id)
-	var cost := RUAN_STONE_SYSTEM.get_next_cost(ruan_stone_profile, stone_id)
-	var carry_limit := RUAN_STONE_SYSTEM.get_carry_limit(ruan_stone_profile)
-	var carried := RUAN_STONE_SYSTEM.get_carried_count(ruan_stone_profile)
-	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(0.0, 170.0)
-	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	card.add_theme_stylebox_override("panel", SURVIVORS_THEME.card_style(stone_id == equipped_id))
-	ruan_stone_cards.add_child(card)
-	var content := VBoxContainer.new()
-	content.add_theme_constant_override("separation", 8)
-	card.add_child(content)
-	content.add_child(_make_stone_label(str(definition.get("title", stone_id)), 24, SURVIVORS_THEME.COLOR_TEXT_GOLD, HORIZONTAL_ALIGNMENT_CENTER))
-	content.add_child(_make_stone_label(("已携带 ×%d" % count) if count > 0 else "未携带", 18, SURVIVORS_THEME.COLOR_TEXT, HORIZONTAL_ALIGNMENT_CENTER))
-	content.add_child(_make_stone_label(str(definition.get("summary", "")), 15, SURVIVORS_THEME.COLOR_TEXT_MUTED))
-	var current_text := "当前：%s" % RUAN_STONE_SYSTEM.get_effect_text(stone_id, count)
-	content.add_child(_make_stone_label(current_text, 15, SURVIVORS_THEME.COLOR_TEXT))
-	var next_text := "再携带 1 件：%s\n费用：%d 骨" % [RUAN_STONE_SYSTEM.get_effect_text(stone_id, count + 1), cost]
-	content.add_child(_make_stone_label(next_text, 15, SURVIVORS_THEME.COLOR_TEXT_MUTED))
-	var purchase_button := Button.new()
-	purchase_button.custom_minimum_size = Vector2(0.0, 42.0)
-	var at_limit := carried >= carry_limit
-	if count > 0:
-		purchase_button.text = "取消购买 · 退还 %d 骨" % cost
-		purchase_button.disabled = false
-	elif at_limit:
-		purchase_button.text = "携带已满（%d/%d）" % [carried, carry_limit]
-		purchase_button.disabled = true
-	else:
-		purchase_button.text = "购买 · %d 骨" % cost
-		purchase_button.disabled = false
-	purchase_button.focus_mode = Control.FOCUS_ALL
-	SURVIVORS_THEME.apply_button_style(purchase_button, "primary" if count <= 0 else "normal")
-	purchase_button.pressed.connect(_on_ruan_stone_purchase.bind(stone_id))
-	content.add_child(purchase_button)
-	ruan_stone_purchase_buttons[stone_id] = purchase_button
-
-func _make_stone_label(text_value: String, font_size: int, color: Color, alignment: int = HORIZONTAL_ALIGNMENT_LEFT) -> Label:
-	var label := Label.new()
-	label.text = text_value
-	label.horizontal_alignment = alignment
-	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.add_theme_font_size_override("font_size", font_size)
-	label.add_theme_color_override("font_color", color)
-	return label
-
-func _on_ruan_stone_purchase(stone_id: String) -> void:
-	var definition := RUAN_STONE_SYSTEM.get_definition(stone_id)
-	var stone_name := str(definition.get("title", stone_id))
-	# 已携带的物件：同一个按钮变为“取消购买”，退还对应骨头
-	if RUAN_STONE_SYSTEM.get_count(ruan_stone_profile, stone_id) > 0:
-		var refund_result := RUAN_STONE_SYSTEM.refund(ruan_stone_profile, stone_id)
-		if not bool(refund_result.get("success", false)):
-			ruan_stone_feedback.text = "取消失败：当前未携带 %s。" % stone_name
-			return
-		SAVE_MANAGER.save_endless_profile(ruan_stone_profile)
-		ruan_stone_feedback.text = "已取消 %s ×1，退还 %d 骨（当前 ×%d，骨头 %d）。" % [
-			stone_name,
-			int(refund_result.get("refunded", 0)),
-			int(refund_result.get("count", 0)),
-			int(refund_result.get("bones", 0))
-		]
-		_rebuild_ruan_stone_cards()
-		var refund_button := ruan_stone_purchase_buttons.get(stone_id) as Button
-		if refund_button != null:
-			refund_button.grab_focus()
-		return
-	var result := RUAN_STONE_SYSTEM.purchase(ruan_stone_profile, stone_id)
-	if not bool(result.get("success", false)):
-		match str(result.get("reason", "")):
-			"carry_limit_reached":
-				ruan_stone_feedback.text = "携带位已满：当前上限 %d（= 档案最高解锁 N），无法继续购买。" % int(result.get("carry_limit", 1))
-			"not_enough_bones":
-				ruan_stone_feedback.text = "骨头不足：%s需要 %d 骨，当前只有 %d 骨。" % [
-					stone_name,
-					int(result.get("cost", 0)),
-					int(result.get("bones", ruan_stone_profile.get("bones", 0)))
-				]
-			_:
-				ruan_stone_feedback.text = "无法购买 %s。" % stone_name
-		return
-	SAVE_MANAGER.save_endless_profile(ruan_stone_profile)
-	ruan_stone_feedback.text = "已携带 %s ×%d（%d/%d）。" % [
-		stone_name,
-		int(result.get("count", 1)),
-		int(result.get("carried", 1)),
-		int(result.get("carry_limit", 1))
-	]
-	_rebuild_ruan_stone_cards()
-	var purchase_button := ruan_stone_purchase_buttons.get(stone_id) as Button
-	if purchase_button != null and not purchase_button.disabled:
-		purchase_button.grab_focus()
 
 func _open_tutorial_prompt() -> void:
-	_close_shop()
-	_close_ruan_stone_shop()
-	_show_message("")
-	tutorial_prompt_panel.visible = true
-	tutorial_yes_button.grab_focus()
-	_update_prompt()
+	_begin_panel()
+	tutorial_prompt_panel.show()
+	tutorial_prompt_panel.apply_layout()
+	tutorial_prompt_panel.footer.get_child(0).grab_focus()
+	_sync_modal_state()
+
 
 func _close_tutorial_prompt() -> void:
-	tutorial_prompt_panel.visible = false
-	_update_prompt()
+	tutorial_prompt_panel.hide()
+	_on_panel_closed()
+
 
 func _enter_movement_tutorial() -> void:
 	_close_tutorial_prompt()
-	get_tree().paused = false
 	get_tree().change_scene_to_file(MOVEMENT_TUTORIAL_SCENE_PATH)
 
-func _show_message(text: String) -> void:
-	message_label.text = text
-	message_label.visible = text != ""
-
-func _mark_input_handled() -> void:
-	var viewport := get_viewport()
-	if viewport != null:
-		viewport.set_input_as_handled()
 
 func _open_tier_overlay() -> void:
-	_close_tutorial_prompt()
-	_close_shop()
-	_close_ruan_stone_shop()
+	_begin_panel()
 	var profile := SAVE_MANAGER.get_current_endless_profile()
 	if profile.is_empty():
-		_show_message("未找到当前无尽存档。")
+		message_label.text = "未找到当前无尽档案，请从无尽存档入口进入营地。"
 		return
-	var run_data := SAVE_MANAGER.load_run(-1, SAVE_MANAGER.MODE_ENDLESS)
-	if run_data.is_empty() and SAVE_MANAGER.has_unarchived_legacy_endless_run():
-		_show_message("旧无尽战局归档失败，请释放存储空间后重试。")
+	var run := SAVE_MANAGER.load_run(-1, SAVE_MANAGER.MODE_ENDLESS)
+	if run.is_empty() and SAVE_MANAGER.has_unarchived_legacy_endless_run():
+		message_label.text = "旧战局归档失败，请释放存储空间后重试。"
 		return
-	tier_overlay.open(profile, run_data)
-	_set_camp_player_movement_enabled(false)
-	_update_prompt()
+	tier_overlay.open(profile, run)
+	_sync_modal_state()
+
 
 func _on_endless_tier_selected(tier: int, continue_existing: bool) -> void:
 	if continue_existing:
 		SAVE_MANAGER.request_continue()
 	elif not SAVE_MANAGER.select_current_endless_tier(tier):
-		_show_message("该 N 层尚未解锁。")
+		tier_overlay.show_error("选层未保存，请检查存储空间或档案状态后重试。")
 		return
 	tier_overlay.close_overlay()
-	get_tree().paused = false
 	get_tree().change_scene_to_file(GAME_SCENE_PATH)
 
-func _on_tier_overlay_closed() -> void:
-	_set_camp_player_movement_enabled(true)
-	_update_prompt()
 
-func _open_team_swap_panel() -> void:
-	_close_dialogue()
-	_close_shop()
-	_close_ruan_stone_shop()
-	_close_tutorial_prompt()
-	_show_message("")
-	team_swap_panel.open(SAVE_MANAGER.MODE_ENDLESS)
-	_set_camp_player_movement_enabled(false)
-	_update_prompt()
-
-func _on_team_swap_closed() -> void:
-	_set_camp_player_movement_enabled(true)
-	_update_prompt()
+func _return_to_menu() -> void:
+	get_tree().change_scene_to_file(MAIN_MENU_SCENE_PATH)

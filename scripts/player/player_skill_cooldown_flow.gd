@@ -6,6 +6,7 @@ const GAME_SETTINGS := preload("res://scripts/game_settings.gd")
 const SKILL_LEVELS := preload("res://scripts/player/player_skill_level_system.gd")
 
 const SKILL_SUMMARIES := {
+	"mechanic_basic_attack": "释放机械蜘蛛，追击攻击范围内的敌人。",
 	"blade_storm": "环绕剑刃持续切割周围敌人。",
 	"crescent_wave": "向前挥剑，释放一道穿过敌人的月牙剑气。",
 	"knight_thrust": "向前突刺；命中敌人获得临时血量。",
@@ -108,7 +109,22 @@ static func _decorate_skill_info(owner, role_id: String, slot: Dictionary) -> vo
 	slot["role_name"] = str({"swordsman": "剑士", "gunner": "枪手", "mage": "法师", "mechanic": "机械师"}.get(role_id, role_id))
 	if SKILL_SUMMARIES.has(skill_id):
 		slot["effect_summary"] = SKILL_SUMMARIES[skill_id]
+	if role_id == "mechanic" and not skill_id.ends_with("_basic_attack"):
+		slot["effect_summary"] = str(slot.get("description", ""))
 	var rows: Array = slot.get("effect_rows", []).duplicate(true)
+	if skill_id == "mechanic_basic_attack":
+		var mechanic: Variant = _get_owner_property(owner, "mechanic_role")
+		if mechanic != null:
+			rows.append({"label": "伤害倍率", "value": "%.0f%%" % (mechanic.get_basic_attack_damage_ratio(owner) * 100.0)})
+			rows.append({"label": "索敌距离", "value": "%.1f" % mechanic.get_basic_attack_range(owner)})
+			rows.append({"label": "蜘蛛速度", "value": "%.1f" % mechanic.get_spider_speed(owner)})
+			rows.append({"label": "每次释放", "value": "%d 只蜘蛛" % mechanic.get_spider_count(owner)})
+			rows.append({"label": "额外穿透", "value": "%d 个敌人" % mechanic.get_spider_pierce_bonus(owner)})
+	for talent_slot in SKILL_LEVELS.get_granted_talent_slots(owner, role_id, progress_id):
+		var definition := SKILL_LEVELS.get_talent_definition(role_id, progress_id, int(talent_slot))
+		if not definition.is_empty():
+			var note := str(slot.get("effect_note", ""))
+			slot["effect_note"] = (note + "\n" if note != "" else "") + str(definition["title"]) + "：" + str(definition["summary"])
 	rows.append({"label": "攻击间隔" if skill_id.ends_with("_basic_attack") else "冷却时间", "value": "%.2f 秒" % float(slot.get("duration", 0.0))})
 	slot["effect_rows"] = rows
 

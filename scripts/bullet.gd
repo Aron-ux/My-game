@@ -94,6 +94,7 @@ static func clear_runtime_state() -> void:
 @export var split_radius: float = 58.0
 @export var split_visual_bullet_count: int = 12
 @export var split_burst_enabled: bool = false
+@export var impact_blast_radius: float = 0.0
 
 var direction: Vector2 = Vector2.RIGHT
 var target: Node2D
@@ -311,6 +312,7 @@ func _ensure_projectile_scene_defaults() -> void:
 		"split_radius": split_radius,
 		"split_visual_bullet_count": split_visual_bullet_count,
 		"split_burst_enabled": split_burst_enabled,
+		"impact_blast_radius": impact_blast_radius,
 		"wave_amplitude": wave_amplitude,
 		"wave_frequency": wave_frequency,
 		"wave_phase": wave_phase
@@ -350,6 +352,7 @@ func reset_projectile(config: Dictionary = {}) -> void:
 	split_radius = float(config.get("split_radius", _projectile_scene_default("split_radius", 58.0)))
 	split_visual_bullet_count = int(config.get("split_visual_bullet_count", _projectile_scene_default("split_visual_bullet_count", 12)))
 	split_burst_enabled = bool(config.get("split_burst_enabled", _projectile_scene_default("split_burst_enabled", false)))
+	impact_blast_radius = maxf(0.0, float(config.get("impact_blast_radius", _projectile_scene_default("impact_blast_radius", 0.0))))
 
 	var configured_direction: Vector2 = config.get("direction", Vector2.RIGHT)
 	direction = configured_direction.normalized()
@@ -600,6 +603,8 @@ func _apply_hit(enemy: Node2D) -> void:
 	_apply_entry_repulse(enemy)
 
 	_spawn_impact_effect(enemy.global_position, killed)
+	if impact_blast_radius > 0.0:
+		_apply_impact_blast(enemy.global_position)
 	if split_burst_enabled and split_count > 0 and not split_triggered:
 		split_triggered = true
 		_trigger_split_bursts(enemy.global_position)
@@ -619,6 +624,20 @@ func _apply_hit(enemy: Node2D) -> void:
 		return
 
 	_release_or_free()
+
+func _apply_impact_blast(center: Vector2) -> void:
+	var radius := impact_blast_radius
+	impact_blast_radius = 0.0
+	if radius <= 0.0:
+		return
+	# Visual limits must not suppress the talent's damage.
+	if _consume_split_burst_budget():
+		_spawn_split_visual(center, radius, 0)
+	if source_player != null and is_instance_valid(source_player) and source_player.has_method("_damage_enemies_in_radius"):
+		var hits: int = source_player._damage_enemies_in_radius(center, radius, damage, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id)
+		if hits > 0 and source_player.has_method("_register_attack_result"):
+			source_player._register_attack_result(source_role_id, hits, false)
+
 
 func _get_hit_damage(enemy: Node2D) -> float:
 	return damage * 1.15 if bool(get_meta("mage_surge_rapid", false)) and str(enemy.get("enemy_kind")) in ["elite", "small_boss", "boss"] else damage

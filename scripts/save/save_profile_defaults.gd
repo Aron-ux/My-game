@@ -38,6 +38,7 @@ static func build_default_endless_profile(slot_id: int) -> Dictionary:
 		"highest_cleared_tier": 0,
 		"selected_tier": 1,
 		"last_rewarded_run_id": "",
+		"last_clear_summary": {},
 		"created_unix": Time.get_unix_time_from_system(),
 		"last_updated_unix": Time.get_unix_time_from_system()
 	})
@@ -56,6 +57,14 @@ static func ensure_endless_profile_defaults(profile: Dictionary, slot_id: int) -
 		int(normalized["highest_cleared_tier"]) + 1
 	)
 	normalized["last_rewarded_run_id"] = str(normalized.get("last_rewarded_run_id", ""))
+	var last_clear: Variant = normalized.get("last_clear_summary", {})
+	normalized["last_clear_summary"] = {}
+	if last_clear is Dictionary and RUAN_STONE_SYSTEM._non_negative_int(last_clear.get("tier", 0)) > 0:
+		normalized["last_clear_summary"] = {
+			"tier": RUAN_STONE_SYSTEM._non_negative_int(last_clear["tier"]),
+			"bones": RUAN_STONE_SYSTEM._non_negative_int(last_clear.get("bones", 0)),
+			"first_clear": bool(last_clear.get("first_clear", false))
+		}
 	var endless_team: Variant = normalized.get("team_order", ROLE_DATABASE.DEFAULT_TEAM_IDS.duplicate())
 	if not (endless_team is Array):
 		endless_team = ROLE_DATABASE.DEFAULT_TEAM_IDS.duplicate()

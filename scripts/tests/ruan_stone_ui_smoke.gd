@@ -3,6 +3,7 @@ extends SceneTree
 const CHARACTER_PANEL := preload("res://scripts/ui/hud/character_panel.gd")
 const HUD := preload("res://scripts/hud.gd")
 const PLAYER_STAT_PAYLOAD := preload("res://scripts/player/player_stat_payload.gd")
+const SHEET := preload("res://scripts/player/player_character_sheet.gd")
 
 var failures: Array[String] = []
 
@@ -72,10 +73,21 @@ func _run() -> void:
 	var text := _collect_text(character_panel.detail)
 	_expect(text.contains("全队共享") and text.contains("3 / 5") and text.contains("雷石 × 3"), "阮石详情未显示共享范围、数量与携带明细。")
 	_expect(text.contains("不可赠与") and text.contains("上限"), "阮石详情未明确不可赠与及上限规则。")
+	player.ruan_stone_purchased = []
+	var before_crit: float = player._get_critical_damage_multiplier("swordsman")
 	player.ruan_stone_purchased = ["rusted_dagger"]
+	_expect(is_equal_approx(player._get_critical_damage_multiplier("swordsman"), before_crit + 0.08), "匕首的暴伤必须进入实际战斗计算。")
+	for row in SHEET.get_stats(player, player.roles[0]):
+		if row.id == "crit_damage":
+			_expect(is_equal_approx(row.value, before_crit + 0.08), "人物页暴伤应与战斗一致。")
+			var found_source := false
+			for source in row.sources:
+				if str(source.label).contains("生锈的匕首") and is_equal_approx(source.value, 0.08):
+					found_source = true
+			_expect(found_source, "人物页应标明匕首暴伤的具体来源。")
 	character_panel._set_tab("equipment")
 	text = _collect_text(character_panel.detail)
-	_expect(text.contains("暴击率 +8%") and not text.contains("暴击伤害 +8%"), "阮石详情不应承诺尚未进入战斗计算的暴伤加成。")
+	_expect(text.contains("暴击率 +8%") and text.contains("暴击伤害 +8%"), "阮石详情应包含实际进入战斗计算的暴伤加成。")
 	character_panel.free()
 	player.free()
 	root.remove_child(hud)

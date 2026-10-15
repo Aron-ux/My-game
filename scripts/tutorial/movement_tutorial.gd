@@ -305,7 +305,7 @@ func _update_step_text() -> void:
 			tutorial_label.text = "按 Q 切换上一名队友" if switch_step == SwitchTutorialStep.PREV_ROLE else "按 E 切换下一名队友"
 			continue_label.visible = false
 		TutorialStep.SWITCH_ENERGY:
-			tutorial_label.text = "切人能量满后切换角色，会触发退场技和登场技" if switch_energy_step == SwitchEnergyTutorialStep.INTRO else "按 Q/E 切换角色释放登场技"
+			tutorial_label.text = "当前角色切换能量满时，切人会消耗其能量，触发新角色的登场技" if switch_energy_step == SwitchEnergyTutorialStep.INTRO else "按 Q/E 切换角色释放登场技"
 			continue_label.visible = false
 		TutorialStep.ULTIMATE:
 			tutorial_label.text = "终极技能能量收集完毕，按 R 释放你的终极技能"

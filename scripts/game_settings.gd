@@ -254,9 +254,9 @@ static func get_hud_layout_options() -> Array[String]:
 static func get_hud_layout_label(layout_key: String) -> String:
 	match normalize_hud_layout(layout_key):
 		HUD_LAYOUT_TEAM_BAND:
-			return "新版：三行队伍状态带"
+			return "三行队伍状态带"
 		_:
-			return "旧版：底部技能栏"
+			return "底部技能栏"
 
 static func get_window_size(size_key: String = "") -> Vector2i:
 	var resolved_key := size_key if size_key != "" else load_window_size_key()

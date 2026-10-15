@@ -145,12 +145,12 @@ static func load_story_profile(slot_id: int = -1) -> Dictionary:
 		return _ensure_profile_defaults(parsed, resolved)
 	return {}
 
-static func save_story_profile(profile: Dictionary, slot_id: int = -1) -> void:
+static func save_story_profile(profile: Dictionary, slot_id: int = -1) -> int:
 	var resolved := _resolve_slot(slot_id)
 	if resolved < 1:
-		return
+		return 0
 	set_active_slot(resolved)
-	_write_json(_profile_path(resolved), _ensure_profile_defaults(profile, resolved))
+	return _write_json(_profile_path(resolved), _ensure_profile_defaults(profile, resolved))
 
 static func delete_story_profile(slot_id: int) -> void:
 	if slot_id < 1 or slot_id > STORY_SLOT_COUNT:
@@ -430,6 +430,7 @@ static func settle_endless_profile(profile: Dictionary, tier: int, run_id: Strin
 	profile["highest_cleared_tier"] = max(previous_highest, safe_tier)
 	profile["selected_tier"] = safe_tier + 1 if first_clear else safe_tier
 	profile["last_rewarded_run_id"] = run_id
+	profile["last_clear_summary"] = {"tier": safe_tier, "bones": total_reward, "first_clear": first_clear}
 	result.merge({
 		"applied": true,
 		"base_reward": ENDLESS_CLEAR_BONE_REWARD,
