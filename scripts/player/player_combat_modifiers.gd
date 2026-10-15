@@ -16,6 +16,7 @@ const PLAYER_EQUIPMENT_FLOW := preload("res://scripts/player/player_equipment_fl
 const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")
 const PLAYER_RUAN_STONE_STAT_FLOW := preload("res://scripts/player/player_ruan_stone_stat_flow.gd")
 const PLAYER_BLESSING_SYSTEM := preload("res://scripts/player/player_blessing_system.gd")
+const VULNERABILITY_RULES := preload("res://scripts/combat/vulnerability_rules.gd")
 
 const DAMAGE_REDUCTION_RATE_SCALE := 0.75
 const DAMAGE_REDUCTION_VALUE_SCALE := 160.0
@@ -42,6 +43,25 @@ static func get_effective_damage_taken_multiplier(owner) -> float:
 		return 1.0
 	var damage_reduction_rate: float = get_role_damage_reduction_rate(owner, _get_active_role_id(owner))
 	return max(0.0, 1.0 - damage_reduction_rate)
+
+
+static func get_role_vulnerability_rate(owner, role_id: String = "") -> float:
+	if owner == null:
+		return 0.0
+	var resolved_role_id := role_id if role_id != "" else _get_active_role_id(owner)
+	var direct_value: Variant = owner.get("vulnerability_rate")
+	if direct_value != null:
+		return maxf(0.0, float(direct_value))
+	var roles_value: Variant = owner.get("roles")
+	if roles_value is Array:
+		for role_data in roles_value:
+			if role_data is Dictionary and str((role_data as Dictionary).get("id", "")) == resolved_role_id:
+				return maxf(0.0, float((role_data as Dictionary).get("vulnerability_rate", 0.0)))
+	return 0.0
+
+
+static func get_effective_vulnerability_multiplier(owner, role_id: String = "") -> float:
+	return VULNERABILITY_RULES.get_multiplier(get_role_vulnerability_rate(owner, role_id))
 
 
 static func get_role_damage_reduction_rate(owner, role_id: String = "", sources: Variant = null) -> float:

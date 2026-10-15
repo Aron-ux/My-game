@@ -32,6 +32,7 @@ static func ready(owner) -> void:
 	owner.speed = owner.base_speed
 	owner.pickup_radius = owner.base_pickup_radius
 	owner.passive_damage_reduction_value = 0.0
+	owner.vulnerability_rate = 0.0
 	owner.equipment_damage_multiplier_bonus = 0.0
 	owner.equipment_speed_bonus = 0.0
 	owner.equipment_max_health_bonus = 0.0

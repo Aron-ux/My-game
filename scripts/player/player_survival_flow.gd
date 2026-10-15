@@ -424,12 +424,13 @@ static func take_damage(owner, amount: float, source_enemy: Node = null, ignore_
 
 	var armor: float = float(owner.get_role_armor()) if owner.has_method("get_role_armor") else 0.0
 	var armored_damage: float = amount if ignore_armor else ARMOR_RULES.apply_damage(amount, armor)
+	var vulnerability_multiplier: float = owner._get_effective_vulnerability_multiplier() if owner.has_method("_get_effective_vulnerability_multiplier") else 1.0
 	var damage_reduction_multiplier: float = owner._get_effective_damage_taken_multiplier() * _get_swordsman_talent_damage_taken_multiplier(owner)
 	if owner._get_active_role()["id"] == "swordsman":
 		var nearby_enemy_count: int = owner._count_enemies_in_radius(owner.get_hurtbox_center(), 62.0)
 		if nearby_enemy_count > 0:
 			damage_reduction_multiplier *= max(0.84, 0.96 - min(nearby_enemy_count, 3) * 0.04)
-	var adjusted_damage: float = armored_damage * damage_reduction_multiplier
+	var adjusted_damage: float = armored_damage * vulnerability_multiplier * damage_reduction_multiplier
 	var remaining_damage: float = adjusted_damage
 	if adjusted_damage > 0.0 and owner.current_temporary_health > 0.0:
 		var absorbed_damage: float = owner._consume_temporary_health(adjusted_damage) if owner.has_method("_consume_temporary_health") else min(owner.current_temporary_health, adjusted_damage)

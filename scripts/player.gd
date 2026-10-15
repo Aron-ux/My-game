@@ -282,6 +282,7 @@ var global_damage_multiplier: float = 1.0
 var background_interval_multiplier: float = 1.0
 var ultimate_cost_multiplier: float = 1.0
 var damage_taken_multiplier: float = 1.0
+var vulnerability_rate: float = 0.0
 var passive_damage_reduction_value: float = 0.0
 var role_switch_cooldown_bonus: float = 0.0
 
@@ -1166,6 +1167,9 @@ func _get_priority_target_bonus(enemy: Node) -> float:
 
 func _get_effective_damage_taken_multiplier() -> float:
 	return PLAYER_COMBAT_MODIFIERS.get_effective_damage_taken_multiplier(self)
+
+func _get_effective_vulnerability_multiplier() -> float:
+	return PLAYER_COMBAT_MODIFIERS.get_effective_vulnerability_multiplier(self)
 
 func _get_equipment_low_health_damage_taken_multiplier() -> float:
 	return PLAYER_EQUIPMENT_FLOW.get_low_health_damage_taken_multiplier(self)

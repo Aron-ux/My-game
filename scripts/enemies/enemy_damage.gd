@@ -9,6 +9,7 @@ const ENEMY_GLUTTON_SKILL_BEHAVIOR := preload("res://scripts/enemies/enemy_glutt
 const ENEMY_MUSHROOM_SWARM := preload("res://scripts/enemies/enemy_mushroom_swarm.gd")
 const PLAYER_GUNNER_BASIC_TALENT_FLOW := preload("res://scripts/player/player_gunner_basic_talent_flow.gd")
 const PLAYER_COMBAT_MODIFIERS := preload("res://scripts/player/player_combat_modifiers.gd")
+const VULNERABILITY_RULES := preload("res://scripts/combat/vulnerability_rules.gd")
 
 static func take_damage(enemy, amount: float, is_critical: bool = false) -> bool:
 	return apply_damage(enemy, amount, true, is_critical)
@@ -66,14 +67,14 @@ static func apply_damage(enemy, amount: float, show_feedback: bool = true, is_cr
 	if mage.is_ice_active(enemy):
 		damage_reduction_multiplier *= 0.8
 	damage_reduction_multiplier *= max(0.0, ENEMY_GLUTTON_SKILL_BEHAVIOR.get_damage_taken_multiplier(enemy))
-	# Vulnerability state is retained for status/UI compatibility, but has no damage effect.
-	var adjusted_damage: float = amount if direct_damage else armored_damage * damage_reduction_multiplier
-	adjusted_damage += ARMOR_RULES.apply_damage(electric_damage, effective_armor) * damage_reduction_multiplier
+	var vulnerability_multiplier := VULNERABILITY_RULES.get_multiplier(maxf(0.0, float(enemy.vulnerability_bonus)))
+	var adjusted_damage: float = amount * vulnerability_multiplier if direct_damage else armored_damage * vulnerability_multiplier * damage_reduction_multiplier
+	adjusted_damage += ARMOR_RULES.apply_damage(electric_damage, effective_armor) * vulnerability_multiplier * damage_reduction_multiplier
 	if direct_damage and ENEMY_BOSS_STATE.has_boss_shield(enemy):
 		# Shield is stored above the phase health bar. Track bypassed HP
 		# separately so direct hits cannot consume it or fire shield-break.
 		var health_left: float = ENEMY_BOSS_STATE.get_phase_bar_max_health(enemy) - enemy.boss_direct_health_loss
-		var bypassed: float = minf(amount, maxf(0.0, health_left))
+		var bypassed: float = minf(amount * vulnerability_multiplier, maxf(0.0, health_left))
 		enemy.boss_direct_health_loss += bypassed
 		adjusted_damage = bypassed + ARMOR_RULES.apply_damage(electric_damage, effective_armor) * damage_reduction_multiplier
 	enemy.current_health -= mage.absorb_temporary_health(enemy, adjusted_damage)
