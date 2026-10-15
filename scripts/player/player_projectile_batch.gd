@@ -26,6 +26,7 @@ const HEAVY_PROJECTILE_COUNT := 360
 const RENDER_INSTANCE_FLOATS := 12
 
 var positions: Array[Vector2] = []
+var previous_positions: Array[Vector2] = []
 var source_origins: Array[Vector2] = []
 var directions: Array[Vector2] = []
 var damages: PackedFloat32Array = PackedFloat32Array()
@@ -115,6 +116,7 @@ func add_projectile(data: Dictionary) -> bool:
 	shot_direction = shot_direction.normalized()
 	var spawn_position: Vector2 = data.get("position", Vector2.ZERO) as Vector2
 	positions.append(spawn_position)
+	previous_positions.append(spawn_position)
 	source_origins.append(data.get("source_origin", spawn_position) as Vector2)
 	directions.append(shot_direction)
 	damages.append(float(data.get("damage", 0.0)))
@@ -204,6 +206,7 @@ func add_projectile_values(
 		shot_direction = Vector2.RIGHT
 	shot_direction = shot_direction.normalized()
 	positions.append(spawn_position)
+	previous_positions.append(spawn_position)
 	source_origins.append(source_origin)
 	directions.append(shot_direction)
 	damages.append(damage)
@@ -280,6 +283,7 @@ func _update_projectiles(delta: float) -> void:
 			_remove_projectile(index)
 			continue
 		var speed: float = speeds[index] + difficulty_projectile_speed_bonus
+		previous_positions[index] = positions[index]
 		if wave_amplitudes[index] > 0.0:
 			_update_wave_projectile(index, delta, speed)
 		else:
@@ -353,22 +357,25 @@ func _get_damage_batcher() -> RefCounted:
 	return reusable_damage_batcher
 
 func _find_hit_enemy(projectile_index: int, grid: Dictionary) -> Node2D:
-	var projectile_position: Vector2 = positions[projectile_index]
+	var start_position: Vector2 = previous_positions[projectile_index]
+	var end_position: Vector2 = positions[projectile_index]
 	var projectile_radius: float = hit_radii[projectile_index]
 	var radius_scale: float = enemy_hit_radius_scales[projectile_index]
 	var minimum: float = enemy_hit_radius_mins[projectile_index]
 	var maximum: float = enemy_hit_radius_maxs[projectile_index]
 	var prior_hits: Variant = hit_enemy_ids[projectile_index]
 	var has_prior_hits: bool = prior_hits is Dictionary and not prior_hits.is_empty()
-	var total_cell_radius: float = projectile_radius + PLAYER_DAMAGE_RESOLVER.BOSS_MODEL_HURTBOX_QUERY_PADDING
-	for enemy in PLAYER_PROJECTILE_QUERY.get_candidates(grid, projectile_position, total_cell_radius):
+	var segment_length: float = start_position.distance_to(end_position)
+	var query_center: Vector2 = (start_position + end_position) * 0.5
+	var total_cell_radius: float = segment_length * 0.5 + projectile_radius + PLAYER_DAMAGE_RESOLVER.BOSS_MODEL_HURTBOX_QUERY_PADDING
+	for enemy in PLAYER_PROJECTILE_QUERY.get_candidates(grid, query_center, total_cell_radius):
 		if enemy == null or not is_instance_valid(enemy) or enemy is not Node2D:
 			continue
 		if has_prior_hits and prior_hits.has(enemy.get_instance_id()):
 			continue
 		# Geometry has no side effects. Only overlapping candidates need the
 		# live-health/rebirth checks; already pierced targets stay excluded.
-		if not _projectile_hits_enemy_shape(projectile_position, projectile_radius, enemy as Node2D, radius_scale, minimum, maximum):
+		if not _projectile_swept_hits_enemy_shape(start_position, end_position, projectile_radius, enemy as Node2D, radius_scale, minimum, maximum):
 			continue
 		if not PLAYER_DAMAGE_RESOLVER._is_live_enemy(enemy):
 			continue
@@ -568,12 +575,27 @@ func _projectile_hits_enemy_shape(projectile_position: Vector2, projectile_radiu
 	var total_radius: float = projectile_radius + enemy_radius
 	return projectile_position.distance_squared_to(enemy.global_position) <= total_radius * total_radius
 
+func _projectile_swept_hits_enemy_shape(start_position: Vector2, end_position: Vector2, projectile_radius: float, enemy: Node2D, radius_scale: float, minimum: float, maximum: float) -> bool:
+	var enemy_hit_shape: Dictionary = PLAYER_DAMAGE_RESOLVER.get_enemy_player_hit_shape(enemy)
+	if not enemy_hit_shape.is_empty():
+		return PLAYER_DAMAGE_RESOLVER._enemy_shape_hits_line(enemy_hit_shape, start_position, end_position, projectile_radius)
+	var enemy_radius: float = _get_enemy_hit_radius(enemy, radius_scale, minimum, maximum)
+	var total_radius: float = projectile_radius + enemy_radius
+	var segment: Vector2 = end_position - start_position
+	var segment_length_squared: float = segment.length_squared()
+	var closest_point := start_position
+	if segment_length_squared > 0.001:
+		var t: float = clamp((enemy.global_position - start_position).dot(segment) / segment_length_squared, 0.0, 1.0)
+		closest_point = start_position + segment * t
+	return enemy.global_position.distance_squared_to(closest_point) <= total_radius * total_radius
+
 func _remove_projectile(index: int) -> void:
 	var last_index := positions.size() - 1
 	PLAYER_DAMAGE_RESOLVER.release_gunner_damage_event(source_player, damage_event_ids[index])
 	if index != last_index:
 		var removed_damage_enabled: bool = damage_enabled_flags[index]
 		positions[index] = positions[last_index]
+		previous_positions[index] = previous_positions[last_index]
 		source_origins[index] = source_origins[last_index]
 		directions[index] = directions[last_index]
 		damages[index] = damages[last_index]
@@ -622,6 +644,7 @@ func _remove_projectile(index: int) -> void:
 	elif damage_enabled_flags[index]:
 		damage_enabled_count -= 1
 	positions.pop_back()
+	previous_positions.pop_back()
 	source_origins.pop_back()
 	directions.pop_back()
 	damages.resize(last_index)
@@ -672,6 +695,7 @@ func _clear_projectiles() -> void:
 	for damage_event_id in damage_event_ids:
 		PLAYER_DAMAGE_RESOLVER.release_gunner_damage_event(source_player, damage_event_id)
 	positions.clear()
+	previous_positions.clear()
 	source_origins.clear()
 	directions.clear()
 	damages.clear()
