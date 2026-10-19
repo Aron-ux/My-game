@@ -262,6 +262,7 @@ static func _cleanse_negative_statuses(owner) -> void:
 		owner.enemy_move_slow_remaining = 0.0
 	if owner.get("enemy_move_slow_multiplier") != null:
 		owner.enemy_move_slow_multiplier = 1.0
+	preload("res://scripts/combat/movement_slow.gd").clear(owner)
 	if owner.has_method("_clear_duration_status"):
 		for status_id in ["orbit_pull", "entangled", "healing_block", "aging", "confinement"]:
 			owner._clear_duration_status(status_id)

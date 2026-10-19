@@ -66,6 +66,11 @@ static func process_pending_enemy_spawns(main: Node) -> void:
 static func spawn_queued_enemy_request(main: Node, request: Dictionary) -> void:
 	if main.game_over or main.player == null or main.enemy_scene == null:
 		return
+	if is_instance_valid(main.get("wave_flow")) and main.wave_flow.phase != "combat":
+		return
+	if int(request.get("wave_token", 0)) != 0:
+		if not is_instance_valid(main.get("wave_flow")) or not main.wave_flow.accept_spawn(request):
+			return
 	var kind: String = str(request.get("kind", "normal"))
 	var archetype: String = str(request.get("archetype", "chaser"))
 	var health_multiplier: float = float(request.get("health_multiplier", 1.0))

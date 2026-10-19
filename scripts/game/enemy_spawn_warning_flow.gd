@@ -6,11 +6,12 @@ const SPAWN_WARNING_BATCH := preload("res://scripts/game/spawn_warning_batch.gd"
 const SPAWN_WARNING_RADIUS := 26.0
 
 
-static func show_enemy_spawn_warning(main: Node, archetype: String, health_multiplier: float, speed_multiplier: float, damage_multiplier: float, spawn_position: Vector2) -> void:
+static func show_enemy_spawn_warning(main: Node, archetype: String, health_multiplier: float, speed_multiplier: float, damage_multiplier: float, spawn_position: Vector2, wave_token: int = 0) -> void:
 	var batch: Node = get_spawn_warning_batch(main)
 	if batch != null:
 		batch.add_warning(spawn_position, SPAWN_WARNING_RADIUS, {
 			"archetype": archetype,
+			"wave_token": wave_token,
 			"health_multiplier": health_multiplier,
 			"speed_multiplier": speed_multiplier,
 			"damage_multiplier": damage_multiplier,
@@ -21,7 +22,7 @@ static func show_enemy_spawn_warning(main: Node, archetype: String, health_multi
 	warning.global_position = spawn_position
 	main.add_child(warning)
 	warning.finished.connect(func() -> void:
-		spawn_after_warning(main, archetype, health_multiplier, speed_multiplier, damage_multiplier, spawn_position)
+		spawn_after_warning(main, archetype, health_multiplier, speed_multiplier, damage_multiplier, spawn_position, wave_token)
 	, CONNECT_ONE_SHOT)
 	warning.configure(SPAWN_WARNING_RADIUS)
 
@@ -45,20 +46,24 @@ static func get_spawn_warning_batch(main: Node) -> Node:
 				float(payload.get("health_multiplier", 1.0)),
 				float(payload.get("speed_multiplier", 1.0)),
 				float(payload.get("damage_multiplier", 1.0)),
-				payload.get("spawn_position", Vector2.ZERO)
+				payload.get("spawn_position", Vector2.ZERO),
+				int(payload.get("wave_token", 0))
 			)
 		)
 	return batch
 
 
-static func spawn_after_warning(main: Node, archetype: String, health_multiplier: float, speed_multiplier: float, damage_multiplier: float, spawn_position: Vector2) -> void:
+static func spawn_after_warning(main: Node, archetype: String, health_multiplier: float, speed_multiplier: float, damage_multiplier: float, spawn_position: Vector2, wave_token: int = 0) -> void:
 	if main == null or not is_instance_valid(main) or bool(main.get("game_over")):
 		return
 	if main.get("player") == null:
 		return
+	if wave_token != 0 and (not is_instance_valid(main.get("wave_flow")) or main.wave_flow.phase != "combat" or main.wave_flow.token != wave_token):
+		return
 	if main.has_method("queue_runtime_enemy_spawn"):
 		main.queue_runtime_enemy_spawn({
 			"kind": "normal",
+			"wave_token": wave_token,
 			"archetype": archetype,
 			"health_multiplier": health_multiplier,
 			"speed_multiplier": speed_multiplier,

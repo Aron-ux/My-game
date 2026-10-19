@@ -31,6 +31,8 @@ static func restore_swordsman_ground_cracks(main: Node, cracks_data: Array) -> v
 
 static func append_group_save_data(main: Node, save_data: Dictionary, save_key: String, group_name: String) -> void:
 	for node in get_runtime_or_group_nodes(main, group_name):
+		if is_instance_valid(node) and node.has_meta("wave_cleanup"):
+			continue
 		if is_instance_valid(node) and node.has_method("get_save_data"):
 			(save_data[save_key] as Array).append(node.get_save_data())
 

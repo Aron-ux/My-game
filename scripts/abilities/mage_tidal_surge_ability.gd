@@ -166,6 +166,7 @@ func _spawn_wave(owner, origin: Vector2, fire_direction: Vector2, damage_amount:
 	if _has_talent(owner, "mage_surge_vortex"):
 		speed_multiplier *= 0.85
 		width_multiplier *= 1.30
+		wave.slow_source_id = "mage_tidal_surge"
 		wave.slow_multiplier = 0.80
 		wave.slow_duration = 1.0
 	elif _has_talent(owner, "mage_surge_rapid"):

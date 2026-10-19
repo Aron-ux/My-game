@@ -19,12 +19,12 @@ const ROLE_PRIMARY_ATTRIBUTES := {
 	"mechanic": ATTR_MECHANIC
 }
 
-const SWORDSMAN_TRAIT_HEAL_BASE_PROC_CHANCE := 0.05
+const SWORDSMAN_TRAIT_HEAL_BASE_PROC_CHANCE := 0.30
 const SWORDSMAN_TRAIT_HEAL_PROC_CHANCE_PER_LEVEL := 0.0
 const SWORDSMAN_TRAIT_HEAL_RATIO := 0.03
 const SWORDSMAN_TRAIT_MISSING_HEAL_RATIO := 0.03
 const SWORDSMAN_TRAIT_HEAL_COOLDOWN := 1.0
-const SWORDSMAN_TRAIT_MAX_ROLL_HITS := 2
+const SWORDSMAN_TRAIT_MAX_ROLL_HITS := 4
 const SWORDSMAN_BASE_DODGE_CHANCE := 0.03
 const GUNNER_BASE_DODGE_CHANCE := 0.15
 const MAGE_BASE_DODGE_CHANCE := 0.03
@@ -147,7 +147,7 @@ static func get_role_attribute_description(_role_id: String, attribute_key: Stri
 	var level := get_effective_level(next_level)
 	match attribute_key:
 		ATTR_SWORDSMAN:
-			return "剑士特性提升到 Lv.%s：剑士造成伤害时有 %.0f%% 概率回复自身最大生命值 %.0f%% 与已损失生命值 %.0f%% 的生命值，每秒最多触发 1 次，多目标最多同时触发 %d 次；受到致命伤时保留 1 点生命并进入 1.5s 战意，之后进入 80s CD。" % [
+			return "剑士特性提升到 Lv.%s：仅普通攻击命中时有 %.0f%% 概率回复自身最大生命值 %.0f%% 与已损失生命值 %.0f%% 的生命值，触发后冷却 1 秒，同一次攻击命中多个敌人最多判定 %d 次；受到致命伤时保留 1 点生命并进入 1.5s 战意，之后进入 80s CD。" % [
 				_format_level(level),
 				get_swordsman_trait_heal_proc_chance(level) * 100.0,
 				get_swordsman_trait_heal_amount(level) * 100.0,

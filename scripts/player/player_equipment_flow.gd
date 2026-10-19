@@ -326,7 +326,12 @@ static func get_role_dodge_chance(owner, role_id: String, breakdown: Variant = n
 	sources.append(preload("res://scripts/player/player_blade_storm_build.gd").bonus(owner, resolved_role_id, "dodge"))
 	if breakdown != null:
 		breakdown.append({"label": "剑刃风暴", "value": sources[-1], "op": "chance"})
-	return calculate_dodge_chance(sources)
+	var infinite_bonus := 0.0
+	if owner.get("gunner_infinite_reload_ability") != null:
+		infinite_bonus = float(owner.gunner_infinite_reload_ability.get_dodge_chance_bonus(resolved_role_id))
+	if breakdown != null and infinite_bonus > 0.0:
+		breakdown.append({"label": "轻盈步伐", "value": infinite_bonus, "op": "add"})
+	return clampf(calculate_dodge_chance(sources) + infinite_bonus, 0.0, 1.0)
 
 
 static func calculate_dodge_chance(sources: Array[float]) -> float:

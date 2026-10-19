@@ -348,7 +348,7 @@ static func _apply_death_buffs(enemy) -> void:
 	if scene == null:
 		return
 	if enemy.target != null and is_instance_valid(enemy.target) and enemy.target.has_method("apply_enemy_slow"):
-		enemy.target.apply_enemy_slow(enemy.skulltomb_death_player_slow_multiplier, enemy.skulltomb_death_player_slow_duration)
+		enemy.target.apply_enemy_slow(enemy.skulltomb_death_player_slow_multiplier, enemy.skulltomb_death_player_slow_duration, "skulltomb_tomb")
 	for other in _get_runtime_enemies(scene):
 		if _is_skull_shot(other):
 			other.skullshot_attack_frequency_multiplier = max(float(other.skullshot_attack_frequency_multiplier), enemy.skulltomb_death_shot_frequency_multiplier)

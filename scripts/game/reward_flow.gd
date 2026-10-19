@@ -10,6 +10,8 @@ const BLESSING_BINDING_RETURN_CONTEXT_META := "blessing_binding_return_context"
 const DIRECT_BLESSING_CHOICE_COUNT := 2
 const DIRECT_BLESSING_TIER_TWO := 2
 const SKILL_TALENT_CONTEXT := "skill_talent_choice"
+const SKILL_POINT_CONTEXT := "skill_point_choice"
+const WAVE_BLESSING_CONTEXT := "wave_blessing"
 const ENDLESS_TIER_CLEAR_CONTEXT := "endless_tier_clear"
 const ENDLESS_TIER_CLEAR_OPTION_ID := "endless_tier_clear_confirm"
 const ENDLESS_TIER_CLEAR_RETRY_OPTION_ID := "endless_tier_clear_retry"
@@ -26,6 +28,49 @@ static func show_level_up(main: Node, options: Array) -> void:
 		options = main.player._build_upgrade_options()
 	var offer_context := _get_current_blessing_offer_context(main)
 	main.level_up_ui.show_options(options, [], offer_context)
+
+static func show_skill_point_allocation(main: Node, skill_id: String = "", role_id: String = "") -> void:
+	if main.game_over or main.player == null or main.level_up_ui == null:
+		return
+	if main.get_tree().paused or main.player.is_dead or main.player.level_up_active or main.reward_context != "":
+		return
+	if int(main.player.get("skill_points")) <= 0:
+		return
+	var active_role_id := str(main.player._get_active_role().get("id", ""))
+	if role_id != "" and role_id != active_role_id:
+		return
+	if skill_id != "":
+		var levels = preload("res://scripts/player/player_skill_level_system.gd")
+		var progress_id := active_role_id + "_basic" if skill_id.ends_with("_basic_attack") else str(levels.UNLOCKABLE_PROGRESS.find_key(skill_id))
+		var visible_skills: Array = main.player._get_active_skill_cooldown_slots(1.0, false)
+		var is_visible := false
+		for slot in visible_skills:
+			if str(slot.get("skill_id", "")) == skill_id:
+				is_visible = true
+		if not is_visible or not levels.is_progress_upgradeable(main.player, progress_id) or levels.is_talent_pick_pending(main.player, active_role_id, progress_id):
+			return
+		if main.player.spend_skill_point():
+			var build = preload("res://scripts/player/player_build_system.gd")
+			var option: Dictionary = build._make_skill_upgrade_option(main.player, active_role_id, 0, progress_id)
+			_apply_player_upgrade(main, str(option.get("id", "")))
+			if _show_pending_skill_talent_choice(main):
+				return
+			_schedule_post_reward_maintenance(main)
+		return
+	if role_id == "":
+		return
+	var offer: Dictionary = main.player.current_blessing_offer if str(main.player.get("active_upgrade_kind")) == SKILL_POINT_CONTEXT and main.player.get("current_blessing_offer") is Dictionary else {}
+	if offer.is_empty():
+		offer = main.player.build_skill_point_offer()
+	var options: Array = offer.get("options", []) if offer.get("options", []) is Array else []
+	if options.is_empty():
+		return
+	main.player.current_blessing_offer = offer
+	main.player.level_up_active = true
+	main.player.active_upgrade_kind = SKILL_POINT_CONTEXT
+	main.reward_context = SKILL_POINT_CONTEXT
+	main.get_tree().paused = true
+	main.level_up_ui.show_options(options, [], offer.get("context", {}))
 
 static func handle_upgrade_refresh_requested(main: Node) -> void:
 	if main.game_over or not ["level_up", "small_boss_blessing_choice"].has(main.reward_context):
@@ -111,6 +156,22 @@ static func finish_stage_clear(main: Node) -> void:
 	main.get_tree().paused = true
 
 static func handle_upgrade_selected(main: Node, option_id: String, attribute_option_id: String = "") -> void:
+	if main.reward_context == WAVE_BLESSING_CONTEXT:
+		var flow = main.get("wave_flow")
+		if not is_instance_valid(flow) or not flow.blessing_pending:
+			return
+		var offered := false
+		for option: Dictionary in flow.blessing_offer.get("options", []):
+			if str(option.get("id", "")) == option_id:
+				offered = true
+				break
+		if not offered or attribute_option_id != "":
+			return
+		main.level_up_ui.hide_ui()
+		main.get_tree().paused = false
+		_apply_player_upgrade(main, option_id)
+		flow.finish_wave_blessing()
+		return
 	if main.level_up_ui != null and main.level_up_ui.has_method("hide_ui"):
 		main.level_up_ui.hide_ui()
 
@@ -151,6 +212,26 @@ static func handle_upgrade_selected(main: Node, option_id: String, attribute_opt
 		_schedule_post_reward_maintenance(main, true)
 		return
 
+	if main.reward_context == SKILL_POINT_CONTEXT:
+		var offer: Dictionary = main.player.current_blessing_offer if main.player != null and main.player.get("current_blessing_offer") is Dictionary else {}
+		var options: Array = offer.get("options", []) if offer.get("options", []) is Array else []
+		var was_offered := false
+		for option_value in options:
+			if option_value is Dictionary and str((option_value as Dictionary).get("id", "")) == option_id:
+				was_offered = true
+				break
+		if was_offered and main.player != null and main.player.spend_skill_point():
+			_apply_player_upgrade(main, option_id)
+		if main.player != null:
+			main.player.level_up_active = false
+			main.player.active_upgrade_kind = ""
+			main.player.current_blessing_offer = {}
+		if _show_pending_blessing_binding_choice(main, SKILL_POINT_CONTEXT):
+			return
+		main.reward_context = ""
+		_schedule_post_reward_maintenance(main)
+		return
+
 	if main.reward_context == "blessing_binding_choice":
 		var choice: Dictionary = main.get_meta(BLESSING_BINDING_CHOICE_META, {})
 		var return_context := str(main.get_meta(BLESSING_BINDING_RETURN_CONTEXT_META, ""))
@@ -166,6 +247,10 @@ static func handle_upgrade_selected(main: Node, option_id: String, attribute_opt
 			_finish_direct_blessing_choice(main)
 			return
 		if return_context == "level_up" and _show_pending_skill_talent_choice(main):
+			return
+		if return_context == SKILL_POINT_CONTEXT:
+			main.reward_context = ""
+			_schedule_post_reward_maintenance(main)
 			return
 		main.reward_context = ""
 		_schedule_post_reward_maintenance(main, true)
@@ -365,7 +450,34 @@ static func _show_pending_skill_talent_choice(main: Node) -> bool:
 	return true
 
 static func resume_saved_reward(main: Node) -> bool:
-	return _show_pending_skill_talent_choice(main)
+	if str(main.player.get("active_upgrade_kind")) == SKILL_POINT_CONTEXT:
+		if int(main.player.get("skill_points")) <= 0 or main.level_up_ui == null:
+			return false
+		main.player.level_up_active = true
+		main.reward_context = SKILL_POINT_CONTEXT
+		main.get_tree().paused = true
+		var offer: Dictionary = main.player.current_blessing_offer
+		main.level_up_ui.show_options(offer.get("options", []), [], offer.get("context", {}))
+		return true
+	if _show_pending_skill_talent_choice(main):
+		return true
+	var flow = main.get("wave_flow")
+	return flow.show_pending_blessing() if is_instance_valid(flow) else false
+
+static func show_wave_blessing(main: Node) -> bool:
+	if main.player == null or main.level_up_ui == null or not main.level_up_ui.has_method("show_options"):
+		return false
+	var flow = main.get("wave_flow")
+	if not is_instance_valid(flow) or not flow.blessing_pending:
+		return false
+	if flow.blessing_offer.is_empty():
+		flow.blessing_offer = preload("res://scripts/player/player_blessing_system.gd").build_wave_offer_for_owner(main.player)
+	main.player.current_blessing_offer = flow.blessing_offer.duplicate(true)
+	main.reward_context = WAVE_BLESSING_CONTEXT
+	main.get_tree().paused = true
+	main.level_up_ui.show_options(flow.blessing_offer.get("options", []), [], flow.blessing_offer.get("context", {}))
+	main._save_run_state()
+	return true
 
 static func _finish_direct_blessing_choice(main: Node) -> void:
 	var remaining_choices: int = max(0, int(main.get_meta(DIRECT_BLESSING_CHOICES_META, 1)) - 1)
@@ -381,6 +493,9 @@ static func _finish_direct_blessing_choice(main: Node) -> void:
 
 
 static func _schedule_post_reward_maintenance(main: Node, resume_level_ups: bool = false) -> void:
+	var wave_flow = main.get("wave_flow")
+	if is_instance_valid(wave_flow) and wave_flow.show_pending_blessing():
+		return
 	if main.has_method("_schedule_reward_maintenance"):
 		main._schedule_reward_maintenance(resume_level_ups)
 		return

@@ -6,6 +6,8 @@ const GLOBAL_UNIT_MOVE_SPEED_SCALE := 0.7
 const BOSS_MOVE_SPEED_SCALE := 0.7
 
 static func compute_velocity(enemy, delta: float) -> Vector2:
+	if enemy.has_meta("wave_flyby"):
+		return preload("res://scripts/enemies/enemy_swarm_flyby.gd").velocity(enemy, delta)
 	if enemy.behavior_id == "tree_seed":
 		return Vector2.ZERO
 	var to_target: Vector2 = enemy._cached_to_target

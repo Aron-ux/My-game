@@ -548,6 +548,9 @@ func apply_slow(multiplier: float, duration: float) -> void:
 func apply_slow_silent(multiplier: float, duration: float) -> void:
 	ENEMY_STATUS_EFFECTS.apply_slow_without_status_visuals(self, multiplier, duration)
 
+func apply_slow_from_source(multiplier: float, duration: float, source_id: String, silent: bool = false) -> void:
+	ENEMY_STATUS_EFFECTS._apply_slow(self, multiplier, duration, not silent, source_id)
+
 func apply_vulnerability(bonus: float, duration: float) -> void:
 	ENEMY_STATUS_EFFECTS.apply_vulnerability(self, bonus, duration)
 
@@ -632,3 +635,6 @@ func apply_stun(duration: float) -> bool:
 
 func take_direct_damage(amount: float) -> bool:
 	return ENEMY_DAMAGE.apply_damage(self, amount, true, false, true, true)
+
+func take_soul_impact_damage(amount: float) -> bool:
+	return ENEMY_DAMAGE.apply_damage(self, amount, true, false, true, true, false)

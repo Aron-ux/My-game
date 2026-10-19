@@ -28,6 +28,8 @@ static func reposition_distant_normal_enemies(main: Node) -> void:
 			continue
 		if str(enemy.get("enemy_kind")) != "normal":
 			continue
+		if enemy.has_meta("wave_flyby"):
+			continue
 		if player_position.distance_squared_to((enemy as Node2D).global_position) <= max_distance_squared:
 			continue
 		var direction: Vector2 = player_position.direction_to((enemy as Node2D).global_position)

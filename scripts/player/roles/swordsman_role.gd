@@ -170,7 +170,8 @@ func _perform_attack_variant(owner, attack_direction: Vector2, effect_scale: flo
 	var slow_multiplier: float = 0.75 if third_main_slash and _has_talent(owner, "swordsman_basic_opening") else 1.0
 	var slow_duration: float = 1.0 if slow_multiplier < 1.0 else 0.0
 	var damage_source_id := basic_source_id if basic_source_id != "" else str(role_data["id"])
-	var enemies_hit: int = owner._damage_enemies_in_oriented_rect_unique(slash_center, slash_axis, slash_length, slash_rect_width, attack_damage, 0.0, slow_multiplier, slow_duration, slash_hit_registry, damage_source_id)
+	var knockback_distance: float = 50.0 if SWORDSMAN_BASIC_BUILD.has_choice(owner, "brave") and damage_source_id.begins_with("swordsman_basic:") else 0.0
+	var enemies_hit: int = owner._damage_enemies_in_oriented_rect_unique(slash_center, slash_axis, slash_length, slash_rect_width, attack_damage, 0.0, slow_multiplier, slow_duration, slash_hit_registry, damage_source_id, "", knockback_distance)
 	if allow_followthrough:
 		owner._schedule_swordsman_slash_followthrough(slash_center, slash_axis, slash_length, slash_rect_width, attack_damage, 0.0, slow_multiplier, slow_duration, slash_animation_duration, damage_source_id, slash_hit_registry)
 	if enemies_hit > 0 and SWORDSMAN_BASIC_BUILD.has_choice(owner, "heavy") and owner.has_method("_queue_camera_shake"):

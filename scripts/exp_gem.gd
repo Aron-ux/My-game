@@ -74,6 +74,9 @@ func can_use_batch_simulation() -> bool:
 func _run_physics_tick(delta: float) -> void:
 	if pooled:
 		return
+	var scene: Node = get_tree().current_scene
+	if scene != null and is_instance_valid(scene.get("wave_flow")) and scene.wave_flow.phase == "clearing":
+		return
 	age_seconds += delta
 	if not attraction_active and age_seconds >= DESPAWN_SECONDS:
 		recycle()

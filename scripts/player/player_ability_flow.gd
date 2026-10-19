@@ -277,6 +277,10 @@ static func try_handle_manual_skill_slot(owner, slot_index: int) -> bool:
 		# 空槽（该角色还没有第 N 个主动技能）：给出反馈，避免看起来像按键失灵
 		_spawn_slot_feedback(owner, "该技能槽暂无技能", Color(0.78, 0.82, 0.9, 1.0))
 		return true
+	if skill_id == "infinite_reload" and owner.gunner_infinite_reload_ability != null and owner.gunner_infinite_reload_ability.is_manual_toggle_enabled(owner):
+		if owner.has_method("_is_player_action_locked") and owner._is_player_action_locked():
+			return false
+		return bool(owner.gunner_infinite_reload_ability.toggle_manual(owner))
 	# 自动释放状态下快捷键不施放，必须先切换为手动释放
 	if not GAME_SETTINGS.is_skill_manual(skill_id):
 		var title := str(PLAYER_BLESSING_SKILL_STATE.get_skill_title(skill_id))
@@ -285,7 +289,7 @@ static func try_handle_manual_skill_slot(owner, slot_index: int) -> bool:
 		var key_text := GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(GAME_SETTINGS.get_skill_slot_action_id(slot_index)))
 		_spawn_slot_feedback(owner, "%s：自动释放（Ctrl+%s 切换）" % [title, key_text], Color(0.62, 0.86, 1.0, 1.0))
 		return true
-	# 无限装填：持有“无限装填 I”天赋时是开关型技能（快捷键切换开关）；无天赋时按普通技能处理
+	# 普通无限装填按技能释放模式处理；火力调控在上方直接处理开关。
 	if skill_id == "infinite_reload":
 		var reload_ability: Variant = owner.get("gunner_infinite_reload_ability")
 		if reload_ability != null and reload_ability.has_method("is_manual_toggle_enabled") and bool(reload_ability.is_manual_toggle_enabled(owner)):
@@ -313,6 +317,9 @@ static func toggle_manual_skill_slot(owner, slot_index: int) -> bool:
 static func toggle_skill_manual(owner, skill_id: String) -> bool:
 	if skill_id == "":
 		return false
+	if skill_id == "infinite_reload" and owner != null and owner.get("gunner_infinite_reload_ability") != null and owner.gunner_infinite_reload_ability.is_manual_toggle_enabled(owner):
+		_spawn_slot_feedback(owner, "火力调控：按技能快捷键开启或关闭", Color(1.0, 0.86, 0.42))
+		return true
 	var manual := GAME_SETTINGS.toggle_skill_manual(skill_id)
 	if owner != null and is_instance_valid(owner):
 		var title := str(PLAYER_BLESSING_SKILL_STATE.get_skill_title(skill_id))

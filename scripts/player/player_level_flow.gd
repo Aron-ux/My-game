@@ -106,20 +106,24 @@ static func delay_level_up_requests(owner, duration: float) -> void:
 
 ## 玩家等级天赋已停用：升级只累积普通升级次数，天赋由技能等级达到 5 级时触发。
 static func handle_reached_level(owner, _reached_level: int) -> void:
-	owner.pending_level_ups += 1
+	owner.grant_team_skill_points()
+	if owner.has_method("emit_frame_stats_changed"):
+		owner.emit_frame_stats_changed()
+	else:
+		owner.stats_changed.emit(owner.get_stat_summary())
 
 
 static func try_request_level_up(owner) -> void:
-	if owner.is_dead or owner.level_up_active or owner.pending_level_ups <= 0 or owner.level_up_delay_remaining > 0.0:
+	if owner.is_dead or owner.pending_level_ups <= 0:
 		return
-
-	owner.pending_level_ups -= 1
-	owner.level_up_active = true
-	_set_active_upgrade_kind(owner, "level_up")
-	if owner.has_method("_emit_deferred_level_up_requested"):
-		owner.call_deferred("_emit_deferred_level_up_requested")
+	# Convert level rewards queued by legacy saves into the current skill-point
+	# currency. New level-ups grant points directly and never open a card screen.
+	owner.grant_team_skill_points(owner.pending_level_ups)
+	owner.pending_level_ups = 0
+	if owner.has_method("emit_frame_stats_changed"):
+		owner.emit_frame_stats_changed()
 	else:
-		owner.level_up_requested.emit(build_blessing_upgrade_options(owner))
+		owner.stats_changed.emit(owner.get_stat_summary())
 
 
 static func build_blessing_upgrade_options(owner) -> Array:

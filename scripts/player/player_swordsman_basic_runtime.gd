@@ -2,13 +2,15 @@ extends RefCounted
 
 const BUILD := preload("res://scripts/player/player_swordsman_basic_build.gd")
 const GROUND := preload("res://scripts/player/swordsman_ground_crack.gd")
+const SPLIT_RADIUS := 200.0
+const SPLIT_ANGLE_DEGREES := 150.0
 
 static func on_slash_hit(player, position: Vector2, direction: Vector2, amount: float) -> void:
 	if BUILD.has_choice(player, "split"):
-		player._spawn_cone_effect(position, direction, 175.0, 120.0, Color(1.0, 0.74, 0.35, 0.55), 0.18)
-		player._damage_enemies_in_cone(position, direction, 175.0, deg_to_rad(120.0), amount * 0.5, 0.0, 1.0, 0.0, "swordsman_aux:split")
+		player._spawn_cone_effect(position, direction, SPLIT_RADIUS, SPLIT_ANGLE_DEGREES, Color(1.0, 0.74, 0.35, 0.55), 0.18)
+		player._damage_enemies_in_cone(position, direction, SPLIT_RADIUS, deg_to_rad(SPLIT_ANGLE_DEGREES), amount * 0.5, 0.0, 1.0, 0.0, "swordsman_aux:split")
 	elif BUILD.has_choice(player, "ground"):
-		GROUND.spawn(player, position, amount * 1.5)
+		GROUND.spawn(player, position, amount * 3.0)
 
 static func reflect_slash(player, center: Vector2, axis: Vector2, length: float, width: float, normal: Vector2) -> void:
 	if not BUILD.has_choice(player, "guard"):

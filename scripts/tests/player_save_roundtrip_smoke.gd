@@ -7,8 +7,11 @@ const EXACT_KEYS := [
 	"blindness",
 	"position",
 	"level",
+	"skill_points",
+	"role_skill_points",
 	"experience",
 	"experience_to_next_level",
+	"level_curve_id",
 	"pending_level_ups",
 	"role_health_values",
 	"temporary_health_stacks",
@@ -151,6 +154,7 @@ func _run() -> void:
 	target.apply_save_data(source_save)
 	var target_save: Dictionary = target.get_save_data()
 	_compare_roundtrip(source_save, target_save)
+	_check_wave_curve_migration(source, target, source_save)
 
 	scene.queue_free()
 	await process_frame
@@ -162,6 +166,29 @@ func _run() -> void:
 		for failure in failures:
 			push_error(failure)
 		quit(1)
+
+
+func _check_wave_curve_migration(source: Node, target: Node, previous_save: Dictionary) -> void:
+	var curve := preload("res://scripts/player/player_level_curve.gd")
+	curve.enable_wave_curve(source)
+	curve.enable_wave_curve(target)
+	var old_save := previous_save.duplicate(true)
+	old_save.erase("level_curve_id")
+	old_save.erase("role_skill_points")
+	old_save["level"] = 21
+	old_save["experience"] = 2800
+	old_save["experience_to_next_level"] = 5600
+	target.apply_save_data(old_save)
+	if target.level != 21 or target.experience != 115 or target.experience_to_next_level != 230:
+		failures.append("Wave save migration must retain level and proportional progress")
+	if target.skill_points != int(old_save["skill_points"]) + int(old_save["pending_level_ups"]):
+		failures.append("Wave save migration must retain earned skill points")
+	var migrated: Dictionary = target.get_save_data()
+	source.apply_save_data(migrated)
+	_compare_roundtrip(migrated, source.get_save_data())
+	target.apply_save_data(source.get_save_data())
+	if target.experience != 115:
+		failures.append("Wave save roundtrip must not migrate progress twice")
 
 
 func _check_legacy_role_balance_migration(player: Node) -> void:
@@ -191,9 +218,10 @@ func _seed_run_state(player: Node) -> void:
 	preload("res://scripts/player/player_blindness.gd").restore_state(player, {"remaining": 1.0, "cooldown_remaining": 9.5})
 	player.global_position = Vector2(123.0, -45.0)
 	player.level = 16
+	player.skill_points = 2
 	player.experience = 47
 	player.experience_to_next_level = 210
-	player.pending_level_ups = 2
+	player.pending_level_ups = 0
 	player.level_up_active = false
 	player.active_role_index = 1
 	player.auto_attack_enabled = true

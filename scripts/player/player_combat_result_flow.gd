@@ -21,6 +21,9 @@ const GREED_HEAL_COOLDOWN := 0.2
 const LIFESTEAL_MAX_ROLL_HITS := 6
 const LIFESTEAL_MAX_PROC_CHANCE := 0.80
 const SWORDSMAN_TRAIT_MAX_ROLL_HITS := ROLE_ATTRIBUTE_RULES.SWORDSMAN_TRAIT_MAX_ROLL_HITS
+const SWORDSMAN_BASIC_HEAL_EVENTS_META := "swordsman_basic_heal_events"
+const SWORDSMAN_BASIC_HEAL_LAST_EVENT_META := "swordsman_basic_heal_last_event"
+const MAX_TRACKED_BASIC_HEAL_EVENTS := 128
 
 static func hit_proc_multiplier(owner) -> float:
 	return 2.0 if owner.has_method("_has_attack_result_context_tag") and owner._has_attack_result_context_tag("windblade_double_proc") else 1.0
@@ -96,10 +99,7 @@ static func register_attack_result(owner, role_id: String, hit_count: int, kille
 	if owner != null and owner.has_method("_consume_pending_attack_result_kill_count"):
 		kill_count = int(owner._consume_pending_attack_result_kill_count(role_id, kill_count, killed))
 		killed = kill_count > 0
-	var suppress_swordsman_trait_heal: bool = owner.has_method("_has_attack_result_context_tag") and owner._has_attack_result_context_tag("suppress_swordsman_trait_heal")
 	var suppress_greed_heal: bool = owner.has_method("_has_attack_result_context_tag") and owner._has_attack_result_context_tag("suppress_greed_heal")
-	if not suppress_swordsman_trait_heal:
-		apply_swordsman_trait_heal_on_hit(owner, role_id, hit_count)
 	if not suppress_greed_heal:
 		apply_greed_heal_on_hit(owner, role_id, hit_count)
 	apply_role_flat_heal_on_hit(owner, role_id, hit_count)
@@ -141,12 +141,33 @@ static func apply_theme_hit_returns(owner, role_id: String, hit_count: int, kill
 	return
 
 
-static func apply_swordsman_trait_heal_on_hit(owner, role_id: String, hit_count: int) -> void:
+static func apply_swordsman_trait_heal_on_hit(owner, role_id: String, hit_count: int, basic_source_id: String = "") -> void:
+	if owner == null or role_id != "swordsman" or not basic_source_id.begins_with("swordsman_basic:"):
+		return
+	if str(owner._get_active_role().get("id", "")) != "swordsman" or hit_count <= 0:
+		return
+	# Keep one budget for the entire attack, including delayed damage jobs and
+	# followthrough hits. Skills and auxiliary damage never enter this path.
+	var events: Dictionary = owner.get_meta(SWORDSMAN_BASIC_HEAL_EVENTS_META, {})
+	if not events.has(basic_source_id):
+		if events.size() >= MAX_TRACKED_BASIC_HEAL_EVENTS:
+			events.erase(events.keys()[0])
+		events[basic_source_id] = {
+			"rolls": 0,
+			"eligible": owner.swordsman_trait_heal_cooldown_remaining <= 0.0
+		}
+	var event: Dictionary = events[basic_source_id]
+	var max_trigger_count: int = mini(hit_count, SWORDSMAN_TRAIT_MAX_ROLL_HITS - int(event["rolls"]))
+	if max_trigger_count <= 0:
+		return
+	event["rolls"] = int(event["rolls"]) + max_trigger_count
+	owner.set_meta(SWORDSMAN_BASIC_HEAL_EVENTS_META, events)
 	var context: Dictionary = PLAYER_SWORDSMAN_BATTLE_WILL_FLOW.build_heal_context(owner, role_id, hit_count)
 	if context.is_empty():
 		return
 	var forced_trigger: bool = bool(context.get("forced_trigger", false))
-	if owner.swordsman_trait_heal_cooldown_remaining > 0.0 and not forced_trigger:
+	var same_attack_healed: bool = str(owner.get_meta(SWORDSMAN_BASIC_HEAL_LAST_EVENT_META, "")) == basic_source_id
+	if not forced_trigger and (not bool(event["eligible"]) or (owner.swordsman_trait_heal_cooldown_remaining > 0.0 and not same_attack_healed)):
 		return
 	var proc_chance: float = float(context.get("proc_chance", 0.0)) * hit_proc_multiplier(owner)
 	var heal_ratio: float = float(context.get("heal_ratio", 0.0))
@@ -156,7 +177,6 @@ static func apply_swordsman_trait_heal_on_hit(owner, role_id: String, hit_count:
 	if heal_ratio <= 0.0 and missing_heal_ratio <= 0.0:
 		return
 	var heal_role_id: String = str(context.get("heal_role_id", "swordsman"))
-	var max_trigger_count: int = min(hit_count, SWORDSMAN_TRAIT_MAX_ROLL_HITS + PLAYER_BUILD_SYSTEM.get_swordsman_trait_extra_rolls(owner))
 	var successful_triggers: int = 0
 	var actual_heal_total: float = 0.0
 	var lowest_health_ratio_before_heal: float = 1.0
@@ -185,7 +205,9 @@ static func apply_swordsman_trait_heal_on_hit(owner, role_id: String, hit_count:
 			_share_swordsman_entry_lifesteal(owner, heal_amount)
 		successful_triggers += 1
 	if successful_triggers > 0:
-		owner.swordsman_trait_heal_cooldown_remaining = SWORDSMAN_TRAIT_HEAL_COOLDOWN
+		if not same_attack_healed:
+			owner.swordsman_trait_heal_cooldown_remaining = SWORDSMAN_TRAIT_HEAL_COOLDOWN
+		owner.set_meta(SWORDSMAN_BASIC_HEAL_LAST_EVENT_META, basic_source_id)
 	if actual_heal_total > 0.0:
 		_activate_swordsman_heal_talents(owner, lowest_health_ratio_before_heal)
 	if (

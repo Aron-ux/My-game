@@ -4,6 +4,8 @@ const TREE_COOLDOWN := 10.0
 const TREE_SEED_SPEED := 180.0
 const TREE_SEED_DISTANCE := 400.0
 const DATABASE := preload("res://scripts/enemy/enemy_archetype_database.gd")
+const SHEET_EFFECT := preload("res://scripts/enemies/enemy_sheet_effect.gd")
+const HATCH_BURST := preload("res://assets/enemies/plants/tree_hatch_burst.png")
 
 
 static func reset(enemy) -> void:
@@ -26,7 +28,14 @@ static func update(enemy, delta: float) -> void:
 		throw_tree_seed(enemy)
 
 
+static func _play_cast(enemy) -> void:
+	var visual: Node = enemy.get_node_or_null("ProfileVisual")
+	if visual != null and visual.has_method("play_cast"):
+		visual.play_cast()
+
+
 static func throw_parasite_seed(enemy):
+	_play_cast(enemy)
 	var seed := preload("res://scripts/enemies/parasite_seed.gd").new()
 	seed.player = enemy.target
 	seed.position = enemy.global_position
@@ -40,6 +49,16 @@ static func throw_parasite_seed(enemy):
 
 
 static func throw_tree_seed(enemy):
+	var current_scene: Node = enemy.get_tree().current_scene
+	var wave_flow = current_scene.get("wave_flow") if current_scene != null else null
+	if is_instance_valid(wave_flow) and int(wave_flow.wave) == 6:
+		var offspring := 0
+		for unit in wave_flow.living_enemies():
+			if str(unit.archetype_id) in ["tree_seed", "shadow_tree_young"]:
+				offspring += 1
+		if offspring >= 6:
+			return null
+	_play_cast(enemy)
 	var seed = load("res://scenes/enemy.tscn").instantiate()
 	seed.target = enemy.target
 	seed.apply_enemy_profile("normal", DATABASE.get_profile("normal", "tree_seed"))
@@ -95,3 +114,5 @@ static func hatch(seed) -> void:
 	seed.attack *= float(state.get("attack_scale", 1.0))
 	seed.speed *= float(state.get("speed_scale", 1.0))
 	seed._spawn_status_burst(Color(0.7, 0.4, 0.9, 0.7), 30)
+	if seed.is_inside_tree():
+		SHEET_EFFECT.spawn(seed.get_tree().current_scene, HATCH_BURST, 6, seed.global_position, {"fps": 16.0, "art_scale": 1.3})

@@ -20,6 +20,10 @@ static func release_after_defeat(enemy) -> bool:
 
 
 static func prepare_for_pool(enemy) -> void:
+	if enemy.has_meta("wave_flyby"):
+		enemy.remove_meta("wave_flyby")
+	if enemy.has_meta("combat_wave_boss"):
+		enemy.remove_meta("combat_wave_boss")
 	enemy.pooled_inactive = true
 	preload("res://scripts/enemies/enemy_porcupine.gd").reset(enemy)
 	preload("res://scripts/enemies/enemy_necro_priest.gd").reset(enemy)
@@ -31,6 +35,7 @@ static func prepare_for_pool(enemy) -> void:
 	enemy.throttled_motion_delta = 0.0
 	enemy.slow_multiplier = 1.0
 	enemy.slow_timer = 0.0
+	preload("res://scripts/combat/movement_slow.gd").clear(enemy)
 	enemy.damage_reduction_value = 0.0
 	enemy.armor = 0.0
 	enemy.storm_armor_shred_timers.clear()

@@ -28,9 +28,13 @@ static func apply_small_boss_reward(owner, option_id: String) -> bool:
 
 static func _grant_training_level(owner) -> void:
 	owner.level += 1
-	owner.experience_to_next_level = PLAYER_LEVEL_CURVE.get_next_required_experience_after_level_up(owner.level)
-	owner.pending_level_ups += 1
+	owner.experience_to_next_level = PLAYER_LEVEL_CURVE.get_next_required_experience_after_level_up(owner.level, PLAYER_LEVEL_CURVE.uses_wave_curve(owner))
+	owner.grant_team_skill_points()
 	owner.experience_changed.emit(owner.experience, owner.experience_to_next_level, owner.level)
+	if owner.has_method("emit_frame_stats_changed"):
+		owner.emit_frame_stats_changed()
+	else:
+		owner.stats_changed.emit(owner.get_stat_summary())
 	owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -62.0), "潜心修炼 Lv.+1", Color(0.66, 1.0, 0.58, 1.0))
 	owner._spawn_ring_effect(owner.global_position, 88.0, Color(0.58, 1.0, 0.48, 0.45), 8.0, 0.22)
 

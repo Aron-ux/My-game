@@ -186,7 +186,7 @@ static func equipment_effect_text(id: String, count: int) -> String:
 
 static func get_innate_skill_info(owner, role_id: String, progress_id: String) -> Dictionary:
 	var summaries := {
-		"swordsman_trait": "战意在战斗中触发回复，骑士荣耀在濒死时提供保护。",
+		"swordsman_trait": "战意由普通攻击命中触发回复，骑士荣耀在濒死时提供保护。",
 		"gunner_trait": "瞬杀积累层数，强化伤害、移动和闪避；层数随战斗状态变化。",
 		"gunner_hunt": "猎杀根据周围敌人与安全距离提供强化。",
 		"mage_trait": "积累奥术充能，强化输出并影响技能循环。",
@@ -235,7 +235,7 @@ static func get_innate_skill_info(owner, role_id: String, progress_id: String) -
 		var heal: float = (owner._get_swordsman_trait_heal_amount() + effects.get_swordsman_battle_will_heal_ratio_bonus(owner)) * low_health
 		rows.append({"label": "剑士战意触发率", "value": _percent(chance)})
 		rows.append({"label": "最大生命回复比例", "value": _percent(heal)})
-		note = "战意还会回复部分已损失生命；后台共享、必定触发和治疗增减按对应条件计算。"
+		note = "仅普通攻击命中可触发，同时回复部分已损失生命；同一次攻击最多判定4次，触发后冷却1秒。治疗增减按对应条件计算。"
 	elif progress_id == "mechanic_trait":
 		rows.append({"label": "当前零件", "value": "%d / %d" % [owner.mechanic_role.get_parts_count(owner), owner.mechanic_role.get_parts_max(owner)]})
 		rows.append({"label": "零件产出间隔", "value": "%.2f 秒" % owner.mechanic_role.get_part_interval(owner)})

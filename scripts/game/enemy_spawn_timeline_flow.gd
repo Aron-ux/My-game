@@ -21,6 +21,9 @@ static func setup_spawn_timer(main: Node) -> void:
 static func update_spawn_curve(main: Node) -> void:
 	if main.spawn_timer == null:
 		return
+	if is_instance_valid(main.get("wave_flow")):
+		main.spawn_timer.stop()
+		return
 	if main._is_developer_mode():
 		main.spawn_timer.stop()
 		return
@@ -58,6 +61,8 @@ static func _should_refresh_spawn_curve(main: Node) -> bool:
 
 
 static func handle_stage_events(main: Node) -> void:
+	if is_instance_valid(main.get("wave_flow")):
+		return
 	if main._is_developer_mode():
 		return
 	_process_queued_special_events(main)
@@ -159,6 +164,8 @@ static func _remove_special_event_queue_time(main: Node) -> void:
 
 
 static func spawn_enemy(main: Node) -> void:
+	if is_instance_valid(main.get("wave_flow")):
+		return
 	if main.game_over or main.enemy_scene == null or main.player == null or main._is_developer_mode() or (main.boss_spawned and (is_instance_valid(main.boss_enemy) or _has_queued_special_event(main, "boss"))):
 		return
 

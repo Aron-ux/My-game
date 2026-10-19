@@ -5,16 +5,16 @@ const STATE_KEY := "swordsman_basic_build"
 const STAGES := [4, 8, 9]
 const OPTIONS := {
 	4: [
-		{"key": "heavy", "title": "重剑", "description": "攻击速度 -50%；普攻范围 +150%；命中时引起屏幕震动；连击间隔变为0.5秒；伤害倍率 +45 个百分点。"},
-		{"key": "light", "title": "轻剑", "description": "攻击速度 +30%；伤害倍率 -15 个百分点。"}
+		{"key": "heavy", "title": "重剑", "description": "攻击速度 -50%；普攻范围 +200%；伤害倍率 +65 个百分点；有连击效果时，连击间隔变为0.5秒；命中时引起屏幕震动。"},
+		{"key": "light", "title": "轻剑", "description": "攻击速度 +30%；伤害倍率 -25 个百分点。"}
 	],
 	8: [
-		{"key": "split", "title": "分裂", "description": "每刀命中后，选最近的命中目标，沿斩击方向向其身后产生一次 120°、半径 175 的扇形伤害，造成当前普攻倍率的 50%；忽略护甲，计算减伤。"},
-		{"key": "ground", "title": "地裂", "description": "命中后在主目标脚下生成半径 120 的裂地，1.5 秒后造成当前普攻倍率的 150% 伤害；每刀一次，不能与尚未爆炸的裂地重叠。"}
+		{"key": "split", "title": "分裂", "description": "每刀命中后，选最近的命中目标，沿斩击方向向其身后产生一次 150°、半径 200 的扇形伤害，造成当前普攻倍率的 50%；忽略护甲，计算减伤。"},
+		{"key": "ground", "title": "地裂", "description": "命中后在主目标脚下生成半径 175 的圆形裂地，1.5 秒后爆炸造成当前普攻倍率的 300% 伤害；每刀一次，不能与尚未爆炸的裂地重叠。"}
 	],
 	9: [
 		{"key": "guard", "title": "守势", "description": "斩击范围内的敌方弹道按入射角反弹，伤害为原弹道的 200%，命中第一个敌人后消失；包含 Boss 弹幕、分裂弹，不包含激光和地面攻击。"},
-		{"key": "brave", "title": "勇猛", "description": "普攻暴击率 +30%、暴击伤害 +50%；伤害倍率 +30 个百分点；攻击速度 -30%。分裂与地裂不享受额外暴击属性。"}
+		{"key": "brave", "title": "勇猛", "description": "普通攻击暴击率 +30%、暴击伤害 +50%、伤害倍率 +30 个百分点；普通攻击命中的敌人击退50。分裂与地裂不享受额外暴击属性。"}
 	]
 }
 
@@ -69,18 +69,18 @@ static func damage_ratio(owner) -> float:
 	var lv := level(owner)
 	var ratio: float = 1.0 + mini(lv, 3) * 0.1 + clampi(lv - 4, 0, 3) * 0.2
 	if has_choice(owner, "heavy"):
-		ratio += 0.45
+		ratio += 0.65
 	if has_choice(owner, "light"):
-		ratio -= 0.15
+		ratio -= 0.25
 	if has_choice(owner, "brave"):
 		ratio += 0.3
 	return ratio
 
 static func speed_bonus(owner) -> float:
-	return (-0.5 if has_choice(owner, "heavy") else 0.3 if has_choice(owner, "light") else 0.0) - (0.3 if has_choice(owner, "brave") else 0.0)
+	return -0.5 if has_choice(owner, "heavy") else 0.3 if has_choice(owner, "light") else 0.0
 
 static func range_multiplier(owner) -> float:
-	return 2.5 if has_choice(owner, "heavy") else 1.0
+	return 3.0 if has_choice(owner, "heavy") else 1.0
 
 static func combo_interval(owner) -> float:
 	return 0.5 if has_choice(owner, "heavy") else 0.14

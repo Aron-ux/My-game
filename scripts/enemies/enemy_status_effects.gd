@@ -13,9 +13,9 @@ static func tick_timers(enemy, delta: float) -> void:
 		if enemy.fury_armor_shred_remaining == 0.0:
 			enemy.fury_armor_shred = 0.0
 	if enemy.slow_timer > 0.0:
-		enemy.slow_timer = max(0.0, enemy.slow_timer - delta)
-		if enemy.slow_timer == 0.0:
-			enemy.slow_multiplier = 1.0
+		var slow := preload("res://scripts/combat/movement_slow.gd").tick(enemy, delta, enemy.slow_multiplier, enemy.slow_timer)
+		enemy.slow_multiplier = slow.x
+		enemy.slow_timer = slow.y
 
 	if enemy.vulnerability_timer > 0.0:
 		enemy.vulnerability_timer = max(0.0, enemy.vulnerability_timer - delta)
@@ -59,12 +59,13 @@ static func apply_slow(enemy, multiplier: float, duration: float) -> void:
 static func apply_slow_without_status_visuals(enemy, multiplier: float, duration: float) -> void:
 	_apply_slow(enemy, multiplier, duration, false)
 
-static func _apply_slow(enemy, multiplier: float, duration: float, allow_status_visuals: bool) -> void:
+static func _apply_slow(enemy, multiplier: float, duration: float, allow_status_visuals: bool, source_id: String = "") -> void:
 	duration = preload("res://scripts/combat/status_resistance.gd").duration(enemy, duration)
 	if duration <= 0.0:
 		return
-	var next_multiplier: float = min(enemy.slow_multiplier, clamp(multiplier, 0.2, 1.0))
-	var next_timer: float = max(enemy.slow_timer, duration)
+	var slow := preload("res://scripts/combat/movement_slow.gd").apply(enemy, source_id, multiplier, duration, enemy.slow_multiplier, enemy.slow_timer)
+	var next_multiplier: float = slow.x
+	var next_timer: float = slow.y
 	var should_refresh_visual: bool = next_multiplier < enemy.slow_multiplier or next_timer > enemy.slow_timer + _get_status_visual_refresh_epsilon(enemy)
 	enemy.slow_multiplier = next_multiplier
 	enemy.slow_timer = next_timer

@@ -61,6 +61,8 @@ static func handle_player_died(main: Node) -> void:
 		return
 
 	main.game_over = true
+	if is_instance_valid(main.get("wave_flow")):
+		main.wave_flow.view.hide_all()
 	reset_game_speed(main)
 	SAVE_MANAGER.clear_save()
 	GAME_HUD_FLOW.hide_boss_ui(main)

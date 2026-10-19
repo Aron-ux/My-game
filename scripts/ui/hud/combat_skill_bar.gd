@@ -8,6 +8,7 @@ const TeamRoleStatusRow := preload("res://scripts/ui/hud/widgets/team_role_statu
 
 signal skill_mode_toggle_requested(skill_id: String)
 signal skill_slot_swap_requested(role_id: String, from_slot: int, to_slot: int)
+signal skill_point_requested(skill_id: String, role_id: String)
 
 const GAME_SETTINGS := preload("res://scripts/game_settings.gd")
 const SURVIVORS_HOVER_DETAIL := preload("res://scripts/ui/components/survivors_hover_detail.gd")
@@ -78,6 +79,7 @@ var ultimate_required_energy: float = 100.0
 var ultimate_display: Dictionary = {}
 var experience_bar: ProgressBar
 var experience_label: Label
+var skill_point_count: int = 0
 var hover_detail: Control
 var hovered_skill_view: Control
 var hovered_skill_id := ""
@@ -177,6 +179,90 @@ func update_experience(current_experience: int, required_experience: int) -> voi
 		if experience_label.text != next_text:
 			experience_label.text = next_text
 
+func update_skill_points(points: int) -> void:
+	skill_point_count = maxi(0, points)
+	_refresh_skill_point_buttons()
+
+
+func _create_slot_upgrade_button(slot_icon: Control) -> Button:
+	var button := Button.new()
+	button.text = "+"
+	button.custom_minimum_size = Vector2(26.0, 22.0)
+	button.size = Vector2(26.0, 22.0)
+	button.anchor_left = 0.5
+	button.anchor_right = 0.5
+	button.offset_left = -13.0
+	button.offset_right = 13.0
+	button.offset_top = -26.0
+	button.offset_bottom = -4.0
+	button.focus_mode = Control.FOCUS_NONE
+	button.z_index = 5
+	button.add_theme_font_size_override("font_size", 22)
+	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		button.add_theme_color_override(state, Color(1.0, 0.88, 0.05, 1.0))
+	for state in ["normal", "hover", "pressed"]:
+		var style := StyleBoxFlat.new()
+		style.bg_color = Color(0.24, 0.16, 0.01, 1.0) if state == "hover" else Color(0.09, 0.07, 0.01, 1.0)
+		style.border_color = Color(1.0, 0.83, 0.08, 1.0)
+		style.set_border_width_all(2)
+		style.set_corner_radius_all(3)
+		button.add_theme_stylebox_override(state, style)
+	button.tooltip_text = "消耗 1 个技能点"
+	button.visible = false
+	button.pressed.connect(_on_skill_slot_upgrade_pressed.bind(button))
+	slot_icon.add_child(button)
+	return button
+
+
+func _set_slot_upgrade_state(slot_nodes: Dictionary, slot_data: Dictionary, role_active: bool) -> void:
+	var button: Button = slot_nodes.get("upgrade_button", null) as Button
+	if button == null:
+		return
+	if not slot_data.is_empty():
+		slot_nodes["skill_id"] = str(slot_data.get("skill_id", ""))
+		slot_nodes["role_id"] = str(slot_data.get("role_id", slot_nodes.get("role_id", "")))
+		slot_nodes["can_upgrade"] = bool(slot_data.get("can_upgrade", false))
+	var skill_id := str(slot_nodes.get("skill_id", ""))
+	slot_nodes["role_active"] = role_active
+	var eligible := bool(slot_nodes.get("can_learn", false)) if skill_id == "" else bool(slot_nodes.get("can_upgrade", false))
+	var can_show := skill_point_count > 0 and role_active and str(slot_nodes.get("role_id", "")) != "" and eligible
+	var slot_view: SkillCooldownIcon = slot_nodes.get("view") as SkillCooldownIcon
+	if slot_view != null:
+		slot_view.set_skill_point_highlighted(skill_point_count > 0 and str(slot_nodes.get("role_id", "")) != "")
+	button.visible = can_show
+	button.disabled = not can_show
+	button.tooltip_text = "消耗 1 个技能点，升级%s" % str(slot_nodes.get("title", "技能")) if skill_id != "" else "消耗 1 个技能点，选择一个尚未拥有的技能"
+
+
+func _refresh_skill_point_buttons() -> void:
+	for slot_nodes_value in skill_cd_slots:
+		var slot_nodes: Dictionary = slot_nodes_value
+		_set_slot_upgrade_state(slot_nodes, {}, true)
+	for row_entry_value in team_role_rows:
+		var row_entry: Dictionary = row_entry_value
+		var slots: Array = row_entry.get("slots", [])
+		for slot_nodes_value in slots:
+			var slot_nodes: Dictionary = slot_nodes_value
+			_set_slot_upgrade_state(slot_nodes, {}, bool(row_entry.get("active", false)))
+
+
+func _on_skill_slot_upgrade_pressed(button: Button) -> void:
+	if button == null or not button.visible or button.disabled or skill_point_count <= 0:
+		return
+	for slot_nodes_value in skill_cd_slots:
+		var slot_nodes: Dictionary = slot_nodes_value
+		if slot_nodes.get("upgrade_button") == button:
+			skill_point_requested.emit(str(slot_nodes.get("skill_id", "")), str(slot_nodes.get("role_id", "")))
+			return
+	for row_entry_value in team_role_rows:
+		var row_entry: Dictionary = row_entry_value
+		for slot_nodes_value in row_entry.get("slots", []):
+			var slot_nodes: Dictionary = slot_nodes_value
+			if slot_nodes.get("upgrade_button") == button:
+				if bool(row_entry.get("active", false)):
+					skill_point_requested.emit(str(slot_nodes.get("skill_id", "")), str(slot_nodes.get("role_id", "")))
+				return
+
 func update_switch_cooldown(role_id: String, cooldown_remaining: float, cooldown_duration: float, switch_energy: float = 0.0, switch_energy_required: float = 100.0, switch_energy_by_role: Dictionary = {}) -> void:
 	_refresh_switch_key_labels()
 	switch_cooldown_remaining_value = max(0.0, cooldown_remaining)
@@ -236,6 +322,11 @@ func update_skill_cooldown_slots(slot_data_list: Array) -> void:
 		var label: Label = slot_nodes["label"] as Label
 		var key_label: Label = slot_nodes.get("key_label", null) as Label
 		if index >= slot_data_list.size():
+			slot_nodes["can_learn"] = index > 0 and not slot_data_list.is_empty()
+			if not slot_data_list.is_empty():
+				slot_nodes["role_id"] = str(slot_data_list[0].get("role_id", slot_nodes.get("role_id", "")))
+			else:
+				slot_nodes["role_id"] = ""
 			_clear_skill_detail(slot_nodes)
 			slot_view.set_state(false, Color(0.12, 0.13, 0.16, 1.0), 0.0)
 			slot_view.set_auto_mode(false)
@@ -247,15 +338,18 @@ func update_skill_cooldown_slots(slot_data_list: Array) -> void:
 				key_label.text = ""
 			if str(slot_nodes.get("skill_id", "")) != "":
 				slot_nodes["skill_id"] = ""
+			slot_nodes["can_upgrade"] = false
 			if str(slot_nodes.get("title", "")) != "":
 				slot_nodes["title"] = ""
 			if str(slot_nodes.get("description", "")) != "":
 				slot_nodes["description"] = ""
 			if str(slot_nodes.get("slot_label", "")) != "":
 				slot_nodes["slot_label"] = ""
+			_set_slot_upgrade_state(slot_nodes, {}, true)
 			continue
 
 		var slot_data: Dictionary = slot_data_list[index]
+		_set_slot_upgrade_state(slot_nodes, slot_data, true)
 		var slot_color: Color = Color(1.0, 1.0, 1.0, 1.0)
 		var color_value: Variant = slot_data.get("color", slot_color)
 		if color_value is Color:
@@ -281,13 +375,14 @@ func update_skill_cooldown_slots(slot_data_list: Array) -> void:
 		slot_nodes["skill_id"] = str(slot_data.get("skill_id", ""))
 		_apply_skill_slot_key_label(slot_nodes, index, str(slot_data.get("skill_id", "")), slot_data)
 		_remember_skill_detail(slot_nodes, slot_data, duration, remaining)
+	_refresh_skill_point_buttons()
 
 
 func _apply_skill_slot_key_label(slot_nodes: Dictionary, slot_index: int, skill_id: String, slot_data: Dictionary) -> void:
 	var key_label: Label = slot_nodes.get("key_label", null) as Label
 	var slot_view: SkillCooldownIcon = slot_nodes.get("view", null) as SkillCooldownIcon
 	if slot_view != null:
-		slot_view.set_auto_mode(slot_index > 0 and skill_id != "" and not GAME_SETTINGS.is_skill_manual(skill_id))
+		slot_view.set_auto_mode(slot_index > 0 and skill_id != "" and not GAME_SETTINGS.is_skill_manual(skill_id) and not bool(slot_data.get("toggle_mode", false)))
 	if key_label == null:
 		return
 	if slot_index == 0 or skill_id == "":
@@ -299,12 +394,14 @@ func _apply_skill_slot_key_label(slot_nodes: Dictionary, slot_index: int, skill_
 		key_slot_index = slot_index
 	var action_id := GAME_SETTINGS.get_skill_slot_action_id(key_slot_index)
 	var key_text := GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(action_id))
-	var manual := GAME_SETTINGS.is_skill_manual(skill_id)
+	var manual := GAME_SETTINGS.is_skill_manual(skill_id) or bool(slot_data.get("toggle_mode", false))
 	var next_text := key_text
 	var next_color := SKILL_SLOT_AUTO_COLOR
 	if manual:
 		next_text = "%s 手动" % key_text
 		next_color = SKILL_SLOT_MANUAL_COLOR
+	if bool(slot_data.get("toggle_mode", false)):
+		next_text = "%s 开关" % key_text
 	if key_label.text != next_text:
 		key_label.text = next_text
 	key_label.add_theme_color_override("font_color", next_color)
@@ -510,15 +607,18 @@ func _build_legacy_widgets() -> void:
 		key_label.text = ""
 		slot_icon.add_child(key_label)
 
-		skill_cd_slots.append({
+		var slot_nodes := {
 			"view": slot_icon,
 			"label": label,
 			"key_label": key_label,
+			"upgrade_button": _create_slot_upgrade_button(slot_icon),
 			"title": "",
 			"description": "",
 			"skill_id": "",
-			"slot_label": ""
-		})
+			"slot_label": "",
+			"role_id": ""
+		}
+		skill_cd_slots.append(slot_nodes)
 		if index == 0:
 			# 普攻槽与技能槽视觉分离
 			var basic_attack_gap := Control.new()
@@ -652,16 +752,19 @@ func _build_team_role_rows() -> void:
 			key_label.text = ""
 			slot_icon.add_child(key_label)
 
-			slot_nodes.append({
+			var slot_entry := {
 				"view": slot_icon,
 				"label": label,
 				"key_label": key_label,
+				"upgrade_button": _create_slot_upgrade_button(slot_icon),
 				"title": "",
 				"description": "",
 				"base_description": "",
 				"skill_id": "",
-				"slot_label": ""
-			})
+				"slot_label": "",
+				"role_id": ""
+			}
+			slot_nodes.append(slot_entry)
 		team_role_rows.append({
 			"row": row,
 			"portrait": portrait,
@@ -888,6 +991,11 @@ func _update_team_role_slots(row_index: int, slot_data_list: Array) -> void:
 		var slot_view: SkillCooldownIcon = slot_nodes["view"] as SkillCooldownIcon
 		var label: Label = slot_nodes["label"] as Label
 		if slot_index >= slot_data_list.size():
+			slot_nodes["role_id"] = str((row_entry.get("data", {}) as Dictionary).get("role_id", ""))
+			slot_nodes["skill_id"] = ""
+			slot_nodes["can_upgrade"] = false
+			slot_nodes["can_learn"] = slot_index > 0 and not slot_data_list.is_empty()
+			_set_slot_upgrade_state(slot_nodes, {}, row_active)
 			_clear_skill_detail(slot_nodes)
 			slot_view.set_state(false, Color(0.12, 0.13, 0.16, 1.0), 0.0)
 			slot_view.set_auto_mode(false)
@@ -904,6 +1012,8 @@ func _update_team_role_slots(row_index: int, slot_data_list: Array) -> void:
 			continue
 
 		var slot_data: Dictionary = slot_data_list[slot_index]
+		slot_nodes["role_id"] = str(slot_data.get("role_id", (row_entry.get("data", {}) as Dictionary).get("role_id", "")))
+		_set_slot_upgrade_state(slot_nodes, slot_data, row_active)
 		var slot_color: Color = Color(1.0, 1.0, 1.0, 1.0)
 		var color_value: Variant = slot_data.get("color", slot_color)
 		if color_value is Color:
@@ -934,12 +1044,13 @@ func _update_team_role_slots(row_index: int, slot_data_list: Array) -> void:
 		_apply_team_slot_key_label(slot_nodes, slot_index, skill_id, slot_data)
 		slot_nodes["role_active"] = row_active
 		_remember_skill_detail(slot_nodes, slot_data, duration, remaining)
+	_refresh_skill_point_buttons()
 
 func _apply_team_slot_key_label(slot_nodes: Dictionary, slot_index: int, skill_id: String, slot_data: Dictionary) -> void:
 	var key_label: Label = slot_nodes.get("key_label", null) as Label
 	var slot_view: SkillCooldownIcon = slot_nodes.get("view", null) as SkillCooldownIcon
 	if slot_view != null:
-		slot_view.set_auto_mode(slot_index > 0 and skill_id != "" and not GAME_SETTINGS.is_skill_manual(skill_id))
+		slot_view.set_auto_mode(slot_index > 0 and skill_id != "" and not GAME_SETTINGS.is_skill_manual(skill_id) and not bool(slot_data.get("toggle_mode", false)))
 	if key_label == null:
 		return
 	if slot_index == 0 or skill_id == "":
@@ -953,7 +1064,7 @@ func _apply_team_slot_key_label(slot_nodes: Dictionary, slot_index: int, skill_i
 	var key_text := GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(action_id))
 	if key_label.text != key_text:
 		key_label.text = key_text
-	key_label.add_theme_color_override("font_color", SKILL_SLOT_MANUAL_COLOR if GAME_SETTINGS.is_skill_manual(skill_id) else SKILL_SLOT_AUTO_COLOR)
+	key_label.add_theme_color_override("font_color", SKILL_SLOT_MANUAL_COLOR if GAME_SETTINGS.is_skill_manual(skill_id) or bool(slot_data.get("toggle_mode", false)) else SKILL_SLOT_AUTO_COLOR)
 
 func _on_team_skill_slot_gui_input(event: InputEvent, row_index: int, slot_index: int) -> void:
 	if not (event is InputEventMouseButton):
@@ -1296,7 +1407,7 @@ func _remember_skill_detail(nodes: Dictionary, data: Dictionary, duration: float
 			hover_detail.hide_detail()
 			hovered_skill_view = null
 		else:
-			var mode_changed: bool = not hovered_skill_id.ends_with("_basic_attack") and hover_detail.category_label.text.contains("手动释放") != GAME_SETTINGS.is_skill_manual(hovered_skill_id)
+			var mode_changed: bool = not bool(detail.get("toggle_mode", false)) and not hovered_skill_id.ends_with("_basic_attack") and hover_detail.category_label.text.contains("手动释放") != GAME_SETTINGS.is_skill_manual(hovered_skill_id)
 			if info_changed or mode_changed:
 				_show_skill_detail(nodes, hovered_skill_view, int(detail.get("manual_slot_index", 0)))
 			else:
@@ -1320,6 +1431,8 @@ func _show_skill_detail(nodes: Dictionary, view: Control, slot_index: int, role_
 	if role_name != "":
 		data["role_name"] = role_name
 	data["slot_label"] = "普通攻击" if slot_index == 0 else ("手动释放" if GAME_SETTINGS.is_skill_manual(skill_id) else "自动释放")
+	if bool(data.get("toggle_mode", false)):
+		data["slot_label"] = "开关技能"
 	data["status_text"] = _skill_status(data)
 	data["status_ready"] = float(data.get("remaining", 0.0)) <= 0.05 and bool(data.get("role_active", true))
 	var key := GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(GAME_SETTINGS.ACTION_CHARACTER_PANEL))
@@ -1327,6 +1440,8 @@ func _show_skill_detail(nodes: Dictionary, view: Control, slot_index: int, role_
 	if slot_index > 0:
 		var skill_key := GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(GAME_SETTINGS.get_skill_slot_action_id(int(data.get("manual_slot_index", slot_index)))))
 		hint = "手动时按 %s 释放 · 右键切换模式 · %s 角色面板" % [skill_key, key]
+		if bool(data.get("toggle_mode", false)):
+			hint = "按 %s 开启或关闭 · %s 角色面板" % [skill_key, key]
 	data["effect_note"] = str(data.get("effect_note", "")) + ("\n" if str(data.get("effect_note", "")) != "" else "") + hint
 	hovered_skill_view = view
 	hovered_skill_id = skill_id

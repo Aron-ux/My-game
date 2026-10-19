@@ -373,6 +373,15 @@ func _run_physics_tick(delta: float, context: FRAME_CONTEXT = null) -> void:
 			_update_straight_motion(delta)
 
 	incident_velocity = (global_position - motion_start) / maxf(delta, 0.00001)
+	if not reflected:
+		var scene: Node = get_tree().current_scene
+		var waves = scene.get("wave_flow") if scene != null else null
+		if is_instance_valid(waves) and waves.phase == "preparation" and waves.merchant_health > 0 and is_instance_valid(waves.merchant):
+			var point := Geometry2D.get_closest_point_to_segment(waves.merchant.global_position, motion_start, global_position)
+			if point.distance_squared_to(waves.merchant.global_position) <= pow(hit_radius + 24.0, 2):
+				waves.merchant.take_damage(damage)
+				recycle()
+				return
 	if split_after_time > 0.0 and not split_performed and travel_time >= split_after_time:
 		_spawn_split_bullets()
 		recycle()
@@ -662,7 +671,7 @@ func _try_hit_player(context: FRAME_CONTEXT = null) -> void:
 		var radius := hit_radius + context.radius
 		if global_position.distance_squared_to(context.center) > radius * radius:
 			return
-		if context.accepts_damage:
+		if context.accepts_damage and not _soul_form_blocks_hit():
 			target.take_damage(damage)
 		context.invalidate()
 		recycle()
@@ -678,9 +687,17 @@ func _try_hit_player(context: FRAME_CONTEXT = null) -> void:
 	var total_radius: float = hit_radius + target_radius
 	if global_position.distance_squared_to(target_center) > total_radius * total_radius:
 		return
-	if target.has_method("take_damage"):
+	if target.has_method("take_damage") and not _soul_form_blocks_hit():
 		target.take_damage(damage)
 	recycle()
+
+func _soul_form_blocks_hit() -> bool:
+	# Boss barrages and special spell projectiles retain their normal behavior.
+	if _get_source_enemy_kind() in ["boss", "small_boss"] or visual_style.begins_with("boss_"):
+		return false
+	if _get_source_enemy_archetype() not in ["shooter", "shotgunner", "elite_splitshot"]:
+		return false
+	return target != null and target.get("gunner_infinite_reload_ability") != null and target.gunner_infinite_reload_ability.is_soul_form_active()
 
 func _update_lifetime_fade() -> void:
 	var fade_duration: float = min(LIFETIME_FADE_DURATION, max_lifetime)

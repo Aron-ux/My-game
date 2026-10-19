@@ -37,6 +37,8 @@ static func save_run_state(main: Node) -> void:
 	if main.endless_mode_active:
 		save_data["run_tier"] = main.endless_tier
 		save_data["run_id"] = main.endless_run_id
+	if is_instance_valid(main.get("wave_flow")):
+		save_data["combat_wave"] = main.wave_flow.get_save_data()
 
 	RUN_SAVE_RUNTIME_FLOW.append_group_save_data(main, save_data, "enemies", "enemies")
 	RUN_SAVE_RUNTIME_FLOW.append_group_save_data(main, save_data, "enemy_projectiles", "enemy_projectiles")
@@ -93,6 +95,8 @@ static func load_saved_run(main: Node) -> bool:
 	RUN_SAVE_RUNTIME_FLOW.restore_swordsman_ground_cracks(main, save_data.get("swordsman_ground_cracks", []))
 	RUN_SAVE_RUNTIME_FLOW.restore_skull_mage_domains(main, save_data.get("skull_mage_domains", []))
 	RUN_SAVE_RUNTIME_FLOW.restore_parasite_seeds(main, save_data.get("parasite_seeds", []))
+	if is_instance_valid(main.get("wave_flow")):
+		main.wave_flow.apply_save_data(save_data.get("combat_wave", {}))
 
 	var game_bgm = main._get_game_bgm()
 	if game_bgm != null and game_bgm.has_method("restore_playback_position"):

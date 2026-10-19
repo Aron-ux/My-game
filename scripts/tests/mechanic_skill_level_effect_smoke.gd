@@ -302,7 +302,7 @@ class CombatOwner:
 		shots.append({"node": bullet, "damage": damage, "role_id": role_id})
 		return bullet
 
-	func _damage_enemies_in_radius(center: Vector2, radius: float, damage: float, _vulnerability: float, slow: float, duration: float, _role_id: String) -> int:
+	func _damage_enemies_in_radius(center: Vector2, radius: float, damage: float, _vulnerability: float, slow: float, duration: float, _role_id: String, _slow_source_id: String = "") -> int:
 		hits.append({"center": center, "radius": radius, "damage": damage, "slow": slow, "slow_duration": duration})
 		return 1
 

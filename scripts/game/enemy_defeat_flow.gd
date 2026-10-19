@@ -34,11 +34,17 @@ static func _handle_developer_boss_defeated(main: Node, enemy: Node2D) -> void:
 static func _handle_small_boss_defeated(main: Node, enemy: Node2D) -> void:
 	if main.small_boss_enemy == enemy:
 		main.small_boss_enemy = null
+	if is_instance_valid(main.get("wave_flow")):
+		main.wave_flow.boss_defeated(enemy)
+		return
 	REWARD_FLOW.show_small_boss_reward(main)
 	main._refresh_hud()
 
 static func _handle_boss_defeated(main: Node, enemy: Node2D) -> void:
 	if main.boss_enemy != enemy:
+		return
+	if is_instance_valid(main.get("wave_flow")):
+		main.wave_flow.boss_defeated(enemy)
 		return
 	if main.endless_mode_active:
 		_handle_endless_boss_defeated(main)

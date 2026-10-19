@@ -651,6 +651,36 @@ static func normalize_skill_state(value: Variant) -> Dictionary:
 static func build_offer_for_owner(owner) -> Dictionary:
 	return PLAYER_BUILD_SYSTEM.build_offer_for_owner(owner, _build_general_blessing_options(owner))
 
+static func build_skill_point_offer(owner) -> Dictionary:
+	var role_id := str(owner._get_active_role().get("id", "")) if owner != null and owner.has_method("_get_active_role") else ""
+	var role_options: Array = PLAYER_BUILD_SYSTEM._build_role_options(owner, role_id, 0) if role_id != "" else []
+	role_options.shuffle()
+	var options: Array = []
+	var seen: Dictionary = {}
+	for option_value in role_options:
+		if not option_value is Dictionary:
+			continue
+		var option: Dictionary = option_value
+		if str(option.get("unlock_skill", "")) == "":
+			continue
+		var key := str(option.get("id", ""))
+		if key == "" or seen.has(key):
+			continue
+		seen[key] = true
+		options.append(option.duplicate(true))
+		if options.size() >= 3:
+			break
+	return {
+		"options": options,
+		"context": {
+			"offer_mode": "skill_point",
+			"skill_point_offer": true,
+			"selection_count": 1,
+			"role_id": role_id,
+			"summary": "消耗 1 个技能点：学习 1 个尚未拥有的技能。"
+		}
+	}
+
 
 static func build_all_offer_for_owner(owner) -> Dictionary:
 	var options := _build_all_options(owner)
@@ -663,6 +693,31 @@ static func build_all_offer_for_owner(owner) -> Dictionary:
 			"refresh_limit": 0,
 			"refresh_remaining": 0,
 			"summary": "从当前可用祝福中选择。"
+		}
+	}
+
+static func build_wave_offer_for_owner(owner) -> Dictionary:
+	var pool := _build_general_blessing_options(owner)
+	pool.shuffle()
+	var options: Array = []
+	var seen := {}
+	for option: Dictionary in pool:
+		var key := str(option.get("blessing_id", ""))
+		if seen.has(key):
+			continue
+		seen[key] = true
+		options.append(option)
+		if options.size() == 3:
+			break
+	if options.is_empty():
+		options.append(_make_blank_option())
+	return {
+		"options": options,
+		"context": {
+			"offer_mode": "blessing", "selection_count": 1,
+			"refresh_limit": 0, "refresh_remaining": 0,
+			"wave_blessing_offer": true,
+			"summary": "波次完成：免费选择 1 个通用祝福，不消耗技能点。"
 		}
 	}
 

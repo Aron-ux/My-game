@@ -97,10 +97,7 @@ const GUNNER_BASIC_SPLIT_FIRST_LEVEL := 3
 const GUNNER_BASIC_SPLIT_STEP := 3
 const GUNNER_BASIC_SPLIT_MAX := 3
 const GUNNER_BASIC_SPLIT_ANGLES := [20.0, -20.0, 40.0]
-# 无限装填：每级 +20 射程、+1% 每跳倍率（绝对加法）、+0.5% 移速倍率（绝对加法）
-const INFINITE_RELOAD_RANGE_PER_LEVEL := 20.0
-const INFINITE_RELOAD_DAMAGE_RATIO_PER_LEVEL := 0.01
-const INFINITE_RELOAD_MOVE_SPEED_PER_LEVEL := 0.005
+# 无限装填使用 player_gunner_infinite_reload_build 的 LV0～9 分支规则。
 # 散弹：每级 +2% 每跳伤害；3/6/9 级各多一个散弹圈
 const SHRAPNEL_DAMAGE_RATIO_PER_LEVEL := 0.02
 const SHRAPNEL_FIELD_FIRST_LEVEL := 3
@@ -409,15 +406,15 @@ static func get_gunner_basic_split_angle_degrees(index: int) -> float:
 
 
 static func get_gunner_infinite_reload_range_bonus(owner) -> float:
-	return _gunner_levels_above_first(owner, GUNNER_INFINITE_RELOAD) * INFINITE_RELOAD_RANGE_PER_LEVEL
+	return preload("res://scripts/player/player_gunner_infinite_reload_build.gd").range_bonus(owner)
 
 
 static func get_gunner_infinite_reload_damage_ratio_bonus(owner) -> float:
-	return _gunner_levels_above_first(owner, GUNNER_INFINITE_RELOAD) * INFINITE_RELOAD_DAMAGE_RATIO_PER_LEVEL
+	return preload("res://scripts/player/player_gunner_infinite_reload_build.gd").damage_ratio(owner) - 0.4
 
 
 static func get_gunner_infinite_reload_move_speed_bonus(owner) -> float:
-	return _gunner_levels_above_first(owner, GUNNER_INFINITE_RELOAD) * INFINITE_RELOAD_MOVE_SPEED_PER_LEVEL
+	return 0.1 if preload("res://scripts/player/player_gunner_infinite_reload_build.gd").has_choice(owner, "light_step") else 0.0
 
 
 static func get_gunner_shrapnel_damage_ratio_bonus(owner) -> float:

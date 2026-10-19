@@ -1,5 +1,16 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
+
 [ext_resource type="Script" path="res://assets/enemies/plants/plant_visual.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/enemies/plants/tree_seed_sheet.png" id="2"]
+
 [node name="TreeSeedVisual" type="Node2D"]
 script = ExtResource("1")
+sheet = ExtResource("2")
 variant = "seed"
+columns = 4
+rows = 3
+fps = 8.0
+idle_speed = 1.0
+sprite_offset = Vector2(0, -1.5)
+shadow_position = Vector2(0, 9)
+shadow_scale = Vector2(0.55, 0.45)

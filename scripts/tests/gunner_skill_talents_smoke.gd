@@ -389,7 +389,7 @@ class TalentOwner:
 			mouse_aim_direction = mouse_direction_after_schedule
 		callback.call(0)
 
-	func _damage_enemies_in_radius(center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "") -> int:
+	func _damage_enemies_in_radius(center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "", _slow_source_id: String = "") -> int:
 		last_radius_damage = {
 			"center": center,
 			"radius": radius,

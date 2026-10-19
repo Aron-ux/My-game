@@ -190,9 +190,9 @@ func get_armor_bonus(owner) -> float:
 func _trigger_tick(owner) -> void:
 	var hits: int = 0
 	if owner.has_method("_damage_enemies_in_radius_suppressing_status_visuals"):
-		hits = int(owner._damage_enemies_in_radius_suppressing_status_visuals(owner.global_position, _get_radius(owner), _get_damage(owner), 0.0, _get_slow_multiplier(owner), 1.2, "mage"))
+		hits = int(owner._damage_enemies_in_radius_suppressing_status_visuals(owner.global_position, _get_radius(owner), _get_damage(owner), 0.0, _get_slow_multiplier(owner), 1.2, "mage", "mage_meta_field"))
 	elif owner.has_method("_damage_enemies_in_radius_batched"):
-		hits = int(owner._damage_enemies_in_radius_batched(owner.global_position, _get_radius(owner), _get_damage(owner), 0.0, _get_slow_multiplier(owner), 1.2, "mage"))
+		hits = int(owner._damage_enemies_in_radius_batched(owner.global_position, _get_radius(owner), _get_damage(owner), 0.0, _get_slow_multiplier(owner), 1.2, "mage", "mage_meta_field"))
 	else:
 		hits = int(owner._damage_enemies_in_radius(
 			owner.global_position,
@@ -201,7 +201,8 @@ func _trigger_tick(owner) -> void:
 			0.0,
 			_get_slow_multiplier(owner),
 			1.2,
-			"mage"
+			"mage",
+			"mage_meta_field"
 		))
 	if hits > 0 and not _uses_batched_damage(owner):
 		owner._register_attack_result("mage", hits, false)
@@ -232,9 +233,9 @@ func _trigger_collapse(owner) -> void:
 	var damage: float = _get_damage(owner) * 2.0
 	var slow: float = _get_slow_multiplier(owner)
 	if owner.has_method("_damage_enemies_in_radius_suppressing_status_visuals"):
-		owner._damage_enemies_in_radius_suppressing_status_visuals(center, radius, damage, 0.0, slow, 2.0, "mage")
+		owner._damage_enemies_in_radius_suppressing_status_visuals(center, radius, damage, 0.0, slow, 2.0, "mage", "mage_meta_field")
 	else:
-		owner._damage_enemies_in_radius(center, radius, damage, 0.0, slow, 2.0, "mage")
+		owner._damage_enemies_in_radius(center, radius, damage, 0.0, slow, 2.0, "mage", "mage_meta_field")
 	cooldown_remaining = COLLAPSE_COOLDOWN
 	stop(owner)
 

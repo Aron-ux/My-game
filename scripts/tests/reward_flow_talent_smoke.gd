@@ -94,6 +94,7 @@ func _check_active_talent_save_roundtrip() -> void:
 
 	_expect(int(saved.get("pending_level_ups", -1)) == 2, "active talent save should not create a duplicate normal level-up")
 	_expect(int(saved.get("pending_level_talent_choices", -1)) == 1, "active talent save should keep the queued level talent")
+	_expect(int(saved.get("skill_points", -1)) == 0, "legacy level-up queue should not be written as spendable points before migration")
 	_expect(str(saved.get("active_upgrade_kind", "")) == "skill_talent", "active talent kind should be saved")
 	_expect(bool(saved_context.get("level_talent_offer", false)), "active talent context should be saved as a level talent offer")
 
@@ -102,7 +103,8 @@ func _check_active_talent_save_roundtrip() -> void:
 	var resumed_context: Dictionary = resumed_offer.get("context", {})
 	_expect(target.active_upgrade_kind == "skill_talent", "active talent kind should survive load")
 	_expect(not target.level_up_active, "loaded talent should be reopened by reward flow instead of staying falsely active")
-	_expect(target.pending_level_ups == 2, "normal level-up queue should survive active talent load unchanged")
+	_expect(target.pending_level_ups == 0, "legacy level-up queue should be cleared after migration")
+	_expect(target.skill_points == 2, "legacy unspent level-ups should migrate to skill points")
 	_expect(target.pending_level_talent_choices == 1, "level talent queue should survive active talent load unchanged")
 	_expect((resumed_offer.get("options", []) as Array).size() == 3, "loaded run should derive a three-card level talent offer")
 	_expect(bool(resumed_context.get("level_talent_offer", false)), "loaded run should resume the level talent interface")

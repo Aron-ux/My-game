@@ -16,10 +16,43 @@ const POST_LEVEL_MID_STEP := 50.0
 const POST_LEVEL_LATE_STEP := 180.0
 const POST_LEVEL_MID_LEVEL := 30
 const POST_LEVEL_LATE_LEVEL := 47
+const WAVE_CURVE_ID := "combat_waves_v1"
+const WAVE_MODE_META := "combat_wave_level_curve"
+const WAVE_EXPERIENCE_GAIN_MULTIPLIER := 0.22
 
 
-static func get_required_experience_for_level(level: int) -> int:
+static func uses_wave_curve(owner) -> bool:
+	return owner != null and owner.has_meta(WAVE_MODE_META)
+
+
+static func get_curve_id(owner) -> String:
+	return WAVE_CURVE_ID if uses_wave_curve(owner) else "standard"
+
+
+static func enable_wave_curve(owner) -> void:
+	var previous_required: int = maxi(1, int(owner.experience_to_next_level))
+	owner.set_meta(WAVE_MODE_META, true)
+	restore_progress(owner, previous_required, "")
+
+
+static func restore_progress(owner, saved_required: int, saved_curve_id: String) -> void:
+	if not uses_wave_curve(owner):
+		owner.experience_to_next_level = normalize_required_experience(owner.level, saved_required)
+		return
+	var required := get_required_experience_for_level(owner.level, true)
+	if saved_curve_id != WAVE_CURVE_ID:
+		# Keep already-earned levels/skill points and only migrate the progress
+		# within the current level, without awarding retroactive level-ups.
+		var progress := clampf(float(owner.experience) / maxi(1, saved_required), 0.0, 0.999999)
+		owner.experience = mini(required - 1, floori(progress * required))
+	owner.experience_to_next_level = required
+
+
+static func get_required_experience_for_level(level: int, wave_mode: bool = false) -> int:
 	var safe_level: int = max(1, level)
+	if wave_mode:
+		var wave_index := float(safe_level - 1)
+		return mini(230, roundi(18.0 + wave_index * 6.0 + pow(wave_index, 1.35) * 3.0))
 	if safe_level >= POST_LEVEL_CURVE_START:
 		return _get_post_level_required_experience(safe_level)
 	var index: float = float(safe_level - 1)
@@ -40,8 +73,8 @@ static func _get_post_level_required_experience(level: int) -> int:
 	return max(1, int(round(required)))
 
 
-static func get_next_required_experience_after_level_up(new_level: int) -> int:
-	return get_required_experience_for_level(max(1, new_level))
+static func get_next_required_experience_after_level_up(new_level: int, wave_mode: bool = false) -> int:
+	return get_required_experience_for_level(max(1, new_level), wave_mode)
 
 
 static func normalize_required_experience(current_level: int, current_required: int) -> int:

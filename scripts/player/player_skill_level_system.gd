@@ -1,6 +1,7 @@
 extends RefCounted
 const MAGE_BASIC_BUILD := preload("res://scripts/player/player_mage_basic_build.gd")
 const STORM_BUILD := preload("res://scripts/player/player_blade_storm_build.gd")
+const INFINITE_BUILD := preload("res://scripts/player/player_gunner_infinite_reload_build.gd")
 
 const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
 const SWORDSMAN_BASIC_BUILD := preload("res://scripts/player/player_swordsman_basic_build.gd")
@@ -388,6 +389,7 @@ static func normalize_role_state(role_id: String, value: Variant) -> Dictionary:
 	var build = basic_build(role_id + "_basic")
 	var basic_level: int = build.level_from_state(state)
 	var storm_level: int = STORM_BUILD.level_from_state(state)
+	var infinite_level: int = INFINITE_BUILD.level_from_state(state)
 	var raw_levels: Dictionary = state.get(SKILL_LEVELS_KEY, {}) if state.get(SKILL_LEVELS_KEY, {}) is Dictionary else {}
 	var levels: Dictionary = {}
 	for progress_value in ROLE_PROGRESS_ORDER.get(role_id, []):
@@ -415,6 +417,16 @@ static func normalize_role_state(role_id: String, value: Variant) -> Dictionary:
 				if storm_level >= stage and state.get(STORM_BUILD.STATE_KEY, {}).get(str(stage), "") == option["key"]:
 					storm_choices[str(stage)] = option["key"]
 		state[STORM_BUILD.STATE_KEY] = storm_choices
+	if role_id == "gunner":
+		levels[INFINITE_BUILD.PROGRESS] = infinite_level
+		var infinite_choices: Dictionary = {}
+		var raw_infinite: Variant = state.get(INFINITE_BUILD.STATE_KEY, {})
+		if raw_infinite is Dictionary:
+			for stage in INFINITE_BUILD.STAGES:
+				for option in INFINITE_BUILD.OPTIONS[stage]:
+					if infinite_level >= stage and raw_infinite.get(str(stage), "") == option["key"]:
+						infinite_choices[str(stage)] = option["key"]
+		state[INFINITE_BUILD.STATE_KEY] = infinite_choices
 	var raw_slots: Dictionary = state.get(SKILL_TALENT_SLOTS_KEY, {}) if state.get(SKILL_TALENT_SLOTS_KEY, {}) is Dictionary else {}
 	var slots: Dictionary = {}
 	for progress_value in ROLE_PROGRESS_ORDER.get(role_id, []):
@@ -568,9 +580,11 @@ static func _owner_has_property(owner, property_name: String) -> bool:
 
 
 static func basic_build(progress_id: String):
+	if progress_id == INFINITE_BUILD.PROGRESS:
+		return INFINITE_BUILD
 	if progress_id == STORM_BUILD.PROGRESS:
 		return STORM_BUILD
 	return MAGE_BASIC_BUILD if progress_id == "mage_basic" else GUNNER_BASIC_BUILD if progress_id == "gunner_basic" else SWORDSMAN_BASIC_BUILD
 
 static func is_custom_basic(progress_id: String) -> bool:
-	return progress_id in ["swordsman_basic", "gunner_basic", "mage_basic", STORM_BUILD.PROGRESS]
+	return progress_id in ["swordsman_basic", "gunner_basic", "mage_basic", STORM_BUILD.PROGRESS, INFINITE_BUILD.PROGRESS]

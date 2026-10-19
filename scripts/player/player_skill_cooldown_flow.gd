@@ -78,6 +78,12 @@ static func get_role_skill_cooldown_slots(owner, role_id: String, attack_interva
 
 	var slots: Array = PLAYER_SKILL_COOLDOWN_SLOTS.build_slots(role_id, attack_remaining, attack_interval, extra_slots, owner)
 	_project_talent_displays(owner, slots, include_descriptions)
+	for slot in slots:
+		var skill_id := str(slot.get("skill_id", ""))
+		var progress_id := role_id + "_basic" if skill_id.ends_with("_basic_attack") else str(SKILL_LEVELS.UNLOCKABLE_PROGRESS.find_key(skill_id))
+		slot["role_id"] = role_id
+		slot["skill_progress_id"] = progress_id
+		slot["can_upgrade"] = SKILL_LEVELS.is_progress_upgradeable(owner, progress_id) and not SKILL_LEVELS.is_talent_pick_pending(owner, role_id, progress_id)
 	if include_descriptions:
 		for slot in slots:
 			_decorate_skill_info(owner, role_id, slot)
@@ -153,6 +159,14 @@ static func apply_switch_lock_to_role_skills(owner, role_id: String, duration: f
 		if ability.get("cooldown_remaining") == null:
 			continue
 		ability.cooldown_remaining = max(float(ability.cooldown_remaining), duration)
+
+
+static func reset_team_skill_cooldowns(owner, duration: float = 0.2) -> void:
+	for role in owner.roles:
+		for property_name in _get_role_skill_property_names(str(role.get("id", ""))):
+			var ability: Variant = _get_owner_property(owner, property_name)
+			if ability != null and ability.get("cooldown_remaining") != null:
+				ability.cooldown_remaining = maxf(0.0, duration)
 
 
 static func advance_active_role_skill_cooldowns(owner, progress_ratio: float) -> int:

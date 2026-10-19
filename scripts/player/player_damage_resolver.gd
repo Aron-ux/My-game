@@ -46,7 +46,7 @@ static var reusable_candidates: Array = []
 static var reusable_seen_enemy_ids: Dictionary = {}
 static var reusable_bounds_list: Array[Rect2] = []
 
-static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, suppress_status_visual: bool = false, kill_energy_bonus: float = 0.0, gunner_event_prepared: bool = false, damage_event_id: String = "") -> bool:
+static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, suppress_status_visual: bool = false, kill_energy_bonus: float = 0.0, gunner_event_prepared: bool = false, damage_event_id: String = "", slow_source_id: String = "") -> bool:
 	if not _is_live_enemy(enemy):
 		return false
 	if preload("res://scripts/enemies/enemy_necro_priest.gd").immune_to_source(enemy, source_role_id):
@@ -82,6 +82,8 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 			killed = bool(enemy.take_damage_ignoring_armor(final_damage, was_critical))
 		else:
 			killed = _call_enemy_take_damage(enemy, final_damage, was_critical)
+		if source_role_id == "gunner_infinite_reload" and not killed and owner != null and owner.get("gunner_infinite_reload_ability") != null:
+			killed = bool(owner.gunner_infinite_reload_ability.resolve_soul_impact(enemy))
 		if owner != null and owner.has_method("_record_swordsman_ultimate_followup_damage"):
 			var health_after_value: Variant = enemy.get("current_health")
 			var health_after: float = float(health_after_value) if health_after_value != null else health_before
@@ -123,7 +125,9 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 	if vulnerability_bonus > 0.0 and enemy.has_method("apply_vulnerability"):
 		enemy.apply_vulnerability(vulnerability_bonus, vulnerability_duration)
 	if slow_duration > 0.0:
-		if suppress_status_visual and enemy.has_method("apply_slow_silent"):
+		if enemy.has_method("apply_slow_from_source"):
+			enemy.apply_slow_from_source(slow_multiplier, slow_duration, _slow_effect_id(source_role_id, slow_source_id), suppress_status_visual)
+		elif suppress_status_visual and enemy.has_method("apply_slow_silent"):
 			enemy.apply_slow_silent(slow_multiplier, slow_duration)
 		elif enemy.has_method("apply_slow"):
 			enemy.apply_slow(slow_multiplier, slow_duration)
@@ -142,7 +146,7 @@ static func _call_enemy_take_damage(enemy: Node, amount: float, is_critical: boo
 static func _method_accepts_argument_count(target: Object, method_name: String, argument_count: int) -> bool:
 	return DAMAGE_METHOD_DISPATCH.accepts_arguments(target, method_name, argument_count)
 
-static func queue_damage_to_enemy(owner, enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, prefer_silent_feedback: bool = false, suppress_status_visual: bool = false, gunner_event_prepared: bool = false, damage_event_id: String = "") -> void:
+static func queue_damage_to_enemy(owner, enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, prefer_silent_feedback: bool = false, suppress_status_visual: bool = false, gunner_event_prepared: bool = false, damage_event_id: String = "", slow_source_id: String = "") -> void:
 	if not _is_live_enemy(enemy):
 		return
 	var resolved_source_role_id := _resolve_damage_source_role_id(source_role_id)
@@ -151,9 +155,9 @@ static func queue_damage_to_enemy(owner, enemy: Node, damage_amount: float, sour
 		gunner_event_prepared = true
 	var queue := _get_or_create_damage_job_queue(owner)
 	if queue == null:
-		deal_damage_to_enemy(owner, enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, suppress_status_visual, 0.0, gunner_event_prepared, damage_event_id)
+		deal_damage_to_enemy(owner, enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, suppress_status_visual, 0.0, gunner_event_prepared, damage_event_id, slow_source_id)
 		return
-	queue.enqueue_values(weakref(enemy), enemy.get_instance_id(), damage_amount, 1, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, 0.0, prefer_silent_feedback, suppress_status_visual, gunner_event_prepared, damage_event_id)
+	queue.enqueue_values(weakref(enemy), enemy.get_instance_id(), damage_amount, 1, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, 0.0, prefer_silent_feedback, suppress_status_visual, gunner_event_prepared, damage_event_id, slow_source_id)
 
 static func apply_or_queue_damage_job(owner, job: Dictionary) -> void:
 	var enemy_ref: WeakRef = job.get("enemy_ref", null) as WeakRef
@@ -175,10 +179,11 @@ static func apply_or_queue_damage_job(owner, job: Dictionary) -> void:
 		bool(job.get("prefer_silent_feedback", false)),
 		bool(job.get("suppress_status_visual", false)),
 		bool(job.get("gunner_event_prepared", false)),
-		str(job.get("damage_event_id", ""))
+		str(job.get("damage_event_id", "")),
+		str(job.get("slow_source_id", ""))
 	)
 
-static func apply_or_queue_damage_values(owner, enemy_ref: WeakRef, enemy_id: int, damage_amount: float, hit_count: int, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, kill_energy_bonus: float = 0.0, prefer_silent_feedback: bool = false, suppress_status_visual: bool = false, gunner_event_prepared: bool = false, damage_event_id: String = "") -> void:
+static func apply_or_queue_damage_values(owner, enemy_ref: WeakRef, enemy_id: int, damage_amount: float, hit_count: int, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, kill_energy_bonus: float = 0.0, prefer_silent_feedback: bool = false, suppress_status_visual: bool = false, gunner_event_prepared: bool = false, damage_event_id: String = "", slow_source_id: String = "") -> void:
 	if enemy_ref == null:
 		return
 	var enemy: Node = enemy_ref.get_ref() as Node
@@ -199,15 +204,16 @@ static func apply_or_queue_damage_values(owner, enemy_ref: WeakRef, enemy_id: in
 			suppress_status_visual,
 			kill_energy_bonus,
 			gunner_event_prepared,
-			damage_event_id
+			damage_event_id,
+			slow_source_id
 		)
 		return
-	queue.enqueue_values(enemy_ref, enemy_id, damage_amount, hit_count, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, kill_energy_bonus, prefer_silent_feedback, suppress_status_visual, gunner_event_prepared, damage_event_id)
+	queue.enqueue_values(enemy_ref, enemy_id, damage_amount, hit_count, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, kill_energy_bonus, prefer_silent_feedback, suppress_status_visual, gunner_event_prepared, damage_event_id, slow_source_id)
 
-static func damage_enemies_in_radius(owner, center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "") -> int:
-	return damage_enemies_in_radius_with_kill_energy(owner, center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id, 0.0)
+static func damage_enemies_in_radius(owner, center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "", slow_source_id: String = "") -> int:
+	return damage_enemies_in_radius_with_kill_energy(owner, center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id, 0.0, slow_source_id)
 
-static func damage_enemies_in_radius_with_kill_energy(owner, center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "", kill_energy_bonus: float = 0.0) -> int:
+static func damage_enemies_in_radius_with_kill_energy(owner, center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "", kill_energy_bonus: float = 0.0, slow_source_id: String = "") -> int:
 	var resolved_role_id: String = _resolve_role_id(owner, source_role_id)
 	var candidates: Array = _get_candidate_enemies_for_circle(owner, center, radius)
 	_record_damage_query(candidates.size())
@@ -216,15 +222,15 @@ static func damage_enemies_in_radius_with_kill_energy(owner, center: Vector2, ra
 		if not _is_live_enemy(enemy) or enemy is not Node2D:
 			continue
 		if _enemy_hit_shape_hits_circle(owner, enemy as Node2D, center, radius):
-			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center, kill_energy_bonus)
+			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center, kill_energy_bonus, false, false, "", slow_source_id)
 	var hit_count: int = batcher.hit_count
 	PERFORMANCE_COUNTERS.add("damage_hits", hit_count)
 	return batcher.flush()
 
-static func damage_enemies_in_radius_batched(owner, center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "") -> int:
-	return damage_enemies_in_radius(owner, center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id)
+static func damage_enemies_in_radius_batched(owner, center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "", slow_source_id: String = "") -> int:
+	return damage_enemies_in_radius(owner, center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id, slow_source_id)
 
-static func damage_enemies_in_radius_suppressing_status_visuals(owner, center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "") -> int:
+static func damage_enemies_in_radius_suppressing_status_visuals(owner, center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "", slow_source_id: String = "") -> int:
 	var resolved_role_id: String = _resolve_role_id(owner, source_role_id)
 	var candidates: Array = _get_candidate_enemies_for_circle(owner, center, radius)
 	_record_damage_query(candidates.size())
@@ -233,7 +239,7 @@ static func damage_enemies_in_radius_suppressing_status_visuals(owner, center: V
 		if not _is_live_enemy(enemy) or enemy is not Node2D:
 			continue
 		if _enemy_hit_shape_hits_circle(owner, enemy as Node2D, center, radius):
-			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center, 0.0, true)
+			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center, 0.0, true, false, "", slow_source_id)
 	var hit_count: int = batcher.hit_count
 	PERFORMANCE_COUNTERS.add("damage_hits", hit_count)
 	return batcher.flush()
@@ -339,7 +345,7 @@ static func get_touching_enemy_damage(owner, center: Vector2, radius: float, que
 
 static func get_touching_enemy_hit(owner, center: Vector2, radius: float, query_padding: float = 36.0) -> Dictionary:
 	var candidates: Array = _get_candidate_enemies_for_circle(owner, center, radius + max(query_padding, BOSS_TOUCH_DAMAGE_QUERY_PADDING))
-	var stalwart_body_immune: bool = PLAYER_MAGE_FLAME_PATH_FLOW.is_active(owner)
+	var stalwart_body_immune: bool = PLAYER_MAGE_FLAME_PATH_FLOW.is_active(owner) or (owner != null and owner.get("gunner_infinite_reload_ability") != null and owner.gunner_infinite_reload_ability.is_soul_form_active())
 	for enemy in candidates:
 		if not _is_live_enemy(enemy) or enemy is not Node2D:
 			continue
@@ -469,7 +475,7 @@ static func damage_enemies_in_line(owner, start_position: Vector2, end_position:
 static func damage_enemies_in_oriented_rect(owner, center: Vector2, axis_direction: Vector2, rect_length: float, rect_width: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "", knockback_distance: float = 0.0) -> int:
 	return damage_enemies_in_oriented_rect_unique(owner, center, axis_direction, rect_length, rect_width, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, {}, source_role_id, knockback_distance)
 
-static func damage_enemies_in_oriented_rect_unique(owner, center: Vector2, axis_direction: Vector2, rect_length: float, rect_width: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, hit_registry: Dictionary, source_role_id: String = "", knockback_distance: float = 0.0) -> int:
+static func damage_enemies_in_oriented_rect_unique(owner, center: Vector2, axis_direction: Vector2, rect_length: float, rect_width: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, hit_registry: Dictionary, source_role_id: String = "", knockback_distance: float = 0.0, slow_source_id: String = "") -> int:
 	var is_basic_slash: bool = bool(hit_registry.get("swordsman_slash", false))
 	var primary_distance: float = INF
 	var primary_position := Vector2.ZERO
@@ -497,7 +503,7 @@ static func damage_enemies_in_oriented_rect_unique(owner, center: Vector2, axis_
 				if distance < primary_distance:
 					primary_distance = distance
 					primary_position = enemy.global_position
-			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center)
+			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center, 0.0, false, false, "", slow_source_id)
 			if knockback_distance > 0.0:
 				(enemy as Node2D).global_position += direction * knockback_distance
 	var hit_count: int = batcher.hit_count
@@ -552,6 +558,17 @@ static func damage_enemies_in_ellipse(owner, center: Vector2, horizontal_radius:
 		if _enemy_hit_shape_hits_ellipse(owner, enemy as Node2D, center, safe_horizontal, safe_vertical):
 			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center)
 	var hit_count: int = batcher.hit_count
+	PERFORMANCE_COUNTERS.add("damage_hits", hit_count)
+	return batcher.flush()
+
+static func damage_all_enemies(owner, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "") -> int:
+	var resolved_role_id: String = _resolve_role_id(owner, source_role_id)
+	var batcher := _get_reusable_damage_batcher(owner)
+	for enemy in _get_live_enemies(owner):
+		if enemy is Node2D:
+			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, (owner as Node2D).global_position if owner is Node2D else Vector2.ZERO)
+	var hit_count: int = batcher.hit_count
+	PERFORMANCE_COUNTERS.add("damage_queries", 1)
 	PERFORMANCE_COUNTERS.add("damage_hits", hit_count)
 	return batcher.flush()
 
@@ -1052,6 +1069,8 @@ static func _resolve_role_id(owner, source_role_id: String) -> String:
 	return ""
 
 static func _resolve_damage_source_role_id(source_role_id: String) -> String:
+	if source_role_id == "gunner_infinite_reload":
+		return "gunner"
 	if source_role_id == "gunner_aux:split":
 		return "gunner"
 	if source_role_id.begins_with("swordsman_aux:"):
@@ -1138,3 +1157,13 @@ static func _is_live_enemy(enemy) -> bool:
 	if current_health_value != null and float(current_health_value) <= 0.0:
 		return false
 	return true
+
+static func _slow_effect_id(damage_source: String, explicit_source: String = "") -> String:
+	if explicit_source != "":
+		return explicit_source
+	for role in ["swordsman", "gunner", "mage", "mechanic"]:
+		if damage_source.begins_with(role + "_basic:"):
+			return role + "_basic"
+	if PLAYER_MAGE_ENTRY_TALENT_FLOW.is_entry_lightning_source(damage_source):
+		return "mage_entry"
+	return damage_source

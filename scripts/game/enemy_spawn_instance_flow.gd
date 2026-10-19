@@ -30,6 +30,11 @@ static func spawn_configured_enemy_at_position(main: Node, kind: String, archety
 	enemy.heart_pickup_scene = main.heart_pickup_scene
 	if enemy.has_method("apply_enemy_profile"):
 		enemy.apply_enemy_profile(kind, main.ENEMY_SPAWN_FLOW.get_enemy_profile(main, kind, archetype))
+	var waves = main.get("wave_flow")
+	if kind == "small_boss" and is_instance_valid(waves) and waves.PLAN.SMALL_BOSS_EXPERIENCE.has(int(waves.wave)):
+		enemy.experience_reward = int(waves.PLAN.SMALL_BOSS_EXPERIENCE[int(waves.wave)])
+	if kind == "normal" and is_instance_valid(waves) and waves.phase == "combat" and int(waves.wave) in waves.PLAN.REWARD_WAVES:
+		enemy.experience_reward = maxi(1, roundi(float(enemy.experience_reward) * 1.5))
 	var uses_authored_boss_stats: bool = kind == "boss" and archetype == "boss_spellcore"
 	enemy.max_health *= health_multiplier * (1.0 if uses_authored_boss_stats else GLOBAL_ENEMY_HEALTH_MULTIPLIER)
 	if kind == "boss":

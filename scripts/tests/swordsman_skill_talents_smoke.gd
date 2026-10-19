@@ -158,7 +158,7 @@ class TalentOwner:
 	func _play_player_hurt_feedback() -> void:
 		pass
 
-	func _damage_enemies_in_oriented_rect_unique(_center: Vector2, _axis: Vector2, _length: float, _width: float, _damage: float, _vulnerability: float, _slow: float, _slow_duration: float, _registry: Dictionary, _role_id: String) -> int:
+	func _damage_enemies_in_oriented_rect_unique(_center: Vector2, _axis: Vector2, _length: float, _width: float, _damage: float, _vulnerability: float, _slow: float, _slow_duration: float, _registry: Dictionary, _role_id: String, _slow_source_id: String = "") -> int:
 		return 0
 
 	func _register_attack_result(_role_id: String, _hits: int, _killed: bool) -> void:

@@ -124,7 +124,7 @@ func _tick_field(owner) -> void:
 		return
 	var damage_amount: float = owner._get_role_damage("mechanic") * _get_damage_ratio(owner)
 	var radius: float = _get_radius(owner)
-	var hits: int = owner._damage_enemies_in_radius(field_position, radius, damage_amount, 0.0, _get_slow_multiplier(owner), SLOW_DURATION, "mechanic")
+	var hits: int = owner._damage_enemies_in_radius(field_position, radius, damage_amount, 0.0, _get_slow_multiplier(owner), SLOW_DURATION, "mechanic", "mechanic_emp_burst")
 	if hits > 0 and owner.has_method("_register_attack_result"):
 		owner._register_attack_result("mechanic", hits, false)
 	self_buff_active = owner.global_position.distance_to(field_position) <= radius

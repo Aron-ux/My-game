@@ -31,6 +31,7 @@ const ENEMY_PROJECTILE_BUDGET_FLOW := preload("res://scripts/game/enemy_projecti
 const ENEMY_PROJECTILES := preload("res://scripts/enemies/enemy_projectiles.gd")
 const ENEMY_HIT_FEEDBACK := preload("res://scripts/enemies/enemy_hit_feedback.gd")
 const PLAYER_BULLET := preload("res://scripts/bullet.gd")
+const COMBAT_WAVE_FLOW := preload("res://scripts/game/combat_wave_flow.gd")
 
 const PICKUP_GRID_CELL_SIZE := 128.0
 const REWARD_MAINTENANCE_DEFER_SECONDS := 0.12
@@ -49,6 +50,7 @@ const REWARD_MAINTENANCE_DEFER_SECONDS := 0.12
 @export var map_bounds: Rect2 = Rect2(Vector2(-1600.0, -900.0), Vector2(3200.0, 1800.0))
 
 var player
+var wave_flow
 var spawn_timer: Timer
 var hud
 var character_panel
@@ -325,6 +327,9 @@ func _on_player_blessing_skill_event_announced(event: Dictionary) -> void:
 
 func _on_upgrade_selected(option_id: String, attribute_option_id: String = "") -> void:
 	REWARD_FLOW.handle_upgrade_selected(self, option_id, attribute_option_id)
+
+func _on_skill_point_requested(skill_id: String = "", role_id: String = "") -> void:
+	REWARD_FLOW.show_skill_point_allocation(self, skill_id, role_id)
 
 func _on_upgrade_refresh_requested() -> void:
 	REWARD_FLOW.handle_upgrade_refresh_requested(self)

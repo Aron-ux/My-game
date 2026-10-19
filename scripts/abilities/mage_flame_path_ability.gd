@@ -12,10 +12,14 @@ var cooldown_remaining: float = 0.0
 var active_remaining: float = 0.0
 var path_remaining: float = 0.0
 var path_node: Node2D
+var status_display: Node2D
 
 func update(owner, delta: float) -> void:
 	if active_remaining > 0.0:
+		_ensure_status_display(owner)
 		active_remaining = max(0.0, active_remaining - delta)
+		if status_display != null and is_instance_valid(status_display):
+			status_display.set_remaining(active_remaining)
 		if path_node != null and is_instance_valid(path_node) and path_node.has_method("record_position"):
 			path_node.record_position(owner.global_position)
 	if path_remaining > 0.0:
@@ -26,12 +30,19 @@ func update(owner, delta: float) -> void:
 		path_node = null
 		if active_remaining <= 0.0 and cooldown_remaining <= 0.0:
 			cooldown_remaining = COOLDOWN
+	if active_remaining <= 0.0 and status_display != null:
+		if is_instance_valid(status_display):
+			status_display.queue_free()
+		status_display = null
 	if cooldown_remaining > 0.0:
 		cooldown_remaining = max(0.0, cooldown_remaining - delta)
 
 func on_role_switched(previous_role_id: String, active_role_id: String) -> void:
 	if previous_role_id == "mage" and active_role_id != "mage":
 		active_remaining = 0.0
+		if status_display != null and is_instance_valid(status_display):
+			status_display.queue_free()
+		status_display = null
 
 
 func can_trigger(owner, role_id: String) -> bool:
@@ -51,8 +62,20 @@ func try_trigger(owner) -> bool:
 	path_node.configure(owner, float(owner._get_role_damage("mage")) * (DAMAGE_PER_SECOND_RATIO + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_flame_path_damage_per_second_bonus(owner)))
 	path_node.record_position(owner.global_position)
 	scene.add_child(path_node)
+	_ensure_status_display(owner)
 	owner._spawn_ring_effect(owner.global_position, 48.0, Color(1.0, 0.34, 0.10, 0.5), 7.0, 0.18)
 	return true
+
+func _ensure_status_display(owner) -> void:
+	if status_display != null and is_instance_valid(status_display):
+		return
+	var scene: Node = owner.get_tree().current_scene if owner != null and owner.get_tree() != null else null
+	if scene == null:
+		return
+	status_display = preload("res://scripts/player/mage_flame_path_status_display.gd").new()
+	status_display.configure(owner, ACTIVE_DURATION)
+	status_display.set_remaining(active_remaining)
+	scene.add_child(status_display)
 
 func get_move_speed_multiplier(owner) -> float:
 	if active_remaining <= 0.0 or owner == null or str(owner._get_active_role().get("id", "")) != "mage":

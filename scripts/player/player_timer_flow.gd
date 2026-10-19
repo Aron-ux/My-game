@@ -17,6 +17,7 @@ static func update_timers(owner, delta: float) -> void:
 	preload("res://scripts/player/player_necro_mark.gd").tick(owner, delta)
 	preload("res://scripts/player/player_vine_entangle.gd").tick(owner, delta)
 	preload("res://scripts/player/player_skull_mage_effects.gd").tick(owner, delta)
+	preload("res://scripts/player/player_enemy_status_overlays.gd").sync(owner)
 	if owner.has_method("_tick_duration_statuses"):
 		owner._tick_duration_statuses(delta)
 	if owner.has_method("_tick_temporary_health_stacks"):
@@ -78,9 +79,9 @@ static func update_timers(owner, delta: float) -> void:
 		swordsman_special["ultimate_lifesteal_multiplier_remaining"] = max(0.0, float(swordsman_special.get("ultimate_lifesteal_multiplier_remaining", 0.0)) - delta)
 		owner.role_special_states["swordsman"] = swordsman_special
 	if owner.enemy_move_slow_remaining > 0.0:
-		owner.enemy_move_slow_remaining = max(0.0, owner.enemy_move_slow_remaining - delta)
-		if owner.enemy_move_slow_remaining <= 0.0:
-			owner.enemy_move_slow_multiplier = 1.0
+		var slow := preload("res://scripts/combat/movement_slow.gd").tick(owner, delta, owner.enemy_move_slow_multiplier, owner.enemy_move_slow_remaining)
+		owner.enemy_move_slow_multiplier = slow.x
+		owner.enemy_move_slow_remaining = slow.y
 	preload("res://scripts/player/player_skull_mage_effects.gd").slow_cooldowns_before_update(owner, delta)
 	if owner.gunner_infinite_reload_ability != null:
 		PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.apply_skill_cooldown_tick_bonus(owner, owner.gunner_infinite_reload_ability, "gunner", delta)

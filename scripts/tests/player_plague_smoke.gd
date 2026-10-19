@@ -88,7 +88,7 @@ func _run() -> void:
 	_expect(plague_slots.size() == 1 and plague_slots[0].get("remaining") == 1.5, "HUD shows one plague status and timer")
 
 	player.apply_enemy_slow(0.5, 0.5)
-	_expect(is_equal_approx(player._get_role_move_speed(active_role), base_speed * 0.5), "strongest existing slow wins")
+	_expect(is_equal_approx(player._get_role_move_speed(active_role), base_speed * 0.5 * 0.8), "independent slows multiply")
 	player._update_timers(0.5)
 	_expect(is_equal_approx(player._get_role_move_speed(active_role), base_speed * 0.8), "plague remains after shorter independent slow expires")
 	player.apply_enemy_slow(0.9, 3.0)
@@ -114,7 +114,7 @@ func _run() -> void:
 	_expect(is_equal_approx(target.current_health, 47.0), "restored plague reduces healing")
 	var restored_speed: float = target._get_role_move_speed(target._get_active_role_id())
 	target._update_timers(1.0)
-	_expect(is_equal_approx(restored_speed / target._get_role_move_speed(target._get_active_role_id()), 0.8 / 0.9), "restored plague slow expires independently")
+	_expect(is_equal_approx(restored_speed / target._get_role_move_speed(target._get_active_role_id()), 0.8), "restored plague slow expires independently")
 	saved.erase("plague_remaining")
 	target.plague_remaining = 1.5
 	target.apply_save_data(saved)
@@ -127,7 +127,7 @@ func _run() -> void:
 	var switched_role: String = player._get_active_role_id()
 	var switched_speed: float = player._get_role_move_speed(switched_role)
 	player.plague_remaining = 0.0
-	_expect(is_equal_approx(switched_speed / player._get_role_move_speed(switched_role), 0.8 / 0.9), "switched character receives plague slow")
+	_expect(is_equal_approx(switched_speed / player._get_role_move_speed(switched_role), 0.8), "switched character receives plague slow")
 	player.plague_remaining = 1.0
 	paused = true
 	player.set_physics_process(true)
@@ -173,6 +173,12 @@ class SourceEnemy:
 class DamagePlayer:
 	extends "res://scripts/player.gd"
 	var force_dodge: bool = false
+
+	func _ready() -> void:
+		super._ready()
+		# This test isolates plague timing; resistance has its own smoke test.
+		for role in roles:
+			role["status_resistance"] = 0.0
 
 	func _try_equipment_dodge() -> bool:
 		return force_dodge

@@ -22,6 +22,8 @@ static func exit_tree(enemy) -> void:
 
 
 static func physics_process(enemy, delta: float) -> void:
+	if enemy.has_meta("wave_cleanup"):
+		return
 	enemy.ENEMY_HIT_FEEDBACK.update_feedback_animations(delta)
 	enemy.ENEMY_STATUS_VISUALS.update_temporary_animations(delta)
 	var current_scene: Node = enemy.get_tree().current_scene if enemy.is_inside_tree() and enemy.get_tree() != null else null

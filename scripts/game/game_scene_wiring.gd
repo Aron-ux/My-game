@@ -43,6 +43,7 @@ static func _setup_hud(main: Node) -> void:
 	if main.hud.has_method("set_endless_mode_enabled"):
 		main.hud.set_endless_mode_enabled(main.endless_mode_active)
 	_connect_if_present(main.hud, "developer_level_up_requested", Callable(main, "_on_developer_level_up_requested"))
+	_connect_if_present(main.hud, "skill_point_requested", Callable(main, "_on_skill_point_requested"))
 	_connect_if_present(main.hud, "developer_catalog_action_requested", Callable(main, "_on_developer_catalog_action_requested"))
 	_connect_if_present(main.hud, "developer_boss_spawn_requested", Callable(main, "_on_developer_boss_spawn_requested"))
 	_connect_if_present(main.hud, "developer_small_boss_spawn_requested", Callable(main, "_on_developer_small_boss_spawn_requested"))

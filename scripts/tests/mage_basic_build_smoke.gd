@@ -41,8 +41,8 @@ func _run() -> void:
 			check(not LEVELS.apply_option_with_result(player, option["id"], offer).is_empty(), "branch applied")
 	check(is_equal_approx(BUILD.damage_ratio(player), 3.5), "max focus ratio 350 percent")
 	player.role_mana_values["mage"] = 62.0
-	check(is_equal_approx(player._get_effective_attack_speed("mage"), 0.394), "focus additive speed at 62 energy with storm and LV6 penalties")
-	check(is_equal_approx(BUILD.range_multiplier(player), 1.95), "LV6 and focus range")
+	check(is_equal_approx(player._get_effective_attack_speed("mage"), 0.27), "focus additive speed at 62 energy with storm and LV6 penalties")
+	check(is_equal_approx(BUILD.range_multiplier(player), 1.625), "LV6 and focus range")
 	check(is_equal_approx(BUILD.energy_bonus(player, "mage_basic:test"), 0.5), "energy x1.5")
 	var request := {"kind": "skill", "role_id": "mage", "id": "mage_basic"}
 	TOOLS.apply(player, request.merged({"operation": "branch", "stage": 4, "choice": "charge"}))
@@ -145,9 +145,17 @@ func _run() -> void:
 		check(caster.restarts == (1 if index == 2 else 0), "cooldown begins only after third strike")
 	check(is_equal_approx(caster.jobs[1].delay, 0.2), "first interval 0.2")
 	check(is_equal_approx(caster.jobs[2].delay, 0.45), "second interval 0.45")
-	check(caster.hits.size() == 3 and caster.jobs.size() == 4, "three strikes schedule one divine")
+	check(caster.hits.size() == 3 and caster.jobs.size() == 3, "one storm cast counts as one lightning")
+	for cast_index in range(2):
+		for strike_index in range(3):
+			RUNTIME.strike(caster, Vector2(100, 50), 40.0, strike_index, true)
+	check(caster.jobs.size() == 4, "third lightning cast schedules one divine")
+	check(is_equal_approx(caster.jobs[3].delay, 0.4), "divine delay is 0.4 seconds")
+	var local_hits_before_divine: int = caster.hits.size()
 	caster.jobs[3].callback.call(0)
-	check(caster.hits.size() == 4 and caster.jobs.size() == 4, "divine does not recursively count")
+	check(caster.hits.size() == local_hits_before_divine and caster.jobs.size() == 4, "divine does not recursively count or repeat local damage")
+	check(caster.global_hits.size() == 1, "divine damages globally once without local duplicate damage")
+	check(is_equal_approx(caster.global_hits[0].damage, caster.hits[0].damage * 1.5), "divine deals 150 percent of the current strike multiplier")
 	check(is_equal_approx(caster.hits[1].damage, caster.hits[0].damage * 0.65), "second 65 percent")
 	check(is_equal_approx(caster.hits[2].damage, caster.hits[0].damage * 0.4225), "third 42.25 percent")
 	check(caster.shakes[0] < caster.shakes[1] and caster.shakes[1] < caster.shakes[2], "progressively stronger shake")
@@ -177,6 +185,7 @@ class CastStub:
 	var aim := Vector2(100, 50)
 	var jobs: Array = []
 	var hits: Array = []
+	var global_hits: Array = []
 	var shakes: Array = []
 	var restarts := 0
 	func _get_active_role() -> Dictionary:
@@ -205,4 +214,7 @@ class CastStub:
 		return "mage_basic:test"
 	func _damage_enemies_in_ellipse(center: Vector2, horizontal: float, _vertical: float, damage: float, _vulnerability: float, _slow: float, _duration: float, _source: String) -> int:
 		hits.append({"center": center, "radius": horizontal, "damage": damage})
+		return 1
+	func _damage_all_enemies(damage: float, _vulnerability: float, _slow: float, _duration: float, _source: String) -> int:
+		global_hits.append({"damage": damage})
 		return 1

@@ -2,6 +2,10 @@ extends RefCounted
 
 const LIMIT := 2
 const MARK := preload("res://scripts/player/player_necro_mark.gd")
+const SHEET_EFFECT := preload("res://scripts/enemies/enemy_sheet_effect.gd")
+const PRAYER_CIRCLE := preload("res://assets/enemies/necropriest/prayer_circle.png")
+const HEAL_WISP := preload("res://assets/enemies/necropriest/heal_wisp.png")
+const HEAL_WISP_LIMIT := 16
 
 
 static func is_priest(enemy) -> bool:
@@ -18,18 +22,29 @@ static func update(enemy, delta: float) -> void:
 		state[key] = maxf(0, float(state.get(key, 0)) - delta)
 	if float(state["prayer_cooldown"]) <= 0:
 		state["prayer_cooldown"] = 5.0
+		var scene: Node = enemy.get_tree().current_scene
+		var wisps := 0
 		for other in enemy.get_tree().get_nodes_in_group("enemies"):
 			if not is_instance_valid(other) or other.is_queued_for_deletion() or other.pooled_inactive or other.current_health <= 0 or other.rebirth_timer > 0:
 				continue
 			if other.current_health < other.max_health:
 				other.current_health += (other.max_health - other.current_health) * 0.3
-			other._spawn_status_burst(Color(0.35, 0.85, 0.68, 0.45), 24)
-		enemy._spawn_status_burst(Color(0.55, 1, 0.8, 0.6), 55)
+				if wisps < HEAL_WISP_LIMIT:
+					wisps += 1
+					SHEET_EFFECT.spawn(scene, HEAL_WISP, 6, other.global_position, {"follow": other, "offset": Vector2(0, -34), "fps": 12.0, "z_index": 16})
+		_play_cast(enemy)
+		SHEET_EFFECT.spawn(scene, PRAYER_CIRCLE, 8, enemy.global_position, {"offset": Vector2(0, 22), "fps": 13.0, "art_scale": 1.6, "z_index": 9})
 	if float(state["mark_cooldown"]) <= 0 and is_instance_valid(enemy.target):
 		if enemy.global_position.distance_squared_to(enemy.target.global_position) <= 250.0 * 250.0:
 			state["mark_cooldown"] = 12.0
 			MARK.apply(enemy.target)
-			enemy._spawn_status_burst(Color(0.7, 0.35, 0.9, 0.7), 45)
+			_play_cast(enemy)
+
+
+static func _play_cast(enemy) -> void:
+	var visual: Node = enemy.get_node_or_null("ProfileVisual")
+	if visual != null and visual.has_method("play_cast"):
+		visual.play_cast()
 
 
 static func immune_to_source(enemy, source: String) -> bool:

@@ -10,6 +10,8 @@ const MAX_PICKUP_MERGE_SCAN_COUNT := 96
 static func compact_pickups(root: Node) -> Dictionary:
 	if root == null or root.get_tree() == null:
 		return {}
+	if is_instance_valid(root.get("wave_flow")) and root.wave_flow.phase in ["clearing", "collecting", "settling"]:
+		return {}
 	return {
 		"merged_gems": _compact_group(root, "exp_gems", EXP_GEM_HARD_LIMIT, EXP_GEM_TARGET_COUNT, "_merge_exp_gem"),
 		"merged_hearts": _compact_group(root, "heart_pickups", HEART_HARD_LIMIT, HEART_TARGET_COUNT, "_merge_heart_pickup")

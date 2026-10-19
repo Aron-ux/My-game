@@ -109,7 +109,10 @@ func _apply_aura(owner, delta: float) -> void:
 		if cast_choices.has("typhoon"):
 			enemy.global_position = enemy.global_position.move_toward(cast_origin, 60.0 * delta)
 		if cast_choices.has("gale"):
-			enemy.apply_slow_silent(0.7, 0.4)
+			if enemy.has_method("apply_slow_from_source"):
+				enemy.apply_slow_from_source(0.7, 0.4, "swordsman_blade_storm", true)
+			else:
+				enemy.apply_slow_silent(0.7, 0.4)
 
 func _trigger_tick(owner) -> void:
 	serial += 1

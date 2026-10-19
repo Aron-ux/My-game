@@ -249,6 +249,10 @@ static func get_attack_aim_direction(owner, fallback_direction: Vector2 = Vector
 
 
 static func collect_nearby_gems(owner) -> void:
+	var scene: Node = owner.get_tree().current_scene
+	if scene != null and is_instance_valid(scene.get("wave_flow")):
+		if scene.wave_flow.phase in ["clearing", "collecting", "settling"]:
+			return # Wave ending owns pickup order and grants each gem only on arrival.
 	var attract_center: Vector2 = owner.get_hurtbox_center()
 	var attract_radius: float = max(owner.GEM_ATTRACT_RADIUS, owner.get_hurtbox_radius() * 3.6)
 	var attract_radius_squared: float = attract_radius * attract_radius
@@ -349,13 +353,13 @@ static func gain_experience(owner, amount: int) -> void:
 	owner.experience += adjusted_amount
 
 	if owner.experience_to_next_level <= 0:
-		owner.experience_to_next_level = PLAYER_LEVEL_CURVE.get_required_experience_for_level(owner.level)
+		owner.experience_to_next_level = PLAYER_LEVEL_CURVE.get_required_experience_for_level(owner.level, PLAYER_LEVEL_CURVE.uses_wave_curve(owner))
 
 	var level_up_guard := 0
 	while owner.experience >= owner.experience_to_next_level and level_up_guard < 100:
 		owner.experience -= owner.experience_to_next_level
 		owner.level += 1
-		owner.experience_to_next_level = PLAYER_LEVEL_CURVE.get_next_required_experience_after_level_up(owner.level)
+		owner.experience_to_next_level = PLAYER_LEVEL_CURVE.get_next_required_experience_after_level_up(owner.level, PLAYER_LEVEL_CURVE.uses_wave_curve(owner))
 		PLAYER_LEVEL_FLOW.handle_reached_level(owner, owner.level)
 		level_up_guard += 1
 	if level_up_guard >= 100:
@@ -369,7 +373,8 @@ static func _get_adjusted_experience_gain(owner, amount: int) -> int:
 	if amount <= 0:
 		return 0
 	var difficulty_multiplier: float = _get_difficulty_experience_multiplier(owner)
-	var raw_gain := float(amount) * EXPERIENCE_GAIN_MULTIPLIER * difficulty_multiplier
+	var base_multiplier := PLAYER_LEVEL_CURVE.WAVE_EXPERIENCE_GAIN_MULTIPLIER if PLAYER_LEVEL_CURVE.uses_wave_curve(owner) else EXPERIENCE_GAIN_MULTIPLIER
+	var raw_gain := float(amount) * base_multiplier * difficulty_multiplier
 	var carry := 0.0
 	if owner != null and owner.has_meta(EXPERIENCE_FRACTION_CARRY_KEY):
 		carry = float(owner.get_meta(EXPERIENCE_FRACTION_CARRY_KEY))
@@ -395,7 +400,7 @@ static func _get_difficulty_experience_multiplier(owner) -> float:
 
 static func grant_developer_level_up(owner) -> void:
 	owner.level += 1
-	owner.experience_to_next_level = PLAYER_LEVEL_CURVE.get_next_required_experience_after_level_up(owner.level)
+	owner.experience_to_next_level = PLAYER_LEVEL_CURVE.get_next_required_experience_after_level_up(owner.level, PLAYER_LEVEL_CURVE.uses_wave_curve(owner))
 	PLAYER_LEVEL_FLOW.handle_reached_level(owner, owner.level)
 	owner.experience_changed.emit(owner.experience, owner.experience_to_next_level, owner.level)
 	owner._try_request_level_up()
@@ -567,14 +572,15 @@ static func _show_gunner_flash_immunity_tag(owner) -> void:
 		owner._spawn_combat_tag(tag_position, "瞬杀", tag_color)
 
 
-static func apply_enemy_slow(owner, multiplier: float, duration: float) -> void:
+static func apply_enemy_slow(owner, multiplier: float, duration: float, source_id: String = "") -> void:
 	duration = preload("res://scripts/combat/status_resistance.gd").duration(owner, duration)
 	if duration <= 0.0:
 		return
 	if owner.has_method("_is_status_immune") and owner._is_status_immune():
 		return
-	owner.enemy_move_slow_multiplier = min(owner.enemy_move_slow_multiplier, clamp(multiplier, 0.15, 1.0))
-	owner.enemy_move_slow_remaining = max(owner.enemy_move_slow_remaining, duration)
+	var slow := preload("res://scripts/combat/movement_slow.gd").apply(owner, source_id, multiplier, duration, owner.enemy_move_slow_multiplier, owner.enemy_move_slow_remaining)
+	owner.enemy_move_slow_multiplier = slow.x
+	owner.enemy_move_slow_remaining = slow.y
 
 
 static func _tick_swordsman_talent_states(owner, delta: float) -> void:

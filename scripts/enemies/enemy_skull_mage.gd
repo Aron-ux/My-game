@@ -54,12 +54,14 @@ static func update(enemy, delta: float) -> void:
 		state["ice_cooldown"] = 20.0
 		state["ice_remaining"] = 10.0
 		state["temporary_health"] = 20.0
+		_play_cast(enemy)
 	if float(state.get("domain_cooldown", 0.0)) <= 0 and can_cast_domain(enemy):
 		state["domain_cooldown"] = 25.0
 		var field := DOMAIN.new()
 		field.player = enemy.target
 		field.position = enemy.global_position
 		enemy.get_tree().current_scene.add_child(field)
+		_play_cast(enemy)
 	var distance: float = enemy.global_position.distance_to(enemy.target.global_position)
 	if is_draining(enemy):
 		state["drain_elapsed"] = float(state.get("drain_elapsed", 0.0)) + minf(delta, float(state["drain_remaining"]))
@@ -81,6 +83,12 @@ static func update(enemy, delta: float) -> void:
 			state["drain_elapsed"] = 0.0
 			state["proximity"] = 0.0
 	sync_visual(enemy)
+
+
+static func _play_cast(enemy) -> void:
+	var visual: Node = enemy.get_node_or_null("ProfileVisual")
+	if visual != null and visual.has_method("play_cast"):
+		visual.play_cast()
 
 
 static func drain_hit(enemy) -> void:

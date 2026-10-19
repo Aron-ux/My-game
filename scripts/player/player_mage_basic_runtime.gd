@@ -39,15 +39,19 @@ static func _schedule_strike(owner, center: Vector2, radius: float, index: int, 
 static func strike(owner, center: Vector2, base_radius: float, index: int = 0, storm: bool = false, divine: bool = false) -> void:
 	var scale: float = 1.5 if divine else pow(0.65, index) if storm else 1.0
 	var radius: float = base_radius * (1.0 + 0.3 * index if storm and not divine else 1.0)
-	var damage: float = owner._get_role_damage("mage") * BUILD.strike_ratio(owner, scale)
+	var strike_multiplier: float = BUILD.strike_ratio(owner) * 1.5 if divine else BUILD.strike_ratio(owner, scale)
+	var damage: float = owner._get_role_damage("mage") * strike_multiplier
 	var effect: Node2D = owner._spawn_mage_boom_scene_effect(center, radius)
 	if divine and effect != null:
 		effect.modulate = Color(1.7, 1.25, 0.2, 1.0)
 	owner._queue_camera_shake(5.8 + (index * 3.0 if storm else 0.0), 0.12 + (index * 0.04 if storm else 0.0))
 	var source: String = owner._create_basic_attack_source_id("mage")
 	var hit_radius_y: float = maxf(BOMBARD.BOOM_VISUAL_MIN_VERTICAL_RADIUS, radius * BOMBARD.BOOM_VISUAL_VERTICAL_RADIUS_SCALE)
-	owner._damage_enemies_in_ellipse(center, radius * BOMBARD.BOOM_DAMAGE_HORIZONTAL_RADIUS_SCALE, hit_radius_y, damage, 0.0, 1.0, 0.0, source)
-	if not divine and BUILD.has_choice(owner, "divine"):
+	if divine:
+		owner._damage_all_enemies(damage, 0.0, 1.0, 0.0, source)
+	else:
+		owner._damage_enemies_in_ellipse(center, radius * BOMBARD.BOOM_DAMAGE_HORIZONTAL_RADIUS_SCALE, hit_radius_y, damage, 0.0, 1.0, 0.0, source)
+	if not divine and BUILD.has_choice(owner, "divine") and (not storm or index == 2):
 		var state: Dictionary = BUILD.state(owner)
 		var count: int = int(state.get("mage_divine_count", 0)) + 1
 		state["mage_divine_count"] = count % 3
@@ -56,7 +60,7 @@ static func strike(owner, center: Vector2, base_radius: float, index: int = 0, s
 			owner._schedule_repeating_sequence(0.0, 1, func(_unused: int) -> void:
 				if is_instance_valid(owner) and not owner.is_dead:
 					strike(owner, center, base_radius, 0, false, true)
-			, 0.1)
+			, 0.4)
 
 static func after_hit(owner, enemy, source: String, killed: bool) -> void:
 	if owner == null or not source.begins_with("mage_basic:") or killed or not is_instance_valid(enemy):

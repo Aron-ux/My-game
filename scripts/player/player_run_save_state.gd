@@ -36,10 +36,11 @@ static func get_save_data(player) -> Dictionary:
 		active_offer_context = player.current_blessing_offer.get("context", {})
 	var active_skill_talent: bool = str(player.active_upgrade_kind) == "skill_talent" or bool(active_offer_context.get("skill_talent_offer", false))
 	var active_skill_talent_context := _normalize_active_skill_talent_context(active_offer_context) if active_skill_talent else {}
+	var active_skill_point: bool = str(player.active_upgrade_kind) == "skill_point_choice" or bool(active_offer_context.get("skill_point_offer", false))
 	var pending_level_talent_choices: int = max(0, int(player.get("pending_level_talent_choices")))
 	if player.level_up_active and active_skill_talent and bool(active_offer_context.get("level_talent_offer", false)) and pending_level_talent_choices <= 0:
 		pending_level_talent_choices = 1
-	if player.level_up_active and not active_skill_talent:
+	if player.level_up_active and not active_skill_talent and not active_skill_point:
 		pending_upgrade_count += 1
 	if player.has_method("_save_active_role_health"):
 		player._save_active_role_health()
@@ -49,12 +50,16 @@ static func get_save_data(player) -> Dictionary:
 	return {
 		"position": [player.global_position.x, player.global_position.y],
 		"level": player.level,
+		"skill_points": max(0, int(player.get("skill_points"))),
+		"role_skill_points": player.get_team_skill_points(),
 		"experience": player.experience,
 		"experience_to_next_level": player.experience_to_next_level,
+		"level_curve_id": PLAYER_LEVEL_CURVE.get_curve_id(player),
 		"pending_level_ups": pending_upgrade_count,
 		"pending_level_talent_choices": pending_level_talent_choices,
-		"active_upgrade_kind": "skill_talent" if player.level_up_active and str(player.active_upgrade_kind) == "skill_talent" else "",
+		"active_upgrade_kind": "skill_talent" if player.level_up_active and str(player.active_upgrade_kind) == "skill_talent" else ("skill_point_choice" if player.level_up_active and active_skill_point else ""),
 		"active_skill_talent_context": active_skill_talent_context,
+		"active_skill_point_offer": player.current_blessing_offer.duplicate(true) if active_skill_point and player.current_blessing_offer is Dictionary else {},
 		"max_health": player.max_health,
 		"max_mana": player.max_mana,
 		"current_health": player.current_health,
@@ -85,6 +90,7 @@ static func get_save_data(player) -> Dictionary:
 		"swordsman_death_defiance_cooldown_remaining": player.swordsman_death_defiance_cooldown_remaining,
 		"enemy_move_slow_multiplier": player.enemy_move_slow_multiplier,
 		"enemy_move_slow_remaining": player.enemy_move_slow_remaining,
+		"movement_slow_sources": preload("res://scripts/combat/movement_slow.gd").save(player),
 		"plague_remaining": player.plague_remaining,
 		"necro_mark_remaining": preload("res://scripts/player/player_necro_mark.gd").remaining(player),
 		"vine_entangle_state": player.get_meta("vine_entangle_state", {}).duplicate(true),
@@ -199,20 +205,32 @@ static func apply_save_data(player, data: Dictionary) -> void:
 		max(0, player.roles.size() - 1)
 	)
 	player.level = int(data.get("level", player.level))
+	player.role_skill_points = {}
+	var saved_role_points: Variant = data.get("role_skill_points")
+	var queued_points := maxi(0, int(data.get("pending_level_ups", 0)))
+	for role in player.roles:
+		var role_id := str(role.get("id", ""))
+		# Old saves have no per-role spending record: preserve their remaining
+		# shared balance for each role without changing any learned skills.
+		var balance := int(saved_role_points.get(role_id, 0)) if saved_role_points is Dictionary else int(data.get("skill_points", 0))
+		player.role_skill_points[role_id] = maxi(0, balance) + queued_points
 	player.experience = int(data.get("experience", player.experience))
-	player.experience_to_next_level = PLAYER_LEVEL_CURVE.normalize_required_experience(
-		player.level,
-		int(data.get("experience_to_next_level", player.experience_to_next_level))
-	)
-	player.pending_level_ups = max(0, int(data.get("pending_level_ups", player.pending_level_ups)))
+	PLAYER_LEVEL_CURVE.restore_progress(player,
+		int(data.get("experience_to_next_level", player.experience_to_next_level)),
+		str(data.get("level_curve_id", "")))
+	player.pending_level_ups = 0
 	player.pending_level_talent_choices = max(0, int(data.get("pending_level_talent_choices", player.pending_level_talent_choices)))
-	player.active_upgrade_kind = "skill_talent" if str(data.get("active_upgrade_kind", "")) == "skill_talent" else ""
+	var saved_upgrade_kind := str(data.get("active_upgrade_kind", ""))
+	player.active_upgrade_kind = saved_upgrade_kind if saved_upgrade_kind in ["skill_talent", "skill_point_choice"] else ""
 	var saved_skill_talent_context := _normalize_active_skill_talent_context(data.get("active_skill_talent_context", {}))
 	if player.active_upgrade_kind == "skill_talent" and bool(saved_skill_talent_context.get("level_talent_offer", false)) and player.pending_level_talent_choices <= 0:
 		player.pending_level_talent_choices = 1
 	player.current_blessing_offer = {
 		"context": saved_skill_talent_context
 	} if player.active_upgrade_kind == "skill_talent" and not saved_skill_talent_context.is_empty() else {}
+	if player.active_upgrade_kind == "skill_point_choice":
+		var saved_skill_point_offer: Variant = data.get("active_skill_point_offer", {})
+		player.current_blessing_offer = saved_skill_point_offer.duplicate(true) if saved_skill_point_offer is Dictionary else {}
 	player.max_health = float(data.get("max_health", player.max_health))
 	player.max_mana = float(data.get("max_mana", player.max_mana))
 	var saved_current_health: float = float(data.get("current_health", player.current_health))
@@ -259,6 +277,7 @@ static func apply_save_data(player, data: Dictionary) -> void:
 	player.swordsman_death_defiance_cooldown_remaining = max(0.0, float(data.get("swordsman_death_defiance_cooldown_remaining", 0.0)))
 	player.enemy_move_slow_multiplier = float(data.get("enemy_move_slow_multiplier", 1.0))
 	player.enemy_move_slow_remaining = max(0.0, float(data.get("enemy_move_slow_remaining", 0.0)))
+	preload("res://scripts/combat/movement_slow.gd").restore(player, data.get("movement_slow_sources", {}))
 	player.plague_remaining = clampf(float(data.get("plague_remaining", 0.0)), 0.0, preload("res://scripts/player/player_plague_flow.gd").DURATION)
 	player.set_meta("necro_mark_remaining", clampf(float(data.get("necro_mark_remaining", 0.0)), 0.0, 5.0))
 	player.set_meta("vine_entangle_state", data.get("vine_entangle_state", {}).duplicate(true))

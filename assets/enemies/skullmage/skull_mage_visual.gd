@@ -1,60 +1,91 @@
-extends Node2D
+extends "res://assets/enemies/pixel_sheet_visual.gd"
 
-# Reuse the current skeleton animation, with a robe, staff and spell effects.
-const SKULL_SCENE := preload("res://assets/enemies/skullshot/skull-soilder.tscn")
-var skull: Node2D
+# Rows: 0 walk, 1 cast, 2 walk_ice, 3 cast_ice.
+const ROW_CAST := 1
+const ROW_ICE_OFFSET := 2
+const ICE_SHARD := preload("res://assets/enemies/skullmage/ice_shard.png")
+const DEATH_AURA := preload("res://assets/enemies/skullmage/death_aura.png")
+# Staff crystal relative to the enemy origin, art facing right.
+# Effect sheets keep their own x4 grain (see enemy_pixel_art/effects.py).
+const EFFECT_PIXEL_SCALE := 0.375
+const CRYSTAL_OFFSET := Vector2(23.5, -67.5)
+const DRAIN_COLOR := Color(0.55, 1.0, 0.78)
+const DRAIN_GLOW := Color(0.15, 0.85, 0.65)
+
 var ice_active := false
 var invulnerable := false
 var drain_target: Vector2
 var draining := false
-var time := 0.0
+var aura: Sprite2D
+var effect_time := 0.0
 
 
-func _ready() -> void:
-	skull = SKULL_SCENE.instantiate()
-	skull.position = Vector2(0, -12)
-	skull.scale = Vector2(0.72, 0.72)
-	add_child(skull)
+func play_cast() -> void:
+	play_once(ROW_CAST + (ROW_ICE_OFFSET if ice_active else 0))
 
 
-func set_moving(moving: bool, direction := Vector2.ZERO) -> void:
-	if skull != null:
-		skull.set_moving(moving, direction)
+func _loop_row() -> int:
+	return ROW_ICE_OFFSET if ice_active else 0
 
 
-func play_hit() -> void:
-	if skull != null:
-		skull.play_hit()
-
-
-func _process(delta: float) -> void:
-	time += delta
-	if skull != null:
-		skull.modulate = Color(0.45, 0.7, 1.0) if ice_active else Color.WHITE
-	queue_redraw()
-
-
-func _draw() -> void:
-	var outline := Color(0.08, 0.06, 0.16)
-	var robe := Color(0.12, 0.32, 0.65) if ice_active else Color(0.25, 0.16, 0.39)
-	draw_colored_polygon(PackedVector2Array([Vector2(-17, 0), Vector2(17, 0), Vector2(24, 31), Vector2(9, 26), Vector2(0, 33), Vector2(-23, 29)]), outline)
-	draw_colored_polygon(PackedVector2Array([Vector2(-13, 1), Vector2(13, 1), Vector2(17, 26), Vector2(0, 29), Vector2(-17, 25)]), robe)
-	draw_line(Vector2(0, 5), Vector2(0, 24), Color(0.72, 0.5, 0.85), 2.0)
-	draw_line(Vector2(26, 30), Vector2(26, -33), Color(0.15, 0.09, 0.23), 7.0)
-	draw_line(Vector2(26, 29), Vector2(26, -32), Color(0.61, 0.4, 0.71), 3.0)
-	draw_circle(Vector2(26, -35), 9, Color(0.35, 0.85, 0.81, 0.2))
-	draw_circle(Vector2(26, -35), 5, Color(0.5, 1.0, 0.9))
-	if ice_active:
-		draw_arc(Vector2.ZERO, 43, 0, TAU, 48, Color(0.25, 0.75, 1, 0.75), 3.0)
-		for index in 6:
-			var point := Vector2.from_angle(time * 0.7 + index * TAU / 6) * 41
-			draw_colored_polygon(PackedVector2Array([point + Vector2(0, -7), point + Vector2(4, 0), point + Vector2(0, 7), point + Vector2(-4, 0)]), Color(0.55, 0.92, 1, 0.9))
+func _update_state(delta: float) -> void:
+	if aura == null:
+		aura = Sprite2D.new()
+		aura.name = "DeathAura"
+		aura.texture = DEATH_AURA
+		aura.hframes = 4
+		aura.scale = Vector2.ONE * EFFECT_PIXEL_SCALE * 1.15
+		aura.position = Vector2(0, 12)
+		aura.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+		aura.z_index = 0
+		add_child(aura)
+	effect_time += delta
+	aura.visible = invulnerable
 	if invulnerable:
-		draw_arc(Vector2.ZERO, 47, 0, TAU, 48, Color(0.8, 0.35, 1, 0.9), 4.0)
+		aura.frame = int(effect_time * 10.0) % 4
+	if sprite != null:
+		sprite.modulate = Color(0.85, 0.7, 1.0, 0.75 + 0.25 * sin(effect_time * 18.0)) if invulnerable else Color.WHITE
+
+
+func _wants_fx() -> bool:
+	return ice_active or draining
+
+
+func _draw_fx(canvas: Node2D) -> void:
+	if ice_active:
+		_draw_ice_shards(canvas)
 	if draining:
-		var endpoint := to_local(drain_target)
-		draw_line(Vector2(26, -35), endpoint, Color(0.15, 0.85, 0.65, 0.3), 8.0)
-		draw_line(Vector2(26, -35), endpoint, Color(0.55, 1, 0.78, 0.85), 2.0)
-		for index in 4:
-			var progress := fposmod(time * 1.5 + float(index) / 4, 1.0)
-			draw_circle(endpoint.lerp(Vector2(26, -35), progress), 3, Color(0.75, 1, 0.85))
+		_draw_drain(canvas)
+
+
+func _draw_ice_shards(canvas: Node2D) -> void:
+	var size := ICE_SHARD.get_size() * EFFECT_PIXEL_SCALE
+	for index in 5:
+		var angle := effect_time * 1.1 + float(index) * TAU / 5.0
+		var depth := sin(angle)
+		var point := snap(Vector2(cos(angle) * 38.0, depth * 15.0 - 22.0 + sin(effect_time * 3.0 + index) * 2.0))
+		canvas.draw_texture_rect(ICE_SHARD, Rect2(point - size * 0.5, size), false, Color(1, 1, 1, 0.55 + 0.4 * (depth * 0.5 + 0.5)))
+
+
+func _draw_drain(canvas: Node2D) -> void:
+	var start := facing_point(CRYSTAL_OFFSET)
+	var end := canvas.to_local(drain_target)
+	var length := start.distance_to(end)
+	if length < 1.0:
+		return
+	var axis := (end - start) / length
+	var normal := axis.orthogonal()
+	var steps := int(length / 6.0)
+	# Blocky siphon: a wavering chain of pixels with a dim halo.
+	for step in steps + 1:
+		var t := float(step) / maxf(1.0, float(steps))
+		var wave := sin(t * 14.0 - effect_time * 10.0) * 4.0 * sin(t * PI)
+		var point := start.lerp(end, t) + normal * wave
+		draw_pixel(canvas, point, Color(DRAIN_GLOW, 0.28), 9.0)
+		draw_pixel(canvas, point, Color(DRAIN_COLOR, 0.85), 4.5)
+	# Souls flowing back from the player to the staff.
+	for index in 4:
+		var progress := fposmod(effect_time * 1.5 + float(index) / 4.0, 1.0)
+		var point := end.lerp(start, progress) + normal * sin(progress * 20.0) * 3.0
+		draw_pixel(canvas, point, Color(0.85, 1.0, 0.9), 6.0)
+	draw_pixel(canvas, end, Color(DRAIN_COLOR, 0.5 + 0.3 * sin(effect_time * 12.0)), 12.0)

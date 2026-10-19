@@ -18,6 +18,7 @@ static func build_from_player(owner) -> Dictionary:
 	var ruan_stone_summary := _build_ruan_stone_summary(owner)
 	return build_stat_summary({
 		"level": owner.level,
+		"skill_points": max(0, int(owner.get("skill_points"))),
 		"move_speed": owner._get_current_move_speed(),
 		"bullet_damage": owner._get_role_damage(role_id),
 		"fire_interval": interval,
@@ -85,6 +86,7 @@ static func build_frame_hud_from_player(owner) -> Dictionary:
 	var team_role_statuses: Array = _build_team_role_statuses(owner, role_id, false)
 	var ruan_stone_summary := _build_ruan_stone_summary(owner)
 	var summary: Dictionary = {
+		"skill_points": max(0, int(owner.get("skill_points"))),
 		"current_mana": owner._get_role_mana(role_id),
 		"max_mana": owner.max_mana,
 		"ultimate_energy_cost": owner._get_ultimate_energy_cost(),
@@ -265,6 +267,7 @@ static func _build_buff_status_slots(owner) -> Array:
 static func build_stat_summary(context: Dictionary) -> Dictionary:
 	return {
 		"level": context.get("level", 1),
+		"skill_points": context.get("skill_points", 0),
 		"move_speed": context.get("move_speed", 0.0),
 		"bullet_damage": context.get("bullet_damage", 0.0),
 		"fire_interval": context.get("fire_interval", 0.0),

@@ -1,6 +1,7 @@
 extends SceneTree
 
 const BUILD := preload("res://scripts/player/player_swordsman_basic_build.gd")
+const BASIC_RUNTIME := preload("res://scripts/player/player_swordsman_basic_runtime.gd")
 const LEVELS := preload("res://scripts/player/player_skill_level_system.gd")
 const CARDS := preload("res://scripts/player/player_build_system.gd")
 const RESOLVER := preload("res://scripts/player/player_damage_resolver.gd")
@@ -42,8 +43,8 @@ func _run() -> void:
 			check(not LEVELS.apply_option_with_result(player, option["id"], offer).is_empty(), "stage choice applies")
 			check(LEVELS.apply_option_with_result(player, option["id"], offer).is_empty(), "stale offer cannot apply again")
 	check(BUILD.has_choice(player, "heavy") and BUILD.has_choice(player, "split") and BUILD.has_choice(player, "brave"), "all three choices retained")
-	check(is_equal_approx(BUILD.damage_ratio(player), 2.65), "heavy brave coefficient = 265%")
-	check(is_equal_approx(player._get_effective_attack_speed("swordsman"), 0.15), "heavy brave final speed = 0.15")
+	check(is_equal_approx(BUILD.damage_ratio(player), 2.85), "heavy brave coefficient = 285%")
+	check(is_equal_approx(player._get_effective_attack_speed("swordsman"), 0.2), "heavy brave final speed = 0.2")
 	check(not LEVELS.is_progress_upgradeable(player, "swordsman_basic"), "LV9 removes upgrade")
 	var normalized := LEVELS.normalize_role_state("swordsman", player.role_special_states["swordsman"])
 	check(normalized == LEVELS.normalize_role_state("swordsman", normalized), "normalization is idempotent")
@@ -52,6 +53,8 @@ func _run() -> void:
 	check(migrated["skill_levels"]["swordsman_basic"] == 9, "old ten upgrades migrate to LV9")
 	check(is_zero_approx(BUILD.critical_bonus(player, "swordsman_aux:split")), "split excludes brave critical")
 	check(is_zero_approx(BUILD.critical_damage_bonus(player, "swordsman_aux:ground")), "ground excludes brave critical")
+	check(is_equal_approx(BASIC_RUNTIME.SPLIT_RADIUS, 200.0) and is_equal_approx(BASIC_RUNTIME.SPLIT_ANGLE_DEGREES, 150.0), "split cone uses 200 radius and 150 degrees")
+	check(is_equal_approx(GROUND.RADIUS, 175.0), "ground radius is 175")
 	check(is_equal_approx(BUILD.critical_bonus(player, "swordsman_basic:test"), 0.3), "slash gets brave critical")
 	check(is_equal_approx(BUILD.critical_damage_bonus(player, "swordsman_basic:test"), 0.5), "slash gets brave critical damage")
 	await _check_runtime(scene, player)
@@ -118,12 +121,12 @@ func _check_runtime(scene, player) -> void:
 	check(cracks.size() == 1, "one hit slash generates one circle")
 	if cracks.size() > 0:
 		check(cracks[0].position == near.position, "nearest hit target is primary")
-		check(is_equal_approx(cracks[0].damage, 15.0), "ground has 150% current slash damage")
+		check(is_equal_approx(cracks[0].damage, 30.0), "ground has 300% current slash damage")
 		var saved: Dictionary = cracks[0].get_save_data()
 		cracks[0].free()
 		SAVE.restore_swordsman_ground_cracks(scene, [saved])
 	check(not GROUND.spawn(player, Vector2(100.0, 0.0), 10.0), "overlapping pending ground rejected")
-	check(GROUND.spawn(player, Vector2(400.0, 0.0), 10.0), "nonoverlapping ground accepted")
+	check(GROUND.spawn(player, Vector2(GROUND.RADIUS * 2.0 + 100.0, 0.0), 10.0), "nonoverlapping ground accepted")
 	RESOLVER.damage_enemies_in_oriented_rect_unique(player, Vector2(60.0, 0.0), Vector2.DOWN, 100.0, 180.0, 10.0, 0.0, 1.0, 0.0, registry, "swordsman_basic:test")
 	check(get_nodes_in_group("swordsman_ground_cracks").size() == 2, "followthrough cannot trigger secondary twice")
 	for crack in get_nodes_in_group("swordsman_ground_cracks"):

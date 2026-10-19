@@ -415,7 +415,7 @@ func _damage_field(owner, field_data: Dictionary) -> int:
 	var vulnerability_bonus := 0.05 if _field_has_talent(owner, field_data, "gunner_shrapnel_rend") else 0.0
 	var slow_multiplier := 0.8 if str(field_data.get("field_kind", "")) == "afterfield" else float(field_data.get("slow_multiplier", 1.0))
 	var slow_duration := LEVEL_TALENT_SHRAPNEL_2_SLOW_DURATION if _field_has_talent(owner, field_data, LEVEL_TALENT_SHRAPNEL_2) else 1.2
-	return owner._damage_enemies_in_radius(center, radius, float(field_data.get("damage", 0.0)) * effect_scale, vulnerability_bonus, slow_multiplier, slow_duration, SHRAPNEL_DAMAGE_SOURCE_ROLE_ID)
+	return owner._damage_enemies_in_radius(center, radius, float(field_data.get("damage", 0.0)) * effect_scale, vulnerability_bonus, slow_multiplier, slow_duration, SHRAPNEL_DAMAGE_SOURCE_ROLE_ID, "gunner_shrapnel_field")
 
 
 func _explode_field(owner, field_data: Dictionary) -> int:
@@ -423,7 +423,7 @@ func _explode_field(owner, field_data: Dictionary) -> int:
 	var radius: float = float(field_data.get("radius", _get_radius(owner)))
 	var effect_scale: float = max(0.0, float(field_data.get("effect_scale", 1.0)))
 	owner._spawn_burst_effect(center, radius, Color(1.0, 0.5, 0.24, 0.22), 0.18)
-	return owner._damage_enemies_in_radius(center, radius, float(field_data.get("damage", 0.0)) * effect_scale * 2.5, 0.0, float(field_data.get("slow_multiplier", 1.0)), 1.2, SHRAPNEL_DAMAGE_SOURCE_ROLE_ID)
+	return owner._damage_enemies_in_radius(center, radius, float(field_data.get("damage", 0.0)) * effect_scale * 2.5, 0.0, float(field_data.get("slow_multiplier", 1.0)), 1.2, SHRAPNEL_DAMAGE_SOURCE_ROLE_ID, "gunner_shrapnel_field")
 
 
 func _spawn_reprise_fields_on_end(owner, field_data: Dictionary) -> void:
@@ -477,7 +477,10 @@ func _apply_snare_tail(owner, enemy: Node) -> void:
 	var delay: float = max(0.0, float(enemy.get("slow_timer")) if enemy.get("slow_timer") != null else 0.0)
 	var apply_tail := func() -> void:
 		if is_instance_valid(enemy) and enemy.has_method("apply_slow"):
-			enemy.apply_slow(0.75, 0.65)
+			if enemy.has_method("apply_slow_from_source"):
+				enemy.apply_slow_from_source(0.75, 0.65, "gunner_shrapnel_field")
+			else:
+				enemy.apply_slow(0.75, 0.65)
 	if delay <= 0.0 or not owner.has_method("_schedule_repeating_sequence"):
 		apply_tail.call()
 		return

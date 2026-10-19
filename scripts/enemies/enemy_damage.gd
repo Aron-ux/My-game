@@ -14,7 +14,9 @@ const VULNERABILITY_RULES := preload("res://scripts/combat/vulnerability_rules.g
 static func take_damage(enemy, amount: float, is_critical: bool = false) -> bool:
 	return apply_damage(enemy, amount, true, is_critical)
 
-static func apply_damage(enemy, amount: float, show_feedback: bool = true, is_critical: bool = false, ignore_armor: bool = false, direct_damage: bool = false) -> bool:
+static func apply_damage(enemy, amount: float, show_feedback: bool = true, is_critical: bool = false, ignore_armor: bool = false, direct_damage: bool = false, bypass_shield: bool = true) -> bool:
+	if enemy.has_meta("wave_cleanup"):
+		return false
 	var mage := preload("res://scripts/enemies/enemy_skull_mage.gd")
 	if mage.is_invulnerable(enemy):
 		return false
@@ -70,7 +72,7 @@ static func apply_damage(enemy, amount: float, show_feedback: bool = true, is_cr
 	var vulnerability_multiplier := VULNERABILITY_RULES.get_multiplier(maxf(0.0, float(enemy.vulnerability_bonus)))
 	var adjusted_damage: float = amount * vulnerability_multiplier if direct_damage else armored_damage * vulnerability_multiplier * damage_reduction_multiplier
 	adjusted_damage += ARMOR_RULES.apply_damage(electric_damage, effective_armor) * vulnerability_multiplier * damage_reduction_multiplier
-	if direct_damage and ENEMY_BOSS_STATE.has_boss_shield(enemy):
+	if direct_damage and bypass_shield and ENEMY_BOSS_STATE.has_boss_shield(enemy):
 		# Shield is stored above the phase health bar. Track bypassed HP
 		# separately so direct hits cannot consume it or fire shield-break.
 		var health_left: float = ENEMY_BOSS_STATE.get_phase_bar_max_health(enemy) - enemy.boss_direct_health_loss
@@ -87,8 +89,8 @@ static func apply_damage(enemy, amount: float, show_feedback: bool = true, is_cr
 	if enemy.current_health <= 0.0:
 		ENEMY_MUSHROOM_SWARM.invalidate_cache()
 	HEAVY_ARMOR.reflect_damage(enemy, minf(maxf(0.0, previous_health), maxf(0.0, adjusted_damage)))
-	var shield_broken := not direct_damage and _should_start_boss_shield_break_intro(enemy, previous_health)
-	if direct_damage and not enemy.boss_shield_break_intro_played and enemy.boss_direct_health_loss >= ENEMY_BOSS_STATE.get_phase_bar_max_health(enemy):
+	var shield_broken := (not direct_damage or not bypass_shield) and _should_start_boss_shield_break_intro(enemy, previous_health)
+	if direct_damage and bypass_shield and not enemy.boss_shield_break_intro_played and enemy.boss_direct_health_loss >= ENEMY_BOSS_STATE.get_phase_bar_max_health(enemy):
 		enemy.stun_remaining = 0.0
 		enemy.boss_shield_break_intro_played = true
 		ENEMY_BOSS_STATE.start_phase_transition(enemy, int(enemy.boss_phase) + 1)
@@ -114,7 +116,7 @@ static func apply_damage(enemy, amount: float, show_feedback: bool = true, is_cr
 		enemy.motion_refresh_frame = -1
 		enemy.separation_refresh_frame = -1
 		if enemy.target != null and is_instance_valid(enemy.target) and enemy.target.has_method("apply_enemy_slow"):
-			enemy.target.apply_enemy_slow(enemy.rebirth_slow_multiplier, enemy.rebirth_slow_duration)
+			enemy.target.apply_enemy_slow(enemy.rebirth_slow_multiplier, enemy.rebirth_slow_duration, "rebirth")
 		enemy._spawn_status_burst(Color(0.8, 0.64, 1.0, 0.32), 40.0 + enemy.scale.x * 10.0)
 		return false
 	if enemy.current_health <= 0.0:

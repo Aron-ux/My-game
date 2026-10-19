@@ -40,6 +40,17 @@ func _run() -> void:
 	player.set_process(false)
 	player.set_physics_process(false)
 	player.visible = false
+	player.skill_points = 1
+	var skill_point_offer: Dictionary = BLESSINGS.build_skill_point_offer(player)
+	var skill_point_options: Array = skill_point_offer.get("options", [])
+	assert(skill_point_options.size() == 3, "An empty skill slot must offer three unowned role skills")
+	assert(bool(skill_point_offer.get("context", {}).get("skill_point_offer", false)))
+	assert(int(skill_point_offer.get("context", {}).get("selection_count", 0)) == 1)
+	for skill_option in skill_point_options:
+		assert(str(skill_option.get("role_id", "")) == "swordsman")
+		assert(str(skill_option.get("unlock_skill", "")) != "")
+	assert(player.spend_skill_point() and player.skill_points == 0, "Allocating a choice must consume one skill point")
+	assert(not player.spend_skill_point(), "A skill point cannot be spent twice")
 	for role_id in COOLDOWNS.ROLE_ACTIVE_SKILL_PROPERTIES:
 		for skill_id in COOLDOWNS.ROLE_ACTIVE_SKILL_PROPERTIES[role_id]:
 			var info := COOLDOWNS.get_skill_info(player, role_id, skill_id)
@@ -81,8 +92,29 @@ func _run() -> void:
 	var bar = BAR.new()
 	hud_root.add_child(bar)
 	bar.set_hud_layout("legacy")
+	var skill_point_requests := []
+	bar.skill_point_requested.connect(func(skill_id: String, role_id: String): skill_point_requests.append([skill_id, role_id]))
+	bar.update_skill_points(2)
 	var slots := COOLDOWNS.get_role_skill_cooldown_slots(player, "mechanic", 0.5)
 	bar.update_skill_cooldown_slots(slots)
+	for slot in bar.skill_cd_slots:
+		assert(slot["view"].skill_point_highlighted, "Every skill slot, including basic attacks and empty slots, should highlight with skill points")
+		assert(not slot["view"].clip_contents, "The icon must not clip the upgrade button above it")
+	await _settle()
+	await _capture("skill-points-legacy")
+	var slot_button: Button = bar.skill_cd_slots[0]["upgrade_button"]
+	slot_button.pressed.emit()
+	assert(skill_point_requests.size() == 1, "A skill slot plus button must request direct allocation")
+	assert(skill_point_requests[0][0] == "mechanic_basic_attack")
+	var empty_slot_button: Button = bar.skill_cd_slots[slots.size()]["upgrade_button"]
+	assert(empty_slot_button.visible and not empty_slot_button.disabled, "An empty active skill slot should show an available plus button")
+	empty_slot_button.pressed.emit()
+	assert(skill_point_requests.size() == 2, "An empty skill slot plus button must request a learn flow")
+	assert(skill_point_requests[1][0] == "" and skill_point_requests[1][1] == "mechanic")
+	bar.update_skill_points(0)
+	for slot in bar.skill_cd_slots:
+		assert(not slot["upgrade_button"].visible, "The plus button should hide without unspent points")
+		assert(not slot["view"].skill_point_highlighted, "Slot highlights should disappear without unspent points")
 	await _settle()
 	bar._on_skill_slot_hovered(bar.skill_cd_slots[1]["view"], 1)
 	await _settle()
@@ -102,6 +134,10 @@ func _run() -> void:
 	bar.set_hud_layout("team_band")
 	var summary: Dictionary = player.get_stat_summary()
 	bar.update_team_role_statuses(summary["team_role_statuses"], "swordsman", 0)
+	bar.update_skill_points(1)
+	await _settle()
+	await _capture("skill-points-team")
+	bar.update_skill_points(0)
 	await _settle()
 	for row_index in range(bar.team_role_rows.size()):
 		var row: Dictionary = bar.team_role_rows[row_index]

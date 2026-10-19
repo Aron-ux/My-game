@@ -1,6 +1,6 @@
 extends Node2D
 
-const RADIUS := 120.0
+const RADIUS := 175.0
 var remaining := 1.5
 var damage := 0.0
 var source_player: Node2D
@@ -40,11 +40,11 @@ func _draw() -> void:
 	draw_arc(Vector2.ZERO, RADIUS, 0.0, TAU, 64, Color(0.92, 0.57, 0.23, 0.65), 1.5, true)
 	for index in range(7):
 		var radial := Vector2.RIGHT.rotated(float(index) * TAU / 7.0)
-		var elbow := radial * 48.0 + radial.orthogonal() * 12.0
-		var tip := radial * (91.0 + float(index % 3) * 9.0)
+		var elbow := (radial * 48.0 + radial.orthogonal() * 12.0) * (RADIUS / 120.0)
+		var tip := radial * (91.0 + float(index % 3) * 9.0) * (RADIUS / 120.0)
 		var color := Color(1.0, 0.46 + progress * 0.25, 0.18, 0.6 + progress * 0.4)
-		draw_polyline(PackedVector2Array([radial * 8.0, elbow, tip]), color, 2.0 + progress, true)
-		draw_line(elbow, elbow + radial.rotated(0.65) * 30.0, color, 1.5, true)
+		draw_polyline(PackedVector2Array([radial * 8.0 * (RADIUS / 120.0), elbow, tip]), color, 2.0 + progress, true)
+		draw_line(elbow, elbow + radial.rotated(0.65) * 30.0 * (RADIUS / 120.0), color, 1.5, true)
 
 func get_save_data() -> Dictionary:
 	return {"position": [global_position.x, global_position.y], "remaining": remaining, "damage": damage}

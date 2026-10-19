@@ -370,7 +370,7 @@ func _update_crescent_projectiles(delta: float) -> void:
 			var talent_ids: Array = data.get("talent_ids", [])
 			var slow_multiplier: float = 0.80 if _has_cast_talent(owner, talent_ids, "swordsman_crescent_frost_trail") else 1.0
 			var slow_duration: float = 0.6 if slow_multiplier < 1.0 else 0.0
-			var hit_count: int = owner._damage_enemies_in_oriented_rect_unique(current_position, direction, sample_length, float(data.get("width", 1.0)), float(data.get("damage_amount", 0.0)), 0.0, slow_multiplier, slow_duration, hit_registry, "swordsman")
+			var hit_count: int = owner._damage_enemies_in_oriented_rect_unique(current_position, direction, sample_length, float(data.get("width", 1.0)), float(data.get("damage_amount", 0.0)), 0.0, slow_multiplier, slow_duration, hit_registry, "swordsman", "swordsman_crescent_wave")
 			if hit_count > 0 and PLAYER_COMBAT_RESULT_FLOW.get_swordsman_blood_surge_multiplier(owner) > 1.0:
 				PLAYER_COMBAT_RESULT_FLOW.consume_swordsman_blood_surge(owner)
 			data["hit_registry"] = hit_registry

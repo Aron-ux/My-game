@@ -1,5 +1,17 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=4 format=3]
+
 [ext_resource type="Script" path="res://assets/enemies/plants/plant_visual.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/enemies/plants/shadow_tree_young_sheet.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/enemies/plants/shadow_tree_young_hit.png" id="3"]
+
 [node name="YoungTreeVisual" type="Node2D"]
 script = ExtResource("1")
+sheet = ExtResource("2")
+hit_sheet = ExtResource("3")
 variant = "young"
+fps = 12.0
+sprite_offset = Vector2(0, -4)
+shadow_position = Vector2(0, 20)
+shadow_scale = Vector2(0.9, 0.5)
+hit_center = Vector2(0, -6)
+hit_area = Vector2(18, 16)

@@ -65,8 +65,20 @@ func apply_bleed(damage_per_second: float, duration: float) -> void:
 
 
 func apply_slow(multiplier: float, duration: float) -> void:
-	slow_multiplier = min(slow_multiplier, multiplier)
-	slow_timer = max(slow_timer, max(0.0, duration))
+	apply_slow_from_source(multiplier, duration, "default")
+
+
+func apply_slow_from_source(multiplier: float, duration: float, source_id: String, _silent: bool = false) -> void:
+	var slow := preload("res://scripts/combat/movement_slow.gd").apply(self, source_id, multiplier, duration, slow_multiplier, slow_timer)
+	slow_multiplier = slow.x
+	slow_timer = slow.y
+
+
+func _process(delta: float) -> void:
+	if slow_timer > 0.0:
+		var slow := preload("res://scripts/combat/movement_slow.gd").tick(self, delta, slow_multiplier, slow_timer)
+		slow_multiplier = slow.x
+		slow_timer = slow.y
 
 
 func apply_slow_silent(multiplier: float, duration: float) -> void:

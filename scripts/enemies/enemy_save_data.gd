@@ -7,6 +7,8 @@ const RUNNER_HASTE := preload("res://scripts/enemies/enemy_runner_haste.gd")
 
 static func get_save_data(enemy) -> Dictionary:
 	return {
+		"wave_flyby": enemy.get_meta("wave_flyby", {}),
+		"combat_wave_boss": enemy.get_meta("combat_wave_boss", 0),
 		"position": [enemy.global_position.x, enemy.global_position.y],
 		"enemy_kind": enemy.enemy_kind,
 		"archetype_id": enemy.archetype_id,
@@ -46,6 +48,7 @@ static func get_save_data(enemy) -> Dictionary:
 		"display_color": [enemy.display_color.r, enemy.display_color.g, enemy.display_color.b, enemy.display_color.a],
 		"slow_multiplier": enemy.slow_multiplier,
 		"slow_timer": enemy.slow_timer,
+		"movement_slow_sources": preload("res://scripts/combat/movement_slow.gd").save(enemy),
 		"vulnerability_bonus": enemy.vulnerability_bonus,
 		"vulnerability_timer": enemy.vulnerability_timer,
 		"bleed_damage_per_second": enemy.bleed_damage_per_second,
@@ -178,6 +181,10 @@ static func get_save_data(enemy) -> Dictionary:
 	}
 
 static func apply_save_data(enemy, data: Dictionary, target_node: Node2D) -> void:
+	if not (data.get("wave_flyby", {}) as Dictionary).is_empty():
+		enemy.set_meta("wave_flyby", data["wave_flyby"])
+	if int(data.get("combat_wave_boss", 0)) > 0:
+		enemy.set_meta("combat_wave_boss", int(data["combat_wave_boss"]))
 	var position_data = data.get("position", [0.0, 0.0])
 	if position_data.size() >= 2:
 		enemy.global_position = Vector2(float(position_data[0]), float(position_data[1]))
@@ -232,6 +239,7 @@ static func apply_save_data(enemy, data: Dictionary, target_node: Node2D) -> voi
 
 	enemy.slow_multiplier = float(data.get("slow_multiplier", 1.0))
 	enemy.slow_timer = float(data.get("slow_timer", 0.0))
+	preload("res://scripts/combat/movement_slow.gd").restore(enemy, data.get("movement_slow_sources", {}))
 	enemy.vulnerability_bonus = float(data.get("vulnerability_bonus", 0.0))
 	enemy.vulnerability_timer = float(data.get("vulnerability_timer", 0.0))
 	enemy.bleed_damage_per_second = float(data.get("bleed_damage_per_second", 0.0))

@@ -22,6 +22,7 @@ static func ready(main: Node) -> void:
 	main._setup_ui()
 	main._setup_map_features()
 	main._connect_player_signals()
+	main.COMBAT_WAVE_FLOW.setup(main)
 
 	var should_continue: bool = bool(main.SAVE_MANAGER.consume_continue_request()) and bool(main.SAVE_MANAGER.has_save())
 	if should_continue and main._load_saved_run():
@@ -104,6 +105,8 @@ static func process(main: Node, delta: float) -> void:
 		PERFORMANCE_RECORDER.end_scope("developer_mode_ms")
 	else:
 		PERFORMANCE_RECORDER.begin_scope("spawn_events_ms")
+		if is_instance_valid(main.wave_flow):
+			main.wave_flow.tick(delta)
 		main._update_spawn_curve()
 		main._handle_stage_events()
 		PERFORMANCE_RECORDER.end_scope("spawn_events_ms")

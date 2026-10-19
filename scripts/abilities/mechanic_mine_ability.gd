@@ -168,7 +168,7 @@ func _explode(owner, center: Vector2) -> void:
 		slow_multiplier = minf(slow_multiplier, TALENTS.MINE_SLOW_MULTIPLIER)
 		slow_duration = maxf(slow_duration, TALENTS.MINE_SLOW_DURATION)
 	_spawn_blast_visual(owner, center, blast_radius)
-	owner._damage_enemies_in_radius(center, blast_radius, damage_amount, 0.0, slow_multiplier, slow_duration, "mechanic")
+	owner._damage_enemies_in_radius(center, blast_radius, damage_amount, 0.0, slow_multiplier, slow_duration, "mechanic", "mechanic_mine")
 
 
 func _get_mine_count(owner) -> int:

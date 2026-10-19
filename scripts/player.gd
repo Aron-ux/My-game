@@ -253,6 +253,13 @@ const MAGE_ENTRY_HIT_RADIUS := 104.0 * MAGE_ATTACK_EFFECT_SCALE
 var fire_timer: Timer
 var level: int = 1
 var experience: int = 0
+var role_skill_points: Dictionary = {}
+# Existing allocation and HUD callers read the currently controlled role's balance.
+var skill_points: int:
+	get:
+		return get_role_skill_points(str(_get_active_role().get("id", "")))
+	set(value):
+		role_skill_points[str(_get_active_role().get("id", ""))] = maxi(0, value)
 var pending_level_ups: int = 0
 var pending_level_talent_choices: int = 0
 var level_up_active: bool = false
@@ -707,6 +714,7 @@ func _roll_critical_hit(role_id: String, chance_bonus: float = 0.0) -> bool:
 func _record_attack_result_instance(role_id: String, was_critical: bool, killed: bool, target_position: Variant = null, raw_source_role_id: String = "") -> void:
 	if role_id == "":
 		return
+	PLAYER_COMBAT_RESULT_FLOW.apply_swordsman_trait_heal_on_hit(self, role_id, 1, raw_source_role_id)
 	pending_attack_result_hit_count_by_role[role_id] = int(pending_attack_result_hit_count_by_role.get(role_id, 0)) + 1
 	if was_critical:
 		pending_attack_result_critical_hit_count_by_role[role_id] = int(pending_attack_result_critical_hit_count_by_role.get(role_id, 0)) + 1
@@ -1955,17 +1963,17 @@ func _get_enemy_hit_radius(enemy: Node) -> float:
 func _deal_damage_to_enemy(enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, suppress_status_visual: bool = false, kill_energy_bonus: float = 0.0) -> bool:
 	return PLAYER_DAMAGE_RESOLVER.deal_damage_to_enemy(self, enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, suppress_status_visual, kill_energy_bonus)
 
-func _damage_enemies_in_radius(center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "") -> int:
-	return PLAYER_DAMAGE_RESOLVER.damage_enemies_in_radius(self, center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id)
+func _damage_enemies_in_radius(center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "", slow_source_id: String = "") -> int:
+	return PLAYER_DAMAGE_RESOLVER.damage_enemies_in_radius(self, center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id, slow_source_id)
 
 func _collect_enemies_in_radius_for_damage_batch(center: Vector2, radius: float) -> Array:
 	return PLAYER_DAMAGE_RESOLVER.collect_enemies_in_radius(self, center, radius)
 
-func _damage_enemies_in_radius_batched(center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "") -> int:
-	return PLAYER_DAMAGE_RESOLVER.damage_enemies_in_radius_batched(self, center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id)
+func _damage_enemies_in_radius_batched(center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "", slow_source_id: String = "") -> int:
+	return PLAYER_DAMAGE_RESOLVER.damage_enemies_in_radius_batched(self, center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id, slow_source_id)
 
-func _damage_enemies_in_radius_suppressing_status_visuals(center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "") -> int:
-	return PLAYER_DAMAGE_RESOLVER.damage_enemies_in_radius_suppressing_status_visuals(self, center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id)
+func _damage_enemies_in_radius_suppressing_status_visuals(center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "", slow_source_id: String = "") -> int:
+	return PLAYER_DAMAGE_RESOLVER.damage_enemies_in_radius_suppressing_status_visuals(self, center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id, slow_source_id)
 
 func _damage_enemies_in_radius_with_kill_energy(center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "", kill_energy_bonus: float = 0.0) -> int:
 	return PLAYER_DAMAGE_RESOLVER.damage_enemies_in_radius_with_kill_energy(self, center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id, kill_energy_bonus)
@@ -1994,11 +2002,14 @@ func _damage_enemies_in_oriented_rect(center: Vector2, axis_direction: Vector2, 
 func _damage_enemies_in_oriented_rect_tracking(center: Vector2, axis_direction: Vector2, rect_length: float, rect_width: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, hit_registry: Dictionary, source_role_id: String = "", knockback_distance: float = 0.0) -> int:
 	return PLAYER_DAMAGE_RESOLVER.damage_enemies_in_oriented_rect_tracking(self, center, axis_direction, rect_length, rect_width, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, hit_registry, source_role_id, knockback_distance)
 
-func _damage_enemies_in_oriented_rect_unique(center: Vector2, axis_direction: Vector2, rect_length: float, rect_width: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, hit_registry: Dictionary, source_role_id: String = "") -> int:
-	return PLAYER_DAMAGE_RESOLVER.damage_enemies_in_oriented_rect_unique(self, center, axis_direction, rect_length, rect_width, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, hit_registry, source_role_id)
+func _damage_enemies_in_oriented_rect_unique(center: Vector2, axis_direction: Vector2, rect_length: float, rect_width: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, hit_registry: Dictionary, source_role_id: String = "", slow_source_id: String = "", knockback_distance: float = 0.0) -> int:
+	return PLAYER_DAMAGE_RESOLVER.damage_enemies_in_oriented_rect_unique(self, center, axis_direction, rect_length, rect_width, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, hit_registry, source_role_id, knockback_distance, slow_source_id)
 
 func _damage_enemies_in_ellipse(center: Vector2, horizontal_radius: float, vertical_radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "") -> int:
 	return PLAYER_DAMAGE_RESOLVER.damage_enemies_in_ellipse(self, center, horizontal_radius, vertical_radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id)
+
+func _damage_all_enemies(damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "") -> int:
+	return PLAYER_DAMAGE_RESOLVER.damage_all_enemies(self, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id)
 
 func _damage_enemies_in_cone(origin: Vector2, direction: Vector2, cone_range: float, cone_angle_radians: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "") -> int:
 	return PLAYER_DAMAGE_RESOLVER.damage_enemies_in_cone(self, origin, direction, cone_range, cone_angle_radians, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id)
@@ -2315,8 +2326,8 @@ func take_damage(amount: float) -> void:
 func take_damage_ignoring_armor(amount: float) -> void:
 	PLAYER_SURVIVAL_FLOW.take_damage(self, amount, null, true)
 
-func apply_enemy_slow(multiplier: float, duration: float) -> void:
-	PLAYER_SURVIVAL_FLOW.apply_enemy_slow(self, multiplier, duration)
+func apply_enemy_slow(multiplier: float, duration: float, source_id: String = "") -> void:
+	PLAYER_SURVIVAL_FLOW.apply_enemy_slow(self, multiplier, duration, source_id)
 
 func _add_energy(amount: float) -> void:
 	PLAYER_RESOURCE_FLOW.add_energy(self, amount)
@@ -2416,6 +2427,18 @@ func _apply_entry_lifesteal(role_id: String, hit_count: int, killed: bool) -> vo
 func _heal(amount: float) -> void:
 	PLAYER_RESOURCE_FLOW.heal(self, amount)
 
+func restore_team_missing_health(ratio: float) -> void:
+	_save_active_role_health()
+	var active_id: String = str(_get_active_role().get("id", ""))
+	for role in roles:
+		var role_id: String = str(role.get("id", ""))
+		var amount: float = maxf(0.0, _get_role_max_health(role_id) - _get_role_current_health(role_id)) * clampf(ratio, 0.0, 1.0)
+		if role_id == active_id:
+			_heal(amount)
+		else:
+			_heal_role(role_id, amount)
+	_update_player_health_bar(_get_active_role())
+
 func _record_swordsman_ultimate_followup_damage(amount: float) -> void:
 	if amount <= 0.0:
 		return
@@ -2468,6 +2491,31 @@ func get_current_blessing_offer_context() -> Dictionary:
 	if current_blessing_offer is Dictionary:
 		return (current_blessing_offer.get("context", {}) as Dictionary).duplicate(true)
 	return {}
+
+func build_skill_point_offer() -> Dictionary:
+	return PLAYER_BLESSING_SYSTEM.build_skill_point_offer(self)
+
+func get_role_skill_points(role_id: String) -> int:
+	return maxi(0, int(role_skill_points.get(role_id, 0)))
+
+func get_team_skill_points() -> Dictionary:
+	var result := {}
+	for role in roles:
+		var role_id := str(role.get("id", ""))
+		result[role_id] = get_role_skill_points(role_id)
+	return result
+
+func grant_team_skill_points(amount: int = 1) -> void:
+	for role in roles:
+		var role_id := str(role.get("id", ""))
+		role_skill_points[role_id] = get_role_skill_points(role_id) + maxi(0, amount)
+
+func spend_skill_point() -> bool:
+	if skill_points <= 0:
+		return false
+	skill_points -= 1
+	stats_changed.emit(get_frame_hud_summary())
+	return true
 
 func get_small_boss_reward_options() -> Array:
 	return PLAYER_LEVEL_FLOW.get_small_boss_reward_options(self)

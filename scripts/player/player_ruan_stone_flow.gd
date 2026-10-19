@@ -76,7 +76,9 @@ static func _apply_thunder(owner, origin_enemy: Node, triggering_damage: float, 
 
 
 static func _apply_frost(enemy: Node, values: Dictionary) -> void:
-	if enemy.has_method("apply_slow"):
+	if enemy.has_method("apply_slow_from_source"):
+		enemy.apply_slow_from_source(1.0 - float(values.get("slow_ratio", 0.0)), float(values.get("duration", 0.0)), "ruan_frost")
+	elif enemy.has_method("apply_slow"):
 		enemy.apply_slow(1.0 - float(values.get("slow_ratio", 0.0)), float(values.get("duration", 0.0)))
 
 

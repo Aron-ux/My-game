@@ -78,6 +78,7 @@ static func clear_runtime_state() -> void:
 @export var pierce_count: int = 0
 @export var bounce_count: int = 0
 @export var slow_multiplier: float = 1.0
+@export var slow_source_id: String = ""
 @export var slow_duration: float = 0.0
 @export var vulnerability_bonus: float = 0.0
 @export var vulnerability_duration: float = 0.0
@@ -297,6 +298,7 @@ func _ensure_projectile_scene_defaults() -> void:
 		"bounce_count": bounce_count,
 		"slow_multiplier": slow_multiplier,
 		"slow_duration": slow_duration,
+		"slow_source_id": slow_source_id,
 		"vulnerability_bonus": vulnerability_bonus,
 		"vulnerability_duration": vulnerability_duration,
 		"visual_color": visual_color,
@@ -335,6 +337,7 @@ func reset_projectile(config: Dictionary = {}) -> void:
 	pierce_count = int(config.get("pierce_count", _projectile_scene_default("pierce_count", 0)))
 	bounce_count = int(config.get("bounce_count", _projectile_scene_default("bounce_count", 0)))
 	slow_multiplier = float(config.get("slow_multiplier", _projectile_scene_default("slow_multiplier", 1.0)))
+	slow_source_id = str(config.get("slow_source_id", ""))
 	slow_duration = float(config.get("slow_duration", _projectile_scene_default("slow_duration", 0.0)))
 	vulnerability_bonus = float(config.get("vulnerability_bonus", _projectile_scene_default("vulnerability_bonus", 0.0)))
 	vulnerability_duration = float(config.get("vulnerability_duration", _projectile_scene_default("vulnerability_duration", 0.0)))
@@ -574,7 +577,7 @@ func _apply_hit(enemy: Node2D) -> void:
 	var killed: bool = false
 	var queued_damage := false
 	if source_player != null and source_player.has_method("_deal_damage_to_enemy"):
-		PLAYER_DAMAGE_RESOLVER.queue_damage_to_enemy(source_player, enemy, hit_damage, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_origin_position, true, false, false, damage_event_id)
+		PLAYER_DAMAGE_RESOLVER.queue_damage_to_enemy(source_player, enemy, hit_damage, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_origin_position, true, false, false, damage_event_id, slow_source_id)
 		queued_damage = true
 	else:
 		if enemy.has_method("take_damage"):
@@ -591,10 +594,9 @@ func _apply_hit(enemy: Node2D) -> void:
 				false,
 				0.0,
 				false,
-				damage_event_id
+				damage_event_id,
+				slow_source_id
 			))
-		if slow_duration > 0.0 and enemy.has_method("apply_slow"):
-			enemy.apply_slow(slow_multiplier, slow_duration)
 		if vulnerability_duration > 0.0 and enemy.has_method("apply_vulnerability"):
 			enemy.apply_vulnerability(vulnerability_bonus, vulnerability_duration)
 

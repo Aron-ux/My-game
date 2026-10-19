@@ -263,10 +263,10 @@ static func get_role_move_speed(owner, role_id: String, sources: Variant = null)
 		move_speed *= 1.0 + 0.02 * owner.frenzy_stacks
 		if sources != null:
 			sources.append({"label": "狂热", "value": 1.0 + 0.02 * owner.frenzy_stacks, "op": "*"})
-	var slow_multiplier: float = minf(minf(owner.enemy_move_slow_multiplier, preload("res://scripts/enemies/elite_charge_ground.gd").get_slow_multiplier(owner)), preload("res://scripts/enemies/skulltomb_domain_effect.gd").get_slow_multiplier(owner))
-	move_speed *= minf(slow_multiplier, preload("res://scripts/player/player_plague_flow.gd").get_slow_multiplier(owner))
+	var slow_multiplier: float = owner.enemy_move_slow_multiplier * preload("res://scripts/enemies/elite_charge_ground.gd").get_slow_multiplier(owner) * preload("res://scripts/enemies/skulltomb_domain_effect.gd").get_slow_multiplier(owner) * preload("res://scripts/player/player_plague_flow.gd").get_slow_multiplier(owner)
+	move_speed *= slow_multiplier
 	if sources != null:
-		sources.append({"label": "当前减速", "value": minf(slow_multiplier, preload("res://scripts/player/player_plague_flow.gd").get_slow_multiplier(owner)), "op": "*"})
+		sources.append({"label": "当前减速", "value": slow_multiplier, "op": "*"})
 	move_speed *= preload("res://scripts/enemies/skull_mage_domain.gd").get_slow_multiplier(owner)
 	if sources != null:
 		sources.append({"label": "不洁领域", "value": preload("res://scripts/enemies/skull_mage_domain.gd").get_slow_multiplier(owner), "op": "*"})

@@ -1,4 +1,19 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=4 format=3]
+
 [ext_resource type="Script" path="res://assets/enemies/necropriest/priest_visual.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/enemies/necropriest/necro_priest_sheet.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/enemies/necropriest/necro_priest_hit.png" id="3"]
+
 [node name="NecroPriestVisual" type="Node2D"]
 script = ExtResource("1")
+sheet = ExtResource("2")
+hit_sheet = ExtResource("3")
+rows = 2
+fps = 7.0
+idle_speed = 1.0
+art_scale = 0.8
+sprite_offset = Vector2(-1.2, -10)
+shadow_position = Vector2(0, 36)
+shadow_scale = Vector2(1.0, 0.6)
+hit_center = Vector2(0, -4)
+hit_area = Vector2(24, 44)

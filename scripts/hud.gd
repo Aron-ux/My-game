@@ -21,6 +21,7 @@ signal developer_endless_tier_test_requested(tier: int)
 signal endless_speed_toggled(enabled: bool)
 signal skill_mode_toggle_requested(skill_id: String)
 signal skill_slot_swap_requested(role_id: String, from_slot: int, to_slot: int)
+signal skill_point_requested(skill_id: String, role_id: String)
 
 var level_label: Label
 var role_label: Label
@@ -334,6 +335,7 @@ func _build_skill_cooldown_panel(root: Control) -> void:
 	combat_skill_bar = COMBAT_SKILL_BAR.new()
 	combat_skill_bar.skill_mode_toggle_requested.connect(func(skill_id: String): skill_mode_toggle_requested.emit(skill_id))
 	combat_skill_bar.skill_slot_swap_requested.connect(func(role_id: String, from_slot: int, to_slot: int): skill_slot_swap_requested.emit(role_id, from_slot, to_slot))
+	combat_skill_bar.skill_point_requested.connect(func(skill_id: String, role_id: String): skill_point_requested.emit(skill_id, role_id))
 	root.add_child(combat_skill_bar)
 
 
@@ -697,6 +699,8 @@ func update_stats(summary: Dictionary) -> void:
 			str(summary.get("role_id", "swordsman")),
 			int(summary.get("active_role_index", 0))
 		)
+	if combat_skill_bar != null and combat_skill_bar.has_method("update_skill_points"):
+		combat_skill_bar.update_skill_points(int(summary.get("skill_points", 0)))
 
 	var switch_power_name := str(summary.get("switch_power_label", ""))
 	var switch_power_remaining := float(summary.get("switch_power_remaining", 0.0))
