@@ -18,7 +18,7 @@ const DEVELOPER_BUILD_TOOLS := preload("res://scripts/developer/developer_build_
 static func update_frame_hud(main: Node) -> void:
 	if main.hud != null and main.hud.has_method("update_time") and _should_refresh_elapsed(main, LAST_FRAME_TIME_REFRESH_META, main.survival_time, FRAME_TIME_REFRESH_INTERVAL):
 		PERFORMANCE_RECORDER.begin_scope("hud_time_label_ms")
-		main.hud.update_time(main.survival_time)
+		main.hud.update_time(_get_wave_remaining_time(main))
 		PERFORMANCE_RECORDER.end_scope("hud_time_label_ms")
 	if main.hud != null and main.hud.has_method("update_stats") and main.player != null and main.player.has_method("get_stat_summary") and _should_refresh_elapsed(main, LAST_FRAME_STATS_REFRESH_META, main.survival_time, FRAME_STATS_REFRESH_INTERVAL):
 		PERFORMANCE_RECORDER.begin_scope("hud_stats_payload_ms")
@@ -45,7 +45,7 @@ static func refresh_hud(main: Node) -> void:
 	if main.hud.has_method("update_time"):
 		if main.hud.has_method("set_endless_tier"):
 			main.hud.set_endless_tier(main.endless_tier if main.endless_mode_active or main._is_developer_mode() else 0)
-		main.hud.update_time(main.survival_time)
+		main.hud.update_time(_get_wave_remaining_time(main))
 	if main.hud.has_method("set_developer_boss_options"):
 		main.hud.set_developer_boss_options(main._get_developer_boss_options())
 	if main.hud.has_method("set_developer_normal_enemy_options"):
@@ -58,6 +58,18 @@ static func refresh_hud(main: Node) -> void:
 			"blessing": DEVELOPER_BUILD_TOOLS.blessing_catalog(main.player),
 			"item": DEVELOPER_BUILD_TOOLS.item_catalog(main.player)
 		})
+
+static func _get_wave_remaining_time(main: Node) -> float:
+	var flow = main.get("wave_flow")
+	if flow == null or not is_instance_valid(flow):
+		return 0.0
+	var phase: String = str(flow.get("phase"))
+	if phase == "combat":
+		var plan = preload("res://scripts/game/combat_wave_plan.gd")
+		return maxf(0.0, plan.duration(int(flow.get("wave"))) - float(flow.get("elapsed")))
+	if phase == "preparation":
+		return maxf(0.0, float(flow.get("remaining")))
+	return 0.0
 	update_boss_hud(main)
 
 static func _get_boss_ui_data(enemy, default_name: String) -> Dictionary:

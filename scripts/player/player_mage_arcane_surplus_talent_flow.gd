@@ -29,6 +29,8 @@ static func apply_skill_cooldown_tick_bonus(owner, ability, role_id: String, del
 	if ability == null or delta <= 0.0:
 		return
 	var tick_multiplier := get_skill_cooldown_tick_multiplier(owner, role_id)
+	if role_id == "mage" and owner != null and bool(owner.get_meta("mage_surge_water_path_active", false)):
+		tick_multiplier *= 1.20
 	if tick_multiplier <= 1.0:
 		return
 	if ability.get("cooldown_remaining") == null:

@@ -83,6 +83,39 @@ static func update_timers(owner, delta: float) -> void:
 		owner.enemy_move_slow_multiplier = slow.x
 		owner.enemy_move_slow_remaining = slow.y
 	preload("res://scripts/player/player_skull_mage_effects.gd").slow_cooldowns_before_update(owner, delta)
+	var water_path_areas: Array = owner.get_meta("mage_surge_water_path_areas", [])
+	var water_path_active := false
+	for area_value in water_path_areas:
+		var area: Dictionary = area_value
+		area["remaining"] = maxf(0.0, float(area.get("remaining", 0.0)) - delta)
+		area["tick_remaining"] = float(area.get("tick_remaining", 1.0)) - delta
+		var center: Vector2 = area.get("center", Vector2.ZERO)
+		var direction: Vector2 = area.get("direction", Vector2.RIGHT)
+		var length: float = float(area.get("length", 0.0))
+		var width: float = float(area.get("width", 0.0))
+		var relative: Vector2 = (owner as Node2D).global_position - center
+		var along: float = relative.dot(direction)
+		var across: float = absf(relative.dot(direction.orthogonal()))
+		if float(area.get("remaining", 0.0)) > 0.0 and absf(along) <= length * 0.5 and across <= width * 0.5:
+			water_path_active = true
+		if float(area.get("remaining", 0.0)) > 0.0 and float(area["tick_remaining"]) <= 0.0:
+			area["tick_remaining"] = 1.0
+			if owner.has_method("_damage_enemies_in_oriented_rect"):
+				owner._damage_enemies_in_oriented_rect(center, direction, length, width, float(owner._get_role_damage("mage")) * 0.40, 0.0, 0.50, 1.5, "mage_surging_wave_water_path")
+	water_path_areas = water_path_areas.filter(func(area_value: Variant) -> bool:
+		return float((area_value as Dictionary).get("remaining", 0.0)) > 0.0
+	)
+	owner.set_meta("mage_surge_water_path_areas", water_path_areas)
+	owner.set_meta("mage_surge_water_path_active", water_path_active)
+	var spring_remaining := maxf(0.0, float(owner.get_meta("mage_clear_spring_regen_remaining", 0.0)) - delta)
+	var spring_elapsed := float(owner.get_meta("mage_clear_spring_regen_elapsed", 0.0)) + delta
+	if spring_remaining > 0.0 and spring_elapsed >= 1.0:
+		spring_elapsed -= 1.0
+		var role_id := str(owner.get_meta("mage_clear_spring_regen_role_id", "mage"))
+		if owner.has_method("_get_role_current_health") and owner.has_method("_heal_role"):
+			owner._heal_role(role_id, float(owner._get_role_current_health(role_id)) * 0.05)
+	owner.set_meta("mage_clear_spring_regen_remaining", spring_remaining)
+	owner.set_meta("mage_clear_spring_regen_elapsed", spring_elapsed)
 	if owner.gunner_infinite_reload_ability != null:
 		PLAYER_MAGE_ARCANE_SURPLUS_TALENT_FLOW.apply_skill_cooldown_tick_bonus(owner, owner.gunner_infinite_reload_ability, "gunner", delta)
 		owner.gunner_infinite_reload_ability.update(owner, delta)

@@ -1,5 +1,6 @@
 extends RefCounted
 
+const QUILL_VISUAL := preload("res://scripts/enemies/porcupine_quill_visual.gd")
 
 static func is_porcupine(enemy) -> bool:
 	return enemy != null and str(enemy.get("archetype_id")) == "angry_porcupine"
@@ -56,7 +57,9 @@ static func show_quill_burst(enemy, count: int) -> void:
 	if scene == null:
 		return
 	for index in count:
-		var effect := preload("res://scripts/enemies/porcupine_quill_visual.gd").new()
+		if QUILL_VISUAL.active_count >= QUILL_VISUAL.MAX_ACTIVE:
+			break
+		var effect := QUILL_VISUAL.new()
 		effect.position = enemy.global_position
 		effect.enraged = is_enraged(enemy)
 		effect.angle_offset = float(index) * PI / 24.0

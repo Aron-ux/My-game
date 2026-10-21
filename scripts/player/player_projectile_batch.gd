@@ -433,9 +433,9 @@ func _apply_projectile_hit(projectile_index: int, enemy: Node2D) -> void:
 
 func _build_hit_damage(index: int, enemy: Node2D, roll: float = -1.0) -> float:
 	var build: Dictionary = gunner_builds[index]
-	if float(build.get("shock_bonus", 0.0)) > 0.0 and (randf() if roll < 0.0 else roll) < 0.3:
+	if float(build.get("shock_multiplier", 1.0)) > 1.0 and (randf() if roll < 0.0 else roll) < 0.5:
 		enemy.global_position += directions[index] * 25.0
-		return damages[index] + float(build["shock_bonus"])
+		return damages[index] * float(build["shock_multiplier"])
 	return damages[index]
 
 func _spawn_build_split(index: int, enemy: Node2D) -> void:
@@ -456,7 +456,7 @@ func _spawn_build_split(index: int, enemy: Node2D) -> void:
 			"enemy_hit_radius_scale": enemy_hit_radius_scales[index],
 			"enemy_hit_radius_min": enemy_hit_radius_mins[index],
 			"enemy_hit_radius_max": enemy_hit_radius_maxs[index],
-			"pierce_count": -1 if bool(build.get("split_pierce", false)) and randf() < 0.3 else 0,
+			"pierce_count": -1 if bool(build.get("split_pierce", false)) else 0,
 			"initial_hit_enemy_id": enemy.get_instance_id()
 		})
 

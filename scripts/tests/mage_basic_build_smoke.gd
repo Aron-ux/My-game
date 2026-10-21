@@ -41,9 +41,9 @@ func _run() -> void:
 			check(not LEVELS.apply_option_with_result(player, option["id"], offer).is_empty(), "branch applied")
 	check(is_equal_approx(BUILD.damage_ratio(player), 3.5), "max focus ratio 350 percent")
 	player.role_mana_values["mage"] = 62.0
-	check(is_equal_approx(player._get_effective_attack_speed("mage"), 0.27), "focus additive speed at 62 energy with storm and LV6 penalties")
-	check(is_equal_approx(BUILD.range_multiplier(player), 1.625), "LV6 and focus range")
-	check(is_equal_approx(BUILD.energy_bonus(player, "mage_basic:test"), 0.5), "energy x1.5")
+	check(is_equal_approx(player._get_effective_attack_speed("mage"), 0.17), "focus additive speed at 62 energy with storm and LV6 penalties")
+	check(is_equal_approx(BUILD.range_multiplier(player), 1.25), "focus range")
+	check(is_equal_approx(BUILD.energy_bonus(player, "mage_basic:test"), 0.2), "energy x1.2")
 	var request := {"kind": "skill", "role_id": "mage", "id": "mage_basic"}
 	TOOLS.apply(player, request.merged({"operation": "branch", "stage": 4, "choice": "charge"}))
 	var enemy = ENEMY.instantiate()
@@ -62,11 +62,11 @@ func _run() -> void:
 		check(enemy.electric_stacks == index + 1, "one stack per hit")
 	check(enemy.current_health > 9900.0, "third hit does not detonate")
 	var before: float = enemy.current_health
-	var proc: float = player._get_role_damage("mage") * 3.0
+	var proc: float = player._get_role_damage("mage") * 4.0
 	enemy.take_damage(10.0)
 	check(enemy.electric_stacks == 0, "next damage consumes stacks")
 	var armor_rules = preload("res://scripts/combat/armor_rules.gd")
-	check(is_equal_approx(before - enemy.current_health, armor_rules.apply_damage(10.0 + proc, -30.0)), "300 percent active role attack, then clear armor stacks")
+	check(is_equal_approx(before - enemy.current_health, armor_rules.apply_damage(10.0 + proc, -60.0) * 1.15), "400 percent active role attack with 3 stacks of armor shred and vulnerability")
 	enemy.shot_timer = 0.3
 	enemy.dash_windup_remaining = 0.2
 	check(enemy.apply_stun(0.5), "normal stunned")
@@ -125,7 +125,7 @@ func _run() -> void:
 	check(is_equal_approx(BUILD.strike_ratio(player, 0.4225), 3.5 * 0.4225 + 1.0), "quake applies to every storm strike")
 	TOOLS.apply(player, request.merged({"operation": "branch", "stage": 4, "choice": "storm"}))
 	TOOLS.apply(player, request.merged({"operation": "branch", "stage": 8, "choice": "heaven"}))
-	check(is_equal_approx(BUILD.base_speed_modifier(player), -0.4), "storm heaven quake base penalties stack")
+	check(is_equal_approx(BUILD.base_speed_modifier(player), -0.35), "storm heaven quake base penalties stack")
 	check(is_equal_approx(player._get_effective_attack_speed("mage"), 0.15), "final speed preserves 0.15 minimum")
 	TOOLS.apply(player, request.merged({"operation": "set", "amount": 5}))
 	check(is_equal_approx(player._get_effective_attack_speed("mage"), 0.25), "lowering level clears heaven quake and LV6 penalties")

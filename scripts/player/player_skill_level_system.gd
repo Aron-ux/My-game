@@ -1,5 +1,6 @@
 extends RefCounted
 const MAGE_BASIC_BUILD := preload("res://scripts/player/player_mage_basic_build.gd")
+const MAGE_SURGING_WAVE_BUILD := preload("res://scripts/player/player_mage_surging_wave_build.gd")
 const STORM_BUILD := preload("res://scripts/player/player_blade_storm_build.gd")
 const INFINITE_BUILD := preload("res://scripts/player/player_gunner_infinite_reload_build.gd")
 
@@ -391,6 +392,7 @@ static func normalize_role_state(role_id: String, value: Variant) -> Dictionary:
 	var storm_level: int = STORM_BUILD.level_from_state(state)
 	var infinite_level: int = INFINITE_BUILD.level_from_state(state)
 	var raw_levels: Dictionary = state.get(SKILL_LEVELS_KEY, {}) if state.get(SKILL_LEVELS_KEY, {}) is Dictionary else {}
+	var wave_level: int = MAGE_SURGING_WAVE_BUILD.level_from_state(state) if role_id == "mage" else 0
 	var levels: Dictionary = {}
 	for progress_value in ROLE_PROGRESS_ORDER.get(role_id, []):
 		var progress_id := str(progress_value)
@@ -409,6 +411,16 @@ static func normalize_role_state(role_id: String, value: Variant) -> Dictionary:
 				if basic_level >= stage and str(raw_choices.get(str(stage), "")) == option["key"]:
 					clean_choices[str(stage)] = option["key"]
 		state[build.STATE_KEY] = clean_choices
+	if role_id == "mage":
+		levels[MAGE_SURGING_WAVE_BUILD.PROGRESS] = wave_level
+		var wave_choices: Dictionary = {}
+		var raw_wave: Variant = state.get(MAGE_SURGING_WAVE_BUILD.STATE_KEY, {})
+		if raw_wave is Dictionary:
+			for stage in MAGE_SURGING_WAVE_BUILD.STAGES:
+				for option in MAGE_SURGING_WAVE_BUILD.OPTIONS[stage]:
+					if wave_level >= stage and str(raw_wave.get(str(stage), "")) == str(option["key"]):
+						wave_choices[str(stage)] = option["key"]
+		state[MAGE_SURGING_WAVE_BUILD.STATE_KEY] = wave_choices
 	if role_id == "swordsman":
 		levels[STORM_BUILD.PROGRESS] = storm_level
 		var storm_choices: Dictionary = {}
@@ -580,6 +592,8 @@ static func _owner_has_property(owner, property_name: String) -> bool:
 
 
 static func basic_build(progress_id: String):
+	if progress_id == MAGE_SURGING_WAVE_BUILD.PROGRESS:
+		return MAGE_SURGING_WAVE_BUILD
 	if progress_id == INFINITE_BUILD.PROGRESS:
 		return INFINITE_BUILD
 	if progress_id == STORM_BUILD.PROGRESS:
@@ -587,4 +601,4 @@ static func basic_build(progress_id: String):
 	return MAGE_BASIC_BUILD if progress_id == "mage_basic" else GUNNER_BASIC_BUILD if progress_id == "gunner_basic" else SWORDSMAN_BASIC_BUILD
 
 static func is_custom_basic(progress_id: String) -> bool:
-	return progress_id in ["swordsman_basic", "gunner_basic", "mage_basic", STORM_BUILD.PROGRESS, INFINITE_BUILD.PROGRESS]
+	return progress_id in ["swordsman_basic", "gunner_basic", "mage_basic", MAGE_SURGING_WAVE_BUILD.PROGRESS, STORM_BUILD.PROGRESS, INFINITE_BUILD.PROGRESS]

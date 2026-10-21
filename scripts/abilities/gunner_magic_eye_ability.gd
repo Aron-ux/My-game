@@ -83,8 +83,8 @@ func get_cooldown_slot(owner = null) -> Dictionary:
 		"name": "魔眼聚合",
 		"remaining": clamp(cooldown_remaining, 0.0, COOLDOWN),
 		"duration": COOLDOWN,
-		"color": Color(0.32, 0.66, 1.0, 1.0),
-		"description": "向前方释放持续的蓝色加农炮，对前方敌人造成 5 次 80% 伤害，每次命中使敌人护甲降低 5 点；每升一级，每次伤害倍率增加 2 个百分点，护甲降低量额外增加 0.75 点。"
+		"color": Color(0.66, 0.30, 1.0, 1.0),
+		"description": "向前方释放持续的紫色激光加农炮，对前方敌人造成 5 次 80% 伤害，每次命中使敌人护甲降低 5 点；每升一级，每次伤害倍率增加 2 个百分点，护甲降低量额外增加 0.75 点。"
 	}
 
 
@@ -126,7 +126,7 @@ func _fire_shot(owner) -> void:
 	if beam_visual != null and is_instance_valid(beam_visual) and beam_visual.has_method("fire_pulse"):
 		beam_visual.fire_pulse()
 	if owner.has_method("_spawn_ring_effect"):
-		owner._spawn_ring_effect(center, BEAM_WIDTH * 0.5, Color(0.4, 0.75, 1.0, 0.9), 2.0, 0.14)
+		owner._spawn_ring_effect(center, BEAM_WIDTH * 0.5, Color(0.72, 0.38, 1.0, 0.9), 2.0, 0.14)
 	if owner.has_method("_queue_camera_shake"):
 		owner._queue_camera_shake(3.2, 0.08)
 

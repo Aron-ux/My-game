@@ -3,6 +3,8 @@ extends RefCounted
 const PLAYER_MAGE_FIREBALL_FLOW := preload("res://scripts/player/player_mage_fireball_flow.gd")
 const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 const FIRE_GROUND_VISUAL_SCRIPT := preload("res://scripts/player/mage_fire_ground_visual.gd")
+const FIREBALL_PROJECTILE_SCRIPT := preload("res://scripts/player/mage_fireball_projectile.gd")
+const FIRE_BLAST_VISUAL_SCRIPT := preload("res://scripts/player/mage_fire_blast_visual.gd")
 
 const SKILL_ID := "fireball"
 const COOLDOWN := 28.0
@@ -24,6 +26,7 @@ var active_fire_fields: Array[Dictionary] = []
 var pending_saved_fields: Array[Dictionary] = []
 var pending_impact_remaining: float = 0.0
 var pending_impact_center: Vector2 = Vector2.ZERO
+var fireball_projectile: Node2D = null
 
 
 func _has_talent(owner, talent_id: String) -> bool:
@@ -68,6 +71,9 @@ func update(owner, delta: float) -> void:
 		var ground: Node2D = data.get("node", null) as Node2D
 		var remaining: float = float(data.get("remaining", 0.0)) - delta
 		data["remaining"] = remaining
+		# 底部燃烧地面按剩余时间做结尾淡出。
+		if ground != null and is_instance_valid(ground) and ground.has_method("set_remaining"):
+			ground.set_remaining(remaining)
 		var tick_elapsed: float = float(data.get("tick_elapsed", 0.0)) + delta
 		data["tick_elapsed"] = tick_elapsed
 		active_fire_fields[index] = data
@@ -101,6 +107,7 @@ func try_trigger(owner) -> bool:
 	var blast_radius: float = _get_blast_radius(owner)
 	pending_impact_center = PLAYER_MAGE_FIREBALL_FLOW.resolve_target_position(owner, direction, MAX_RANGE)
 	pending_impact_remaining = CHARGE_DURATION
+	_spawn_projectile(owner, pending_impact_center)
 	if owner.has_method("_spawn_ring_effect"):
 		owner._spawn_ring_effect(pending_impact_center, blast_radius * 0.55, Color(1.0, 0.34, 0.08, 0.72), 5.0, CHARGE_DURATION)
 		owner._spawn_ring_effect(pending_impact_center, blast_radius * 0.30, Color(1.0, 0.86, 0.28, 0.86), 3.0, CHARGE_DURATION)
@@ -111,6 +118,7 @@ func try_trigger(owner) -> bool:
 
 func _resolve_pending_impact(owner) -> void:
 	if owner == null or not is_instance_valid(owner) or bool(owner.get("is_dead")):
+		_release_projectile()
 		return
 	var center := pending_impact_center
 	pending_impact_center = Vector2.ZERO
@@ -129,6 +137,7 @@ func _resolve_pending_impact(owner) -> void:
 			PLAYER_MAGE_FIREBALL_FLOW.apply_impact(owner, secondary_center, SECONDARY_BLAST_RADIUS, secondary_damage)
 			if owner.has_method("_spawn_ring_effect"):
 				owner._spawn_ring_effect(secondary_center, SECONDARY_BLAST_RADIUS, Color(1.0, 0.5, 0.15, 0.8), 3.0, 0.2)
+	_spawn_blast(owner, center, blast_radius)
 	if owner.has_method("_spawn_ring_effect"):
 		owner._spawn_ring_effect(center, blast_radius, Color(1.0, 0.48, 0.14, 0.95), 6.0, 0.3)
 		owner._spawn_ring_effect(center, blast_radius * 0.6, Color(1.0, 0.82, 0.32, 0.85), 3.0, 0.2)
@@ -204,6 +213,37 @@ func restore_effect_if_active(owner) -> void:
 	pending_saved_fields.clear()
 
 
+func _spawn_projectile(owner, center: Vector2) -> void:
+	if owner == null or not is_instance_valid(owner):
+		return
+	var scene: Node = owner.get_tree().current_scene if owner.get_tree() != null else null
+	if scene == null:
+		return
+	var projectile := Node2D.new()
+	projectile.name = "MageFireball"
+	projectile.set_script(FIREBALL_PROJECTILE_SCRIPT)
+	projectile.set("start_position", owner.global_position)
+	projectile.set("target_position", center)
+	projectile.set("radius", 26.0)
+	projectile.global_position = owner.global_position
+	scene.add_child(projectile)
+	fireball_projectile = projectile
+
+
+func _spawn_blast(owner, center: Vector2, radius: float) -> void:
+	if owner == null or not is_instance_valid(owner):
+		return
+	var scene: Node = owner.get_tree().current_scene if owner.get_tree() != null else null
+	if scene == null:
+		return
+	var blast := Node2D.new()
+	blast.name = "MageFireBlast"
+	blast.set_script(FIRE_BLAST_VISUAL_SCRIPT)
+	blast.set("radius", radius)
+	blast.global_position = center
+	scene.add_child(blast)
+
+
 func _create_fire_ground(owner, center: Vector2, radius: float) -> Node2D:
 	if owner == null or not is_instance_valid(owner):
 		return null
@@ -219,6 +259,12 @@ func _create_fire_ground(owner, center: Vector2, radius: float) -> Node2D:
 	ground.add_to_group("temporary_effects")
 	scene.add_child(ground)
 	return ground
+
+
+func _release_projectile() -> void:
+	if fireball_projectile != null and is_instance_valid(fireball_projectile):
+		fireball_projectile.queue_free()
+	fireball_projectile = null
 
 
 func _clear_fire_fields() -> void:

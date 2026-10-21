@@ -4,32 +4,29 @@ const MAGE_GATHERING_EFFECT_SCENE := preload("res://effects/wizard/wave/gatherin
 const MAGE_WAVE_EFFECT_SCENE := preload("res://effects/wizard/wave/wave.tscn")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_MAGE_SURGING_WAVE_TALENT_FLOW := preload("res://scripts/player/player_mage_surging_wave_talent_flow.gd")
-const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
+const MAGE_SURGING_WAVE_BUILD := preload("res://scripts/player/player_mage_surging_wave_build.gd")
 
-const TIER_ONE_COOLDOWN := 20.0
-const TIER_TWO_COOLDOWN := 16.0
-const TIER_THREE_COOLDOWN := 16.0
+const BASE_COOLDOWN := 26.0
 const WAVE_REPEAT_INTERVAL := 0.3
 const BASE_SCALE_MULTIPLIER := 1.5
 const HUICHAO_WIDTH_BONUS := 0.12
-const WAVE_SPEED := 115.0
+const WAVE_SPEED := 100.0
 const WAVE_LIFETIME := 4.0
-const WAVE_HIT_RADIUS := 29.932
+const WAVE_HIT_RADIUS := 43.537
 const WAVE_VISUAL_SCALE := 5.2
 const WAVE_WIDTH_MULTIPLIER := 0.7
+const DEFAULT_WAVE_VISUAL_WIDTH := 60.0
+const WAVE_VISUAL_HIT_WIDTH_RATIO := 0.95
 const TIDAL_SURGE_RANGE_MULTIPLIER := 0.7
 const SURGE_SKILL_ID := "surging_wave"
 const TALENT_IDS := [
-	"mage_surge_four",
-	"mage_surge_back",
-	"mage_surge_wake",
-	"mage_surge_vortex",
-	"mage_surge_rapid",
-	"mage_surge_heavy"
+	"mage_surge_back", "mage_surge_flood", "mage_surge_wake",
+	"mage_surge_clear_spring", "mage_surge_tidal", "mage_surge_stack",
 ]
 
 var cooldown_remaining: float = 0.0
 var next_wave_token: int = 1
+var cast_sequence: int = 0
 var cast_talent_ids: Array[String] = []
 var cast_talent_snapshot_valid: bool = false
 
@@ -54,6 +51,8 @@ func try_trigger(owner, base_direction: Vector2) -> bool:
 
 	cast_talent_ids = _capture_talents(owner)
 	cast_talent_snapshot_valid = true
+	cast_sequence += 1
+	owner.set_meta("mage_surge_cast_sequence", cast_sequence)
 	cooldown_remaining = _get_cooldown(owner)
 	var direction := base_direction.normalized()
 	if direction.length_squared() <= 0.001:
@@ -77,8 +76,8 @@ func try_trigger(owner, base_direction: Vector2) -> bool:
 		var wave_scale: float = float(wave_scales[repeat_index])
 		var fire_delay: float = gather_duration + float(repeat_index) * WAVE_REPEAT_INTERVAL
 		var is_base_wave := repeat_index == 0
-		var group_damage_scale := 0.55 if is_base_wave and _has_talent(owner, "mage_surge_four") else 1.0
-		var lifetime_scale := 0.75 if is_base_wave and _has_talent(owner, "mage_surge_four") else 1.0
+		var group_damage_scale := 1.0
+		var lifetime_scale := 1.0
 		if owner.has_method("_schedule_repeating_sequence"):
 			owner._schedule_repeating_sequence(0.0, 1, func(_index: int) -> void:
 				if is_instance_valid(owner):
@@ -86,16 +85,6 @@ func try_trigger(owner, base_direction: Vector2) -> bool:
 			, fire_delay)
 		else:
 			_fire_direction_group(owner, gather_origin, damage_amount * wave_scale * group_damage_scale, _get_wave_directions(owner, wave_scale, is_base_wave), wave_scale, lifetime_scale, is_base_wave, wake_budget)
-		if is_base_wave and _has_talent(owner, "mage_surge_back"):
-			var reverse_direction := -direction
-			var reverse_delay := fire_delay + 0.8
-			var reverse_callback := func(_index: int) -> void:
-				if is_instance_valid(owner):
-					_spawn_wave(owner, owner.global_position, reverse_direction, damage_amount * 0.70, 1.0, 0.75)
-			if owner.has_method("_schedule_repeating_sequence"):
-				owner._schedule_repeating_sequence(0.0, 1, reverse_callback, reverse_delay)
-			else:
-				reverse_callback.call(0)
 	return true
 
 func get_cooldown_slot(owner = null) -> Dictionary:
@@ -134,7 +123,7 @@ func _fire_direction_group(owner, origin: Vector2, damage_amount: float, directi
 		if wake_points > 0:
 			wake_budget["remaining"] = max(0, int(wake_budget.get("remaining", 0)) - wake_points)
 
-func _spawn_wave(owner, origin: Vector2, fire_direction: Vector2, damage_amount: float, effect_scale: float = 1.0, lifetime_scale: float = 1.0, wake_points: int = 0) -> Node2D:
+func _spawn_wave(owner, origin: Vector2, fire_direction: Vector2, damage_amount: float, effect_scale: float = 1.0, lifetime_scale: float = 1.0, wake_points: int = 0, is_return_wave: bool = false) -> Node2D:
 	var wave = owner._spawn_directional_bullet_from_scene(
 		MAGE_WAVE_EFFECT_SCENE,
 		fire_direction,
@@ -154,6 +143,8 @@ func _spawn_wave(owner, origin: Vector2, fire_direction: Vector2, damage_amount:
 	var wave_token := next_wave_token
 	next_wave_token += 1
 	wave.set_meta("mage_surge_token", wave_token)
+	wave.set_meta("mage_surge_cast_sequence", int(owner.get_meta("mage_surge_cast_sequence", 0)))
+	wave.set_meta("mage_surge_return_wave", is_return_wave)
 	wave.set_meta("mage_surge_talent_ids", cast_talent_ids.duplicate())
 	wave.z_as_relative = false
 	wave.z_index = 30
@@ -162,18 +153,14 @@ func _spawn_wave(owner, origin: Vector2, fire_direction: Vector2, damage_amount:
 	var speed_multiplier := 1.0
 	var width_multiplier := 1.0
 	var talent_lifetime_scale := 1.0
-	wave.set_meta("mage_surge_rapid", false)
-	if _has_talent(owner, "mage_surge_vortex"):
-		speed_multiplier *= 0.85
-		width_multiplier *= 1.30
-		wave.slow_source_id = "mage_tidal_surge"
-		wave.slow_multiplier = 0.80
-		wave.slow_duration = 1.0
-	elif _has_talent(owner, "mage_surge_rapid"):
-		speed_multiplier *= 1.30
-		talent_lifetime_scale *= 0.85
-		wave.set_meta("mage_surge_rapid", true)
+	if _has_talent(owner, "mage_surge_flood"):
+		wave.slow_multiplier = 0.60
+		wave.slow_duration = 2.0
+	if _has_talent(owner, "mage_surge_tidal"):
+		width_multiplier *= 80.0 / max(1.0, WAVE_HIT_RADIUS * 2.0 * range_multiplier * WAVE_WIDTH_MULTIPLIER)
 	wave.speed = _get_wave_speed(owner) * speed_multiplier
+	if _has_talent(owner, "mage_surge_flood"):
+		wave.push_on_hit_distance = wave.speed * 1.5
 	wave.lifetime = _get_lifetime(owner) * distance_scale * lifetime_scale * talent_lifetime_scale
 	wave.hit_radius = WAVE_HIT_RADIUS * range_multiplier * WAVE_WIDTH_MULTIPLIER * width_multiplier
 	wave.pierce_count = 999
@@ -185,11 +172,30 @@ func _spawn_wave(owner, origin: Vector2, fire_direction: Vector2, damage_amount:
 	wave.enemy_hit_radius_scale = 0.62
 	wave.enemy_hit_radius_min = 12.0
 	wave.enemy_hit_radius_max = 72.0 * _get_scale_multiplier(owner) * WAVE_WIDTH_MULTIPLIER * width_multiplier
-	if _has_talent(owner, "mage_surge_heavy"):
-		_schedule_heavy_wave_stage(owner, wave, wave_token)
+	var actual_width: float = wave.hit_radius * 2.0
+	var base_range_multiplier: float = BASE_SCALE_MULTIPLIER * TIDAL_SURGE_RANGE_MULTIPLIER
+	var is_default_width: bool = not _has_talent(owner, "mage_surge_tidal") and is_equal_approx(width_multiplier, 1.0) and is_equal_approx(range_multiplier, base_range_multiplier)
+	wave.animated_visual_width = DEFAULT_WAVE_VISUAL_WIDTH if is_default_width else actual_width * WAVE_VISUAL_HIT_WIDTH_RATIO
+	wave.set_meta("mage_surge_wet", _has_talent(owner, "mage_surge_stack"))
+	wave.set_meta("mage_surge_clear_spring", _has_talent(owner, "mage_surge_clear_spring"))
+	if _has_talent(owner, "mage_surge_back") and not is_return_wave and owner.has_method("_schedule_repeating_sequence"):
+		var wave_lifetime: float = float(wave.get("lifetime"))
+		var return_delay: float = wave_lifetime + 0.01
+		var return_speed: float = float(wave.get("speed")) + float(wave.get("difficulty_speed_bonus"))
+		var return_origin: Vector2 = wave.global_position + fire_direction.normalized() * return_speed * wave_lifetime
+		var return_callback := func(_index: int) -> void:
+			if owner == null or not is_instance_valid(owner):
+				return
+			var return_direction: Vector2 = return_origin.direction_to(owner.global_position)
+			if return_direction.length_squared() <= 0.001:
+				return_direction = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else fire_direction
+			_spawn_wave(owner, return_origin, return_direction.normalized(), damage_amount * 0.60, effect_scale, 1.0, 0, true)
+		owner._schedule_repeating_sequence(0.0, 1, return_callback, return_delay)
 	if wake_points > 0:
 		_start_wake_trail(owner, wave, wave_token, wake_points, damage_amount, wave.hit_radius)
 	PLAYER_MAGE_SURGING_WAVE_TALENT_FLOW.start_path_trail(owner, wave, wave_token, wave.global_position, "mage")
+	wave.visual_cache_ready = false
+	wave._refresh_bullet_visual(true)
 	return wave
 
 func _allocate_wake_points(wave_count: int, remaining_budget: int) -> Array[int]:
@@ -212,6 +218,7 @@ func _schedule_heavy_wave_stage(owner, wave: Node2D, wave_token: int) -> void:
 		wave.damage *= 1.20
 		wave.hit_radius *= 1.35
 		wave.visual_scale_multiplier *= 1.35
+		wave.animated_visual_width *= 1.35
 	if owner.has_method("_schedule_repeating_sequence"):
 		owner._schedule_repeating_sequence(0.0, 1, callback, delay)
 
@@ -287,16 +294,13 @@ func _get_all_directions() -> Array[Vector2]:
 
 func _get_wave_directions(owner, effect_scale: float = 1.0, is_base_wave: bool = false) -> Array[Vector2]:
 	var quantity_count := _get_quantity_extra_count(owner)
-	if is_base_wave and _has_talent(owner, "mage_surge_four"):
-		var base_direction: Vector2 = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
-		var total_count: int = min(8, 4 + quantity_count)
-		var result: Array[Vector2] = []
-		for index in range(total_count):
-			result.append(base_direction.normalized().rotated(TAU * float(index) / float(total_count)))
-		return result
 	var direction: Vector2 = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
-	if PLAYER_MAGE_SURGING_WAVE_TALENT_FLOW.has_level_talent(owner, PLAYER_MAGE_SURGING_WAVE_TALENT_FLOW.TALENT_SURGING_WAVE_1):
-		return PLAYER_MAGE_SURGING_WAVE_TALENT_FLOW.get_twin_wave_directions(owner, direction)
+	if is_base_wave and _has_talent(owner, "mage_surge_tidal"):
+		return [
+			direction.normalized().rotated(deg_to_rad(-40.0)),
+			direction.normalized(),
+			direction.normalized().rotated(deg_to_rad(40.0))
+		]
 	if quantity_count <= 0 or effect_scale < 0.99:
 		return [direction.normalized()]
 	var directions: Array[Vector2] = []
@@ -306,12 +310,7 @@ func _get_wave_directions(owner, effect_scale: float = 1.0, is_base_wave: bool =
 	return directions
 
 func _get_cooldown(owner) -> float:
-	var tier: int = _get_tier(owner)
-	var base_cooldown := TIER_ONE_COOLDOWN
-	if tier >= 3:
-		base_cooldown = TIER_THREE_COOLDOWN
-	elif tier >= 2:
-		base_cooldown = TIER_TWO_COOLDOWN
+	var base_cooldown := BASE_COOLDOWN
 	var cooldown_multiplier: float = PLAYER_BUILD_SYSTEM.get_surging_wave_cooldown_multiplier(owner)
 	if owner != null and is_instance_valid(owner) and owner.has_method("_get_equipment_cooldown_multiplier"):
 		cooldown_multiplier *= float(owner._get_equipment_cooldown_multiplier())
@@ -345,43 +344,30 @@ func _get_quantity_extra_count(owner) -> int:
 	return int(owner._get_blessing_skill_quantity_count(SURGE_SKILL_ID))
 
 func _get_lifetime_multiplier(owner) -> float:
-	var tier: int = _get_tier(owner)
-	var multiplier := 1.0
-	if tier >= 3:
-		multiplier = 1.6
-	elif tier >= 2:
-		multiplier = 4.0 / 3.0
-	if owner != null and owner.has_method("_get_blessing_skill_duration_multiplier"):
-		multiplier *= float(owner._get_blessing_skill_duration_multiplier(SURGE_SKILL_ID))
-	return multiplier
+	return 1.0
 
 func _get_lifetime(owner) -> float:
-	var lifetime := WAVE_LIFETIME * _get_lifetime_multiplier(owner)
+	var lifetime := WAVE_LIFETIME
 	if owner != null and owner.has_method("_get_blessing_skill_duration_flat_bonus"):
 		lifetime += float(owner._get_blessing_skill_duration_flat_bonus(SURGE_SKILL_ID))
 	lifetime += PLAYER_BUILD_SYSTEM.get_surging_wave_duration_bonus(owner)
-	lifetime += PLAYER_MAGE_SURGING_WAVE_TALENT_FLOW.get_lifetime_bonus(owner)
-	lifetime += PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_surging_wave_duration_bonus(owner)
+	if _has_talent(owner, "mage_surge_clear_spring"):
+		lifetime += 2.0
+	lifetime += 1.0 if MAGE_SURGING_WAVE_BUILD.level(owner) >= 6 else 0.0
 	return lifetime
 
 func _get_damage_multiplier(owner) -> float:
-	var tier: int = _get_tier(owner)
-	var multiplier: float = 1.2
-	if tier >= 3:
-		multiplier = 2.0
-	elif tier >= 2:
-		multiplier = 1.5
-	return multiplier + PLAYER_BUILD_SYSTEM.get_surging_wave_damage_multiplier_bonus(owner) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_surging_wave_damage_ratio_bonus(owner)
+	return MAGE_SURGING_WAVE_BUILD.damage_ratio(owner) + PLAYER_BUILD_SYSTEM.get_surging_wave_damage_multiplier_bonus(owner)
 
 func _has_talent(owner, talent_id: String) -> bool:
 	if cast_talent_snapshot_valid:
 		return cast_talent_ids.has(talent_id)
-	return owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id))
+	return PLAYER_MAGE_SURGING_WAVE_TALENT_FLOW.has_wave_talent(owner, talent_id)
 
 func _capture_talents(owner) -> Array[String]:
 	var result: Array[String] = []
 	for talent_id in TALENT_IDS:
-		if owner != null and owner.has_method("_has_skill_talent") and bool(owner._has_skill_talent(talent_id)):
+		if owner != null and PLAYER_MAGE_SURGING_WAVE_TALENT_FLOW.has_wave_talent(owner, talent_id):
 			result.append(talent_id)
 	return result
 

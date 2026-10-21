@@ -75,19 +75,8 @@ func refresh() -> void:
 		hide_all()
 		return
 	root.show()
+	status.visible = false
 	var preparing: bool = flow.phase == "preparation"
-	status.text = "第%d / 20波 · %s\n%s" % [
-		flow.wave, flow.PLAN.title(flow.wave),
-		"整备剩余 %d秒" % ceili(flow.remaining) if preparing else (
-			"击败Boss后进入整备" if flow.PLAN.duration(flow.wave) == 0 else
-			"战斗剩余 %d秒" % ceili(maxf(0, flow.PLAN.duration(flow.wave) - flow.elapsed))
-		)]
-	if flow.phase in ["clearing", "collecting", "settling"]:
-		status.text = "第%d / 20波 · %s" % [flow.wave, {
-			"clearing": "战斗结束 · 清退残怪",
-			"collecting": "经验晶体回收中",
-			"settling": "经验结算完成"
-		}[flow.phase]]
 	skip_button.visible = preparing
 	shop_button.visible = preparing
 	var near: bool = preparing and is_instance_valid(flow.merchant) and flow.main.player.global_position.distance_to(flow.merchant.global_position) <= 120

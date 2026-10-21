@@ -29,12 +29,13 @@ static func apply_damage(enemy, amount: float, show_feedback: bool = true, is_cr
 	if amount <= 0.0:
 		return false
 	var electric_damage := 0.0
-	var electric_armor_shred: float = enemy.electric_stacks * 10.0
+	var electric_armor_shred: float = enemy.electric_stacks * 20.0
+	var electric_vulnerability_multiplier: float = 1.0 + enemy.electric_stacks * 0.05
 	if enemy.electric_stacks >= 3:
 		enemy.electric_stacks = 0
 		var player = enemy.target
 		if player != null and is_instance_valid(player) and player.has_method("_get_role_damage") and player.has_method("_get_active_role"):
-			electric_damage = float(player._get_role_damage(str(player._get_active_role()["id"]))) * 3.0
+			electric_damage = float(player._get_role_damage(str(player._get_active_role()["id"]))) * 4.0
 		preload("res://scripts/enemies/enemy_electric_visual.gd").flash(enemy)
 	var previous_health: float = float(enemy.current_health)
 	var porcupine := preload("res://scripts/enemies/enemy_porcupine.gd")
@@ -69,7 +70,7 @@ static func apply_damage(enemy, amount: float, show_feedback: bool = true, is_cr
 	if mage.is_ice_active(enemy):
 		damage_reduction_multiplier *= 0.8
 	damage_reduction_multiplier *= max(0.0, ENEMY_GLUTTON_SKILL_BEHAVIOR.get_damage_taken_multiplier(enemy))
-	var vulnerability_multiplier := VULNERABILITY_RULES.get_multiplier(maxf(0.0, float(enemy.vulnerability_bonus)))
+	var vulnerability_multiplier := VULNERABILITY_RULES.get_multiplier(maxf(0.0, float(enemy.vulnerability_bonus))) * electric_vulnerability_multiplier
 	var adjusted_damage: float = amount * vulnerability_multiplier if direct_damage else armored_damage * vulnerability_multiplier * damage_reduction_multiplier
 	adjusted_damage += ARMOR_RULES.apply_damage(electric_damage, effective_armor) * vulnerability_multiplier * damage_reduction_multiplier
 	if direct_damage and bypass_shield and ENEMY_BOSS_STATE.has_boss_shield(enemy):

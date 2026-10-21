@@ -175,7 +175,6 @@ func _ready() -> void:
 	boss_panel.add_child(boss_status_bar)
 
 	_build_skill_cooldown_panel(root)
-	_build_ruan_stone_status(root)
 	_build_endless_speed_toggle(root)
 	_build_attack_mode_hint(root)
 	_build_minimap(root)
@@ -776,11 +775,11 @@ func _update_ruan_stone_status(summary: Dictionary) -> void:
 
 
 func update_time(seconds_elapsed: float) -> void:
-	var total_seconds: int = int(floor(seconds_elapsed))
+	var total_seconds: int = maxi(0, int(ceil(seconds_elapsed)))
 	var minutes: int = int(total_seconds / 60.0)
 	var seconds: int = total_seconds % 60
 	var prefix := "N%d · " % current_endless_tier if current_endless_tier > 0 else ""
-	_set_label_text(time_label, "%s时间 %02d:%02d" % [prefix, minutes, seconds])
+	_set_label_text(time_label, "%s波次剩余 %02d:%02d" % [prefix, minutes, seconds])
 
 func set_endless_tier(tier: int) -> void:
 	current_endless_tier = max(0, tier)

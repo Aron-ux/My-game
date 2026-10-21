@@ -370,6 +370,25 @@ func _start_evolved_arcane_bombardment(owner, center: Vector2, radius: float, da
 
 func perform_background(owner) -> void:
 	var special_data: Dictionary = owner._get_role_special_state("mage")
+	var build := preload("res://scripts/player/player_mage_basic_build.gd")
+	if build.has_choice(owner, "quake"):
+		var quake_center: Vector2 = owner._get_enemy_cluster_center()
+		if quake_center == Vector2.ZERO:
+			var quake_target: Node2D = owner._get_closest_enemy()
+			if quake_target == null:
+				return
+			quake_center = owner._get_enemy_aim_point(quake_target, owner.global_position) if owner.has_method("_get_enemy_aim_point") else quake_target.global_position
+		var quake_radius: float = (43.75 + float(owner.role_upgrade_levels["mage"].get("range_bonus", 0.0)) * 0.55) * 0.8
+		quake_radius *= owner._get_role_attribute_range_multiplier("mage") * owner._get_role_equipment_skill_range_multiplier("mage")
+		quake_radius *= build.range_multiplier(owner)
+		owner._spawn_mage_warning_scene_effect(quake_center, quake_radius)
+		var quake_warning: float = owner._get_scene_animation_duration(owner.MAGE_WARNING_EFFECT_SCENE, 0.2)
+		var runtime := preload("res://scripts/player/player_mage_basic_runtime.gd")
+		var storm: bool = build.has_choice(owner, "storm")
+		owner.set_meta("mage_casting", storm)
+		runtime._schedule_strike(owner, quake_center, quake_radius, 0, storm, quake_warning)
+		return
+
 	var support_level: int = int(special_data.get("support_level", 0))
 	var frost_level: int = int(special_data.get("frost_level", 0))
 	var echo_level: int = int(special_data.get("echo_level", 0))

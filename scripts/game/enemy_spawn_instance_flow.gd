@@ -7,6 +7,8 @@ const DIFFICULTY_PROFILE := preload("res://scripts/game/difficulty_profile.gd")
 
 const GLOBAL_ENEMY_HEALTH_MULTIPLIER := 2.04
 const GLOBAL_ENEMY_PROJECTILE_DAMAGE_MULTIPLIER := 2.0
+const NORMAL_WAVE_HEALTH_END_MULTIPLIER := 10.0
+const N5_NORMAL_WAVE_HEALTH_END_MULTIPLIER := 16.0
 
 
 static func spawn_configured_enemy_at_position(main: Node, kind: String, archetype: String, health_multiplier: float, speed_multiplier: float, spawn_position: Vector2, damage_multiplier: float = 1.0) -> Node2D:
@@ -36,7 +38,8 @@ static func spawn_configured_enemy_at_position(main: Node, kind: String, archety
 	if kind == "normal" and is_instance_valid(waves) and waves.phase == "combat" and int(waves.wave) in waves.PLAN.REWARD_WAVES:
 		enemy.experience_reward = maxi(1, roundi(float(enemy.experience_reward) * 1.5))
 	var uses_authored_boss_stats: bool = kind == "boss" and archetype == "boss_spellcore"
-	enemy.max_health *= health_multiplier * (1.0 if uses_authored_boss_stats else GLOBAL_ENEMY_HEALTH_MULTIPLIER)
+	var wave_health_multiplier := _get_normal_wave_health_multiplier(main, kind, waves)
+	enemy.max_health *= health_multiplier * wave_health_multiplier * (1.0 if uses_authored_boss_stats else GLOBAL_ENEMY_HEALTH_MULTIPLIER)
 	if kind == "boss":
 		enemy.current_health = ENEMY_BOSS_STATE.get_boss_spawn_health(enemy)
 	else:
@@ -61,6 +64,17 @@ static func spawn_configured_enemy_at_position(main: Node, kind: String, archety
 	if enemy.has_method("activate_pooled_enemy"):
 		enemy.activate_pooled_enemy()
 	return enemy as Node2D
+
+
+static func _get_normal_wave_health_multiplier(main: Node, kind: String, waves: Variant) -> float:
+	if kind != "normal" or not is_instance_valid(waves) or waves.phase != "combat":
+		return 1.0
+	var wave: int = clampi(int(waves.wave), 1, 20)
+	var profile: Dictionary = main.difficulty_profile if main.get("difficulty_profile") is Dictionary else {}
+	var tier: int = int(profile.get("tier", 0))
+	# N1-N4 use the 1x -> 10x curve; N5 is intentionally tougher at wave 20.
+	var end_multiplier := N5_NORMAL_WAVE_HEALTH_END_MULTIPLIER if tier >= 5 else NORMAL_WAVE_HEALTH_END_MULTIPLIER
+	return pow(end_multiplier, float(wave - 1) / 19.0)
 
 
 static func take_enemy_from_pool(main: Node, kind: String) -> Node:

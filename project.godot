@@ -38,8 +38,8 @@ enabled=PackedStringArray("res://addons/godot_mcp/plugin.cfg")
 
 [gui]
 
-common/snap_controls_to_pixels=false
 timers/tooltip_delay_sec=1.5
+common/snap_controls_to_pixels=false
 
 [physics]
 

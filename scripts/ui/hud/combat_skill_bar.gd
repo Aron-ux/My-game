@@ -17,6 +17,7 @@ const SKILL_CD_SLOT_SIZE := 52.0
 const BUFF_SLOT_SIZE := SKILL_CD_SLOT_SIZE * 0.35
 const BUFF_SLOT_GAP := 5
 const ULTIMATE_WIDGET_SIZE := 108.0
+const HOVER_DETAIL_DELAY := 1.5
 const ULTIMATE_WIDGET_GAP := 18.0
 const SWITCH_WIDGET_WIDTH := 176.0
 const SWITCH_WIDGET_HEIGHT := 72.0
@@ -83,6 +84,7 @@ var skill_point_count: int = 0
 var hover_detail: Control
 var hovered_skill_view: Control
 var hovered_skill_id := ""
+var hover_request_serial: int = 0
 var action_key_labels_ready: bool = false
 var hud_layout: String = GAME_SETTINGS.DEFAULT_HUD_LAYOUT
 
@@ -210,6 +212,7 @@ func _create_slot_upgrade_button(slot_icon: Control) -> Button:
 	button.tooltip_text = "消耗 1 个技能点"
 	button.visible = false
 	button.pressed.connect(_on_skill_slot_upgrade_pressed.bind(button))
+	button.mouse_entered.connect(_cancel_hover_detail.bind(true))
 	slot_icon.add_child(button)
 	return button
 
@@ -247,6 +250,7 @@ func _refresh_skill_point_buttons() -> void:
 
 
 func _on_skill_slot_upgrade_pressed(button: Button) -> void:
+	_cancel_hover_detail(true)
 	if button == null or not button.visible or button.disabled or skill_point_count <= 0:
 		return
 	for slot_nodes_value in skill_cd_slots:
@@ -1381,8 +1385,7 @@ func _on_team_role_row_hovered(row_index: int) -> void:
 			("%.1f 秒" % switch_cooldown_remaining_value) if switch_cooldown_remaining_value > 0.05 else "就绪"
 		]
 	}
-	if hover_detail != null and hover_detail.has_method("show_item"):
-		hover_detail.show_item(item, get_viewport().get_mouse_position(), Rect2(row.global_position, row.size))
+	_request_hover_detail(item, Rect2(row.global_position, row.size))
 
 func _clear_skill_detail(nodes: Dictionary) -> void:
 	nodes.erase("detail_data")
@@ -1419,6 +1422,16 @@ func _skill_status(data: Dictionary) -> String:
 	return status if bool(data.get("role_active", true)) else "待命角色 · " + status
 
 func _show_skill_detail(nodes: Dictionary, view: Control, slot_index: int, role_name: String = "") -> void:
+	hover_request_serial += 1
+	var request_serial := hover_request_serial
+	await get_tree().create_timer(HOVER_DETAIL_DELAY, true).timeout
+	if request_serial != hover_request_serial or view == null or not is_instance_valid(view):
+		return
+	if not view.get_global_rect().has_point(get_viewport().get_mouse_position()):
+		return
+	_show_skill_detail_now(nodes, view, slot_index, role_name)
+
+func _show_skill_detail_now(nodes: Dictionary, view: Control, slot_index: int, role_name: String = "") -> void:
 	var data: Dictionary = (nodes.get("detail_data", {}) as Dictionary).duplicate(true)
 	if data.is_empty():
 		if str(nodes.get("description", "")) != "":
@@ -1475,8 +1488,7 @@ func _on_buff_slot_hovered(slot_icon: Control, index: int) -> void:
 		"slot_label": "Buff",
 		"description": description
 	}
-	if hover_detail != null and hover_detail.has_method("show_item"):
-		hover_detail.show_item(item, get_viewport().get_mouse_position(), Rect2(slot_icon.global_position, slot_icon.size))
+	_request_hover_detail(item, Rect2(slot_icon.global_position, slot_icon.size))
 
 func _on_ultimate_energy_hovered() -> void:
 	hovered_skill_view = null
@@ -1500,15 +1512,32 @@ func _on_ultimate_energy_hovered() -> void:
 			status
 		]
 	}
-	if hover_detail != null and hover_detail.has_method("show_item"):
-		hover_detail.show_item(item, get_viewport().get_mouse_position(), Rect2(ultimate_energy_widget.global_position, ultimate_energy_widget.size))
+	_request_hover_detail(item, Rect2(ultimate_energy_widget.global_position, ultimate_energy_widget.size))
 
 func _on_skill_slot_unhovered() -> void:
+	_cancel_hover_detail()
 	if hover_detail != null:
 		if hover_detail.has_method("request_hide"):
 			hover_detail.request_hide()
 		elif hover_detail.has_method("hide_detail"):
 			hover_detail.hide_detail()
+
+func _request_hover_detail(item: Dictionary, anchor_rect: Rect2) -> void:
+	hover_request_serial += 1
+	var request_serial := hover_request_serial
+	await get_tree().create_timer(HOVER_DETAIL_DELAY, true).timeout
+	if request_serial != hover_request_serial:
+		return
+	if not anchor_rect.has_point(get_viewport().get_mouse_position()):
+		return
+	if hover_detail != null and hover_detail.has_method("show_item"):
+		hover_detail.show_item(item, get_viewport().get_mouse_position(), anchor_rect)
+
+
+func _cancel_hover_detail(hide_visible: bool = false) -> void:
+	hover_request_serial += 1
+	if hide_visible and hover_detail != null:
+		hover_detail.hide_detail()
 
 func _refresh_switch_key_labels() -> void:
 	_refresh_action_key_labels()

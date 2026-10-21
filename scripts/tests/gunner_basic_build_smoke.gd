@@ -63,10 +63,10 @@ func _run() -> void:
 	batch._clear_projectiles()
 	TOOLS.apply(player, request.merged({"operation": "branch", "stage": 4, "choice": "sniper"}))
 	TOOLS.apply(player, request.merged({"operation": "branch", "stage": 8, "choice": "shock"}))
-	check(is_equal_approx(BUILD.damage_ratio(player), 3.25), "sniper max 325 percent")
+	check(is_equal_approx(BUILD.damage_ratio(player), 3.4), "sniper max 340 percent")
 	check(is_equal_approx(player._get_effective_attack_speed("gunner"), 0.45), "sniper speed 0.45")
 	player.gunner_role.perform_attack(player)
-	check(is_equal_approx(batch.speeds[0] * batch.lifetimes[0], 575.0), "sniper range 575")
+	check(is_equal_approx(batch.speeds[0] * batch.lifetimes[0], 600.0), "sniper range 600")
 	# Repeat hits only in this isolated test to sample both strong-shock outcomes.
 	var shock_count := 0
 	for index in range(100):
@@ -76,9 +76,9 @@ func _run() -> void:
 			shock_count += 1
 			check(is_equal_approx(enemy.global_position.distance_to(position_before), 25.0), "boss knockback 25")
 	check(shock_count > 0 and shock_count < 100, "shock probabilistic")
-	var shot_attack: float = batch.damages[0] / 3.25
-	check(is_equal_approx(batch._build_hit_damage(0, enemy, 0.0), shot_attack * 3.75), "shock adds 50 percentage points")
-	check(is_equal_approx(batch._build_hit_damage(0, enemy, 0.9), shot_attack * 3.25), "normal hit unchanged")
+	var shot_attack: float = batch.damages[0] / 3.4
+	check(is_equal_approx(batch._build_hit_damage(0, enemy, 0.0), shot_attack * 3.4 * 1.8), "shock multiplies this hit by 1.8")
+	check(is_equal_approx(batch._build_hit_damage(0, enemy, 0.9), shot_attack * 3.4), "normal hit unchanged")
 	batch._clear_projectiles()
 	batch.add_projectile({"damage": 10.0, "role_id": "gunner_aux:split", "pierce_count": -1, "position": Vector2.ZERO})
 	batch._apply_projectile_hit(0, enemy)
@@ -89,7 +89,9 @@ func _run() -> void:
 	check(is_equal_approx(player._get_effective_attack_speed("gunner"), 1.25), "frenzy adds 0.8 speed")
 	BUILD.tick(player, 1.0)
 	check(not BUILD.on_shot(player, 0.0), "frenzy cannot refresh")
-	BUILD.tick(player, 2.0)
+	BUILD.tick(player, 3.0)
+	check(not BUILD.on_shot(player, 0.0), "frenzy remains active for 5 seconds")
+	BUILD.tick(player, 1.0)
 	check(BUILD.on_shot(player, 0.0), "frenzy retriggers after full expiry")
 	TOOLS.apply(player, request.merged({"operation": "set", "amount": 4}))
 	check(BUILD.choices(player) == {"4": "sniper"}, "lowering level removes later choices")

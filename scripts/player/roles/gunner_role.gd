@@ -87,11 +87,11 @@ func _fire_build_shot(owner) -> void:
 		"visual_min_diameter": GUNNER_BATCHED_BULLET_VISUAL_MIN_DIAMETER,
 		"enemy_hit_radius_scale": 0.42, "enemy_hit_radius_min": 10.0, "enemy_hit_radius_max": 28.0,
 		"damage_event_id": event_id,
-		"pierce_count": -1 if not split and BASIC_BUILD.has_choice(owner, "pierce") and randf() < 0.3 else 0,
+		"pierce_count": -1 if BASIC_BUILD.has_choice(owner, "pierce") and randf() < BASIC_BUILD.PIERCE_CHANCE else 0,
 		"gunner_build": {
-			"shock_bonus": attack * 0.5 if BASIC_BUILD.has_choice(owner, "shock") else 0.0,
+			"shock_multiplier": 1.8 if BASIC_BUILD.has_choice(owner, "shock") else 1.0,
 			"split": split, "split_distance": distance * 0.6,
-			"split_pierce": split and BASIC_BUILD.has_choice(owner, "pierce")
+			"split_pierce": false
 		}
 	}
 	if owner._spawn_batched_directional_bullet(direction, attack * ratio, Color(1.0, 0.42, 0.34, 1.0), "gunner_basic:" + event_id, owner.global_position + direction * 18.0, config):

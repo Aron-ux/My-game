@@ -2,7 +2,47 @@ extends RefCounted
 
 
 static func update_background_effects(owner, delta: float) -> void:
-	return
+	if owner == null or owner.is_dead or owner.roles.is_empty():
+		return
+	var mage_index: int = -1
+	for index in range(owner.roles.size()):
+		if str(owner.roles[index].get("id", "")) == "mage":
+			mage_index = index
+			break
+	if mage_index < 0 or mage_index == owner.active_role_index:
+		return
+	var build := preload("res://scripts/player/player_mage_basic_build.gd")
+	if not build.has_choice(owner, "quake"):
+		return
+	var interval: float = owner._get_effective_attack_interval("mage")
+	var cooldown: float = maxf(0.0, float(owner.background_cooldowns.get("mage", interval)) - delta)
+	if cooldown <= 0.0:
+		if owner.mage_role != null:
+			owner.mage_role.perform_background(owner)
+		cooldown = interval
+	owner.background_cooldowns["mage"] = cooldown
+
+
+static func save_role_cooldown(owner, previous_role_id: String) -> void:
+	var build := preload("res://scripts/player/player_mage_basic_build.gd")
+	if not build.has_choice(owner, "quake"):
+		return
+	if previous_role_id == "mage" and owner.fire_timer != null and not owner.fire_timer.is_stopped():
+		owner.background_cooldowns["mage"] = owner.fire_timer.time_left
+
+
+static func restore_role_cooldown(owner, active_role_id: String) -> void:
+	var build := preload("res://scripts/player/player_mage_basic_build.gd")
+	if not build.has_choice(owner, "quake"):
+		return
+	if active_role_id == "mage":
+		var interval: float = owner._get_effective_attack_interval("mage")
+		var remaining: float = clampf(float(owner.background_cooldowns.get("mage", interval)), 0.0, interval)
+		owner.fire_timer.wait_time = interval
+		if bool(owner.get_meta("mage_casting", false)):
+			owner.fire_timer.stop()
+		else:
+			owner.fire_timer.start(maxf(0.001, remaining))
 
 
 static func trigger_background_effect(owner, role_index: int) -> void:

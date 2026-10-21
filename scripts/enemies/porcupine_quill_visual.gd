@@ -6,12 +6,22 @@ const START_RADIUS := 24.0
 const FLIGHT_TIME := (RADIUS - START_RADIUS) / SPEED
 const FADE_TIME := 0.10
 const COUNT := 24
+const MAX_ACTIVE := 8
 const QUILL_TEXTURE := preload("res://assets/enemies/porcupine/quill.png")
 const QUILL_FRAME := Vector2(72, 20)
 const QUILL_SCALE := 0.375
 var elapsed := 0.0
 var enraged := false
 var angle_offset := 0.0
+static var active_count := 0
+
+
+func _enter_tree() -> void:
+	active_count += 1
+
+
+func _exit_tree() -> void:
+	active_count = maxi(0, active_count - 1)
 
 
 func _ready() -> void:

@@ -1,5 +1,6 @@
 extends RefCounted
 const MAGE_BASIC_BUILD := preload("res://scripts/player/player_mage_basic_build.gd")
+const MAGE_SURGING_WAVE_BUILD := preload("res://scripts/player/player_mage_surging_wave_build.gd")
 const GUNNER_BASIC_BUILD := preload("res://scripts/player/player_gunner_basic_build.gd")
 const SWORDSMAN_BASIC_BUILD := preload("res://scripts/player/player_swordsman_basic_build.gd")
 
@@ -851,6 +852,8 @@ static func _mechanic_change_row(label: String, before: float, after: float, num
 static func _get_mage_upgrade_preview(owner, progress_id: String) -> String:
 	if progress_id == MAGE_BASIC:
 		return MAGE_BASIC_BUILD.next_preview(owner)
+	if progress_id == MAGE_SURGING_WAVE_BUILD.PROGRESS:
+		return MAGE_SURGING_WAVE_BUILD.next_preview(owner)
 	var level := _mage_level(owner, progress_id)
 	if level <= 0 or level >= PLAYER_SKILL_LEVEL_SYSTEM.MAX_SKILL_LEVEL:
 		return ""

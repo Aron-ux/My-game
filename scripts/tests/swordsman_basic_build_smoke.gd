@@ -53,8 +53,8 @@ func _run() -> void:
 	check(migrated["skill_levels"]["swordsman_basic"] == 9, "old ten upgrades migrate to LV9")
 	check(is_zero_approx(BUILD.critical_bonus(player, "swordsman_aux:split")), "split excludes brave critical")
 	check(is_zero_approx(BUILD.critical_damage_bonus(player, "swordsman_aux:ground")), "ground excludes brave critical")
-	check(is_equal_approx(BASIC_RUNTIME.SPLIT_RADIUS, 200.0) and is_equal_approx(BASIC_RUNTIME.SPLIT_ANGLE_DEGREES, 150.0), "split cone uses 200 radius and 150 degrees")
-	check(is_equal_approx(GROUND.RADIUS, 175.0), "ground radius is 175")
+	check(is_equal_approx(BASIC_RUNTIME.SPLIT_ANGLE_DEGREES, 150.0), "split cone uses 150 degrees")
+	check(is_equal_approx(GROUND.BASE_RADIUS, 75.0), "ground radius base is 75")
 	check(is_equal_approx(BUILD.critical_bonus(player, "swordsman_basic:test"), 0.3), "slash gets brave critical")
 	check(is_equal_approx(BUILD.critical_damage_bonus(player, "swordsman_basic:test"), 0.5), "slash gets brave critical damage")
 	await _check_runtime(scene, player)
@@ -122,11 +122,12 @@ func _check_runtime(scene, player) -> void:
 	if cracks.size() > 0:
 		check(cracks[0].position == near.position, "nearest hit target is primary")
 		check(is_equal_approx(cracks[0].damage, 30.0), "ground has 300% current slash damage")
+		check(is_equal_approx(cracks[0].radius, 125.0), "ground radius uses 75 plus half of the 100 length")
 		var saved: Dictionary = cracks[0].get_save_data()
 		cracks[0].free()
 		SAVE.restore_swordsman_ground_cracks(scene, [saved])
-	check(not GROUND.spawn(player, Vector2(100.0, 0.0), 10.0), "overlapping pending ground rejected")
-	check(GROUND.spawn(player, Vector2(GROUND.RADIUS * 2.0 + 100.0, 0.0), 10.0), "nonoverlapping ground accepted")
+	check(not GROUND.spawn(player, Vector2(100.0, 0.0), 10.0, 125.0), "overlapping pending ground rejected")
+	check(GROUND.spawn(player, Vector2(125.0 * 2.0 + 100.0, 0.0), 10.0, 125.0), "nonoverlapping ground accepted")
 	RESOLVER.damage_enemies_in_oriented_rect_unique(player, Vector2(60.0, 0.0), Vector2.DOWN, 100.0, 180.0, 10.0, 0.0, 1.0, 0.0, registry, "swordsman_basic:test")
 	check(get_nodes_in_group("swordsman_ground_cracks").size() == 2, "followthrough cannot trigger secondary twice")
 	for crack in get_nodes_in_group("swordsman_ground_cracks"):
@@ -134,6 +135,16 @@ func _check_runtime(scene, player) -> void:
 		check(not crack.exploded, "ground waits 1.5 seconds")
 		crack._physics_process(0.02)
 		check(crack.exploded, "ground explodes after delay")
+	var knockback_target := Target.new()
+	scene.add_child(knockback_target)
+	knockback_target.position = Vector2(60.0, 0.0)
+	scene.enemies = [knockback_target]
+	await physics_frame
+	var knockback_registry := {"swordsman_slash": true, "slash_direction": Vector2.RIGHT}
+	RESOLVER.damage_enemies_in_oriented_rect_unique(player, Vector2(60.0, 0.0), Vector2.DOWN, 100.0, 180.0, 10.0, 0.0, 1.0, 0.0, knockback_registry, "swordsman_basic:brave_test", 50.0)
+	check(knockback_target.position.is_equal_approx(Vector2(110.0, 0.0)), "brave knockback follows slash direction")
+	knockback_target.free()
+	scene.enemies = [far, near]
 	await process_frame
 	# Test reflected first-contact ordering, save state and pool reuse.
 	for style in ["straight", "danmaku", "quarter_sine"]:

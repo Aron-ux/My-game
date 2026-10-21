@@ -14,7 +14,7 @@ const OPTIONS := {
 	],
 	9: [
 		{"key": "guard", "title": "守势", "description": "斩击范围内的敌方弹道按入射角反弹，伤害为原弹道的 200%，命中第一个敌人后消失；包含 Boss 弹幕、分裂弹，不包含激光和地面攻击。"},
-		{"key": "brave", "title": "勇猛", "description": "普通攻击暴击率 +30%、暴击伤害 +50%、伤害倍率 +30 个百分点；普通攻击命中的敌人击退50。分裂与地裂不享受额外暴击属性。"}
+		{"key": "brave", "title": "勇猛", "description": "普通攻击暴击率 +30%、暴击伤害 +50%、伤害倍率 +30 个百分点；普通攻击命中的敌人沿本次攻击指向方向击退50。分裂与地裂不享受额外暴击属性。"}
 	]
 }
 
@@ -80,7 +80,17 @@ static func speed_bonus(owner) -> float:
 	return -0.5 if has_choice(owner, "heavy") else 0.3 if has_choice(owner, "light") else 0.0
 
 static func range_multiplier(owner) -> float:
-	return 3.0 if has_choice(owner, "heavy") else 1.0
+	return 1.0
+
+static func slash_length(owner) -> float:
+	if has_choice(owner, "heavy"):
+		return 200.0
+	if has_choice(owner, "light"):
+		return 60.0
+	return 80.0
+
+static func slash_width(owner) -> float:
+	return 45.0 if has_choice(owner, "heavy") else 20.0
 
 static func combo_interval(owner) -> float:
 	return 0.5 if has_choice(owner, "heavy") else 0.14

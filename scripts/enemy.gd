@@ -83,6 +83,12 @@ var fury_armor_shred_remaining: float = 0.0
 var vulnerability_timer: float = 0.0
 var bleed_damage_per_second: float = 0.0
 var bleed_timer: float = 0.0
+var mage_wet_remaining: float = 0.0
+var mage_wet_tick_remaining: float = 1.0
+var mage_wet_source: Node = null
+var mage_surge_push_remaining: float = 0.0
+var mage_surge_push_direction: Vector2 = Vector2.ZERO
+var mage_surge_push_speed: float = 0.0
 var enemy_kind: String = "normal"
 var archetype_id: String = "chaser"
 var behavior_id: String = "chaser"
@@ -357,9 +363,29 @@ func _physics_process(delta: float) -> void:
 	if batch_simulation_enabled and can_use_batch_simulation():
 		return
 	ENEMY_RUNTIME_PROCESS.physics_process(self, delta)
+	_apply_mage_surge_push(delta)
 
 func batch_physics_process(delta: float) -> void:
 	ENEMY_RUNTIME_PROCESS.physics_process(self, delta)
+	_apply_mage_surge_push(delta)
+
+func apply_mage_surge_push(direction: Vector2, speed: float, duration: float) -> void:
+	if direction.length_squared() <= 0.001 or speed <= 0.0 or duration <= 0.0:
+		return
+	mage_surge_push_direction = direction.normalized()
+	mage_surge_push_speed = speed
+	mage_surge_push_remaining = duration
+
+func _apply_mage_surge_push(delta: float) -> void:
+	if mage_surge_push_remaining <= 0.0 or current_health <= 0.0 or pooled_inactive:
+		return
+	if enemy_kind == "boss" and (boss_phase_transition_target > 0 or boss_phase_three_intro_remaining > 0.0):
+		return
+	if stun_remaining > 0.0:
+		return
+	var push_delta: float = minf(delta, mage_surge_push_remaining)
+	global_position += mage_surge_push_direction * mage_surge_push_speed * push_delta
+	mage_surge_push_remaining = maxf(0.0, mage_surge_push_remaining - delta)
 
 func can_use_batch_simulation() -> bool:
 	return ENEMY_BATCH_ELIGIBILITY.can_batch(self)
@@ -563,6 +589,9 @@ func apply_fury_armor_shred(amount: float, duration: float) -> void:
 
 func apply_bleed(damage_per_second: float, duration: float) -> void:
 	ENEMY_STATUS_EFFECTS.apply_bleed(self, damage_per_second, duration)
+
+func apply_mage_wet(source_owner: Node, duration: float = 4.0) -> void:
+	ENEMY_STATUS_EFFECTS.apply_mage_wet(self, source_owner, duration)
 
 func _ensure_status_visuals() -> void:
 	ENEMY_STATUS_VISUALS.ensure_status_visuals(self)

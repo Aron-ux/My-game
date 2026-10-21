@@ -84,6 +84,7 @@ static func clear_runtime_state() -> void:
 @export var vulnerability_duration: float = 0.0
 @export var visual_color: Color = Color(1.0, 0.93, 0.39, 1.0)
 @export var visual_scale_multiplier: float = 1.0
+@export var animated_visual_width: float = 0.0
 @export var enemy_hit_radius_scale: float = 0.42
 @export var enemy_hit_radius_min: float = 10.0
 @export var enemy_hit_radius_max: float = 28.0
@@ -119,6 +120,7 @@ var bullet_texture: Texture2D
 var visual_cache_ready: bool = false
 var cached_hit_radius: float = -9999.0
 var cached_visual_scale_multiplier: float = -9999.0
+var cached_animated_visual_width: float = -9999.0
 var cached_visual_color: Color = Color(-1.0, -1.0, -1.0, -1.0)
 var cached_animated_scene_size: Vector2 = Vector2(-1.0, -1.0)
 var cached_animated_visible_bounds: Rect2 = Rect2(-1.0, -1.0, -1.0, -1.0)
@@ -129,6 +131,7 @@ var damage_event_id: String = ""
 var damage_event_registered: bool = false
 var entry_repulse_on_first_hit: bool = false
 var entry_repulse_consumed: bool = false
+var push_on_hit_distance: float = 0.0
 var custom_sprite_frames: SpriteFrames
 var cached_custom_sprite_frames: SpriteFrames
 
@@ -165,6 +168,7 @@ func _refresh_bullet_visual(force: bool = false) -> void:
 	if not force and visual_cache_ready:
 		if is_equal_approx(cached_hit_radius, hit_radius) \
 		and is_equal_approx(cached_visual_scale_multiplier, visual_scale_multiplier) \
+		and is_equal_approx(cached_animated_visual_width, animated_visual_width) \
 		and cached_visual_color == visual_color \
 		and cached_animated_scene_size == animated_scene_size \
 		and cached_animated_visible_bounds == animated_visible_bounds \
@@ -198,8 +202,12 @@ func _refresh_bullet_visual(force: bool = false) -> void:
 		animated_sprite.centered = true
 		animated_sprite.position = Vector2.ZERO
 		animated_sprite.offset = animated_scene_size * 0.5 - (animated_visible_bounds.position + animated_visible_bounds.size * 0.5)
-		var effect_diameter: float = max(14.0, hit_radius * 2.15) * BULLET_VISUAL_SCALE * visual_scale_multiplier
-		var effect_scale: float = effect_diameter / max(animated_visible_bounds.size.x, animated_visible_bounds.size.y)
+		var effect_scale: float
+		if animated_visual_width > 0.0 and animated_visible_bounds.size.x > 0.0:
+			effect_scale = animated_visual_width / animated_visible_bounds.size.x
+		else:
+			var effect_diameter: float = max(14.0, hit_radius * 2.15) * BULLET_VISUAL_SCALE * visual_scale_multiplier
+			effect_scale = effect_diameter / max(animated_visible_bounds.size.x, animated_visible_bounds.size.y)
 		animated_sprite.scale = Vector2.ONE * effect_scale
 		if animated_sprite.sprite_frames != null:
 			var animation_name: StringName = animated_sprite.animation
@@ -256,6 +264,7 @@ func _update_visual_cache() -> void:
 	visual_cache_ready = true
 	cached_hit_radius = hit_radius
 	cached_visual_scale_multiplier = visual_scale_multiplier
+	cached_animated_visual_width = animated_visual_width
 	cached_visual_color = visual_color
 	cached_animated_scene_size = animated_scene_size
 	cached_animated_visible_bounds = animated_visible_bounds
@@ -303,6 +312,7 @@ func _ensure_projectile_scene_defaults() -> void:
 		"vulnerability_duration": vulnerability_duration,
 		"visual_color": visual_color,
 		"visual_scale_multiplier": visual_scale_multiplier,
+		"animated_visual_width": animated_visual_width,
 		"enemy_hit_radius_scale": enemy_hit_radius_scale,
 		"enemy_hit_radius_min": enemy_hit_radius_min,
 		"enemy_hit_radius_max": enemy_hit_radius_max,
@@ -343,6 +353,7 @@ func reset_projectile(config: Dictionary = {}) -> void:
 	vulnerability_duration = float(config.get("vulnerability_duration", _projectile_scene_default("vulnerability_duration", 0.0)))
 	visual_color = config.get("visual_color", _projectile_scene_default("visual_color", Color(1.0, 0.93, 0.39, 1.0)))
 	visual_scale_multiplier = float(config.get("visual_scale_multiplier", _projectile_scene_default("visual_scale_multiplier", 1.0)))
+	animated_visual_width = float(config.get("animated_visual_width", _projectile_scene_default("animated_visual_width", 0.0)))
 	enemy_hit_radius_scale = float(config.get("enemy_hit_radius_scale", _projectile_scene_default("enemy_hit_radius_scale", 0.42)))
 	enemy_hit_radius_min = float(config.get("enemy_hit_radius_min", _projectile_scene_default("enemy_hit_radius_min", 10.0)))
 	enemy_hit_radius_max = float(config.get("enemy_hit_radius_max", _projectile_scene_default("enemy_hit_radius_max", 28.0)))
@@ -368,6 +379,7 @@ func reset_projectile(config: Dictionary = {}) -> void:
 	damage_event_id = str(config.get("damage_event_id", ""))
 	entry_repulse_on_first_hit = bool(config.get("entry_repulse_on_first_hit", false))
 	entry_repulse_consumed = false
+	push_on_hit_distance = float(config.get("push_on_hit_distance", 0.0))
 	global_position = config.get("position", global_position)
 	source_origin_position = config.get("source_origin_position", global_position)
 	traveled_distance = 0.0
@@ -426,6 +438,33 @@ func _physics_process(delta: float) -> void:
 		last_hit_scan_position = global_position
 	else:
 		_try_hit_enemy(start_position, global_position)
+	_try_hit_clear_spring(start_position, global_position)
+
+func _try_hit_clear_spring(start_position: Vector2, end_position: Vector2) -> void:
+	if source_player == null or not is_instance_valid(source_player) or not bool(get_meta("mage_surge_clear_spring", false)):
+		return
+	if bool(get_meta("mage_surge_clear_spring_used", false)):
+		return
+	var cast_sequence := int(get_meta("mage_surge_cast_sequence", 0))
+	if cast_sequence > 0 and int(source_player.get_meta("mage_clear_spring_last_cast_sequence", -1)) == cast_sequence:
+		return
+	var player_position: Vector2 = source_player.global_position
+	var closest := player_position
+	if start_position.distance_squared_to(end_position) > 0.001:
+		closest = Geometry2D.get_closest_point_to_segment(player_position, start_position, end_position)
+	var radius := maxf(18.0, hit_radius * maxf(0.01, hit_radius_multiplier))
+	if closest.distance_squared_to(player_position) > radius * radius:
+		return
+	set_meta("mage_surge_clear_spring_used", true)
+	source_player.set_meta("mage_clear_spring_last_cast_sequence", cast_sequence)
+	var role_id := str(source_player._get_active_role_id()) if source_player.has_method("_get_active_role_id") else "mage"
+	if source_player.has_method("_get_role_max_health") and source_player.has_method("_get_role_current_health") and source_player.has_method("_heal_role"):
+		var missing := maxf(0.0, float(source_player._get_role_max_health(role_id)) - float(source_player._get_role_current_health(role_id)))
+		source_player._heal_role(role_id, missing * 0.20)
+	preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")._cleanse_negative_statuses(source_player)
+	source_player.set_meta("mage_clear_spring_regen_remaining", 3.0)
+	source_player.set_meta("mage_clear_spring_regen_elapsed", 0.0)
+	source_player.set_meta("mage_clear_spring_regen_role_id", role_id)
 
 func _resolve_difficulty_projectile_speed_bonus() -> float:
 	if source_player == null or not is_instance_valid(source_player):
@@ -572,6 +611,8 @@ func _grid_cell(position: Vector2) -> Vector2i:
 
 func _apply_hit(enemy: Node2D) -> void:
 	hit_enemy_ids[enemy.get_instance_id()] = true
+	if bool(get_meta("mage_surge_wet", false)):
+		enemy.set_meta("mage_surge_wet_pending", source_player)
 
 	var hit_damage := _get_hit_damage(enemy)
 	var killed: bool = false
@@ -603,6 +644,8 @@ func _apply_hit(enemy: Node2D) -> void:
 	if not queued_damage and source_player != null and source_player.has_method("_register_attack_result"):
 		source_player._register_attack_result(source_role_id, 1, killed)
 	_apply_entry_repulse(enemy)
+	if push_on_hit_distance > 0.0 and enemy.has_method("apply_mage_surge_push"):
+		enemy.apply_mage_surge_push(direction, speed, 1.5)
 
 	_spawn_impact_effect(enemy.global_position, killed)
 	if impact_blast_radius > 0.0:

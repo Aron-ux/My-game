@@ -131,6 +131,15 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 			enemy.apply_slow_silent(slow_multiplier, slow_duration)
 		elif enemy.has_method("apply_slow"):
 			enemy.apply_slow(slow_multiplier, slow_duration)
+	var wet_pending: Variant = enemy.get_meta("mage_surge_wet_pending", null)
+	if wet_pending != null and enemy.has_method("apply_mage_wet"):
+		enemy.remove_meta("mage_surge_wet_pending")
+		enemy.apply_mage_wet(wet_pending, 4.0)
+	var wet_remaining_value: Variant = enemy.get("mage_wet_remaining")
+	if wet_remaining_value != null and float(wet_remaining_value) > 0.0 and owner != null and owner.has_method("_heal_role"):
+		var max_health_for_heal := float(owner._get_role_max_health("mage")) if owner.has_method("_get_role_max_health") else 0.0
+		if max_health_for_heal > 0.0:
+			owner._heal_role("mage", max_health_for_heal * 0.005)
 	if damage_amount > 0.0 and _is_basic_attack_damage_source(source_role_id):
 		PLAYER_RUAN_STONE_FLOW.apply_basic_hit(owner, enemy, final_damage, source_role_id, damage_event_id, killed, target_position, target_max_health)
 	preload("res://scripts/player/player_mage_basic_runtime.gd").after_hit(owner, enemy, source_role_id, killed)
@@ -483,6 +492,11 @@ static func damage_enemies_in_oriented_rect_unique(owner, center: Vector2, axis_
 	if direction.length_squared() <= 0.001:
 		direction = Vector2.RIGHT
 	var perpendicular := direction.orthogonal()
+	var knockback_direction := direction
+	if is_basic_slash and hit_registry.has("slash_direction"):
+		var recorded_slash_direction: Vector2 = hit_registry["slash_direction"]
+		if recorded_slash_direction.length_squared() > 0.001:
+			knockback_direction = recorded_slash_direction.normalized()
 	var half_length := rect_length * 0.5
 	var half_width := rect_width * 0.5
 	var resolved_role_id: String = _resolve_role_id(owner, source_role_id)
@@ -505,7 +519,7 @@ static func damage_enemies_in_oriented_rect_unique(owner, center: Vector2, axis_
 					primary_position = enemy.global_position
 			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center, 0.0, false, false, "", slow_source_id)
 			if knockback_distance > 0.0:
-				(enemy as Node2D).global_position += direction * knockback_distance
+				(enemy as Node2D).global_position += knockback_direction * knockback_distance
 	var hit_count: int = batcher.hit_count
 	PERFORMANCE_COUNTERS.add("damage_hits", hit_count)
 	var result: int = batcher.flush()
@@ -514,7 +528,7 @@ static func damage_enemies_in_oriented_rect_unique(owner, center: Vector2, axis_
 		SWORDSMAN_BASIC_RUNTIME.reflect_slash(owner, center, direction, rect_length, rect_width, slash_direction)
 		if primary_distance < INF:
 			hit_registry["secondary_triggered"] = true
-			SWORDSMAN_BASIC_RUNTIME.on_slash_hit(owner, primary_position, slash_direction, damage_amount)
+			SWORDSMAN_BASIC_RUNTIME.on_slash_hit(owner, primary_position, slash_direction, damage_amount, rect_length)
 	return result
 
 static func damage_enemies_in_oriented_rect_tracking(owner, center: Vector2, axis_direction: Vector2, rect_length: float, rect_width: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, hit_registry: Dictionary, source_role_id: String = "", knockback_distance: float = 0.0) -> int:

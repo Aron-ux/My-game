@@ -27,6 +27,16 @@ static func tick_timers(enemy, delta: float) -> void:
 		if enemy.bleed_timer == 0.0:
 			enemy.bleed_damage_per_second = 0.0
 
+	if enemy.mage_wet_remaining > 0.0:
+		enemy.mage_wet_remaining = maxf(0.0, enemy.mage_wet_remaining - delta)
+		enemy.mage_wet_tick_remaining -= delta
+		if enemy.mage_wet_tick_remaining <= 0.0:
+			enemy.mage_wet_tick_remaining += 1.0
+			if enemy.current_health > 0.0:
+				enemy.take_soul_impact_damage(enemy.current_health * 0.01)
+		if enemy.mage_wet_remaining <= 0.0:
+			enemy.mage_wet_source = null
+
 	if enemy.skull_soldier_speed_timer > 0.0:
 		enemy.skull_soldier_speed_timer = max(0.0, enemy.skull_soldier_speed_timer - delta)
 		if enemy.skull_soldier_speed_timer == 0.0:
@@ -94,6 +104,15 @@ static func apply_bleed(enemy, damage_per_second: float, duration: float) -> voi
 		return
 	enemy.bleed_damage_per_second = max(enemy.bleed_damage_per_second, damage_per_second)
 	enemy.bleed_timer = max(enemy.bleed_timer, duration)
+
+static func apply_mage_wet(enemy, source_owner, duration: float = 4.0) -> void:
+	if enemy == null or duration <= 0.0:
+		return
+	enemy.mage_wet_remaining = maxf(enemy.mage_wet_remaining, duration)
+	enemy.mage_wet_tick_remaining = 1.0
+	enemy.mage_wet_source = source_owner
+	_apply_slow(enemy, 0.70, duration, true, "mage_surge_wet")
+	enemy._spawn_status_burst(Color(0.30, 0.72, 1.0, 0.36), 20.0)
 
 static func _get_status_visual_refresh_epsilon(enemy) -> float:
 	if enemy == null:

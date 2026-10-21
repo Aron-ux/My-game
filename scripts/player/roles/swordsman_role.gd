@@ -143,17 +143,21 @@ func _perform_attack_variant(owner, attack_direction: Vector2, effect_scale: flo
 	var attack_damage: float = owner._get_role_damage(role_data["id"]) * basic_damage_ratio * max(0.0, effect_scale) * PLAYER_BUILD_SYSTEM.get_basic_attack_damage_multiplier(owner, "swordsman") * opening_damage_multiplier * blood_surge_multiplier
 	var slash_axis: Vector2 = owner._get_downward_perpendicular(attack_direction)
 	var slash_mirror: bool = attack_direction.x > 0.0
-	var slash_length: float = (58.0 + float(upgrade_data.get("range_bonus", 0.0)) * 0.19) * owner._get_role_attribute_range_multiplier(role_data["id"]) * owner._get_role_equipment_skill_range_multiplier(role_data["id"]) * basic_range_multiplier
-	var slash_width: float = 8.0 * normal_attack_width_scale * basic_range_multiplier
+	var slash_length: float = (SWORDSMAN_BASIC_BUILD.slash_length(owner) + float(upgrade_data.get("range_bonus", 0.0)) * 0.19) * owner._get_role_attribute_range_multiplier(role_data["id"]) * owner._get_role_equipment_skill_range_multiplier(role_data["id"]) * basic_range_multiplier
+	var slash_width: float = SWORDSMAN_BASIC_BUILD.slash_width(owner) * normal_attack_width_scale * basic_range_multiplier
 	if _has_talent(owner, "swordsman_basic_pursuit"):
 		slash_width *= 1.20 / 1.25
-	var slash_forward_distance: float = 42.0
+	var slash_forward_distance: float = slash_width * 0.5 + 20.0
 	var slash_color: Color = Color(1.0, 0.74, 0.34, 0.95)
 	slash_length *= normal_attack_scale
-	var slash_visual_width: float = _get_slash_visual_width(slash_width)
+	var slash_visual_width: float = slash_width
 	var slash_mirror_forward_offset: float = _get_slash_mirror_forward_offset(owner, slash_visual_width)
 	var slash_center: Vector2 = owner.global_position + attack_direction * (slash_forward_distance + slash_mirror_forward_offset)
 	var slash_effect_center: Vector2 = slash_center - attack_direction * slash_mirror_forward_offset if slash_mirror else slash_center
+	# Keep the visual slash separated from the player, but extend the hitbox back
+	# across that 20px presentation gap so point-blank enemies are still hit.
+	var slash_hit_center: Vector2 = slash_center - attack_direction * 10.0
+	var slash_hit_width: float = slash_width + 20.0
 
 	owner._spawn_sword_slash_scene_effect(
 		slash_effect_center,
@@ -161,19 +165,19 @@ func _perform_attack_variant(owner, attack_direction: Vector2, effect_scale: flo
 		slash_length * 0.5,
 		slash_color,
 		0.16,
-		slash_width,
+		slash_width * 0.5,
 		slash_mirror
 	)
 	var slash_hit_registry: Dictionary = {"swordsman_slash": true, "slash_direction": attack_direction}
-	var slash_rect_width: float = max(slash_visual_width, slash_center.distance_to(owner.global_position) * 2.0 + 16.0)
+	var slash_rect_width: float = slash_width
 	var slash_animation_duration: float = owner._get_sword_slash_scene_animation_duration()
 	var slow_multiplier: float = 0.75 if third_main_slash and _has_talent(owner, "swordsman_basic_opening") else 1.0
 	var slow_duration: float = 1.0 if slow_multiplier < 1.0 else 0.0
 	var damage_source_id := basic_source_id if basic_source_id != "" else str(role_data["id"])
 	var knockback_distance: float = 50.0 if SWORDSMAN_BASIC_BUILD.has_choice(owner, "brave") and damage_source_id.begins_with("swordsman_basic:") else 0.0
-	var enemies_hit: int = owner._damage_enemies_in_oriented_rect_unique(slash_center, slash_axis, slash_length, slash_rect_width, attack_damage, 0.0, slow_multiplier, slow_duration, slash_hit_registry, damage_source_id, "", knockback_distance)
+	var enemies_hit: int = owner._damage_enemies_in_oriented_rect_unique(slash_hit_center, slash_axis, slash_length, slash_hit_width, attack_damage, 0.0, slow_multiplier, slow_duration, slash_hit_registry, damage_source_id, "", knockback_distance)
 	if allow_followthrough:
-		owner._schedule_swordsman_slash_followthrough(slash_center, slash_axis, slash_length, slash_rect_width, attack_damage, 0.0, slow_multiplier, slow_duration, slash_animation_duration, damage_source_id, slash_hit_registry)
+		owner._schedule_swordsman_slash_followthrough(slash_hit_center, slash_axis, slash_length, slash_hit_width, attack_damage, 0.0, slow_multiplier, slow_duration, slash_animation_duration, damage_source_id, slash_hit_registry)
 	if enemies_hit > 0 and SWORDSMAN_BASIC_BUILD.has_choice(owner, "heavy") and owner.has_method("_queue_camera_shake"):
 		owner._queue_camera_shake(4.5, 0.10)
 

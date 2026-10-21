@@ -173,6 +173,7 @@ static func try_switch_role(owner, new_role_index: int, ignore_restrictions: boo
 	var previous_role_index: int = owner.active_role_index
 	var previous_position: Vector2 = owner.global_position
 	var previous_role_id: String = str(owner.roles[previous_role_index].get("id", ""))
+	preload("res://scripts/player/player_attack_loop_flow.gd").save_role_cooldown(owner, previous_role_id)
 	var ultimate_entry_switch: bool = ultimate_switch_allowed and PLAYER_SWORDSMAN_ULTIMATE_FLOW.should_force_entry_during_ultimate(owner)
 	var preserve_switch_invulnerability: float = float(owner.switch_invulnerability_remaining)
 	var preserve_hidden_invulnerability: float = float(owner.hidden_invulnerability_status_remaining)
@@ -212,6 +213,7 @@ static func try_switch_role(owner, new_role_index: int, ignore_restrictions: boo
 	owner.hidden_invulnerability_status_remaining = max(preserve_hidden_invulnerability, SWITCH_INVULNERABILITY)
 	var switch_direction: Vector2 = owner.velocity if owner.velocity.length_squared() > 0.001 else owner.facing_direction
 	owner._update_active_role_state()
+	preload("res://scripts/player/player_attack_loop_flow.gd").restore_role_cooldown(owner, active_role_id)
 	if should_trigger_entry:
 		PLAYER_SWITCH_JOB_QUEUE.run_jobs(owner, [
 			func() -> void:

@@ -6,6 +6,9 @@ var wave_token: int = -1
 var origin: Vector2 = Vector2.ZERO
 var visual_width_multiplier: float = 1.0
 var min_length: float = 6.0
+var post_wave_remaining: float = 8.0
+var frozen_end_position: Vector2 = Vector2.ZERO
+var has_frozen_end_position: bool = false
 
 
 func setup(owner: Node, wave: Node2D, token: int, start_position: Vector2, trail_color: Color, width_multiplier: float, minimum_length: float) -> void:
@@ -23,17 +26,39 @@ func setup(owner: Node, wave: Node2D, token: int, start_position: Vector2, trail
 	set_process(true)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if owner_node == null or not is_instance_valid(owner_node):
 		_release()
 		return
 	if wave_node == null or not is_instance_valid(wave_node):
 		_release()
 		return
-	if int(wave_node.get_meta("mage_surge_token", -1)) != wave_token or bool(wave_node.get_meta("player_projectile_released", false)):
+	if int(wave_node.get_meta("mage_surge_token", -1)) != wave_token:
 		_release()
 		return
-	var end_position: Vector2 = wave_node.global_position
+	var released := bool(wave_node.get_meta("player_projectile_released", false))
+	if released:
+		post_wave_remaining -= delta
+		if not has_frozen_end_position:
+			frozen_end_position = wave_node.global_position
+			has_frozen_end_position = true
+			if bool(get_meta("mage_surge_water_path", false)):
+				var axis := frozen_end_position - origin
+				if axis.length() >= min_length:
+					var areas: Array = owner_node.get_meta("mage_surge_water_path_areas", [])
+					areas.append({
+						"center": origin + axis * 0.5,
+						"direction": axis.normalized(),
+						"length": axis.length(),
+						"width": maxf(4.0, float(wave_node.get("hit_radius")) * 2.0),
+						"remaining": 8.0,
+						"tick_remaining": 1.0
+					})
+					owner_node.set_meta("mage_surge_water_path_areas", areas)
+		if post_wave_remaining <= 0.0:
+			_release()
+			return
+	var end_position: Vector2 = frozen_end_position if released else wave_node.global_position
 	var axis: Vector2 = end_position - origin
 	var length: float = axis.length()
 	if length < min_length:
