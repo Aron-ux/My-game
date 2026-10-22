@@ -8,10 +8,10 @@ const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_ski
 
 const SKILL_ID := "crescent_wave"
 const COOLDOWN := 6.0
-const SLASH_LENGTH := 122.0
-const SLASH_WIDTH := 52.0
+const SLASH_LENGTH := 136.6667
+const SLASH_WIDTH := 53.3333
 const WAVE_LENGTH := 430.0
-const WAVE_WIDTH := 74.0
+const WAVE_WIDTH := 141.6667
 const FULL_MOON_WAVE_LENGTH := 280.0
 const FULL_MOON_WAVE_WIDTH := 150.0
 const TIER_TWO_WIDTH_MULTIPLIER := 1.2
@@ -26,7 +26,7 @@ const COMBO_INTERVAL := 0.16
 const VISUAL_AND_HIT_SCALE := 0.6
 const FAN_SCENE_SIZE := Vector2(1024.0, 1024.0)
 const FAN_SCENE_VISIBLE_BOUNDS := Rect2(485.0, 405.0, 117.0, 50.0)
-const FAN_WAVE_BASE_VISIBLE_SIZE := Vector2(138.0, 74.0)
+const FAN_WAVE_BASE_VISIBLE_SIZE := Vector2(133.3333, 75.0)
 const SLASH_DAMAGE_RATIO := 1.3
 const WAVE_DAMAGE_RATIO := 1.3
 const WAVE_DAMAGE_SAMPLE_INTERVAL := 0.08
@@ -186,7 +186,8 @@ func _cast_direction_group(owner, directions: Array[Vector2], damage_scale: floa
 			extra_scheduled += 1
 			continue
 		var twin_moon: bool = _has_talent(owner, "swordsman_crescent_twin_moons") and index == 1
-		_cast_once(owner, directions[index], damage_scale * (0.55 if twin_moon else 1.0), not twin_moon)
+		# 月牙剑气现在只释放飞行剑气，不再在其前方释放起手斩击。
+		_cast_once(owner, directions[index], damage_scale * (0.55 if twin_moon else 1.0), false)
 
 
 func _schedule_level_extra_wave(owner, direction: Vector2, damage_scale: float, extra_index: int) -> void:

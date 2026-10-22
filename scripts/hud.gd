@@ -34,6 +34,7 @@ var mana_label: Label
 var ultimate_label: Label
 var time_label: Label
 var current_endless_tier: int = 0
+var gold_label: Label
 var boss_panel: Control
 var boss_name_label: Label
 var boss_health_bar: ProgressBar
@@ -84,6 +85,7 @@ func _ready() -> void:
 	time_label.add_theme_font_size_override("font_size", 24)
 	time_label.text = "时间 00:00"
 	root.add_child(time_label)
+	_build_gold_display(root)
 
 	boss_panel = Control.new()
 	boss_panel.anchor_left = 0.0
@@ -229,6 +231,48 @@ func _build_small_boss_panel(root: Control) -> void:
 	small_boss_panel.add_child(small_boss_health_label)
 
 
+func _build_gold_display(root: Control) -> void:
+	var display := PanelContainer.new()
+	display.name = "GoldDisplay"
+	display.anchor_left = 1.0
+	display.anchor_right = 1.0
+	display.offset_left = -132.0
+	display.offset_top = 12.0
+	display.offset_right = -16.0
+	display.offset_bottom = 54.0
+	display.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	display.add_theme_stylebox_override(
+		"panel",
+		SURVIVORS_THEME.panel_style(Color(0.04, 0.035, 0.02, 0.82), Color(0.8, 0.59, 0.2, 0.72), 1, 8, 7.0)
+	)
+	root.add_child(display)
+
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 6)
+	display.add_child(row)
+
+	var coin := TextureRect.new()
+	coin.name = "GoldCoinIcon"
+	coin.custom_minimum_size = Vector2(28.0, 28.0)
+	coin.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	coin.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	coin.texture = load("res://assets/UI/coin_icon.svg")
+	row.add_child(coin)
+
+	gold_label = Label.new()
+	gold_label.name = "GoldCount"
+	gold_label.text = "\u00D7 0"
+	gold_label.add_theme_font_size_override("font_size", 20)
+	gold_label.add_theme_color_override("font_color", SURVIVORS_THEME.COLOR_TEXT_GOLD)
+	row.add_child(gold_label)
+
+
+func update_gold(amount: int) -> void:
+	if gold_label != null:
+		_set_label_text(gold_label, "\u00D7 %d" % maxi(0, amount))
+
+
 func _layout_boss_panels() -> void:
 	var has_small_boss := small_boss_panel != null and small_boss_panel.visible
 	if small_boss_panel != null:
@@ -291,9 +335,9 @@ func _build_team_panel(root: Control) -> void:
 	team_panel.anchor_right = 1.0
 	team_panel.anchor_bottom = 0.0
 	team_panel.offset_left = -280.0
-	team_panel.offset_top = 18.0
+	team_panel.offset_top = 66.0
 	team_panel.offset_right = -18.0
-	team_panel.offset_bottom = 210.0
+	team_panel.offset_bottom = 258.0
 
 	team_panel.add_theme_stylebox_override("panel", SURVIVORS_THEME.panel_style(Color(0.08, 0.1, 0.14, 0.82), SURVIVORS_THEME.COLOR_BORDER_GOLD, 2, 10, 12.0))
 	root.add_child(team_panel)
@@ -774,12 +818,12 @@ func _update_ruan_stone_status(summary: Dictionary) -> void:
 	_set_label_text(ruan_stone_status_label, "骨头 %d\n阮石 %d/%d：%s" % [bone_count, carried, carry_limit, stone_text])
 
 
-func update_time(seconds_elapsed: float) -> void:
+func update_time(seconds_elapsed: float, wave_number: int = 1) -> void:
 	var total_seconds: int = maxi(0, int(ceil(seconds_elapsed)))
 	var minutes: int = int(total_seconds / 60.0)
 	var seconds: int = total_seconds % 60
 	var prefix := "N%d · " % current_endless_tier if current_endless_tier > 0 else ""
-	_set_label_text(time_label, "%s波次剩余 %02d:%02d" % [prefix, minutes, seconds])
+	_set_label_text(time_label, "%s第%d波/20波  波次剩余 %02d:%02d" % [prefix, clampi(wave_number, 1, 20), minutes, seconds])
 
 func set_endless_tier(tier: int) -> void:
 	current_endless_tier = max(0, tier)

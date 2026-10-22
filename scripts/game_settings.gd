@@ -123,7 +123,15 @@ static func event_matches_action(event: InputEvent, action_id: String) -> bool:
 	if event is not InputEventKey:
 		return false
 	var key_event := event as InputEventKey
-	return key_event.pressed and not key_event.echo and key_event.keycode == load_keycode(action_id)
+	if not key_event.pressed or key_event.echo:
+		return false
+	var configured_keycode := load_keycode(action_id)
+	if configured_keycode == KEY_NONE:
+		return false
+	# Keyboard layouts can populate either keycode or physical_keycode.
+	# Accept both so configurable actions such as the C character panel key
+	# remain usable when the active layout is not US English.
+	return key_event.keycode == configured_keycode or key_event.physical_keycode == configured_keycode
 
 static func get_skill_slot_action_id(slot_index: int) -> String:
 	return "%s%d" % [ACTION_SKILL_SLOT_PREFIX, slot_index]

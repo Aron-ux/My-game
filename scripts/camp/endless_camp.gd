@@ -4,6 +4,7 @@ const GAME_SCENE_PATH := "res://scenes/main.tscn"
 const MOVEMENT_TUTORIAL_SCENE_PATH := "res://scenes/movement_tutorial.tscn"
 const MAIN_MENU_SCENE_PATH := "res://scenes/main_menu.tscn"
 const SAVE_MANAGER := preload("res://scripts/save_manager.gd")
+const STORY_DATA := preload("res://scripts/story_data.gd")
 const GAME_SETTINGS := preload("res://scripts/game_settings.gd")
 const ROLES := preload("res://scripts/player/roles/role_database.gd")
 const PRESENTER := preload("res://scripts/player/player_role_presenter.gd")
@@ -71,6 +72,7 @@ func _build_ui() -> void:
 	overview.name = "CampOverview"
 	canvas.add_child(overview)
 	overview.shop_requested.connect(_open_ruan_stone_shop)
+	overview.inventory_requested.connect(_open_inventory)
 	overview.team_requested.connect(_open_team_swap_panel)
 	overview.departure_requested.connect(_open_tier_overlay)
 	overview.menu_requested.connect(_return_to_menu)
@@ -129,7 +131,8 @@ func _build_ui() -> void:
 
 
 func _refresh_camp() -> void:
-	var profile := SAVE_MANAGER.get_current_endless_profile()
+	var story_mode := SAVE_MANAGER.get_active_mode() == SAVE_MANAGER.MODE_STORY
+	var profile := SAVE_MANAGER.load_story_profile() if story_mode else SAVE_MANAGER.get_current_endless_profile()
 	var team: Array = team_swap_panel.get_team_ids(profile)
 	var role_id := str(team[0])
 	if camp_role_id != role_id or camp_player.role_visual == null:
@@ -148,7 +151,8 @@ func _refresh_camp() -> void:
 	for action in [GAME_SETTINGS.ACTION_MOVE_UP, GAME_SETTINGS.ACTION_MOVE_LEFT, GAME_SETTINGS.ACTION_MOVE_DOWN, GAME_SETTINGS.ACTION_MOVE_RIGHT]:
 		moves.append(GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(action)))
 	var key := GAME_SETTINGS.get_key_display_name(GAME_SETTINGS.load_keycode(GAME_SETTINGS.ACTION_INTERACT))
-	overview.refresh(profile, SAVE_MANAGER.load_run(-1, SAVE_MANAGER.MODE_ENDLESS), team, "%s 移动  ·  %s 交互  ·  Esc 返回" % ["/".join(moves), key])
+	var mode := SAVE_MANAGER.MODE_STORY if story_mode else SAVE_MANAGER.MODE_ENDLESS
+	overview.refresh(profile, SAVE_MANAGER.load_run(-1, mode), team, "%s 移动  ·  %s 交互  ·  Esc 返回" % ["/".join(moves), key])
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -268,7 +272,8 @@ func _on_interactable_interacted(interactable: Node) -> void:
 				_open_ruan_stone_shop()
 			elif ROLES.ROLE_IDS.has(id):
 				_begin_panel()
-				role_panel.open(id, team_swap_panel.get_team_ids(SAVE_MANAGER.get_current_endless_profile()))
+				var profile := SAVE_MANAGER.load_story_profile() if SAVE_MANAGER.get_active_mode() == SAVE_MANAGER.MODE_STORY else SAVE_MANAGER.get_current_endless_profile()
+				role_panel.open(id, team_swap_panel.get_team_ids(profile))
 				_sync_modal_state()
 
 
@@ -284,9 +289,15 @@ func _open_ruan_stone_shop() -> void:
 	_sync_modal_state()
 
 
+func _open_inventory() -> void:
+	_begin_panel()
+	shop_panel.open("owned")
+	_sync_modal_state()
+
+
 func _open_team_swap_panel() -> void:
 	_begin_panel()
-	team_swap_panel.open(SAVE_MANAGER.MODE_ENDLESS)
+	team_swap_panel.open(SAVE_MANAGER.MODE_STORY if SAVE_MANAGER.get_active_mode() == SAVE_MANAGER.MODE_STORY else SAVE_MANAGER.MODE_ENDLESS)
 	_sync_modal_state()
 
 
@@ -310,6 +321,15 @@ func _enter_movement_tutorial() -> void:
 
 func _open_tier_overlay() -> void:
 	_begin_panel()
+	if SAVE_MANAGER.get_active_mode() == SAVE_MANAGER.MODE_STORY:
+		var profile := SAVE_MANAGER.load_story_profile()
+		if profile.is_empty() or STORY_DATA.get_stage(int(profile.get("current_stage_index", 0))).is_empty():
+			message_label.text = "当前主线已完成。"
+			return
+		tier_overlay.hide()
+		_sync_modal_state()
+		get_tree().change_scene_to_file(GAME_SCENE_PATH)
+		return
 	var profile := SAVE_MANAGER.get_current_endless_profile()
 	if profile.is_empty():
 		message_label.text = "未找到当前无尽档案，请从无尽存档入口进入营地。"

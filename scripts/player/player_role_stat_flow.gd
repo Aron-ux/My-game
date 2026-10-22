@@ -86,7 +86,7 @@ static func get_effective_attack_speed(owner, role_id: String, sources: Variant 
 		return MIN_ATTACK_SPEED
 
 	var base_attack_speed: float = get_role_base_attack_speed(owner, role_id)
-	var attack_speed_bonus: float = get_active_interval_bonus(owner, role_id)
+	var attack_speed_bonus: float = get_active_interval_bonus(owner, role_id) + _get_wave_shop_stat(owner, role_id, "attack_speed")
 	if sources != null:
 		sources.append({"label": "角色基础", "value": base_attack_speed, "op": "="})
 		sources.append({"label": "登场、切换与临时攻速", "value": attack_speed_bonus, "op": "+"})
@@ -195,6 +195,7 @@ static func get_role_move_speed(owner, role_id: String, sources: Variant = null)
 		move_speed = float(role_data.get("move_speed", owner.base_speed)) + (owner_speed_for_role - owner.base_speed)
 	else:
 		move_speed = owner_speed_for_role * float(role_data.get("speed_scale", 1.0)) * GLOBAL_UNIT_MOVE_SPEED_SCALE
+	move_speed += _get_wave_shop_stat(owner, role_id, "move_speed")
 	if sources != null:
 		if role_data.has("move_speed"):
 			sources.append({"label": "角色基础", "value": float(role_data.move_speed), "op": "="})
@@ -401,7 +402,7 @@ static func get_role_base_health(owner, role_id: String) -> float:
 		return 1.0
 	for role_data in owner.roles:
 		if role_data is Dictionary and str((role_data as Dictionary).get("id", "")) == role_id:
-			return max(1.0, float((role_data as Dictionary).get("base_health", owner.max_health)))
+			return max(1.0, float((role_data as Dictionary).get("base_health", owner.max_health)) + _get_wave_shop_stat(owner, role_id, "health"))
 	return max(1.0, float(owner.max_health))
 
 
@@ -479,7 +480,7 @@ static func get_role_damage(owner, role_id: String, sources: Variant = null) -> 
 		var king_blade_flat_base_damage := 0.0
 		if owner.has_method("_get_king_blade_flat_base_damage"):
 			king_blade_flat_base_damage = float(owner._get_king_blade_flat_base_damage(role_id))
-		var current_role_base_damage: float = float(role_data["damage"]) + blazing_sun_flat_base_damage + king_blade_flat_base_damage
+		var current_role_base_damage: float = float(role_data["damage"]) + _get_wave_shop_stat(owner, role_id, "attack") + blazing_sun_flat_base_damage + king_blade_flat_base_damage
 		var damage_amount: float = (current_role_base_damage + PLAYER_RUAN_STONE_STAT_FLOW.get_attack_bonus(owner)) * max(0.01, 1.0 + blessing_damage_percent) * max(0.01, base_global_multiplier + role_equipment_bonus) * (1.0 + PLAYER_RUAN_STONE_STAT_FLOW.get_damage_bonus(owner))
 		if sources != null:
 			sources.append({"label": "角色基础", "value": float(role_data["damage"]), "op": "="})
@@ -533,6 +534,17 @@ static func get_role_damage(owner, role_id: String, sources: Variant = null) -> 
 		if sources != null:
 			sources.append({"label": "剑士特性", "value": PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW.get_damage_multiplier(owner, role_id), "op": "*"})
 		return damage_amount
+	return 0.0
+
+
+static func _get_wave_shop_stat(owner, role_id: String, field: String) -> float:
+	if owner == null:
+		return 0.0
+	for role_data in owner.roles:
+		if role_data is Dictionary and str((role_data as Dictionary).get("id", "")) == role_id:
+			var shop_stats: Variant = (role_data as Dictionary).get("wave_shop_stats", {})
+			if shop_stats is Dictionary:
+				return float((shop_stats as Dictionary).get(field, 0.0))
 	return 0.0
 
 

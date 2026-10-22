@@ -844,6 +844,12 @@ func _get_role_total_ultimate_energy_gain_multiplier(role_id: String) -> float:
 	total_bonus += max(0.0, energy_gain_multiplier - 1.0)
 	total_bonus += max(0.0, _get_role_equipment_energy_gain_bonus(role_id))
 	total_bonus += max(0.0, _get_ultimate_energy_gain_multiplier_for_role(role_id) - 1.0)
+	for role_data in roles:
+		if role_data is Dictionary and str((role_data as Dictionary).get("id", "")) == role_id:
+			var shop_stats: Variant = (role_data as Dictionary).get("wave_shop_stats", {})
+			if shop_stats is Dictionary:
+				total_bonus += max(0.0, float((shop_stats as Dictionary).get("ultimate_gain", 0.0)))
+			break
 	if _is_mage_arcane_surplus_active():
 		total_bonus += max(0.0, _get_mage_arcane_surplus_team_ultimate_energy_bonus())
 	total_bonus += max(0.0, _get_mage_arcane_charge_self_energy_multiplier_for_role(role_id) - 1.0)

@@ -87,7 +87,7 @@ func _fire_build_shot(owner) -> void:
 		"visual_min_diameter": GUNNER_BATCHED_BULLET_VISUAL_MIN_DIAMETER,
 		"enemy_hit_radius_scale": 0.42, "enemy_hit_radius_min": 10.0, "enemy_hit_radius_max": 28.0,
 		"damage_event_id": event_id,
-		"pierce_count": -1 if BASIC_BUILD.has_choice(owner, "pierce") and randf() < BASIC_BUILD.PIERCE_CHANCE else 0,
+		"pierce_count": -1 if BASIC_BUILD.has_choice(owner, "pierce") else 0,
 		"gunner_build": {
 			"shock_multiplier": 1.8 if BASIC_BUILD.has_choice(owner, "shock") else 1.0,
 			"split": split, "split_distance": distance * 0.6,
@@ -162,7 +162,8 @@ func _perform_attack_variant(owner, shot_direction: Vector2, effect_scale: float
 			var split_angle: float = PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_basic_split_angle_degrees(split_index)
 			var split_direction: Vector2 = shot_direction.rotated(deg_to_rad(split_angle))
 			var split_origin: Vector2 = owner.global_position + split_direction * 18.0
-			_spawn_primary_batched_bullet_group(owner, split_direction, main_damage, bullet_color, role_data, upgrade_data, focus_level, split_origin, [], {}, damage_event_id)
+			# 爆裂的分裂弹不继承贯穿；只有主弹受贯穿效果影响。
+			_spawn_primary_batched_bullet_group(owner, split_direction, main_damage, bullet_color, role_data, upgrade_data, focus_level, split_origin, [], {"disable_pierce": true}, damage_event_id)
 
 	if advance_chain:
 		owner.gunner_attack_chain = (owner.gunner_attack_chain + 1) % 4
@@ -236,9 +237,13 @@ func _spawn_primary_batched_bullet(owner, shot_direction: Vector2, damage_amount
 	var bullet_speed: float = _get_basic_bullet_speed(owner, role_data, focus_level) * float(overrides.get("speed_multiplier", 1.0))
 	var lifetime: float = float(overrides.get("lifetime", _get_basic_bullet_lifetime(owner, bullet_speed)))
 	var pierce_count: int = int(round(float(upgrade_data["range_bonus"]) / 40.0)) + focus_level + int(overrides.get("pierce_bonus", 0))
-	if _has_talent(owner, "gunner_basic_penetration"):
+	if bool(overrides.get("disable_pierce", false)):
+		pierce_count = 0
+	elif BASIC_BUILD.has_choice(owner, "pierce"):
+		pierce_count = -1
+	elif _has_talent(owner, "gunner_basic_penetration"):
 		pierce_count += 2
-	if _get_talent_state_float(owner, "follow_fire_remaining") > 0.0:
+	if not bool(overrides.get("disable_pierce", false)) and _get_talent_state_float(owner, "follow_fire_remaining") > 0.0:
 		pierce_count += 1
 	var vulnerability_bonus: float = 0.06 if _has_talent(owner, "gunner_basic_mark") else 0.0
 	var vulnerability_duration: float = 1.0 if vulnerability_bonus > 0.0 else 0.0

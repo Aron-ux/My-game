@@ -121,8 +121,8 @@ func _run() -> void:
 	check(not boss.apply_stun(0.5), "phase transition immune")
 	boss.boss_phase_transition_target = 0
 	TOOLS.apply(player, request.merged({"operation": "branch", "stage": 9, "choice": "quake"}))
-	check(is_equal_approx(BUILD.strike_ratio(player), 4.5), "quake adds 100 points")
-	check(is_equal_approx(BUILD.strike_ratio(player, 0.4225), 3.5 * 0.4225 + 1.0), "quake applies to every storm strike")
+	check(is_equal_approx(BUILD.strike_ratio(player), 4.725), "quake multiplies current ratio by 35 percent")
+	check(is_equal_approx(BUILD.strike_ratio(player, 0.4225), 3.5 * 0.4225 * 1.35), "quake applies to every storm strike")
 	TOOLS.apply(player, request.merged({"operation": "branch", "stage": 4, "choice": "storm"}))
 	TOOLS.apply(player, request.merged({"operation": "branch", "stage": 8, "choice": "heaven"}))
 	check(is_equal_approx(BUILD.base_speed_modifier(player), -0.35), "storm heaven quake base penalties stack")

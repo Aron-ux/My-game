@@ -36,6 +36,8 @@ static func apply_story_loadout(main: Node) -> void:
 		if main.story_mode_active:
 			var profile := SAVE_MANAGER.load_story_profile()
 			main.player.configure_story_loadout(profile.get("team_order", ROLE_DATABASE.DEFAULT_TEAM_IDS))
+			if main.player.has_method("configure_ruan_stones"):
+				main.player.configure_ruan_stones(profile)
 		elif main.endless_mode_active:
 			var endless_profile := SAVE_MANAGER.get_current_endless_profile()
 			main.player.configure_story_loadout(endless_profile.get("team_order", ROLE_DATABASE.DEFAULT_TEAM_IDS))

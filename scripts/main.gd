@@ -59,6 +59,7 @@ var pause_menu
 var game_over_ui
 var rng := RandomNumberGenerator.new()
 var survival_time: float = 0.0
+var gold: int = 0
 var autosave_elapsed: float = 0.0
 var game_over: bool = false
 var loaded_from_save: bool = false
@@ -299,6 +300,11 @@ func _resume_game_bgm(delay_seconds: float = 0.0) -> void:
 
 func _on_enemy_defeated(enemy_kind: String, enemy: Node2D) -> void:
 	ENEMY_DEFEAT_FLOW.handle_enemy_defeated(self, enemy_kind, enemy)
+
+func award_gold(amount: int = 1) -> void:
+	gold = maxi(0, gold + amount)
+	if hud != null and hud.has_method("update_gold"):
+		hud.update_gold(gold)
 
 func _on_stage_cleared() -> void:
 	REWARD_FLOW.show_final_core(self)

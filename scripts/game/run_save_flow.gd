@@ -19,6 +19,7 @@ static func save_run_state(main: Node) -> void:
 
 	var save_data: Dictionary = {
 		"survival_time": main.survival_time,
+		"gold": main.gold,
 		"music_position": music_position,
 		"spawned_elite_count": main.spawned_elite_count,
 		"spawned_small_boss_count": main.spawned_small_boss_count,
@@ -75,6 +76,7 @@ static func load_saved_run(main: Node) -> bool:
 		return false
 
 	main.survival_time = float(save_data.get("survival_time", 0.0))
+	main.gold = maxi(0, int(save_data.get("gold", 0)))
 	main.autosave_elapsed = 0.0
 	main.spawned_elite_count = int(save_data.get("spawned_elite_count", 0))
 	main.spawned_small_boss_count = int(save_data.get("spawned_small_boss_count", 0))

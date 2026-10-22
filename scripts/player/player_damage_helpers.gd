@@ -19,7 +19,7 @@ static func get_gunner_distance_damage_multiplier(distance: float, trait_bonus: 
 	if safe_distance <= safe_radius:
 		return max(0.0, 0.4 + max(0.0, inside_damage_bonus))
 	var outside_distance: float = safe_distance - safe_radius
-	var multiplier: float = 1.0 + outside_distance / 100.0 * 0.05 + max(0.0, trait_bonus) + max(0.0, outside_damage_bonus)
+	var multiplier: float = 1.0 + outside_distance / 100.0 * 0.15 + max(0.0, trait_bonus) + max(0.0, outside_damage_bonus)
 	return max(0.4, multiplier)
 
 static func get_enemy_hit_radius(enemy: Node) -> float:

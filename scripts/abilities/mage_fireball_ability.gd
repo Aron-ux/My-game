@@ -146,14 +146,6 @@ func _resolve_pending_impact(owner) -> void:
 	if owner.has_method("_queue_camera_shake"):
 		owner._queue_camera_shake(15.0, 0.3)
 	# 爆炸后留下按当前生命百分比结算的燃烧地面
-	var ground := _create_fire_ground(owner, center, blast_radius)
-	active_fire_fields.append({
-		"node": ground,
-		"center": center,
-		"radius": blast_radius,
-		"remaining": _get_ground_duration(owner),
-		"tick_elapsed": 0.0
-	})
 
 
 func get_cooldown_slot(owner = null) -> Dictionary:
@@ -191,25 +183,6 @@ func apply_save_data(data: Dictionary) -> void:
 
 
 func restore_effect_if_active(owner) -> void:
-	for saved_data in pending_saved_fields:
-		var center_data: Variant = saved_data.get("center", [owner.global_position.x, owner.global_position.y])
-		var center: Vector2 = owner.global_position
-		if center_data is Array and (center_data as Array).size() >= 2:
-			center = Vector2(float(center_data[0]), float(center_data[1]))
-		var remaining: float = max(0.0, float(saved_data.get("remaining", 0.0)))
-		if remaining <= 0.0:
-			continue
-		var saved_radius: float = float(saved_data.get("radius", BASE_BLAST_RADIUS))
-		var ground := _create_fire_ground(owner, center, saved_radius)
-		if ground == null:
-			continue
-		active_fire_fields.append({
-			"node": ground,
-			"center": center,
-			"radius": saved_radius,
-			"remaining": remaining,
-			"tick_elapsed": clamp(float(saved_data.get("tick_elapsed", 0.0)), 0.0, GROUND_TICK_INTERVAL)
-		})
 	pending_saved_fields.clear()
 
 

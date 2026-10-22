@@ -1,6 +1,6 @@
 ﻿extends RefCounted
 
-const STORY_PREP_SCENE_PATH := "res://scenes/story_prep.tscn"
+const STORY_CAMP_SCENE_PATH := "res://scenes/endless_camp.tscn"
 const SAVE_MANAGER := preload("res://scripts/save_manager.gd")
 const GAME_HUD_FLOW := preload("res://scripts/game/game_hud_flow.gd")
 const DIRECT_BLESSING_CHOICES_META := "direct_blessing_choices_remaining"
@@ -135,7 +135,7 @@ static func finish_stage_clear(main: Node) -> void:
 		var material_reward: int = int(main.story_stage.get("boss_material_reward", 0))
 		SAVE_MANAGER.complete_current_story_stage(material_reward)
 		main.get_tree().paused = false
-		main.get_tree().change_scene_to_file(STORY_PREP_SCENE_PATH)
+		main.get_tree().change_scene_to_file(STORY_CAMP_SCENE_PATH)
 		return
 
 	main.game_over = true

@@ -10,6 +10,7 @@ const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/playe
 const PLAYER_SWORDSMAN_ULTIMATE_FLOW := preload("res://scripts/player/player_swordsman_ultimate_flow.gd")
 
 const ROLE_SWITCH_COOLDOWN := 0.5
+const ROLE_SWITCH_ACTION_COOLDOWN := 0.2
 const SWITCH_INVULNERABILITY := 0.1
 const GUNNER_ENTRY_WAVE_BULLET_COUNT := 16
 const GUNNER_ENTRY_WAVE_BATCH_SIZE := 4
@@ -207,8 +208,6 @@ static func try_switch_role(owner, new_role_index: int, ignore_restrictions: boo
 		owner._transfer_mage_arcane_charge_to_role_on_switch(active_role_id)
 	elif owner.has_method("_relay_mage_arcane_charge_on_switch"):
 		owner._relay_mage_arcane_charge_on_switch(previous_role_id, active_role_id)
-	if not should_trigger_entry and not DEVELOPER_MODE.should_ignore_cooldowns():
-		PLAYER_SKILL_COOLDOWN_FLOW.apply_switch_lock_to_role_skills(owner, active_role_id, owner.switch_cooldown_remaining)
 	owner.switch_invulnerability_remaining = max(SWITCH_INVULNERABILITY, preserve_switch_invulnerability)
 	owner.hidden_invulnerability_status_remaining = max(preserve_hidden_invulnerability, SWITCH_INVULNERABILITY)
 	var switch_direction: Vector2 = owner.velocity if owner.velocity.length_squared() > 0.001 else owner.facing_direction
@@ -227,6 +226,12 @@ static func try_switch_role(owner, new_role_index: int, ignore_restrictions: boo
 			func() -> void:
 				apply_swap_guard(owner, switch_direction)
 		])
+	if not DEVELOPER_MODE.should_ignore_cooldowns():
+		PLAYER_SKILL_COOLDOWN_FLOW.apply_switch_lock_to_role_skills(owner, active_role_id, ROLE_SWITCH_ACTION_COOLDOWN)
+		if owner.fire_timer != null:
+			var attack_interval: float = owner._get_effective_attack_interval(active_role_id)
+			owner.fire_timer.start(ROLE_SWITCH_ACTION_COOLDOWN)
+			owner.fire_timer.wait_time = attack_interval
 	var symbol_level: int = 0
 	if symbol_level > 0:
 		owner._add_energy(4.0 + symbol_level * 1.8)

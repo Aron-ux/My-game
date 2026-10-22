@@ -13,12 +13,10 @@ const OPTIONS := {
 		{"key": "shock", "title": "强震", "description": "子弹命中有 50% 概率击退目标 25 距离；触发强震的子弹此次伤害增加 80%；Boss 同样可以被击退。"}
 	],
 	9: [
-		{"key": "pierce", "title": "贯穿", "description": "每颗普通攻击主弹生成时有 60% 概率贯穿沿途全部敌人，命中后继续飞行，到达最大射程消失；同一目标只命中一次。选择爆裂时，仅分裂前的主弹享受贯穿，分裂弹不享受。"},
-		{"key": "frenzy", "title": "狂猎", "description": "每次普通攻击有 30% 概率使攻击速度 +80%，持续 5 秒；持续期间不能再次触发，结束后才重新判定。分裂弹不触发。"}
+		{"key": "pierce", "title": "贯穿", "description": "普通攻击子弹必定贯穿所有敌人，命中后继续飞行至最大距离消失；同一目标只命中一次。选择爆裂时，仅分裂前的主弹享受贯穿，分裂弹不享受。"},
+		{"key": "frenzy", "title": "狂烈", "description": "每次普通攻击有30%概率使攻击速度 +80%，持续5秒；持续期间不能再次触发，结束后才重新判定。状态期间显示持续进度条，分裂弹不触发。"}
 	]
 }
-const PIERCE_CHANCE := 0.60
-
 static func state(owner) -> Dictionary:
 	if owner == null or owner.get("role_special_states") is not Dictionary:
 		return {}
@@ -82,6 +80,8 @@ static func on_shot(owner, roll: float = -1.0) -> bool:
 	var role_state := state(owner)
 	role_state["gunner_frenzy_remaining"] = 5.0
 	owner.role_special_states["gunner"] = role_state
+	if owner.has_method("_start_duration_status"):
+		owner._start_duration_status("gunner_frenzy", "狂烈", 5.0, 70, Color(0.96, 0.32, 0.20, 0.95))
 	refresh_speed(owner)
 	return true
 
@@ -92,7 +92,11 @@ static func tick(owner, delta: float) -> void:
 		return
 	role_state["gunner_frenzy_remaining"] = maxf(0.0, remaining - delta)
 	if remaining <= delta:
+		if owner.has_method("_clear_duration_status"):
+			owner._clear_duration_status("gunner_frenzy")
 		refresh_speed(owner)
+	elif owner.has_method("_sync_duration_status"):
+		owner._sync_duration_status("gunner_frenzy", "狂烈", role_state["gunner_frenzy_remaining"], 70, Color(0.96, 0.32, 0.20, 0.95))
 
 static func next_preview(owner) -> String:
 	match level(owner) + 1:

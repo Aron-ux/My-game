@@ -348,7 +348,7 @@ static func get_continue_target_scene() -> String:
 	if has_save(slot_id, MODE_STORY):
 		return STORY_DATA.BATTLE_SCENE_PATH
 	if has_story_profile(slot_id):
-		return STORY_DATA.PREP_SCENE_PATH
+		return "res://scenes/endless_camp.tscn"
 	return ""
 
 static func request_continue_to_last_target() -> String:

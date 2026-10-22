@@ -18,7 +18,7 @@ const DEVELOPER_BUILD_TOOLS := preload("res://scripts/developer/developer_build_
 static func update_frame_hud(main: Node) -> void:
 	if main.hud != null and main.hud.has_method("update_time") and _should_refresh_elapsed(main, LAST_FRAME_TIME_REFRESH_META, main.survival_time, FRAME_TIME_REFRESH_INTERVAL):
 		PERFORMANCE_RECORDER.begin_scope("hud_time_label_ms")
-		main.hud.update_time(_get_wave_remaining_time(main))
+		main.hud.update_time(_get_wave_remaining_time(main), _get_current_wave(main))
 		PERFORMANCE_RECORDER.end_scope("hud_time_label_ms")
 	if main.hud != null and main.hud.has_method("update_stats") and main.player != null and main.player.has_method("get_stat_summary") and _should_refresh_elapsed(main, LAST_FRAME_STATS_REFRESH_META, main.survival_time, FRAME_STATS_REFRESH_INTERVAL):
 		PERFORMANCE_RECORDER.begin_scope("hud_stats_payload_ms")
@@ -42,10 +42,12 @@ static func refresh_hud(main: Node) -> void:
 		main.hud.update_health(main.player.current_health, main.player.max_health)
 	if main.hud.has_method("update_mana"):
 		main.hud.update_mana(main.player.current_mana, main.player.max_mana)
+	if main.hud.has_method("update_gold"):
+		main.hud.update_gold(int(main.get("gold")))
 	if main.hud.has_method("update_time"):
 		if main.hud.has_method("set_endless_tier"):
 			main.hud.set_endless_tier(main.endless_tier if main.endless_mode_active or main._is_developer_mode() else 0)
-		main.hud.update_time(_get_wave_remaining_time(main))
+		main.hud.update_time(_get_wave_remaining_time(main), _get_current_wave(main))
 	if main.hud.has_method("set_developer_boss_options"):
 		main.hud.set_developer_boss_options(main._get_developer_boss_options())
 	if main.hud.has_method("set_developer_normal_enemy_options"):
@@ -70,7 +72,14 @@ static func _get_wave_remaining_time(main: Node) -> float:
 	if phase == "preparation":
 		return maxf(0.0, float(flow.get("remaining")))
 	return 0.0
+
 	update_boss_hud(main)
+
+static func _get_current_wave(main: Node) -> int:
+	var flow = main.get("wave_flow")
+	if flow == null or not is_instance_valid(flow):
+		return 1
+	return clampi(int(flow.get("wave")), 1, 20)
 
 static func _get_boss_ui_data(enemy, default_name: String) -> Dictionary:
 	var current_health := float(enemy.get("current_health"))

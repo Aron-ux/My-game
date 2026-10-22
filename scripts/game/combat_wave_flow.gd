@@ -7,6 +7,16 @@ const FLYBY := preload("res://scripts/enemies/enemy_swarm_flyby.gd")
 const PREPARATION_SECONDS := 30.0
 const DEATH_SECONDS := 0.7
 const EXPERIENCE_SETTLE_SECONDS := 0.5
+const MERCHANT_STAT_COST := 100
+const MERCHANT_STATS := {
+	"power": {"field": "attack", "amount": 1.0},
+	"lightness": {"field": "move_speed", "amount": 1.5},
+	"agility": {"field": "dodge", "amount": 0.005},
+	"strength": {"field": "health", "amount": 20.0},
+	"quickness": {"field": "attack_speed", "amount": 0.02},
+	"hardness": {"field": "armor", "amount": 2.0},
+	"wisdom": {"field": "ultimate_gain", "amount": 0.01}
+}
 
 var main
 var wave: int = 1
@@ -409,10 +419,60 @@ func claim_first_aid() -> void:
 	if not is_instance_valid(merchant) or main.player.global_position.distance_to(merchant.global_position) > 120.0:
 		return
 	claimed = true
-	main.player.restore_team_missing_health(0.5)
+	main.player.restore_team_missing_health(get_first_aid_ratio())
 	view.refresh()
 	main._refresh_hud()
 	main._save_run_state()
+
+func get_first_aid_ratio() -> float:
+	var tier := clampi(int(main.endless_tier) if main.endless_mode_active else 1, 1, 5)
+	match tier:
+		1, 2:
+			return 1.0
+		3:
+			return 0.45
+		4:
+			return 0.35
+		5:
+			return 0.25
+	return 1.0
+
+func purchase_stat(stat_id: String, role_id: String) -> bool:
+	if phase != "preparation" or claimed or merchant_health <= 0 or main.game_over or main.get_tree().paused:
+		return false
+	if not MERCHANT_STATS.has(stat_id) or int(main.gold) < MERCHANT_STAT_COST:
+		return false
+	if not is_instance_valid(merchant) or main.player.global_position.distance_to(merchant.global_position) > 120.0:
+		return false
+	var role_index := -1
+	for index in range(main.player.roles.size()):
+		if str(main.player.roles[index].get("id", "")) == role_id:
+			role_index = index
+			break
+	if role_index < 0:
+		return false
+	var role_data: Dictionary = main.player.roles[role_index].duplicate(true)
+	var stat_data: Dictionary = role_data.get("wave_shop_stats", {}).duplicate(true)
+	var definition: Dictionary = MERCHANT_STATS[stat_id]
+	var field := str(definition["field"])
+	stat_data[field] = float(stat_data.get(field, 0.0)) + float(definition["amount"])
+	role_data["wave_shop_stats"] = stat_data
+	main.player.roles[role_index] = role_data
+	main.award_gold(-MERCHANT_STAT_COST)
+	_refresh_purchased_role(role_id, stat_id)
+	view.refresh()
+	main._refresh_hud()
+	main._save_run_state()
+	return true
+
+func _refresh_purchased_role(role_id: String, stat_id: String) -> void:
+	if role_id != str(main.player._get_active_role().get("id", "")):
+		return
+	if stat_id == "strength":
+		main.player._sync_active_role_max_health(false, false)
+	if stat_id == "quickness":
+		main.player._update_fire_timer()
+	main.player.emit_frame_stats_changed()
 
 func get_save_data() -> Dictionary:
 	return {

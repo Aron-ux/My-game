@@ -14,7 +14,7 @@ const OPTIONS := {
 	],
 	9: [
 		{"key": "guard", "title": "守势", "description": "斩击范围内的敌方弹道按入射角反弹，伤害为原弹道的 200%，命中第一个敌人后消失；包含 Boss 弹幕、分裂弹，不包含激光和地面攻击。"},
-		{"key": "brave", "title": "勇猛", "description": "普通攻击暴击率 +30%、暴击伤害 +50%、伤害倍率 +30 个百分点；普通攻击命中的敌人沿本次攻击指向方向击退50。分裂与地裂不享受额外暴击属性。"}
+		{"key": "brave", "title": "勇猛", "description": "普通攻击暴击率 +30%、暴击伤害 +50%；伤害增加当前伤害倍率的20%；命中的敌人沿本次攻击指向方向击退20。分裂与地裂不享受额外暴击属性。"}
 	]
 }
 
@@ -73,7 +73,7 @@ static func damage_ratio(owner) -> float:
 	if has_choice(owner, "light"):
 		ratio -= 0.25
 	if has_choice(owner, "brave"):
-		ratio += 0.3
+		ratio *= 1.2
 	return ratio
 
 static func speed_bonus(owner) -> float:

@@ -11,6 +11,8 @@ const SAVE_MANAGER := preload("res://scripts/save_manager.gd")
 # reward_flow.gd, and achievement/stat bookkeeping in game_achievement_bridge.gd.
 
 static func handle_enemy_defeated(main: Node, enemy_kind: String, enemy: Node2D) -> void:
+	if main.has_method("award_gold"):
+		main.award_gold(1)
 	GAME_ACHIEVEMENT_BRIDGE.record_enemy_defeated(main, enemy_kind)
 
 	if main._is_developer_mode() and enemy_kind == "boss":

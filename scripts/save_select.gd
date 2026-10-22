@@ -125,7 +125,7 @@ func _on_slot_pressed(slot_id: int) -> void:
 	if SAVE_MANAGER.create_or_load_story_profile(slot_id).is_empty():
 		get_tree().change_scene_to_file(MAIN_MENU_SCENE_PATH)
 		return
-	get_tree().change_scene_to_file(STORY_DATA.PREP_SCENE_PATH)
+	get_tree().change_scene_to_file("res://scenes/endless_camp.tscn")
 
 func _on_delete_pressed(slot_id: int) -> void:
 	SAVE_MANAGER.delete_story_profile(slot_id)

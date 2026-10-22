@@ -84,9 +84,9 @@ static func apply_profile(enemy, kind: String, profile: Dictionary) -> void:
 	enemy.rebirth_slow_multiplier = float(profile.get("rebirth_slow_multiplier", 0.5))
 	enemy.rebirth_slow_duration = float(profile.get("rebirth_slow_duration", 6.0))
 	enemy.skulltomb_summon_interval = float(profile.get("skulltomb_summon_interval", 20.0))
-	enemy.skulltomb_aging_aura_radius = max(0.0, float(profile.get("skulltomb_aging_aura_radius", 750.0)))
-	enemy.skulltomb_aging_aura_current_health_drain_ratio = clamp(float(profile.get("skulltomb_aging_aura_current_health_drain_ratio", 0.12)), 0.0, 1.0)
-	enemy.skulltomb_aging_aura_max_health_damage_ratio = clampf(float(profile.get("skulltomb_aging_aura_max_health_damage_ratio", 0.005)), 0.0, 1.0)
+	enemy.skulltomb_aging_aura_radius = max(0.0, float(profile.get("skulltomb_aging_aura_radius", 300.0)))
+	enemy.skulltomb_aging_aura_current_health_drain_ratio = clamp(float(profile.get("skulltomb_aging_aura_current_health_drain_ratio", 0.06)), 0.0, 1.0)
+	enemy.skulltomb_aging_aura_max_health_damage_ratio = clampf(float(profile.get("skulltomb_aging_aura_max_health_damage_ratio", 0.01)), 0.0, 1.0)
 	enemy.skulltomb_summon_timer = enemy.skulltomb_summon_interval
 	enemy.skulltomb_summon_windup = float(profile.get("skulltomb_summon_windup", 0.7))
 	enemy.skulltomb_summon_windup_remaining = 0.0

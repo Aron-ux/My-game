@@ -218,7 +218,7 @@ static func spawn_sword_fan_scene_effect(owner, center: Vector2, direction: Vect
 		owner.SWORD_FAN_SCENE_VISIBLE_BOUNDS,
 		center,
 		playback_direction.angle() + PI,
-		Vector2(138.0, 74.0) * scale_multiplier,
+		Vector2(133.3333, 75.0) * scale_multiplier,
 		12,
 		0.24,
 		false,

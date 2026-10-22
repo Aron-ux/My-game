@@ -1,6 +1,7 @@
 extends Control
 
 signal shop_requested
+signal inventory_requested
 signal team_requested
 signal departure_requested
 signal menu_requested
@@ -8,12 +9,14 @@ signal menu_requested
 const UI := preload("res://scripts/ui/theme/survivors_ui_theme.gd")
 const ITEMS := preload("res://scripts/player/ruan_stone_system.gd")
 const ROLES := preload("res://scripts/player/player_role_presenter.gd")
+const STORY_DATA := preload("res://scripts/story_data.gd")
 
 var status_label: Label
 var team_label: Label
 var carried_label: Label
 var result_label: Label
 var departure_button: Button
+var title_label: Label
 var action_buttons: Array[Button] = []
 
 
@@ -35,10 +38,11 @@ func _ready() -> void:
 	var title_column := VBoxContainer.new()
 	title_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(title_column)
-	title_column.add_child(_label("无尽营地", 23, UI.COLOR_TEXT_GOLD))
+	title_label = _label("无尽营地", 23, UI.COLOR_TEXT_GOLD)
+	title_column.add_child(title_label)
 	status_label = _label("", 15)
 	title_column.add_child(status_label)
-	for data in [["携带物品", shop_requested], ["队伍整备", team_requested], ["出击", departure_requested], ["主菜单", menu_requested]]:
+	for data in [["背包", inventory_requested], ["队伍", team_requested], ["出击", departure_requested], ["主菜单", menu_requested]]:
 		var button := Button.new()
 		button.text = data[0]
 		button.custom_minimum_size = Vector2(112, 42)
@@ -78,7 +82,12 @@ func _label(value: String, font_size: int, color: Color = UI.COLOR_TEXT) -> Labe
 
 
 func refresh(profile: Dictionary, run: Dictionary, team: Array, movement_hint: String) -> void:
-	status_label.text = "档案 %d    骨头 %d    已解锁至 N%d" % [int(profile.get("slot_id", 1)), int(profile.get("bones", 0)), int(profile.get("highest_cleared_tier", 0)) + 1]
+	var story_mode := str(profile.get("mode", "")) == "story"
+	title_label.text = "主线营地" if story_mode else "无尽营地"
+	var currency_name := "Boss 核心" if story_mode else "骨头"
+	var currency := int(profile.get("boss_core_fragments", 0)) if story_mode else int(profile.get("bones", 0))
+	var progress := "第 %d 关" % (int(profile.get("current_stage_index", 0)) + 1) if story_mode else "N%d" % (int(profile.get("highest_cleared_tier", 0)) + 1)
+	status_label.text = "档案 %d    %s %d    当前进度 %s" % [int(profile.get("slot_id", 1)), currency_name, currency, progress]
 	var names: PackedStringArray = []
 	for index in range(team.size()):
 		names.append("%d %s" % [index + 1, ROLES.get_role_name(str(team[index]))])
@@ -86,13 +95,15 @@ func refresh(profile: Dictionary, run: Dictionary, team: Array, movement_hint: S
 	carried_label.text = "携带 %d/%d：%s    ·    返营永久保留" % [ITEMS.get_carried_count(profile), ITEMS.get_carry_limit(profile), ITEMS.get_carried_summary_text(profile.get("ruan_stone_purchased", []))]
 	carried_label.tooltip_text = carried_label.text
 	var result: Variant = profile.get("last_clear_summary", {})
-	var recent := "首次出击：击败敌人和通关可获得骨头。"
+	var recent := "首次出击：通关可获得 Boss 核心。" if story_mode else "首次出击：击败敌人和通关可获得骨头。"
 	if result is Dictionary and not result.is_empty():
-		recent = "最近通关 N%d，结算 +%d 骨。" % [maxi(1, int(result.get("tier", 1))), maxi(0, int(result.get("bones", 0)))]
-	elif int(profile.get("highest_cleared_tier", 0)) > 0:
+		recent = "最近通关主线，获得 Boss 核心。" if story_mode else "最近通关 N%d，结算 +%d 骨。" % [maxi(1, int(result.get("tier", 1))), maxi(0, int(result.get("bones", 0)))]
+	elif not story_mode and int(profile.get("highest_cleared_tier", 0)) > 0:
 		recent = "最高已通关 N%d。" % int(profile["highest_cleared_tier"])
 	var run_tier := int(run.get("run_tier", 0))
-	departure_button.text = "继续 N%d" % run_tier if run_tier > 0 else "选择 N 层"
+	var has_story_stage := not STORY_DATA.get_stage(int(profile.get("current_stage_index", 0))).is_empty()
+	departure_button.text = ("进入主线" if has_story_stage else "主线已完成") if story_mode else ("继续 N%d" % run_tier if run_tier > 0 else "选择 N 层")
+	departure_button.disabled = story_mode and not has_story_stage
 	result_label.text = ("进行中 N%d：阵容调整用于下一局，携带修改在继续时生效。" % run_tier if run_tier > 0 else recent) + "    " + movement_hint
 	result_label.tooltip_text = result_label.text
 

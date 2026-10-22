@@ -347,8 +347,17 @@ static func get_role_base_dodge_chance(owner, role_id: String) -> float:
 		if roles_value is Array:
 			for role_data in roles_value:
 				if role_data is Dictionary and str((role_data as Dictionary).get("id", "")) == role_id:
-					return clampf(float((role_data as Dictionary).get("base_dodge", ROLE_ATTRIBUTE_RULES.get_role_base_dodge_chance(role_id))), 0.0, 1.0)
+					return clampf(float((role_data as Dictionary).get("base_dodge", ROLE_ATTRIBUTE_RULES.get_role_base_dodge_chance(role_id))) + _get_wave_shop_dodge_bonus(owner, role_id), 0.0, 1.0)
 	return clampf(ROLE_ATTRIBUTE_RULES.get_role_base_dodge_chance(role_id), 0.0, 1.0)
+
+static func _get_wave_shop_dodge_bonus(owner, role_id: String) -> float:
+	if owner == null:
+		return 0.0
+	for role_data in owner.roles:
+		if role_data is Dictionary and str((role_data as Dictionary).get("id", "")) == role_id:
+			var shop_stats: Variant = (role_data as Dictionary).get("wave_shop_stats", {})
+			return float((shop_stats as Dictionary).get("dodge", 0.0)) if shop_stats is Dictionary else 0.0
+	return 0.0
 
 
 static func get_role_permanent_dodge_value(owner, role_id: String) -> float:

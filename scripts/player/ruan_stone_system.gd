@@ -47,8 +47,19 @@ static func normalize_profile(profile: Dictionary) -> Dictionary:
 
 
 static func get_carry_limit(profile: Dictionary) -> int:
+	if str(profile.get("mode", "")) == "story":
+		return max(1, int(profile.get("current_stage_index", 0)))
 	# 携带上限 = 档案最高解锁 N（初始 N1 带 1 件，通关 N1 解锁 N2 后可带 2 件，以此类推）
 	return max(1, int(profile.get("highest_cleared_tier", 0)) + 1)
+
+
+static func get_currency(profile: Dictionary) -> int:
+	var key := "boss_core_fragments" if str(profile.get("mode", "")) == "story" else "bones"
+	return _non_negative_int(profile.get(key, 0))
+
+
+static func get_currency_name(profile: Dictionary) -> String:
+	return "Boss 核心" if str(profile.get("mode", "")) == "story" else "骨头"
 
 
 static func get_carried_count(profile: Dictionary) -> int:
@@ -81,7 +92,7 @@ static func get_level(profile: Dictionary, stone_id: String) -> int:
 static func get_next_cost(profile: Dictionary, stone_id: String) -> int:
 	if not STONE_IDS.has(stone_id):
 		return 0
-	return 5
+	return 1 if str(profile.get("mode", "")) == "story" else 5
 
 
 static func purchase(profile: Dictionary, stone_id: String) -> Dictionary:
@@ -91,19 +102,20 @@ static func purchase(profile: Dictionary, stone_id: String) -> Dictionary:
 	var purchased: Array = profile.get("ruan_stone_purchased", [])
 	var carry_limit := get_carry_limit(profile)
 	var cost := get_next_cost(profile, stone_id)
-	var bones := int(profile.get("bones", 0))
+	var currency_key := "boss_core_fragments" if str(profile.get("mode", "")) == "story" else "bones"
+	var currency := get_currency(profile)
 	if purchased.size() >= carry_limit:
 		return {
 			"success": false,
 			"reason": "carry_limit_reached",
 			"cost": cost,
-			"bones": bones,
+			"currency": currency,
 			"carry_limit": carry_limit,
 			"carried": purchased.size()
 		}
-	if bones < cost:
-		return {"success": false, "reason": "not_enough_bones", "cost": cost, "bones": bones}
-	profile["bones"] = bones - cost
+	if currency < cost:
+		return {"success": false, "reason": "not_enough_bones", "cost": cost, "currency": currency}
+	profile[currency_key] = currency - cost
 	purchased.append(stone_id)
 	profile["ruan_stone_purchased"] = purchased
 	return {
@@ -113,7 +125,7 @@ static func purchase(profile: Dictionary, stone_id: String) -> Dictionary:
 		"count": get_count(profile, stone_id),
 		"carried": purchased.size(),
 		"carry_limit": carry_limit,
-		"bones": int(profile["bones"])
+		"currency": int(profile[currency_key])
 	}
 
 
@@ -123,13 +135,14 @@ static func refund(profile: Dictionary, stone_id: String) -> Dictionary:
 		return {"success": false, "reason": "invalid_stone"}
 	var purchased: Array = profile.get("ruan_stone_purchased", [])
 	if get_count(profile, stone_id) <= 0:
-		return {"success": false, "reason": "not_carried", "bones": int(profile.get("bones", 0))}
+		return {"success": false, "reason": "not_carried", "currency": get_currency(profile)}
 	for index in range(purchased.size() - 1, -1, -1):
 		if str(purchased[index]) == stone_id:
 			purchased.remove_at(index)
 			break
 	var cost := get_next_cost(profile, stone_id)
-	profile["bones"] = int(profile.get("bones", 0)) + cost
+	var currency_key := "boss_core_fragments" if str(profile.get("mode", "")) == "story" else "bones"
+	profile[currency_key] = get_currency(profile) + cost
 	if get_count(profile, stone_id) <= 0 and str(profile.get("equipped_ruan_stone", "")) == stone_id:
 		profile["equipped_ruan_stone"] = ""
 	return {
@@ -139,7 +152,7 @@ static func refund(profile: Dictionary, stone_id: String) -> Dictionary:
 		"count": get_count(profile, stone_id),
 		"carried": purchased.size(),
 		"carry_limit": get_carry_limit(profile),
-		"bones": int(profile["bones"])
+		"currency": int(profile[currency_key])
 	}
 
 

@@ -14,7 +14,7 @@ const OPTIONS := {
 	],
 	9: [
 		{"key": "divine", "title": "神绛", "description": "每完成 3 次雷击后，在第 3 次雷击结束 0.4 秒后落下一道普通大小的黄色神绛雷，对全屏敌人造成当前倍率 150% 的伤害；狂雷的连续 3 道合计计作 1 次，神绛雷本身不计数。可触发通电、天雷和攻击特效。"},
-		{"key": "quake", "title": "雷震", "description": "基础攻击速度 -0.1 次/秒。所有雷击伤害倍率 +100 个百分点，命中施加 0.5 秒眩晕；法师在后台时会对敌人最密集处释放雷击。"}
+		{"key": "quake", "title": "雷震", "description": "基础攻速减少0.1；雷击伤害增加当前伤害倍率的35%，狂雷的所有雷击均生效；命中造成眩晕0.5秒。法师在后台时向场上敌人最多的位置释放雷击，冷却与当前普通攻击共享。"}
 	]
 }
 
@@ -68,7 +68,10 @@ static func damage_ratio(owner) -> float:
 	return 2.0 + mini(lv, 3) * 0.15 + clampi(lv - 4, 0, 3) * 0.25 + (0.3 if has_choice(owner, "focus") else 0.0)
 
 static func strike_ratio(owner, scale: float = 1.0) -> float:
-	return damage_ratio(owner) * scale + (1.0 if has_choice(owner, "quake") else 0.0)
+	var ratio := damage_ratio(owner) * scale
+	if has_choice(owner, "quake"):
+		ratio *= 1.35
+	return ratio
 
 static func range_multiplier(owner) -> float:
 	return 1.25 if has_choice(owner, "focus") else 1.0

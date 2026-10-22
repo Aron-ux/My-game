@@ -13,7 +13,8 @@ const STORY_PROFILE_COPY_KEYS := [
 	"boss_core_fragments",
 	"unlocked_role_ids",
 	"team_order",
-	"created_unix"
+	"created_unix",
+	"ruan_stone_purchased"
 ]
 
 static func ensure_story_profile_defaults(profile: Dictionary, slot_id: int) -> Dictionary:
@@ -26,6 +27,7 @@ static func ensure_story_profile_defaults(profile: Dictionary, slot_id: int) -> 
 	if not normalized.has("unlocked_role_ids") or not (normalized["unlocked_role_ids"] is Array):
 		normalized["unlocked_role_ids"] = DEFAULT_ROLE_IDS.duplicate()
 	normalized["team_order"] = _normalize_team_order(normalized["team_order"], normalized["unlocked_role_ids"])
+	RUAN_STONE_SYSTEM.normalize_profile(normalized)
 	normalized["slot_id"] = slot_id
 	normalized["mode"] = MODE_STORY
 	normalized["last_updated_unix"] = Time.get_unix_time_from_system()

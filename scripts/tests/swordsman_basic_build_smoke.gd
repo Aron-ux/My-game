@@ -43,7 +43,7 @@ func _run() -> void:
 			check(not LEVELS.apply_option_with_result(player, option["id"], offer).is_empty(), "stage choice applies")
 			check(LEVELS.apply_option_with_result(player, option["id"], offer).is_empty(), "stale offer cannot apply again")
 	check(BUILD.has_choice(player, "heavy") and BUILD.has_choice(player, "split") and BUILD.has_choice(player, "brave"), "all three choices retained")
-	check(is_equal_approx(BUILD.damage_ratio(player), 2.85), "heavy brave coefficient = 285%")
+	check(is_equal_approx(BUILD.damage_ratio(player), 3.06), "heavy brave coefficient = 306%")
 	check(is_equal_approx(player._get_effective_attack_speed("swordsman"), 0.2), "heavy brave final speed = 0.2")
 	check(not LEVELS.is_progress_upgradeable(player, "swordsman_basic"), "LV9 removes upgrade")
 	var normalized := LEVELS.normalize_role_state("swordsman", player.role_special_states["swordsman"])
