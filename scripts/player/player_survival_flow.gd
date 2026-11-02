@@ -406,19 +406,21 @@ static func grant_developer_level_up(owner) -> void:
 	owner._try_request_level_up()
 
 
-static func take_damage(owner, amount: float, source_enemy: Node = null, ignore_armor: bool = false) -> void:
+static func take_damage(owner, amount: float, source_enemy: Node = null, ignore_armor: bool = false, damage_source_id: String = "") -> void:
 	if DEVELOPER_MODE.should_ignore_damage():
 		return
 	if owner.is_dead or owner.switch_invulnerability_remaining > 0.0:
 		return
+	var ignores_gunner_flash: bool = damage_source_id in ["reflect", "aging_aura"]
 
 	if owner._try_equipment_dodge():
-		PLAYER_GUNNER_FLASH_TALENT_FLOW.on_successful_dodge(owner)
+		if not ignores_gunner_flash:
+			PLAYER_GUNNER_FLASH_TALENT_FLOW.on_successful_dodge(owner)
 		owner.hurt_cooldown_remaining = owner.hurt_cooldown * 0.55
 		_show_dodge_tag(owner)
 		return
 
-	if PLAYER_GUNNER_FLASH_TALENT_FLOW.try_immunize_damage(owner):
+	if not ignores_gunner_flash and PLAYER_GUNNER_FLASH_TALENT_FLOW.try_immunize_damage(owner):
 		owner.hurt_cooldown_remaining = owner.hurt_cooldown * 0.55
 		_show_gunner_flash_immunity_tag(owner)
 		return
@@ -450,7 +452,7 @@ static func take_damage(owner, amount: float, source_enemy: Node = null, ignore_
 	preload("res://scripts/player/player_vine_entangle.gd").on_damage(owner, source_enemy, adjusted_damage)
 	if adjusted_damage > 0.0 and owner.get("gunner_role") != null and owner.gunner_role.has_method("handle_damage_taken"):
 		owner.gunner_role.handle_damage_taken(owner)
-	if adjusted_damage > 0.0 and owner.has_method("_break_gunner_flash_trait"):
+	if adjusted_damage > 0.0 and not ignores_gunner_flash and owner.has_method("_break_gunner_flash_trait"):
 		owner._break_gunner_flash_trait()
 	if owner.current_health <= 0.0 and _try_trigger_swordsman_last_guard(owner):
 		return

@@ -6,6 +6,7 @@ const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/playe
 const PLAYER_SWORDSMAN_ULTIMATE_FLOW := preload("res://scripts/player/player_swordsman_ultimate_flow.gd")
 const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 const SWORDSMAN_BASIC_BUILD := preload("res://scripts/player/player_swordsman_basic_build.gd")
+const SWORDSMAN_CRESCENT_WAVE_BUILD := preload("res://scripts/player/player_swordsman_crescent_wave_build.gd")
 
 const BASIC_COMBO_INTERVAL := 0.14
 const ULTIMATE_SKILL_ID := "swordsman_ultimate"
@@ -37,7 +38,7 @@ func get_talent_basic_attack_interval_multiplier(owner) -> float:
 		return 1.0
 	var state: Dictionary = owner.role_special_states.get("swordsman", {})
 	return 1.0 / 1.15 if float(state.get("head_high_remaining", 0.0)) > 0.0 else 1.0
-func _try_start_bloodthirst(owner, duration: float, heal_multiplier: float, force_refresh: bool = false) -> bool:
+static func _try_start_bloodthirst(owner, duration: float, heal_multiplier: float, force_refresh: bool = false) -> bool:
 	if owner == null or (owner.has_method("_get_active_role_id") and str(owner._get_active_role_id()) != "swordsman"):
 		return false
 	if not force_refresh and owner.swordsman_entry_trait_share_remaining > 0.0:
@@ -63,6 +64,8 @@ func perform_attack(owner) -> void:
 		PLAYER_COMBAT_RESULT_FLOW.consume_swordsman_blood_surge(owner)
 	_schedule_level_basic_rehit(owner, base_direction, basic_source_id)
 	_schedule_reprise_segments(owner, base_direction, basic_source_id)
+	if owner.get("swordsman_crescent_wave_ability") != null:
+		owner.swordsman_crescent_wave_ability.try_trigger_echo(owner)
 
 func _create_basic_source_id(owner) -> String:
 	if owner != null and owner.has_method("_create_basic_attack_source_id"):

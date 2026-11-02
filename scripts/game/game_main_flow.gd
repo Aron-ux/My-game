@@ -76,12 +76,23 @@ static func unhandled_input(main: Node, event: InputEvent) -> void:
 		return
 
 	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_B and not main.game_over:
+			main._toggle_cat_village_menu()
+			main.get_viewport().set_input_as_handled()
+			return
 		if main.GAME_SETTINGS.event_matches_action(event, main.GAME_SETTINGS.ACTION_CHARACTER_PANEL):
-			main._toggle_character_panel()
+			if main.character_panel != null and main.character_panel.visible:
+				main._hide_character_panel()
+			else:
+				main._show_character_panel()
 			main.get_viewport().set_input_as_handled()
 			return
 		if main.character_panel != null and main.character_panel.visible and event.keycode == KEY_ESCAPE:
 			main._hide_character_panel()
+			main.get_viewport().set_input_as_handled()
+			return
+		if main.cat_village_menu != null and main.cat_village_menu.visible and event.keycode == KEY_ESCAPE:
+			main._hide_cat_village_menu()
 			main.get_viewport().set_input_as_handled()
 			return
 		if event.keycode == KEY_ESCAPE:

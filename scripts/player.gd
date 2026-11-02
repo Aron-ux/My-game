@@ -1727,6 +1727,11 @@ func _start_gunner_explosive_round() -> void:
 func _start_gunner_magic_grenade() -> void:
 	PLAYER_ABILITY_FLOW.start_gunner_magic_grenade(self)
 
+
+func _try_trigger_gunner_magic_grenade_free() -> void:
+	if gunner_magic_grenade_ability != null:
+		gunner_magic_grenade_ability.try_trigger_free(self)
+
 func _start_gunner_magic_eye() -> void:
 	PLAYER_ABILITY_FLOW.start_gunner_magic_eye(self)
 
@@ -2326,17 +2331,26 @@ func gain_experience(amount: int) -> void:
 func grant_developer_level_up() -> void:
 	PLAYER_SURVIVAL_FLOW.grant_developer_level_up(self)
 
-func take_damage(amount: float) -> void:
-	PLAYER_SURVIVAL_FLOW.take_damage(self, amount)
+func take_damage(amount: float, damage_source_id: String = "") -> void:
+	PLAYER_SURVIVAL_FLOW.take_damage(self, amount, null, false, damage_source_id)
 
-func take_damage_ignoring_armor(amount: float) -> void:
-	PLAYER_SURVIVAL_FLOW.take_damage(self, amount, null, true)
+func take_damage_ignoring_armor(amount: float, damage_source_id: String = "") -> void:
+	PLAYER_SURVIVAL_FLOW.take_damage(self, amount, null, true, damage_source_id)
 
 func apply_enemy_slow(multiplier: float, duration: float, source_id: String = "") -> void:
 	PLAYER_SURVIVAL_FLOW.apply_enemy_slow(self, multiplier, duration, source_id)
 
 func _add_energy(amount: float) -> void:
 	PLAYER_RESOURCE_FLOW.add_energy(self, amount)
+
+func _add_mage_meta_field_extra_energy(amount: float) -> void:
+	preload("res://scripts/player/player_mage_meta_field_build.gd").add_soul_extraction_energy(self, amount)
+
+func _get_mage_meta_field_extra_energy() -> float:
+	return preload("res://scripts/player/player_mage_meta_field_build.gd").get_soul_extraction_energy(self)
+
+func _consume_mage_meta_field_extra_energy() -> float:
+	return preload("res://scripts/player/player_mage_meta_field_build.gd").consume_soul_extraction_energy(self)
 
 func _get_role_switch_energy(role_id: String) -> float:
 	if role_switch_energy_values is not Dictionary or role_switch_energy_values.is_empty():

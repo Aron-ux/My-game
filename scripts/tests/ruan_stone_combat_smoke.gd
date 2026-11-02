@@ -2,6 +2,7 @@ extends SceneTree
 
 const DamageResolver := preload("res://scripts/player/player_damage_resolver.gd")
 const StoneStats := preload("res://scripts/player/player_ruan_stone_stat_flow.gd")
+const EnemyStatusEffects := preload("res://scripts/enemies/enemy_status_effects.gd")
 
 
 func _init() -> void:
@@ -41,6 +42,7 @@ func _run() -> void:
 	DamageResolver.deal_damage_to_enemy(owner, enemies[0], 10.0, "swordsman_basic:event_thunder")
 	assert(is_equal_approx(enemies[0].damage_taken, 10.0))
 	assert(is_equal_approx(enemies[1].damage_taken, 3.0))
+	assert(enemies[1].visible_feedback_hits == 1)
 	DamageResolver.deal_damage_to_enemy(owner, enemies[2], 10.0, "swordsman_basic:event_thunder")
 	assert(is_equal_approx(enemies[3].damage_taken, 0.0))
 
@@ -81,6 +83,13 @@ func _run() -> void:
 	for _tick in range(12):
 		poison._process(0.25)
 	assert(is_equal_approx(enemies[0].damage_taken, 14.5))
+	assert(enemies[0].visible_feedback_hits > 1)
+
+	_reset(enemies)
+	enemies[0].bleed_damage_per_second = 8.0
+	EnemyStatusEffects.tick_bleed(enemies[0], 0.25)
+	assert(is_equal_approx(enemies[0].damage_taken, 2.0))
+	assert(enemies[0].visible_feedback_hits == 1)
 
 	_reset(enemies)
 	owner.ruan_stone_proc_events.clear()
@@ -182,11 +191,13 @@ func _reset(enemies: Array[StoneEnemy]) -> void:
 		enemy.max_health = 1000.0
 		enemy.current_health = 1000.0
 		enemy.damage_taken = 0.0
+		enemy.visible_feedback_hits = 0
 		enemy.remove_on_death = false
 		enemy.slow_multiplier = 1.0
 		enemy.slow_duration = 0.0
 		enemy.vulnerability_bonus = 0.0
 		enemy.vulnerability_at_last_hit = 0.0
+		enemy.bleed_damage_per_second = 0.0
 		var poison := enemy.get_node_or_null("RuanPoisonEffect")
 		if poison != null:
 			poison.free()
@@ -205,14 +216,17 @@ class StoneEnemy:
 	var max_health := 1000.0
 	var current_health := 1000.0
 	var damage_taken := 0.0
+	var visible_feedback_hits := 0
 	var remove_on_death := false
 	var slow_multiplier := 1.0
 	var slow_duration := 0.0
 	var vulnerability_bonus := 0.0
 	var fury_armor_shred := 0.0
 	var vulnerability_at_last_hit := 0.0
+	var bleed_damage_per_second := 0.0
 
 	func take_damage(amount: float, _critical: bool = false) -> bool:
+		visible_feedback_hits += 1
 		vulnerability_at_last_hit = vulnerability_bonus
 		damage_taken += amount
 		current_health -= amount
@@ -222,7 +236,9 @@ class StoneEnemy:
 		return killed
 
 	func take_batched_damage(amount: float) -> bool:
-		return take_damage(amount)
+		damage_taken += amount
+		current_health -= amount
+		return current_health <= 0.0
 
 	func apply_slow(multiplier: float, duration: float) -> void:
 		slow_multiplier = min(slow_multiplier, multiplier)

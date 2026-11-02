@@ -1,13 +1,30 @@
 extends RefCounted
 const MAGE_BASIC_BUILD := preload("res://scripts/player/player_mage_basic_build.gd")
 const MAGE_SURGING_WAVE_BUILD := preload("res://scripts/player/player_mage_surging_wave_build.gd")
+const MAGE_META_FIELD_BUILD := preload("res://scripts/player/player_mage_meta_field_build.gd")
 const STORM_BUILD := preload("res://scripts/player/player_blade_storm_build.gd")
 const INFINITE_BUILD := preload("res://scripts/player/player_gunner_infinite_reload_build.gd")
 
 const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
 const SWORDSMAN_BASIC_BUILD := preload("res://scripts/player/player_swordsman_basic_build.gd")
+const SWORDSMAN_CRESCENT_WAVE_BUILD := preload("res://scripts/player/player_swordsman_crescent_wave_build.gd")
 const GUNNER_BASIC_BUILD := preload("res://scripts/player/player_gunner_basic_build.gd")
 const MECHANIC_TALENTS := preload("res://scripts/player/data/mechanic_skill_talent_catalog.gd")
+
+const GUNNER_MAGIC_GRENADE_TALENTS := [
+	{
+		"title": "魔法追弹",
+		"summary": "每枚魔法榴弹的基础伤害倍率降低 100 个百分点（200% 降至 100%）；数量增加 3 枚（3 枚增至 6 枚）。技能等级提供的额外伤害保留。",
+		"description": "每枚魔法榴弹造成的基础伤害倍率降低 100 个百分点；不计入技能等级加成时，由 200% 降至 100%。每次施放的魔法榴弹数量增加 3 枚，由 3 枚增至 6 枚。技能等级提供的额外伤害保留。",
+		"card_lines": ["每枚伤害倍率 -100 个百分点", "每次施放额外发射 3 枚"]
+	},
+	{
+		"title": "幸运之弹",
+		"summary": "魔法榴弹额外暴击率增加 20 个百分点（20% 增至 40%）；爆炸范围增加 50（75 增至 125）。",
+		"description": "魔法榴弹额外暴击率增加 20 个百分点，由 20% 增至 40%；爆炸半径增加 50，由 75 增至 125。",
+		"card_lines": ["额外暴击率 +20 个百分点", "爆炸半径 +50"]
+	}
+]
 
 ## 技能等级系统：普通技能线 1~10 级；剑士普攻独立使用 LV0~9 与三个阶段强化选择。
 const MAX_SKILL_LEVEL := 10
@@ -211,6 +228,8 @@ static func has_talent_slot(owner, role_id: String, progress_id: String, slot: i
 
 
 static func get_talent_definition(role_id: String, progress_id: String, slot: int) -> Dictionary:
+	if role_id == "gunner" and progress_id == "gunner_magic_grenade" and slot >= 1 and slot <= GUNNER_MAGIC_GRENADE_TALENTS.size():
+		return GUNNER_MAGIC_GRENADE_TALENTS[slot - 1].duplicate(true)
 	if role_id != "mechanic" or slot < 1 or slot > TALENT_SLOT_COUNT:
 		return {}
 	var definitions: Array = MECHANIC_TALENTS.DEFINITIONS.get(progress_id, [])
@@ -393,6 +412,7 @@ static func normalize_role_state(role_id: String, value: Variant) -> Dictionary:
 	var infinite_level: int = INFINITE_BUILD.level_from_state(state)
 	var raw_levels: Dictionary = state.get(SKILL_LEVELS_KEY, {}) if state.get(SKILL_LEVELS_KEY, {}) is Dictionary else {}
 	var wave_level: int = MAGE_SURGING_WAVE_BUILD.level_from_state(state) if role_id == "mage" else 0
+	var meta_field_level: int = MAGE_META_FIELD_BUILD.level_from_state(state) if role_id == "mage" else 0
 	var levels: Dictionary = {}
 	for progress_value in ROLE_PROGRESS_ORDER.get(role_id, []):
 		var progress_id := str(progress_value)
@@ -421,14 +441,33 @@ static func normalize_role_state(role_id: String, value: Variant) -> Dictionary:
 					if wave_level >= stage and str(raw_wave.get(str(stage), "")) == str(option["key"]):
 						wave_choices[str(stage)] = option["key"]
 		state[MAGE_SURGING_WAVE_BUILD.STATE_KEY] = wave_choices
+		levels[MAGE_META_FIELD_BUILD.PROGRESS] = meta_field_level
+		var meta_choices: Dictionary = {}
+		var raw_meta: Variant = state.get(MAGE_META_FIELD_BUILD.STATE_KEY, {})
+		if raw_meta is Dictionary:
+			for stage in MAGE_META_FIELD_BUILD.STAGES:
+				for option in MAGE_META_FIELD_BUILD.OPTIONS[stage]:
+					if meta_field_level >= stage and (raw_meta as Dictionary).get(str(stage), "") == str(option["key"]):
+						meta_choices[str(stage)] = option["key"]
+		state[MAGE_META_FIELD_BUILD.STATE_KEY] = meta_choices
 	if role_id == "swordsman":
 		levels[STORM_BUILD.PROGRESS] = storm_level
 		var storm_choices: Dictionary = {}
+		var raw_storm: Variant = state.get(STORM_BUILD.STATE_KEY, {})
 		for stage in STORM_BUILD.STAGES:
 			for option in STORM_BUILD.OPTIONS[stage]:
-				if storm_level >= stage and state.get(STORM_BUILD.STATE_KEY, {}).get(str(stage), "") == option["key"]:
+				if storm_level >= stage and raw_storm is Dictionary and (raw_storm as Dictionary).get(str(stage), "") == option["key"]:
 					storm_choices[str(stage)] = option["key"]
 		state[STORM_BUILD.STATE_KEY] = storm_choices
+		levels[SWORDSMAN_CRESCENT_WAVE_BUILD.PROGRESS] = SWORDSMAN_CRESCENT_WAVE_BUILD.level_from_state(state)
+		var crescent_choices: Dictionary = {}
+		var raw_crescent: Variant = state.get(SWORDSMAN_CRESCENT_WAVE_BUILD.STATE_KEY, {})
+		if raw_crescent is Dictionary:
+			for stage in SWORDSMAN_CRESCENT_WAVE_BUILD.STAGES:
+				for option in SWORDSMAN_CRESCENT_WAVE_BUILD.OPTIONS[stage]:
+					if levels[SWORDSMAN_CRESCENT_WAVE_BUILD.PROGRESS] >= stage and (raw_crescent as Dictionary).get(str(stage), "") == option["key"]:
+						crescent_choices[str(stage)] = option["key"]
+		state[SWORDSMAN_CRESCENT_WAVE_BUILD.STATE_KEY] = crescent_choices
 	if role_id == "gunner":
 		levels[INFINITE_BUILD.PROGRESS] = infinite_level
 		var infinite_choices: Dictionary = {}
@@ -594,11 +633,15 @@ static func _owner_has_property(owner, property_name: String) -> bool:
 static func basic_build(progress_id: String):
 	if progress_id == MAGE_SURGING_WAVE_BUILD.PROGRESS:
 		return MAGE_SURGING_WAVE_BUILD
+	if progress_id == MAGE_META_FIELD_BUILD.PROGRESS:
+		return MAGE_META_FIELD_BUILD
 	if progress_id == INFINITE_BUILD.PROGRESS:
 		return INFINITE_BUILD
 	if progress_id == STORM_BUILD.PROGRESS:
 		return STORM_BUILD
+	if progress_id == SWORDSMAN_CRESCENT_WAVE_BUILD.PROGRESS:
+		return SWORDSMAN_CRESCENT_WAVE_BUILD
 	return MAGE_BASIC_BUILD if progress_id == "mage_basic" else GUNNER_BASIC_BUILD if progress_id == "gunner_basic" else SWORDSMAN_BASIC_BUILD
 
 static func is_custom_basic(progress_id: String) -> bool:
-	return progress_id in ["swordsman_basic", "gunner_basic", "mage_basic", MAGE_SURGING_WAVE_BUILD.PROGRESS, STORM_BUILD.PROGRESS, INFINITE_BUILD.PROGRESS]
+	return progress_id in ["swordsman_basic", "gunner_basic", "mage_basic", MAGE_SURGING_WAVE_BUILD.PROGRESS, MAGE_META_FIELD_BUILD.PROGRESS, STORM_BUILD.PROGRESS, INFINITE_BUILD.PROGRESS, SWORDSMAN_CRESCENT_WAVE_BUILD.PROGRESS]

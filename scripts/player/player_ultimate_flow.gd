@@ -109,6 +109,7 @@ static func build_ultimate_cast_payload(owner) -> Dictionary:
 	var duration_multiplier: float = 1.0
 	var damage_multiplier: float = get_ultimate_level_damage_multiplier(owner)
 	var role_id: String = owner._get_active_role_id()
+	var meta_extra_energy: float = owner._get_mage_meta_field_extra_energy() if role_id == "mage" and owner.has_method("_get_mage_meta_field_extra_energy") else 0.0
 	var mage_arcane_ultimate_damage_multiplier := 1.0
 	if owner.has_method("_get_mage_arcane_charge_ultimate_damage_multiplier"):
 		mage_arcane_ultimate_damage_multiplier = float(owner._get_mage_arcane_charge_ultimate_damage_multiplier(role_id))
@@ -116,7 +117,8 @@ static func build_ultimate_cast_payload(owner) -> Dictionary:
 		return {
 			"damage_multiplier": damage_multiplier * mage_arcane_ultimate_damage_multiplier,
 			"duration_multiplier": duration_multiplier,
-			"boost_units": 0
+			"boost_units": 0,
+			"meta_field_extra_energy": meta_extra_energy
 		}
 	if owner._has_elite_relic("elite_perpetual_motion"):
 		var consumed_mana: float = owner._get_role_mana(role_id)
@@ -129,12 +131,14 @@ static func build_ultimate_cast_payload(owner) -> Dictionary:
 		return {
 			"damage_multiplier": damage_multiplier * mage_arcane_ultimate_damage_multiplier,
 			"duration_multiplier": duration_multiplier,
-			"boost_units": boost_units
+			"boost_units": boost_units,
+			"meta_field_extra_energy": meta_extra_energy
 		}
 	return {
 		"damage_multiplier": damage_multiplier * mage_arcane_ultimate_damage_multiplier,
 		"duration_multiplier": duration_multiplier,
-		"boost_units": 0
+		"boost_units": 0,
+		"meta_field_extra_energy": meta_extra_energy
 	}
 
 
@@ -152,6 +156,10 @@ static func try_use_ultimate(owner) -> void:
 
 	var role_id: String = owner._get_active_role()["id"]
 	var cast_payload: Dictionary = build_ultimate_cast_payload(owner)
+	if role_id == "mage" and owner.has_method("_get_mage_meta_field_extra_energy"):
+		var mage_extra_energy: float = float(owner._get_mage_meta_field_extra_energy())
+		if mage_extra_energy > 0.0:
+			cast_payload["damage_multiplier"] = float(cast_payload.get("damage_multiplier", 1.0)) * (1.0 + mage_extra_energy / 100.0)
 	if is_swordsman_followup:
 		if not PLAYER_SWORDSMAN_ULTIMATE_FLOW.trigger_ultimate_followup(owner, cast_payload):
 			return
@@ -173,6 +181,8 @@ static func try_use_ultimate(owner) -> void:
 		owner._set_role_ultimate_lock_remaining(role_id, ULTIMATE_ENERGY_LOCK_AFTER_CAST)
 	if not DEVELOPER_MODE.should_unlock_ultimate_freely() and not owner._has_elite_relic("elite_perpetual_motion"):
 		owner._add_role_mana(role_id, -ultimate_cost, false)
+		if role_id == "mage" and owner.has_method("_consume_mage_meta_field_extra_energy"):
+			owner._consume_mage_meta_field_extra_energy()
 	if not DEVELOPER_MODE.should_unlock_ultimate_freely():
 		owner._emit_active_mana_changed()
 	if consume_mage_transfer and owner.has_method("_clear_mage_arcane_charge_transfer"):

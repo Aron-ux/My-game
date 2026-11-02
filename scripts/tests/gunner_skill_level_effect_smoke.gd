@@ -3,6 +3,11 @@ extends SceneTree
 const PLAYER_SKILL_LEVEL_SYSTEM := preload("res://scripts/player/player_skill_level_system.gd")
 const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 const PLAYER_GUNNER_FLASH_TALENT_FLOW := preload("res://scripts/player/player_gunner_flash_talent_flow.gd")
+const PLAYER_GUNNER_MAGIC_GRENADE_FLOW := preload("res://scripts/player/player_gunner_magic_grenade_flow.gd")
+const GUNNER_MAGIC_GRENADE_ABILITY := preload("res://scripts/abilities/gunner_magic_grenade_ability.gd")
+const PLAYER_DAMAGE_RESOLVER := preload("res://scripts/player/player_damage_resolver.gd")
+const PLAYER_DAMAGE_JOB_QUEUE := preload("res://scripts/player/player_damage_job_queue.gd")
+const ENEMY_SPATIAL_GRID := preload("res://scripts/enemies/enemy_spatial_grid.gd")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
 
@@ -17,6 +22,12 @@ func _run() -> void:
 	_check_progress_lines()
 	_check_flat_bonuses()
 	_check_magic_eye_armor()
+	_check_magic_grenade_charge()
+	_check_magic_grenade_skill_talents()
+	_check_magic_grenade_launch_count()
+	_check_magic_grenade_target_spread()
+	_check_magic_assistant_trigger()
+	_check_magic_grenade_runtime_description()
 	_check_milestone_counts()
 	_check_preview_text()
 	_check_upgrade_card_text()
@@ -86,10 +97,131 @@ func _check_flat_bonuses() -> void:
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_infinite_reload_move_speed_bonus(owner), 0.01, "无限装填 level 3 should add 1% move speed")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_explosive_round_damage_ratio_bonus(owner), 0.10, "爆破弹 level 2 should add 10% damage")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_explosive_round_cone_radius_bonus(owner), 7.5, "爆破弹 level 2 should add 7.5 cone radius")
-	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_grenade_damage_ratio_bonus(owner), 0.40, "魔法榴弹 level 5 should add 40% damage")
-	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_grenade_crit_bonus(owner), 0.20, "魔法榴弹 level 5 should add 20% crit chance")
+	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_grenade_damage_ratio_bonus(owner), 1.25, "魔法榴弹 level 5 should add 125% damage")
+	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_grenade_crit_bonus(owner), 0.0, "魔法榴弹 level 5 should not add crit chance")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_eye_damage_ratio_bonus(owner), 0.06, "魔眼 level 4 should add 6% damage")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_eye_armor_shred_bonus(owner), 2.25, "魔眼 level 4 should add 2.25 armor shred")
+	owner.free()
+
+
+func _check_magic_grenade_charge() -> void:
+	var owner := _make_owner()
+	owner.level_talents["gunner_level_talent_magic_grenade_charge"] = true
+	PLAYER_GUNNER_MAGIC_GRENADE_FLOW.add_charge_energy(owner, 1.0)
+	_expect_approx(PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_charge_critical_bonus(owner), 0.0025, "one energy adds 0.25% magic grenade crit chance")
+	_expect_approx(PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_charge_critical_damage_bonus(owner, "gunner_magic_grenade:1"), 0.007, "one energy adds 0.7% magic grenade critical damage")
+	_expect_approx(PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_charge_critical_damage_bonus(owner, "gunner_basic:1"), 0.0, "charge critical damage only applies to magic grenades")
+	owner.level_talents.clear()
+	PLAYER_GUNNER_MAGIC_GRENADE_FLOW.add_charge_energy(owner, 1.0)
+	_expect_approx(PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_charge_critical_bonus(owner), 0.0025, "charge energy does not accumulate without the talent")
+	owner.free()
+
+
+func _check_magic_grenade_skill_talents() -> void:
+	var owner := _make_owner()
+	_set_level(owner, "gunner_magic_grenade", 5)
+	var offer: Dictionary = PLAYER_SKILL_LEVEL_SYSTEM.build_talent_offer_for(owner, "gunner", "gunner_magic_grenade")
+	for slot in [1, 2]:
+		var option: Dictionary = offer["options"][int(slot) - 1]
+		_expect(bool(option.get("talent_implemented", false)), "magic grenade slot %d should have a real talent definition" % int(slot))
+		_expect(not str(option).contains("效果尚未实装"), "magic grenade slot %d should not show placeholder copy" % int(slot))
+		_expect(str(option.get("card_highlight", "")) in ["魔法追弹", "幸运之弹"], "magic grenade slot %d should show its authored talent name" % int(slot))
+	var selected_result: Dictionary = PLAYER_SKILL_LEVEL_SYSTEM.apply_option_with_result(owner, str(offer["options"][0]["id"]), offer)
+	_expect(not selected_result.is_empty(), "magic grenade talent card should be selectable")
+	_expect_equal(PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_grenade_count(owner), 6, "Magic Chase should add three grenades")
+	_expect_approx(PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_damage_ratio(owner), 2.25, "Magic Chase should reduce base damage by 100 points while retaining level damage")
+	PLAYER_SKILL_LEVEL_SYSTEM._record_talent_slot(owner, "gunner", "gunner_magic_grenade", 2, true)
+	_expect_approx(PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_critical_chance_bonus(owner, "gunner_magic_grenade:1"), 0.40, "Lucky Round should raise magic grenade crit chance to 40%")
+	_expect_approx(PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_blast_radius(owner), 125.0, "Lucky Round should raise blast radius to 125")
+	owner.free()
+
+
+func _check_magic_grenade_launch_count() -> void:
+	var scene := Node2D.new()
+	root.add_child(scene)
+	root.get_tree().current_scene = scene
+	var owner := _make_owner()
+	scene.add_child(owner)
+	owner.level_talents["gunner_level_talent_magic_grenade_1"] = true
+	PLAYER_BLESSING_SKILL_STATE.force_unlock_skill(owner, "magic_grenade", 1)
+	for index in range(6):
+		var enemy := GrenadeTargetStub.new()
+		enemy.global_position = Vector2(280.0 + float(index) * 28.0, -20.0 + float(index % 2) * 40.0)
+		enemy.add_to_group("enemies")
+		scene.add_child(enemy)
+	ENEMY_SPATIAL_GRID.cached_frame = -1
+	var ability = GUNNER_MAGIC_GRENADE_ABILITY.new()
+	_expect(ability._launch(owner, false), "Magic Chase cast should launch")
+	_expect_equal(ability.active_grenades.size(), 6, "Magic Chase should create six grenades with enemies present")
+	var distinct_targets: Array[Vector2] = []
+	for entry in ability.active_grenades:
+		var grenade: Node2D = entry.get("node")
+		_expect(grenade != null and is_instance_valid(grenade), "each Magic Chase projectile should have a visual node")
+		distinct_targets.append(entry.get("target", Vector2.ZERO))
+	for first_index in range(distinct_targets.size()):
+		for second_index in range(first_index + 1, distinct_targets.size()):
+			_expect(
+				distinct_targets[first_index].distance_to(distinct_targets[second_index]) > 1.0,
+				"Magic Chase enemy targets should not fully overlap"
+			)
+	ability._clear_grenades()
+	owner.free()
+	scene.free()
+	root.get_tree().current_scene = null
+	ENEMY_SPATIAL_GRID.cached_frame = -1
+
+
+func _check_magic_grenade_target_spread() -> void:
+	var same_target := Vector2(240.0, 80.0)
+	var targets := PLAYER_GUNNER_MAGIC_GRENADE_FLOW._spread_repeated_targets(
+		[same_target, same_target, same_target, same_target, same_target, same_target],
+		Vector2.ZERO
+	)
+	_expect_equal(targets.size(), 6, "Magic Chase should keep all six grenade targets")
+	for first_index in range(targets.size()):
+		for second_index in range(first_index + 1, targets.size()):
+			_expect(
+				(targets[first_index] as Vector2).distance_to(targets[second_index] as Vector2) > 1.0,
+				"overlapping grenade targets should be spread apart"
+			)
+
+
+func _check_magic_assistant_trigger() -> void:
+	var owner := _make_owner()
+	owner.level_talents[PLAYER_GUNNER_MAGIC_GRENADE_FLOW.TALENT_MAGIC_GRENADE_ASSISTANT] = true
+	var scene := Node2D.new()
+	root.add_child(scene)
+	root.get_tree().current_scene = scene
+	scene.add_child(owner)
+	var enemy := GrenadeTargetStub.new()
+	scene.add_child(enemy)
+	PLAYER_DAMAGE_RESOLVER.deal_damage_to_enemy(owner, enemy, 10.0, "gunner_basic:1")
+	_expect_equal(owner.free_grenade_trigger_count, 1, "Magic Assistant should trigger from an actual gunner basic critical")
+	PLAYER_DAMAGE_RESOLVER.deal_damage_to_enemy(owner, enemy, 10.0, "mage_basic:1")
+	_expect_equal(owner.free_grenade_trigger_count, 1, "Magic Assistant should ignore other roles")
+	var queue = PLAYER_DAMAGE_JOB_QUEUE.new()
+	queue.configure(owner)
+	queue._deal_batched_damage_to_enemy(enemy, 10.0, "gunner_basic:1", 0.0, 2.0, 1.0, 0.0, null, 0.0, false)
+	_expect_equal(owner.free_grenade_trigger_count, 2, "Magic Assistant should trigger from queued gunner basic critical damage")
+	queue._deal_batched_damage_to_enemy(enemy, 0.0, "gunner_basic:1", 0.0, 2.0, 1.0, 0.0, null, 0.0, false)
+	_expect_equal(owner.free_grenade_trigger_count, 2, "Magic Assistant should not trigger from zero-damage queued hits")
+	owner.free()
+	scene.free()
+	root.get_tree().current_scene = null
+
+
+func _check_magic_grenade_runtime_description() -> void:
+	var owner := _make_owner()
+	owner.level_talents["gunner_level_talent_magic_grenade_charge"] = true
+	owner.set_meta("gunner_magic_grenade_charge_energy", 10.0)
+	var ability = GUNNER_MAGIC_GRENADE_ABILITY.new()
+	var description := str(ability.get_cooldown_slot(owner).get("description", ""))
+	_expect(description.contains("3 枚"), "magic grenade HUD description should report the current grenade count")
+	var current_damage_percent := "%.0f%%" % (PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_damage_ratio(owner) * 100.0)
+	_expect(description.contains(current_damage_percent), "magic grenade HUD description should report the current damage ratio")
+	_expect(description.contains("22.5%"), "magic grenade HUD description should include charge crit chance")
+	_expect(description.contains("10.0") and description.contains("7.00% 暴击伤害"), "magic grenade HUD description should show current charge energy and crit damage")
+	_expect(not description.contains("LV4 可选择"), "magic grenade HUD description should not show stale fixed-level text")
 	owner.free()
 
 
@@ -121,7 +253,7 @@ func _check_milestone_counts() -> void:
 	_set_level(owner, "gunner_explosive_round", 6)
 	_expect_equal(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_explosive_round_extra_shot_count(owner), 2, "爆破弹 level 6 should add two extra shots")
 	_set_level(owner, "gunner_magic_grenade", 8)
-	_expect_equal(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_grenade_extra_count(owner), 4, "魔法榴弹 level 8 should add four extra grenades")
+	_expect_equal(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_grenade_extra_count(owner), 1, "魔法榴弹 level 8 should add one extra grenade")
 	owner.free()
 
 
@@ -209,7 +341,36 @@ class GunnerLevelOwnerStub:
 	var role_special_states: Dictionary = {}
 	var blessing_skill_state: Dictionary = {}
 	var current_blessing_offer: Dictionary = {}
+	var level_talents: Dictionary = {}
+	var free_grenade_trigger_count: int = 0
 	var global_position := Vector2.ZERO
+	var facing_direction := Vector2.RIGHT
+
+	func _has_level_talent(talent_id: String) -> bool:
+		return bool(level_talents.get(talent_id, false))
+
+	func _get_live_mouse_aim_direction(fallback_direction: Vector2) -> Vector2:
+		return fallback_direction
+
+	func _roll_critical_hit(_role_id: String, _bonus: float = 0.0) -> bool:
+		return true
+
+	func _get_critical_damage_multiplier(_role_id: String) -> float:
+		return 2.0
 
 	func _spawn_combat_tag(_position: Vector2, _text: String, _color: Color) -> void:
 		pass
+
+	func _try_trigger_gunner_magic_grenade_free() -> void:
+		free_grenade_trigger_count += 1
+
+
+class GrenadeTargetStub:
+	extends Node2D
+
+	var current_health: float = 1000.0
+	var max_health: float = 1000.0
+
+	func take_damage(amount: float, _is_critical: bool = false) -> bool:
+		current_health = maxf(0.0, current_health - amount)
+		return current_health <= 0.0

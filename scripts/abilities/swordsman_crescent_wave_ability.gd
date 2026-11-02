@@ -4,7 +4,9 @@ const CRESCENT_SCENE := preload("res://effects/sword/fan/fan.tscn")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_COMBAT_RESULT_FLOW := preload("res://scripts/player/player_combat_result_flow.gd")
 const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")
+const SWORDSMAN_ROLE := preload("res://scripts/player/roles/swordsman_role.gd")
 const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
+const BUILD := preload("res://scripts/player/player_swordsman_crescent_wave_build.gd")
 
 const SKILL_ID := "crescent_wave"
 const COOLDOWN := 6.0
@@ -20,7 +22,7 @@ const TIER_TWO_SPEED_MULTIPLIER := 1.3
 const TIER_THREE_WIDTH_MULTIPLIER := 1.4
 const TIER_THREE_DAMAGE_MULTIPLIER := 1.65
 const TIER_THREE_SPEED_MULTIPLIER := 1.6
-const BASE_WAVE_SPEED := 650.0
+const BASE_WAVE_SPEED := 725.0
 const FULL_MOON_WAVE_SPEED := 500.0
 const COMBO_INTERVAL := 0.16
 const VISUAL_AND_HIT_SCALE := 0.6
@@ -49,6 +51,7 @@ var active_crescent_projectiles: Array[Dictionary] = []
 var cast_talent_ids: Array[String] = []
 var cast_talent_snapshot_valid: bool = false
 var pending_saved_projectiles: Array[Dictionary] = []
+var red_moon_cast_count: int = 0
 
 
 func update(delta: float) -> void:
@@ -75,26 +78,66 @@ func try_trigger(owner) -> bool:
 	cast_talent_ids = _capture_talents(owner)
 	cast_talent_snapshot_valid = true
 	cooldown_remaining = _get_cooldown(owner)
+	_cast_wave_group(owner, true)
+	return true
+
+
+func trigger_echo(owner) -> bool:
+	if owner == null or not is_instance_valid(owner) or bool(owner.get("is_dead")):
+		return false
+	if str(owner._get_active_role().get("id", "")) != "swordsman":
+		return false
+	cast_talent_ids = _capture_talents(owner)
+	cast_talent_snapshot_valid = true
+	_cast_wave_group(owner, false)
+	return true
+
+
+func try_trigger_echo(owner, probability_multiplier: float = 1.0) -> bool:
+	var proc_chance: float = minf(1.0, 0.30 * maxf(0.0, probability_multiplier))
+	if not BUILD.has_choice(owner, "echo") or randf() > proc_chance:
+		return false
+	return trigger_echo(owner)
+
+
+func _cast_wave_group(owner, apply_cooldown: bool) -> void:
+	if apply_cooldown:
+		cooldown_remaining = _get_cooldown(owner)
 	var base_direction: Vector2 = owner._get_live_mouse_aim_direction(owner.facing_direction)
 	if base_direction.length_squared() <= 0.001:
 		base_direction = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
 	owner.facing_direction = base_direction.normalized()
 	owner._spawn_combat_tag(owner.global_position + Vector2(0.0, -68.0), "\u6708\u7259\u5251\u6c14", Color(0.54, 0.92, 1.0, 1.0))
 	var directions: Array[Vector2] = _get_cast_directions(owner, owner.facing_direction)
-	var level_extra_wave_count: int = PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_crescent_wave_extra_wave_count(owner)
+	var level_extra_wave_count: int = BUILD.sword_count_bonus(owner)
+	var red_moon_triggered: bool = false
+	if BUILD.has_choice(owner, "whirlwind"):
+		var roll: float = randf()
+		if roll < 0.30:
+			level_extra_wave_count += 1
+		elif roll < 0.40:
+			level_extra_wave_count += 3
+		elif roll < 0.45:
+			level_extra_wave_count += 5
 	if level_extra_wave_count > 0:
 		for _index in range(level_extra_wave_count):
 			directions.append(owner.facing_direction.normalized())
+	if BUILD.has_choice(owner, "red_moon"):
+		red_moon_cast_count += 1
+		if red_moon_cast_count >= 3:
+			red_moon_cast_count = 0
+			red_moon_triggered = true
 	var combo_scales: Array[float] = _get_combo_scales(owner)
-	_cast_direction_group(owner, directions, 1.0, level_extra_wave_count)
-	_schedule_combos(owner, [owner.facing_direction], combo_scales)
+	_cast_direction_group(owner, directions, 1.0, level_extra_wave_count, red_moon_triggered)
+	if red_moon_triggered:
+		_cast_once(owner, owner.facing_direction.normalized(), 1.0, false, 200.0, true)
+	_schedule_combos(owner, [owner.facing_direction], combo_scales, red_moon_triggered)
 	if _has_talent(owner, "swordsman_crescent_afterimage"):
 		var afterimage_direction: Vector2 = owner.facing_direction
 		owner._schedule_repeating_sequence(0.25, 1, func(_index: int) -> void:
 			if owner != null and is_instance_valid(owner) and not bool(owner.get("is_dead")):
 				_cast_afterimage(owner, afterimage_direction)
 		, 0.25)
-	return true
 
 
 func get_cooldown_slot(owner = null) -> Dictionary:
@@ -114,6 +157,7 @@ func get_save_data() -> Dictionary:
 		projectiles.append(_serialize_projectile(data))
 	return {
 		"cooldown_remaining": cooldown_remaining,
+		"red_moon_cast_count": red_moon_cast_count,
 		"talent_ids": cast_talent_ids.duplicate(),
 		"talent_snapshot_valid": cast_talent_snapshot_valid,
 		"projectiles": projectiles
@@ -122,6 +166,7 @@ func get_save_data() -> Dictionary:
 
 func apply_save_data(data: Dictionary) -> void:
 	cooldown_remaining = clamp(float(data.get("cooldown_remaining", 0.0)), 0.0, COOLDOWN)
+	red_moon_cast_count = clampi(int(data.get("red_moon_cast_count", 0)), 0, 2)
 	for projectile_data in active_crescent_projectiles:
 		_free_projectile(projectile_data.get("projectile", null) as Node2D)
 	active_crescent_projectiles.clear()
@@ -137,9 +182,9 @@ func apply_save_data(data: Dictionary) -> void:
 
 func restore_effect_if_active(owner) -> void:
 	for saved_data in pending_saved_projectiles:
-		var origin := _decode_vector2(saved_data.get("origin", []), owner.global_position)
-		var direction := _decode_vector2(saved_data.get("direction", []), Vector2.RIGHT).normalized()
-		var talents := _normalize_talent_ids(saved_data.get("talent_ids", cast_talent_ids))
+		var origin: Vector2 = _decode_vector2(saved_data.get("origin", []), owner.global_position)
+		var direction: Vector2 = _decode_vector2(saved_data.get("direction", []), Vector2.RIGHT).normalized()
+		var talents: Array[String] = _normalize_talent_ids(saved_data.get("talent_ids", cast_talent_ids))
 		var previous_count := active_crescent_projectiles.size()
 		_spawn_crescent_projectile(
 			owner,
@@ -166,38 +211,38 @@ func restore_effect_if_active(owner) -> void:
 	_update_crescent_projectiles(0.0)
 
 
-func _schedule_combos(owner, directions: Array[Vector2], combo_scales: Array[float]) -> void:
+func _schedule_combos(owner, directions: Array[Vector2], combo_scales: Array[float], red_moon: bool = false) -> void:
 	if combo_scales.is_empty():
 		return
 	owner._schedule_repeating_sequence(COMBO_INTERVAL, combo_scales.size(), func(index: int) -> void:
 		if is_instance_valid(owner) and index >= 0 and index < combo_scales.size():
-			_cast_direction_group(owner, directions, float(combo_scales[index]))
+			_cast_direction_group(owner, directions, float(combo_scales[index]), 0, red_moon)
 	, COMBO_INTERVAL)
 
 
-func _cast_direction_group(owner, directions: Array[Vector2], damage_scale: float, level_extra_wave_count: int = 0) -> void:
+func _cast_direction_group(owner, directions: Array[Vector2], damage_scale: float, level_extra_wave_count: int = 0, red_moon: bool = false) -> void:
 	var extra_start: int = maxi(0, directions.size() - maxi(0, level_extra_wave_count))
 	var extra_scheduled: int = 0
 	for index in range(directions.size()):
 		if level_extra_wave_count > 0 and index >= extra_start:
 			# 技能等级追加的剑气：同方向、体积不变、伤害为第一道的 75%，不附带斩击
 			# 依次发射而不是同帧重叠，否则视觉上完全看不出多了一道
-			_schedule_level_extra_wave(owner, directions[index], damage_scale, extra_scheduled)
+			_schedule_level_extra_wave(owner, directions[index], damage_scale, extra_scheduled, red_moon)
 			extra_scheduled += 1
 			continue
 		var twin_moon: bool = _has_talent(owner, "swordsman_crescent_twin_moons") and index == 1
 		# 月牙剑气现在只释放飞行剑气，不再在其前方释放起手斩击。
-		_cast_once(owner, directions[index], damage_scale * (0.55 if twin_moon else 1.0), false)
+		_cast_once(owner, directions[index], damage_scale * (0.55 if twin_moon else 1.0), false, 200.0 if red_moon else 0.0, red_moon)
 
 
-func _schedule_level_extra_wave(owner, direction: Vector2, damage_scale: float, extra_index: int) -> void:
+func _schedule_level_extra_wave(owner, direction: Vector2, damage_scale: float, extra_index: int, red_moon: bool = false) -> void:
 	var interval: float = PLAYER_SKILL_LEVEL_EFFECT_FLOW.CRESCENT_WAVE_EXTRA_WAVE_INTERVAL
 	var wave_scale: float = damage_scale * PLAYER_SKILL_LEVEL_EFFECT_FLOW.CRESCENT_WAVE_EXTRA_WAVE_DAMAGE_SCALE
 	var cast_direction := direction.normalized()
 	var callback := func(_index: int) -> void:
 		if owner == null or not is_instance_valid(owner) or bool(owner.get("is_dead")):
 			return
-		_cast_once(owner, cast_direction, wave_scale, false)
+		_cast_once(owner, cast_direction, wave_scale, false, 200.0 if red_moon else 0.0, red_moon)
 	if owner != null and owner.has_method("_schedule_repeating_sequence"):
 		var delay: float = interval * float(maxi(1, extra_index + 1))
 		owner._schedule_repeating_sequence(delay, 1, callback, delay)
@@ -205,7 +250,7 @@ func _schedule_level_extra_wave(owner, direction: Vector2, damage_scale: float, 
 	callback.call(0)
 
 
-func _cast_once(owner, direction: Vector2, damage_scale: float, include_slash: bool = true) -> void:
+func _cast_once(owner, direction: Vector2, damage_scale: float, include_slash: bool = true, projectile_speed_bonus: float = 0.0, is_red_moon: bool = false) -> void:
 	var width_multiplier: float = _get_width_multiplier(owner)
 	var visual_hit_multiplier: float = width_multiplier * VISUAL_AND_HIT_SCALE
 	var slash_width: float = SLASH_WIDTH * visual_hit_multiplier
@@ -223,10 +268,7 @@ func _cast_once(owner, direction: Vector2, damage_scale: float, include_slash: b
 		PLAYER_COMBAT_RESULT_FLOW.consume_swordsman_blood_surge(owner)
 	var wave_origin: Vector2 = owner.global_position + direction * max(24.0, slash_length * 0.72)
 	var wave_damage: float = base_damage * (WAVE_DAMAGE_RATIO + damage_ratio_bonus) * damage_scale
-	_spawn_crescent_projectile(owner, wave_origin, direction, wave_length, wave_width, visual_hit_multiplier, wave_damage)
-	if include_slash:
-		_schedule_level_slash_rehit(owner, direction, damage_scale * 0.60)
-	_schedule_level_second_wave(owner, direction, wave_length, wave_width, visual_hit_multiplier, wave_damage * 0.60)
+	_spawn_crescent_projectile(owner, wave_origin, direction, wave_length, wave_width, visual_hit_multiplier, wave_damage, true, true, [], projectile_speed_bonus, is_red_moon)
 	if slash_hits > 0 and not _uses_batched_damage(owner):
 		owner._register_attack_result("swordsman", slash_hits, false)
 
@@ -293,7 +335,7 @@ func _cast_afterimage(owner, direction: Vector2) -> void:
 	_spawn_crescent_projectile(owner, origin, direction, wave_length, wave_width, visual_hit_multiplier, damage_amount, false, false)
 
 
-func _spawn_crescent_projectile(owner, origin: Vector2, direction: Vector2, length: float, width: float, visual_scale: float, damage_amount: float, allow_return: bool = true, allow_eclipse: bool = true, talent_ids: Array[String] = []) -> void:
+func _spawn_crescent_projectile(owner, origin: Vector2, direction: Vector2, length: float, width: float, visual_scale: float, damage_amount: float, allow_return: bool = true, allow_eclipse: bool = true, talent_ids: Array[String] = [], projectile_speed_bonus: float = 0.0, is_red_moon: bool = false) -> void:
 	var current_scene: Node = owner.get_tree().current_scene
 	if current_scene == null:
 		return
@@ -306,14 +348,14 @@ func _spawn_crescent_projectile(owner, origin: Vector2, direction: Vector2, leng
 	projectile.global_position = origin
 	projectile.rotation = direction.angle() + PI
 	projectile.z_index = 14
-	projectile.modulate = Color.WHITE
+	projectile.modulate = Color(1.0, 0.22, 0.22, 1.0) if is_red_moon else Color.WHITE
 	projectile.scale = Vector2.ONE
 	projectile.set_meta("crescent_projectile_released", false)
 	projectile.set_meta("crescent_projectile_token", spawn_token)
 	var snapshot_talents := talent_ids if not talent_ids.is_empty() else cast_talent_ids
 	var visual_width_multiplier: float = FULL_MOON_WAVE_WIDTH / WAVE_WIDTH if _has_cast_talent(owner, snapshot_talents, "swordsman_crescent_full_moon") else 1.0
-	_configure_crescent_visual(projectile, visual_scale, visual_width_multiplier)
-	var duration: float = length / max(1.0, _get_wave_speed(owner))
+	_configure_crescent_visual(projectile, visual_scale, visual_width_multiplier, Color(1.0, 0.18, 0.18, 1.0) if is_red_moon else Color.WHITE)
+	var duration: float = length / max(1.0, _get_wave_speed(owner) + projectile_speed_bonus)
 	active_crescent_projectiles.append({
 		"owner_ref": weakref(owner),
 		"projectile": projectile,
@@ -372,6 +414,7 @@ func _update_crescent_projectiles(delta: float) -> void:
 			var slow_multiplier: float = 0.80 if _has_cast_talent(owner, talent_ids, "swordsman_crescent_frost_trail") else 1.0
 			var slow_duration: float = 0.6 if slow_multiplier < 1.0 else 0.0
 			var hit_count: int = owner._damage_enemies_in_oriented_rect_unique(current_position, direction, sample_length, float(data.get("width", 1.0)), float(data.get("damage_amount", 0.0)), 0.0, slow_multiplier, slow_duration, hit_registry, "swordsman", "swordsman_crescent_wave")
+			_try_trigger_blood_moon(owner, hit_count)
 			if hit_count > 0 and PLAYER_COMBAT_RESULT_FLOW.get_swordsman_blood_surge_multiplier(owner) > 1.0:
 				PLAYER_COMBAT_RESULT_FLOW.consume_swordsman_blood_surge(owner)
 			data["hit_registry"] = hit_registry
@@ -404,14 +447,14 @@ func _update_crescent_projectiles(delta: float) -> void:
 		active_crescent_projectiles[index] = data
 
 
-func _configure_crescent_visual(projectile: Node2D, visual_scale: float, width_multiplier: float = 1.0) -> void:
+func _configure_crescent_visual(projectile: Node2D, visual_scale: float, width_multiplier: float = 1.0, tint: Color = Color.WHITE) -> void:
 	var sprite: AnimatedSprite2D = projectile.get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
 	if sprite == null:
 		return
 	sprite.centered = true
 	sprite.position = Vector2.ZERO
 	sprite.offset = FAN_SCENE_SIZE * 0.5 - (FAN_SCENE_VISIBLE_BOUNDS.position + FAN_SCENE_VISIBLE_BOUNDS.size * 0.5)
-	sprite.modulate = Color.WHITE
+	sprite.modulate = tint
 	var target_visible_size: Vector2 = FAN_WAVE_BASE_VISIBLE_SIZE * visual_scale
 	target_visible_size.y *= width_multiplier
 	sprite.scale = Vector2(
@@ -540,7 +583,7 @@ func _get_cooldown(owner) -> float:
 		cooldown_multiplier *= float(owner._get_mage_arcane_charge_skill_cooldown_multiplier("swordsman"))
 	if owner != null and is_instance_valid(owner) and owner.has_method("_get_kebiru_magic_cooldown_multiplier"):
 		cooldown_multiplier *= float(owner._get_kebiru_magic_cooldown_multiplier(SKILL_ID))
-	return COOLDOWN * cooldown_multiplier
+	return max(0.0, (COOLDOWN + BUILD.cooldown_bonus(owner)) * cooldown_multiplier)
 
 
 func _get_width_multiplier(owner) -> float:
@@ -554,7 +597,8 @@ func _get_width_multiplier(owner) -> float:
 
 
 func _get_range_multiplier(owner) -> float:
-	return _get_external_range_multiplier(owner)
+	var range_multiplier := _get_external_range_multiplier(owner)
+	return range_multiplier + BUILD.range_bonus(owner) / max(1.0, WAVE_LENGTH)
 
 
 func _get_external_range_multiplier(owner) -> float:
@@ -579,11 +623,11 @@ func _get_wave_speed(owner) -> float:
 		var current_scene: Node = owner.get_tree().current_scene
 		if current_scene != null and current_scene.has_method("_get_difficulty_projectile_speed_bonus"):
 			difficulty_speed_bonus = max(0.0, float(current_scene._get_difficulty_projectile_speed_bonus()))
-	return speed + PLAYER_BUILD_SYSTEM.get_crescent_wave_speed_bonus(owner) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_crescent_wave_speed_bonus(owner) + difficulty_speed_bonus
+	return speed + BUILD.speed_bonus(owner) + PLAYER_BUILD_SYSTEM.get_crescent_wave_speed_bonus(owner) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_crescent_wave_speed_bonus(owner) + difficulty_speed_bonus
 
 
 func _get_damage_ratio_bonus(owner) -> float:
-	return PLAYER_BUILD_SYSTEM.get_crescent_wave_damage_ratio_bonus(owner) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_crescent_wave_damage_ratio_bonus(owner)
+	return BUILD.damage_ratio(owner) - WAVE_DAMAGE_RATIO + PLAYER_BUILD_SYSTEM.get_crescent_wave_damage_ratio_bonus(owner)
 
 
 func _has_talent(owner, talent_id: String) -> bool:
@@ -598,6 +642,17 @@ func _has_level_talent(owner, talent_id: String) -> bool:
 
 func _has_cast_talent(owner, talent_ids: Array, talent_id: String) -> bool:
 	return talent_ids.has(talent_id) if cast_talent_snapshot_valid or not talent_ids.is_empty() else _has_talent(owner, talent_id)
+
+
+func _try_trigger_blood_moon(owner, hit_count: int) -> void:
+	if hit_count <= 0 or not BUILD.has_choice(owner, "blood_moon"):
+		return
+	if owner == null or not owner.has_method("_get_swordsman_trait_heal_proc_chance"):
+		return
+	var proc_chance: float = clamp(float(owner._get_swordsman_trait_heal_proc_chance()) * 0.5, 0.0, 1.0)
+	if randf() > proc_chance:
+		return
+	SWORDSMAN_ROLE._try_start_bloodthirst(owner, 3.0, 1.0)
 
 
 func _capture_talents(owner) -> Array[String]:

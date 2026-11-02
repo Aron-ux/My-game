@@ -220,30 +220,49 @@ static func show_damage_number(enemy, damage_amount: float, killed: bool, is_cri
 		return
 
 	var label := _acquire_damage_label(current_scene)
-	label.text = str(int(round(damage_amount)))
-	var label_color: Color = Color(1.0, 1.0, 1.0, 0.95)
-	var label_font_size: int = 15
-	if killed:
-		label_color = Color(1.0, 0.95, 0.75, 1.0)
-		label_font_size = 18
+	label.text = str(max(1, int(round(damage_amount))))
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var label_color: Color = Color(1.0, 1.0, 1.0, 0.98)
+	var label_font_size: int = 18
+	var outline_color := Color(0.04, 0.02, 0.01, 0.92)
+	var outline_size := 3
 	if is_critical:
-		label_color = Color(1.0, 0.58, 0.18, 1.0)
+		label_color = Color(1.0, 0.36, 0.12, 1.0)
+		label_font_size = 34
+		outline_color = Color(0.18, 0.015, 0.005, 0.96)
+		outline_size = 6
 	label.modulate = label_color
-	label.scale = Vector2.ONE
+	label.size = Vector2(maxf(72.0, float(label.text.length() * label_font_size) * 0.72), 30.0)
+	label.pivot_offset = label.size * 0.5
+	label.scale = Vector2(0.78, 0.78) if is_critical else Vector2(0.92, 0.92)
 	label.add_theme_font_size_override("font_size", label_font_size)
-	label.add_theme_constant_override("outline_size", 4 if is_critical else 0)
-	label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 1.0) if is_critical else Color(0.0, 0.0, 0.0, 0.0))
+	label.add_theme_constant_override("outline_size", outline_size)
+	label.add_theme_color_override("font_outline_color", outline_color)
+	label.add_theme_constant_override("shadow_offset_x", 1)
+	label.add_theme_constant_override("shadow_offset_y", 2)
+	label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.72))
 	label.z_index = 20
-	label.global_position = enemy.global_position + Vector2(-10.0, -28.0)
+	label.global_position = enemy.global_position + Vector2(-36.0, -42.0)
 
 	var start_position: Vector2 = label.global_position
+	var animation_duration: float = 1.02 if is_critical else 0.72
+	var start_scale := Vector2(0.52, 0.52) if is_critical else Vector2(0.78, 0.78)
+	var peak_scale := Vector2(1.58, 1.58) if is_critical else Vector2(1.08, 1.08)
+	var settle_scale := Vector2(1.18, 1.18) if is_critical else Vector2.ONE
 	active_damage_labels.append({
 		"node": label,
 		"elapsed": 0.0,
-		"duration": 0.38,
+		"duration": animation_duration,
 		"start_position": start_position,
-		"target_position": start_position + Vector2(randf_range(-10.0, 10.0), -28.0),
-		"start_alpha": label.modulate.a
+		"pop_position": start_position + Vector2(randf_range(-4.0, 4.0), -10.0),
+		"target_position": start_position + Vector2(randf_range(-18.0, 18.0), -62.0 if is_critical else -52.0),
+		"start_alpha": label.modulate.a,
+		"start_scale": start_scale,
+		"peak_scale": peak_scale,
+		"settle_scale": settle_scale,
+		"pop_duration": 0.07 if is_critical else 0.06,
+		"hold_duration": 0.34 if is_critical else 0.20
 	})
 
 static func _consume_damage_number_budget() -> bool:
@@ -371,14 +390,43 @@ static func _update_active_damage_labels(delta: float) -> void:
 		var elapsed: float = float(data.get("elapsed", 0.0)) + delta
 		var duration: float = max(0.001, float(data.get("duration", 0.38)))
 		var progress: float = clamp(elapsed / duration, 0.0, 1.0)
-		label.global_position = (data.get("start_position", label.global_position) as Vector2).lerp(data.get("target_position", label.global_position) as Vector2, progress)
-		label.modulate.a = float(data.get("start_alpha", 1.0)) * (1.0 - progress)
+		var pop_duration: float = max(0.001, float(data.get("pop_duration", 0.13)))
+		var hold_duration: float = max(0.0, float(data.get("hold_duration", 0.20)))
+		var fade_duration: float = max(0.12, duration - pop_duration - hold_duration)
+		var pop_position: Vector2 = data.get("pop_position", label.global_position)
+		var target_position: Vector2 = data.get("target_position", label.global_position)
+		var start_scale: Vector2 = data.get("start_scale", Vector2.ONE)
+		var peak_scale: Vector2 = data.get("peak_scale", Vector2.ONE)
+		var settle_scale: Vector2 = data.get("settle_scale", Vector2.ONE)
+		if elapsed < pop_duration:
+			var pop_progress: float = _ease_out_back(clamp(elapsed / pop_duration, 0.0, 1.0))
+			label.global_position = (data.get("start_position", label.global_position) as Vector2).lerp(pop_position, pop_progress)
+			label.scale = start_scale.lerp(peak_scale, pop_progress)
+		elif elapsed < pop_duration + hold_duration:
+			label.global_position = pop_position
+			label.scale = peak_scale.lerp(settle_scale, clamp((elapsed - pop_duration) / 0.08, 0.0, 1.0))
+		else:
+			var fade_progress: float = clamp((elapsed - pop_duration - hold_duration) / fade_duration, 0.0, 1.0)
+			var eased_fade: float = fade_progress * fade_progress
+			label.global_position = pop_position.lerp(target_position, _ease_out_cubic(fade_progress))
+			label.scale = settle_scale.lerp(Vector2(0.94, 0.94), fade_progress)
+			label.modulate.a = float(data.get("start_alpha", 1.0)) * (1.0 - eased_fade)
 		if elapsed >= duration:
 			active_damage_labels.remove_at(index)
 			_release_damage_label(label)
 			continue
 		data["elapsed"] = elapsed
 		active_damage_labels[index] = data
+
+static func _ease_out_cubic(value: float) -> float:
+	var t: float = clamp(value, 0.0, 1.0)
+	return 1.0 - pow(1.0 - t, 3.0)
+
+static func _ease_out_back(value: float) -> float:
+	var t: float = clamp(value, 0.0, 1.0)
+	var c1: float = 1.70158
+	var c3: float = c1 + 1.0
+	return 1.0 + c3 * pow(t - 1.0, 3.0) + c1 * pow(t - 1.0, 2.0)
 
 static func _update_active_death_bursts(delta: float) -> void:
 	for index in range(active_death_bursts.size() - 1, -1, -1):

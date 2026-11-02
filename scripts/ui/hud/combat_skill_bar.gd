@@ -80,6 +80,7 @@ var ultimate_required_energy: float = 100.0
 var ultimate_display: Dictionary = {}
 var experience_bar: ProgressBar
 var experience_label: Label
+var upgrade_points_label: Label
 var skill_point_count: int = 0
 var hover_detail: Control
 var hovered_skill_view: Control
@@ -148,6 +149,7 @@ func _clear_layout_widgets() -> void:
 	ultimate_key_label = null
 	experience_bar = null
 	experience_label = null
+	upgrade_points_label = null
 	action_key_labels_ready = false
 
 func _apply_hud_layout_anchor() -> void:
@@ -183,20 +185,23 @@ func update_experience(current_experience: int, required_experience: int) -> voi
 
 func update_skill_points(points: int) -> void:
 	skill_point_count = maxi(0, points)
+	if upgrade_points_label != null:
+		upgrade_points_label.text = "升级！+%d" % skill_point_count
+		upgrade_points_label.visible = skill_point_count > 0
 	_refresh_skill_point_buttons()
 
 
 func _create_slot_upgrade_button(slot_icon: Control) -> Button:
 	var button := Button.new()
 	button.text = "+"
-	button.custom_minimum_size = Vector2(26.0, 22.0)
-	button.size = Vector2(26.0, 22.0)
+	button.custom_minimum_size = Vector2(40.0, 26.0)
+	button.size = Vector2(40.0, 26.0)
 	button.anchor_left = 0.5
 	button.anchor_right = 0.5
-	button.offset_left = -13.0
-	button.offset_right = 13.0
-	button.offset_top = -26.0
-	button.offset_bottom = -4.0
+	button.offset_left = -20.0
+	button.offset_right = 20.0
+	button.offset_top = -34.0
+	button.offset_bottom = -8.0
 	button.focus_mode = Control.FOCUS_NONE
 	button.z_index = 5
 	button.add_theme_font_size_override("font_size", 22)
@@ -214,6 +219,11 @@ func _create_slot_upgrade_button(slot_icon: Control) -> Button:
 	button.pressed.connect(_on_skill_slot_upgrade_pressed.bind(button))
 	button.mouse_entered.connect(_cancel_hover_detail.bind(true))
 	slot_icon.add_child(button)
+	var pulse_tween := button.create_tween().set_loops()
+	pulse_tween.tween_property(button, "modulate", Color(1.0, 1.0, 1.0, 0.68), 0.65)
+	pulse_tween.tween_property(button, "modulate", Color.WHITE, 0.65)
+	pulse_tween.pause()
+	button.set_meta("upgrade_pulse_tween", pulse_tween)
 	return button
 
 
@@ -234,6 +244,13 @@ func _set_slot_upgrade_state(slot_nodes: Dictionary, slot_data: Dictionary, role
 		slot_view.set_skill_point_highlighted(skill_point_count > 0 and str(slot_nodes.get("role_id", "")) != "")
 	button.visible = can_show
 	button.disabled = not can_show
+	var pulse_tween: Tween = button.get_meta("upgrade_pulse_tween", null) as Tween
+	if pulse_tween != null:
+		if can_show:
+			pulse_tween.play()
+		else:
+			pulse_tween.pause()
+			button.modulate = Color.WHITE
 	button.tooltip_text = "消耗 1 个技能点，升级%s" % str(slot_nodes.get("title", "技能")) if skill_id != "" else "消耗 1 个技能点，选择一个尚未拥有的技能"
 
 
@@ -318,6 +335,10 @@ func update_ultimate_energy(current_energy: float, required_energy: float, displ
 		if force_ready or ultimate_current_energy >= ultimate_required_energy or energy_ratio >= 1.0 - ENERGY_READY_RATIO_EPSILON:
 			energy_ratio = 1.0
 		ultimate_energy_widget.set_state(energy_ratio)
+		ultimate_energy_widget.set_overflow_energy(
+			float(ultimate_display.get("meta_field_extra_energy", 0.0)),
+			ultimate_display.has("meta_field_extra_energy")
+		)
 
 func update_skill_cooldown_slots(slot_data_list: Array) -> void:
 	for index in range(skill_cd_slots.size()):
@@ -552,6 +573,24 @@ func _build_legacy_widgets() -> void:
 	skill_cd_panel.add_theme_constant_override("separation", SKILL_CD_SLOT_SEPARATION)
 	add_child(skill_cd_panel)
 
+	upgrade_points_label = Label.new()
+	upgrade_points_label.position = Vector2(SWITCH_WIDGET_WIDTH + SWITCH_WIDGET_GAP, -58.0)
+	upgrade_points_label.custom_minimum_size = Vector2(SKILL_PANEL_WIDTH, 28.0)
+	upgrade_points_label.size = Vector2(SKILL_PANEL_WIDTH, 28.0)
+	upgrade_points_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	upgrade_points_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	upgrade_points_label.add_theme_font_size_override("font_size", 20)
+	upgrade_points_label.add_theme_color_override("font_color", Color(1.0, 0.86, 0.25, 1.0))
+	upgrade_points_label.add_theme_color_override("font_outline_color", Color(0.03, 0.02, 0.01, 0.96))
+	upgrade_points_label.add_theme_constant_override("outline_size", 4)
+	upgrade_points_label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.9))
+	upgrade_points_label.add_theme_constant_override("shadow_offset_x", 1)
+	upgrade_points_label.add_theme_constant_override("shadow_offset_y", 2)
+	upgrade_points_label.z_index = 8
+	upgrade_points_label.text = "升级！+0"
+	upgrade_points_label.visible = false
+	add_child(upgrade_points_label)
+
 	buff_status_bar = HBoxContainer.new()
 	buff_status_bar.position = skill_cd_panel.position + Vector2(0.0, -BUFF_SLOT_SIZE - 6.0)
 	buff_status_bar.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -695,6 +734,21 @@ func _build_team_band_widgets() -> void:
 	_build_team_role_rows()
 	_build_buff_bar()
 	_build_experience_strip()
+
+	upgrade_points_label = Label.new()
+	upgrade_points_label.position = Vector2(0.0, -58.0)
+	upgrade_points_label.custom_minimum_size = Vector2(TEAM_STACK_WIDTH, 28.0)
+	upgrade_points_label.size = Vector2(TEAM_STACK_WIDTH, 28.0)
+	upgrade_points_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	upgrade_points_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	upgrade_points_label.add_theme_font_size_override("font_size", 20)
+	upgrade_points_label.add_theme_color_override("font_color", Color(1.0, 0.86, 0.25, 1.0))
+	upgrade_points_label.add_theme_color_override("font_outline_color", Color(0.03, 0.02, 0.01, 0.96))
+	upgrade_points_label.add_theme_constant_override("outline_size", 4)
+	upgrade_points_label.z_index = 8
+	upgrade_points_label.text = "升级！+0"
+	upgrade_points_label.visible = false
+	add_child(upgrade_points_label)
 
 	_refresh_action_key_labels(true)
 	_apply_team_stack_layout()

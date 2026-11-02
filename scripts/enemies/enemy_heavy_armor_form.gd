@@ -69,5 +69,5 @@ static func reflect_damage(enemy, health_lost: float) -> void:
 	if player == null or not is_instance_valid(player) or not player.has_method("take_damage"):
 		return
 	enemy.set_meta("heavy_armor_reflecting", true)
-	player.take_damage(health_lost * get_reflect_ratio(enemy))
+	player.take_damage(health_lost * get_reflect_ratio(enemy), "reflect")
 	enemy.set_meta("heavy_armor_reflecting", false)

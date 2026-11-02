@@ -69,7 +69,7 @@ static func _apply_thunder(owner, origin_enemy: Node, triggering_damage: float, 
 			break
 		_spawn_stone_link(owner, current.global_position, target.global_position, Color(0.48, 0.9, 1.0, 0.92))
 		_spawn_stone_burst(target, Color(0.58, 0.9, 1.0, 0.42), 22.0)
-		_deal_secondary_damage(target, damage)
+		_deal_secondary_damage(owner, target, damage, "ruan_stone:thunder")
 		visited[target.get_instance_id()] = true
 		current = target
 		damage *= 0.85
@@ -111,7 +111,7 @@ static func _apply_flame(owner, origin_position: Vector2, origin_max_health: flo
 		if origin_position.distance_squared_to((candidate as Node2D).global_position) > radius * radius:
 			continue
 		_spawn_stone_burst(candidate, Color(1.0, 0.52, 0.16, 0.4), 24.0)
-		_deal_secondary_damage(candidate, damage)
+		_deal_secondary_damage(owner, candidate, damage, "ruan_stone:flame")
 
 
 static func _apply_fury(enemy: Node, values: Dictionary) -> void:
@@ -134,13 +134,11 @@ static func _nearest_neighbor(origin: Node2D, visited: Dictionary) -> Node2D:
 	return nearest
 
 
-static func _deal_secondary_damage(enemy: Node, damage: float) -> void:
-	if damage <= 0.0 or not _is_live_enemy(enemy):
+static func _deal_secondary_damage(owner, enemy: Node, damage: float, _source_role_id: String) -> void:
+	if owner == null or damage <= 0.0 or not _is_live_enemy(enemy):
 		return
-	if enemy.has_method("take_batched_damage"):
-		enemy.take_batched_damage(damage)
-	elif enemy.has_method("take_damage"):
-		enemy.take_damage(damage)
+	if enemy.has_method("take_damage"):
+		enemy.take_damage(damage, false)
 
 
 static func _spawn_stone_burst(enemy: Node, color: Color, radius: float) -> void:

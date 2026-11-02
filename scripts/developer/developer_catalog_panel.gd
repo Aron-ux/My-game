@@ -212,6 +212,17 @@ func _show_skill(option: Dictionary) -> void:
 	)
 	_button("等级 +1", base.merged({"operation": "add"}), int(option["level"]) < maximum)
 	_button("重置当前技能 build", base.merged({"operation": "reset"}))
+	for talent in option.get("talents", []):
+		var slot: int = int(talent.get("slot", 0))
+		var owned: bool = (option.get("talent_slots", []) as Array).has(slot)
+		var picked: bool = int(option.get("talent_picked", 0)) == slot
+		if owned:
+			_label("%s%s" % [str(talent.get("title", "")), "（已选择）" if picked else "（已获得）"])
+			_label(str(talent.get("description", "")))
+		elif bool(option.get("talent_pending", false)):
+			_label(str(talent.get("title", "")))
+			_label(str(talent.get("description", "")))
+			_button("选择此天赋", base.merged({"operation": "talent", "slot": slot}))
 	if preload("res://scripts/player/player_skill_level_system.gd").is_custom_basic(selected_id):
 		var build = preload("res://scripts/player/player_skill_level_system.gd").basic_build(selected_id)
 		for stage in build.STAGES:

@@ -4,6 +4,8 @@ const ENERGY_REDRAW_EPSILON: float = 0.0001
 const ENERGY_READY_RATIO_EPSILON: float = 0.001
 
 var fill_ratio: float = 0.0
+var overflow_energy: float = 0.0
+var show_overflow_energy: bool = false
 var skill_name: String = ""
 var ready_pulse_time: float = 0.0
 
@@ -40,6 +42,14 @@ func set_skill_name(new_skill_name: String) -> void:
 	skill_name = new_skill_name
 	queue_redraw()
 
+func set_overflow_energy(extra_energy: float, enabled: bool) -> void:
+	var resolved_energy: float = maxf(0.0, extra_energy)
+	if is_equal_approx(resolved_energy, overflow_energy) and show_overflow_energy == enabled:
+		return
+	overflow_energy = resolved_energy
+	show_overflow_energy = enabled
+	queue_redraw()
+
 func _draw() -> void:
 	var center: Vector2 = size * 0.5
 	var radius: float = min(size.x, size.y) * 0.5 - 4.0
@@ -49,15 +59,25 @@ func _draw() -> void:
 	_draw_fill(center, inner_radius, fill_ratio)
 	if fill_ratio >= 0.999:
 		_draw_ready_highlight(center, radius, inner_radius)
+	if show_overflow_energy:
+		var overflow_ratio: float = clamp(overflow_energy / 100.0, 0.0, 1.0)
+		if overflow_ratio > 0.0:
+			draw_arc(center, radius + 2.0, -PI * 0.5, -PI * 0.5 + TAU * overflow_ratio, 48, Color(1.0, 0.68, 0.22, 0.98), 3.0)
 	draw_arc(center, radius, 0.0, TAU, 32, Color(0.0, 0.0, 0.0, 1.0), 3.0)
 
 	if skill_name != "":
 		var font := get_theme_default_font()
 		var font_size := 14
 		var text_size := font.get_string_size(skill_name, HORIZONTAL_ALIGNMENT_CENTER, -1.0, font_size)
-		var text_position := center - text_size * 0.5 + Vector2(0.0, 3.0)
+		var text_position := center - text_size * 0.5 + Vector2(0.0, -3.0 if show_overflow_energy else 3.0)
 		draw_string(font, text_position + Vector2(1.0, 1.0), skill_name, HORIZONTAL_ALIGNMENT_CENTER, -1.0, font_size, Color(0.0, 0.0, 0.0, 0.95))
 		draw_string(font, text_position, skill_name, HORIZONTAL_ALIGNMENT_CENTER, -1.0, font_size, Color(1.0, 0.96, 0.72, 1.0))
+		if show_overflow_energy:
+			var energy_text: String = "+%.0f" % overflow_energy
+			var energy_text_size: Vector2 = font.get_string_size(energy_text, HORIZONTAL_ALIGNMENT_CENTER, -1.0, 12)
+			var energy_text_position: Vector2 = center - energy_text_size * 0.5 + Vector2(0.0, 18.0)
+			draw_string(font, energy_text_position + Vector2(1.0, 1.0), energy_text, HORIZONTAL_ALIGNMENT_CENTER, -1.0, 12, Color(0.0, 0.0, 0.0, 0.95))
+			draw_string(font, energy_text_position, energy_text, HORIZONTAL_ALIGNMENT_CENTER, -1.0, 12, Color(1.0, 0.75, 0.32, 1.0))
 
 func _draw_ready_highlight(center: Vector2, radius: float, inner_radius: float) -> void:
 	var pulse: float = 0.5 + 0.5 * sin(ready_pulse_time * 5.6)

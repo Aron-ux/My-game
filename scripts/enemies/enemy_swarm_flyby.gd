@@ -22,4 +22,4 @@ static func velocity(enemy, delta: float) -> Vector2:
 	enemy.set_meta(META, state)
 	if float(state["age"]) > 24 or (bool(state["passed"]) and distance > 1100):
 		enemy.queue_free()
-	return direction * enemy.speed * enemy.slow_multiplier * 0.7 * 1.1
+	return direction * enemy.speed * enemy.slow_multiplier * 0.7 * 1.1 * 2.0

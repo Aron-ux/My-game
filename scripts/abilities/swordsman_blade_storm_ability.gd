@@ -139,6 +139,8 @@ func _trigger_tick(owner) -> void:
 	if windblade:
 		owner._pop_attack_result_context_tag("windblade_double_proc")
 		owner._pop_attack_result_context_tag("swordsman_basic_attack")
+		if hits > 0 and owner.get("swordsman_crescent_wave_ability") != null:
+			owner.swordsman_crescent_wave_ability.try_trigger_echo(owner, 2.0)
 
 func is_active() -> bool:
 	return active_remaining > 0.0 and not detached

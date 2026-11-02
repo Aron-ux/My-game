@@ -1,6 +1,7 @@
 extends RefCounted
 
-const CHARACTER_PANEL := preload("res://scripts/ui/hud/character_panel.gd")
+const CHARACTER_PANEL_SCENE := preload("res://scenes/UI/panel/Mainpannel.tscn")
+const CAT_VILLAGE_MENU := preload("res://scripts/camp/cat_village_menu_replica.gd")
 const ENEMY_DEBUG_RANGE_OVERLAY := preload("res://scripts/debug/enemy_debug_range_overlay.gd")
 
 # Handoff note:
@@ -16,6 +17,7 @@ const ENEMY_DEBUG_RANGE_OVERLAY := preload("res://scripts/debug/enemy_debug_rang
 static func setup_ui(main: Node) -> void:
 	_setup_hud(main)
 	_setup_character_panel(main)
+	_setup_cat_village_menu(main)
 	_setup_level_up_ui(main)
 	_setup_pause_menu(main)
 	_setup_game_over_ui(main)
@@ -54,9 +56,20 @@ static func _setup_hud(main: Node) -> void:
 	_connect_if_present(main.hud, "developer_endless_tier_test_requested", Callable(main, "_on_developer_endless_tier_test_requested"))
 
 static func _setup_character_panel(main: Node) -> void:
-	main.character_panel = CHARACTER_PANEL.new()
-	main.add_child(main.character_panel)
+	main.character_panel = CHARACTER_PANEL_SCENE.instantiate()
+	main.character_panel.name = "MainCharacterPanel"
+	var panel_layer := CanvasLayer.new()
+	panel_layer.name = "MainCharacterPanelLayer"
+	panel_layer.layer = 20
+	main.add_child(panel_layer)
+	panel_layer.add_child(main.character_panel)
 	main.character_panel.close_requested.connect(Callable(main, "_hide_character_panel"))
+
+static func _setup_cat_village_menu(main: Node) -> void:
+	main.cat_village_menu = CAT_VILLAGE_MENU.new()
+	main.cat_village_menu.name = "CatVillageMenuReplica"
+	main.add_child(main.cat_village_menu)
+	main.cat_village_menu.close_requested.connect(Callable(main, "_hide_cat_village_menu"))
 
 static func _setup_level_up_ui(main: Node) -> void:
 	if main.level_up_ui_scene == null:

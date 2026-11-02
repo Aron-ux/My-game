@@ -3,6 +3,7 @@ extends RefCounted
 const PLAYER_ROLE_PRESENTER := preload("res://scripts/player/player_role_presenter.gd")
 const PLAYER_SWITCH_FLOW := preload("res://scripts/player/player_switch_flow.gd")
 const PLAYER_ULTIMATE_FLOW := preload("res://scripts/player/player_ultimate_flow.gd")
+const PLAYER_MAGE_META_FIELD_BUILD := preload("res://scripts/player/player_mage_meta_field_build.gd")
 const RUAN_STONE_SYSTEM := preload("res://scripts/player/ruan_stone_system.gd")
 const PERFORMANCE_RECORDER := preload("res://scripts/game/performance_recorder.gd")
 
@@ -13,6 +14,7 @@ static func build_from_player(owner) -> Dictionary:
 	var skill_cooldown_slots: Array = owner._get_active_skill_cooldown_slots(interval)
 	var role_special_data: Dictionary = owner._get_role_special_state(role_id)
 	var ultimate_display: Dictionary = _build_ultimate_display(owner, role_id)
+	_add_mage_meta_field_energy_display(owner, role_id, ultimate_display)
 	var buff_status_slots: Array = _build_buff_status_slots(owner)
 	var team_role_statuses: Array = _build_team_role_statuses(owner, role_id, true)
 	var ruan_stone_summary := _build_ruan_stone_summary(owner)
@@ -23,6 +25,7 @@ static func build_from_player(owner) -> Dictionary:
 		"bullet_damage": owner._get_role_damage(role_id),
 		"fire_interval": interval,
 		"current_mana": owner._get_role_mana(role_id),
+		"meta_field_extra_energy": owner._get_mage_meta_field_extra_energy() if owner.has_method("_get_mage_meta_field_extra_energy") else 0.0,
 		"max_mana": owner.max_mana,
 		"ultimate_energy_cost": owner._get_ultimate_energy_cost(),
 		"ultimate_ready": owner._can_use_ultimate(),
@@ -88,6 +91,7 @@ static func build_frame_hud_from_player(owner) -> Dictionary:
 	var summary: Dictionary = {
 		"skill_points": max(0, int(owner.get("skill_points"))),
 		"current_mana": owner._get_role_mana(role_id),
+		"meta_field_extra_energy": owner._get_mage_meta_field_extra_energy() if owner.has_method("_get_mage_meta_field_extra_energy") else 0.0,
 		"max_mana": owner.max_mana,
 		"ultimate_energy_cost": owner._get_ultimate_energy_cost(),
 		"ultimate_ready": owner._can_use_ultimate(),
@@ -114,8 +118,14 @@ static func build_frame_hud_from_player(owner) -> Dictionary:
 		"ruan_stone_carry_limit": ruan_stone_summary["ruan_stone_carry_limit"],
 		"ruan_stone_summary": ruan_stone_summary["ruan_stone_summary"]
 	}
+	_add_mage_meta_field_energy_display(owner, role_id, summary["ultimate_display"])
 	PERFORMANCE_RECORDER.end_scope("hud_payload_misc_ms")
 	return summary
+
+static func _add_mage_meta_field_energy_display(owner, role_id: String, ultimate_display: Dictionary) -> void:
+	if role_id != "mage" or not PLAYER_MAGE_META_FIELD_BUILD.has_choice(owner, "soul_extraction"):
+		return
+	ultimate_display["meta_field_extra_energy"] = maxf(0.0, float(owner._get_mage_meta_field_extra_energy()))
 
 static func _build_ultimate_display(owner, role_id: String) -> Dictionary:
 	var ultimate_display: Dictionary = PLAYER_ULTIMATE_FLOW.get_ultimate_display(owner, role_id)

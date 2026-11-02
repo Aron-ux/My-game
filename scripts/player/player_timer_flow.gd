@@ -13,6 +13,8 @@ const MAGE_ARCANE_SURPLUS_EXPIRE_CHARGE_STACKS := 3
 
 static func update_timers(owner, delta: float) -> void:
 	owner.role_visual_time += delta
+	if _is_preparation_phase(owner):
+		return
 	preload("res://scripts/player/player_plague_flow.gd").tick(owner, delta)
 	preload("res://scripts/player/player_necro_mark.gd").tick(owner, delta)
 	preload("res://scripts/player/player_vine_entangle.gd").tick(owner, delta)
@@ -265,6 +267,21 @@ static func update_timers(owner, delta: float) -> void:
 		else:
 			owner.role_standby_elapsed[role_id] = float(owner.role_standby_elapsed.get(role_id, 0.0)) + delta
 	owner._update_camera_shake(delta)
+
+
+static func _is_preparation_phase(owner) -> bool:
+	if owner == null or not owner.has_method("get_parent"):
+		return false
+	var node: Node = owner.get_parent()
+	for _index in range(5):
+		if node == null:
+			return false
+		for property in node.get_property_list():
+			if str(property.get("name", "")) == "wave_flow":
+				var wave_flow: Variant = node.get("wave_flow")
+				return wave_flow != null and is_instance_valid(wave_flow) and str(wave_flow.get("phase")) == "preparation"
+		node = node.get_parent()
+	return false
 
 
 static func apply_developer_no_cooldown(owner) -> void:

@@ -37,7 +37,7 @@ func _check_field_armor() -> void:
 	field.active_remaining = 1.0
 	_expect_approx(COMBAT_MODIFIERS.get_role_armor(owner, "mage"), 25.0, "Level 1 field grants 25 armor")
 	_set_level(owner, "mage_meta_field", 3)
-	_expect_approx(COMBAT_MODIFIERS.get_role_armor(owner, "mage"), 30.0, "Level 3 field grants 30 armor")
+	_expect_approx(COMBAT_MODIFIERS.get_role_armor(owner, "mage"), 25.0, "Level 3 field keeps base 25 armor")
 	_expect_approx(COMBAT_MODIFIERS.get_role_armor(owner, "swordsman"), 0.0, "Inactive role gets no field armor")
 	_expect(not field.has_method("get_damage_reduction_rate"), "Field must not supply damage reduction")
 	_expect(not field.has_method("get_damage_reduction_value"), "Field must not supply legacy damage reduction")

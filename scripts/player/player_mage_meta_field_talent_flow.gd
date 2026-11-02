@@ -1,6 +1,7 @@
 extends RefCounted
 
 const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_talent_system.gd")
+const BUILD := preload("res://scripts/player/player_mage_meta_field_build.gd")
 
 const TALENT_META_FIELD_1 := "mage_level_talent_meta_field_1"
 const TALENT_META_FIELD_2 := "mage_level_talent_meta_field_2"
@@ -19,7 +20,7 @@ static func has_level_talent(owner, talent_id: String) -> bool:
 		return false
 	if owner.has_method("_has_level_talent"):
 		return bool(owner._has_level_talent(talent_id))
-	return PLAYER_SKILL_TALENT_SYSTEM.has_level_talent(owner, talent_id)
+	return BUILD.has_choice(owner, talent_id) or PLAYER_SKILL_TALENT_SYSTEM.has_level_talent(owner, talent_id)
 
 
 static func get_radius_multiplier(owner) -> float:
@@ -29,12 +30,12 @@ static func get_radius_multiplier(owner) -> float:
 
 
 static func should_persist_in_background(owner) -> bool:
-	return has_level_talent(owner, TALENT_META_FIELD_2)
+	return BUILD.has_choice(owner, "domain_remnant") or has_level_talent(owner, TALENT_META_FIELD_2)
 
 
 static func get_level_talent_effect_ratio(owner, active_role_id: String, transferred_role_id: String) -> float:
 	if should_persist_in_background(owner) and active_role_id != "mage" and transferred_role_id == "":
-		return BACKGROUND_EFFECT_RATIO
+		return 1.0 if BUILD.has_choice(owner, "domain_remnant") else BACKGROUND_EFFECT_RATIO
 	return 1.0
 
 
@@ -44,9 +45,9 @@ static func get_scaled_slow_multiplier(base_multiplier: float, effect_ratio: flo
 
 
 static func get_enemy_projectile_speed_multiplier(owner, effect_ratio: float) -> float:
-	if not has_level_talent(owner, TALENT_META_FIELD_1):
+	if not BUILD.has_choice(owner, "barrier") and not has_level_talent(owner, TALENT_META_FIELD_1):
 		return 1.0
-	var slow_effect: float = ENEMY_PROJECTILE_SLOW_EFFECT * clamp(effect_ratio, 0.0, 1.0)
+	var slow_effect: float = 0.30 * clamp(effect_ratio, 0.0, 1.0)
 	return 1.0 - clamp(slow_effect, 0.0, 0.95)
 
 

@@ -68,7 +68,7 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 	if source_role_id != "swordsman_aux:reflect" and owner != null and resolved_source_role_id != "" and owner.has_method("_roll_critical_hit") and owner.has_method("_get_critical_damage_multiplier"):
 		was_critical = bool(owner._roll_critical_hit(resolved_source_role_id, source_critical_chance_bonus))
 		if was_critical:
-			final_damage *= float(owner._get_critical_damage_multiplier(resolved_source_role_id)) + SWORDSMAN_BASIC_BUILD.critical_damage_bonus(owner, source_role_id)
+			final_damage *= float(owner._get_critical_damage_multiplier(resolved_source_role_id)) + SWORDSMAN_BASIC_BUILD.critical_damage_bonus(owner, source_role_id) + PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_charge_critical_damage_bonus(owner, source_role_id)
 	if owner != null and _should_apply_gunner_hunt_multiplier(source_role_id, resolved_source_role_id) and enemy is Node2D:
 		var attack_origin: Vector2 = _get_gunner_damage_origin(owner, enemy as Node2D)
 		if owner.has_method("_get_gunner_distance_damage_multiplier"):
@@ -90,8 +90,11 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 			owner._record_swordsman_ultimate_followup_damage(max(0.0, health_before - health_after))
 		PLAYER_GUNNER_BASIC_TALENT_FLOW.on_basic_attack_hit(owner, enemy, source_role_id)
 		PLAYER_GUNNER_ENTRY_TALENT_FLOW.on_entry_attack_hit(owner, enemy, source_role_id)
+		PLAYER_GUNNER_MAGIC_GRENADE_FLOW.on_gunner_basic_critical(owner, source_role_id, was_critical)
 		if source_role_id != "gunner_aux:split" and owner != null and owner.has_method("_record_attack_result_instance"):
 			owner._record_attack_result_instance(resolved_source_role_id, was_critical, killed, target_position, source_role_id)
+		if owner != null and PLAYER_GUNNER_MAGIC_GRENADE_FLOW.is_magic_grenade_source(source_role_id):
+			PLAYER_GUNNER_MAGIC_GRENADE_FLOW.on_magic_grenade_hit(owner, enemy, source_role_id, was_critical, killed)
 		if owner != null and owner.has_method("_add_switch_energy_from_damage"):
 			owner._add_switch_energy_from_damage(final_damage, resolved_source_role_id)
 		if source_role_id != "gunner_aux:split" and owner != null and owner.has_method("_apply_role_damage_lifesteal"):
@@ -107,6 +110,8 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 			PLAYER_MAGE_ULTIMATE_TALENT_FLOW.on_ultimate_bombardment_killed(owner, source_role_id, resolved_source_role_id)
 			PLAYER_SWORDSMAN_KING_BLADE_FLOW.on_king_blade_killed(owner, source_role_id, resolved_source_role_id)
 			PLAYER_GUNNER_EXPLOSIVE_ROUND_FLOW.on_explosive_round_killed(owner, source_role_id, resolved_source_role_id, enemy)
+			if slow_source_id == "mage_meta_field" and owner.has_method("_add_mage_meta_field_extra_energy"):
+				owner._add_mage_meta_field_extra_energy(owner._get_kill_energy_from_enemy(enemy))
 		if killed and owner != null and owner.has_method("_add_kill_energy") and owner.has_method("_get_kill_energy_from_enemy"):
 			var kill_energy: float = owner._get_kill_energy_from_enemy(enemy)
 			var bypass_lock_role_id: String = resolved_source_role_id if resolved_source_role_id == "mage" and source_kill_energy_bonus > 0.0 else ""

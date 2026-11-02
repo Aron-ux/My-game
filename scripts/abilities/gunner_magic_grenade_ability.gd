@@ -5,7 +5,6 @@ const MAGIC_GRENADE_VISUAL_SCRIPT := preload("res://scripts/player/gunner_magic_
 
 const SKILL_ID := "magic_grenade"
 const COOLDOWN := 16.0
-const COOLDOWN_REDUCTION := 2.0
 const TALENT_MAGIC_GRENADE_2 := "gunner_level_talent_magic_grenade_2"
 const PROJECTILE_SPEED := 620.0
 const MAX_FLIGHT_TIME := 0.6
@@ -37,7 +36,7 @@ func update(owner, delta: float) -> void:
 		active_grenades[index] = data
 		if elapsed >= duration:
 			grenade.global_position = target_position
-			_explode(owner, grenade.global_position)
+			_explode(owner, grenade.global_position, str(data.get("source_id", "")))
 			grenade.queue_free()
 			active_grenades.remove_at(index)
 			continue
@@ -63,6 +62,16 @@ func can_trigger(owner, role_id: String) -> bool:
 func try_trigger(owner) -> bool:
 	if not can_trigger(owner, "gunner"):
 		return false
+	return _launch(owner, false)
+
+
+func try_trigger_free(owner) -> bool:
+	if owner == null or not is_instance_valid(owner) or bool(owner.get("is_dead")):
+		return false
+	return _launch(owner, true)
+
+
+func _launch(owner, is_free: bool) -> bool:
 	var direction: Vector2 = owner._get_live_mouse_aim_direction(owner.facing_direction)
 	if direction.length_squared() <= 0.001:
 		direction = owner.facing_direction if owner.facing_direction.length_squared() > 0.001 else Vector2.RIGHT
@@ -71,11 +80,18 @@ func try_trigger(owner) -> bool:
 	var scene: Node = owner.get_tree().current_scene if owner.get_tree() != null else null
 	if scene == null:
 		return false
-	cooldown_remaining = get_cooldown(owner)
+	if not is_free:
+		cooldown_remaining = get_cooldown(owner)
 	var origin: Vector2 = owner.global_position
 	var targets := PLAYER_GUNNER_MAGIC_GRENADE_FLOW.collect_targets(owner, origin, direction)
 	var spawn_origin: Vector2 = origin + direction * 26.0
-	for target in targets:
+	var projectile_count := 1 if is_free else PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_grenade_count(owner)
+	var fallback_targets := PLAYER_GUNNER_MAGIC_GRENADE_FLOW._build_fallback_targets(owner, origin, direction)
+	while targets.size() < projectile_count:
+		targets.append(fallback_targets[targets.size() % fallback_targets.size()])
+	var source_id := PLAYER_GUNNER_MAGIC_GRENADE_FLOW.make_damage_source_id(is_free)
+	for index in range(projectile_count):
+		var target: Vector2 = targets[index]
 		var grenade := _create_grenade(scene, spawn_origin, (target - spawn_origin).normalized())
 		var distance: float = spawn_origin.distance_to(target)
 		var flight_time: float = clampf(distance / PROJECTILE_SPEED, MIN_FLIGHT_TIME, MAX_FLIGHT_TIME)
@@ -93,13 +109,14 @@ func try_trigger(owner) -> bool:
 			"duration": flight_time,
 			"arc_normal": arc_normal,
 			"arc_height": clampf(distance * ARC_HEIGHT_FACTOR, ARC_HEIGHT_MIN, ARC_HEIGHT_MAX),
-			"previous_position": spawn_origin
+			"previous_position": spawn_origin,
+			"source_id": source_id
 		})
 	return true
 
 
 func get_cooldown(owner) -> float:
-	return COOLDOWN - (COOLDOWN_REDUCTION if _has_talent(owner, TALENT_MAGIC_GRENADE_2) else 0.0)
+	return COOLDOWN
 
 
 func get_cooldown_slot(owner = null) -> Dictionary:
@@ -108,8 +125,33 @@ func get_cooldown_slot(owner = null) -> Dictionary:
 		"remaining": clamp(cooldown_remaining, 0.0, COOLDOWN),
 		"duration": get_cooldown(owner),
 		"color": Color(0.78, 0.45, 1.0, 1.0),
-		"description": "发射 3 枚魔法榴弹飞向前方敌人密集区域，每枚爆炸造成 300% 范围伤害；魔法榴弹更容易暴击，额外获得 20% 暴击率。魔法榴弹 I：爆炸范围+75、每枚伤害+100%、暴击率额外+20%。魔法榴弹 II：数量+1、冷却-2秒。"
+		"description": _build_description(owner)
 	}
+
+
+func _build_description(owner) -> String:
+	var grenade_count := PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_grenade_count(owner)
+	var damage_ratio := PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_damage_ratio(owner)
+	var blast_radius := PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_blast_radius(owner)
+	var crit_bonus := PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_critical_chance_bonus(owner, "gunner_magic_grenade:1")
+	var lines := PackedStringArray([
+		"向敌人密集区域发射 %d 枚魔法榴弹。每枚造成攻击力的 %.0f%% 范围伤害，爆炸半径 %.0f，额外暴击率 %.1f%%。" % [
+			grenade_count,
+			damage_ratio * 100.0,
+			blast_radius,
+			crit_bonus * 100.0
+		]
+	])
+	if PLAYER_GUNNER_MAGIC_GRENADE_FLOW.has_talent(owner, PLAYER_GUNNER_MAGIC_GRENADE_FLOW.TALENT_MAGIC_GRENADE_CHARGE):
+		var charge_energy := maxf(0.0, float(owner.get_meta("gunner_magic_grenade_charge_energy", 0.0)))
+		var charge_crit := PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_charge_critical_bonus(owner)
+		var charge_crit_damage := PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_charge_critical_damage_bonus(owner, "gunner_magic_grenade:1")
+		lines.append("魔法充能：当前累计大招能量 %.1f，额外提供 %.2f%% 暴击率与 %.2f%% 暴击伤害。" % [
+			charge_energy,
+			charge_crit * 100.0,
+			charge_crit_damage * 100.0
+		])
+	return "\n".join(lines)
 
 
 func get_save_data() -> Dictionary:
@@ -168,8 +210,8 @@ func restore_effect_if_active(owner) -> void:
 	pending_saved_grenades.clear()
 
 
-func _explode(owner, center: Vector2) -> void:
-	PLAYER_GUNNER_MAGIC_GRENADE_FLOW.apply_explosion(owner, center)
+func _explode(owner, center: Vector2, source_id: String = "") -> void:
+	PLAYER_GUNNER_MAGIC_GRENADE_FLOW.apply_explosion(owner, center, source_id)
 	var blast_radius: float = PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_blast_radius(owner)
 	if owner.has_method("_spawn_burst_effect"):
 		owner._spawn_burst_effect(center, blast_radius * 0.6, Color(0.85, 0.55, 1.0, 0.85), 0.2)

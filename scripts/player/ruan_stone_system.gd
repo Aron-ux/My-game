@@ -9,23 +9,23 @@ const FAILED_ASSASSIN_DAGGER := "failed_assassin_dagger"
 const STONE_IDS := [STONE_THUNDER, STONE_FROST, STONE_POISON, STONE_FURY, STONE_FLAME, "useless_pendant", "broken_sword", "keen_fragment", "tattered_cloak", "ground_branch", "guild_token", "broken_magic_stone", "rusted_dagger", "used_potion", "broken_chestplate", "unknown_spellbook", FAILED_ASSASSIN_DAGGER]
 
 const DEFINITIONS := {
-	STONE_THUNDER: {"title": "雷石", "summary": "普攻触发电流连锁。"},
-	STONE_FROST: {"title": "冰石", "summary": "普攻大幅减速敌人。"},
-	STONE_POISON: {"title": "毒石", "summary": "普攻附加持续毒伤。"},
-	STONE_FLAME: {"title": "炎石", "summary": "普攻击杀敌人时引爆尸骸。"},
-	STONE_FURY: {"title": "烈石", "summary": "普攻使目标护甲降低5点，持续2秒；重复命中刷新时间。"}
-	,"broken_sword": {"title": "冒险者破剑", "summary": "攻击力 +2，增伤 +2%。"}
-	,"keen_fragment": {"title": "基恩碎片", "summary": "远程攻击距离 +25，近战攻击范围 +25%。"}
-	,"tattered_cloak": {"title": "残破披风", "summary": "移动速度 +10，闪避率 +10%（每件独立计算）。"}
-	,"ground_branch": {"title": "地上的树枝", "summary": "攻击速度 +0.05 次/秒，攻击力 +2。"}
-	,"guild_token": {"title": "工会令牌碎片", "summary": "每 10 秒回复 20 点生命。"}
-	,"broken_magic_stone": {"title": "残破的魔石", "summary": "经验获取效率 +10%。"}
-	,"rusted_dagger": {"title": "生锈的匕首", "summary": "暴击率 +8%，暴击伤害 +8%。"}
-	,"used_potion": {"title": "喝过的魔瓶", "summary": "每秒恢复 1 点生命和 1 点大招能量。"}
-	,"broken_chestplate": {"title": "残破胸甲", "summary": "生命 +30，减伤 +3%。"}
-	,"unknown_spellbook": {"title": "不知名魔法书残页", "summary": "大招伤害 +20%，其他技能冷却减少 5%。"}
-	,"useless_pendant": {"title": "无用挂件", "summary": "每秒回复1点大招能量，大招伤害增加10%。"}
-	,FAILED_ASSASSIN_DAGGER: {"title": "失败刺客的短匕", "summary": "移动速度 +2%，攻击速度 +0.03 次/秒。"}
+	STONE_THUNDER: {"title": "雷石", "summary": "普攻命中后连锁 1 个目标，造成相当于本次普攻伤害 30% 的伤害。"},
+	STONE_FROST: {"title": "冰石", "summary": "普攻命中后使目标减速 45%，持续 1.2 秒。"},
+	STONE_POISON: {"title": "毒石", "summary": "普攻命中后施加毒伤，3 秒内造成相当于本次普攻伤害 45% 的总伤害，最多叠加 3 层。"},
+	STONE_FLAME: {"title": "炎石", "summary": "普攻击杀敌人时引爆尸骸，对 260 范围内敌人造成死者最大生命值 8% 的伤害。"},
+	STONE_FURY: {"title": "烈石", "summary": "普攻命中使目标护甲降低 5 点，持续 2 秒；重复命中刷新持续时间。"}
+	,"broken_sword": {"title": "冒险者破剑", "summary": "攻击力提高 2 点；造成的伤害提高 2%。"}
+	,"keen_fragment": {"title": "基恩碎片", "summary": "远程攻击距离提高 25；近战攻击范围提高 25%。"}
+	,"tattered_cloak": {"title": "残破披风", "summary": "移动速度提高 10；每件披风分别进行 10% 闪避判定。"}
+	,"ground_branch": {"title": "地上的树枝", "summary": "攻击速度 +0.05 次/秒；攻击力 +2。"}
+	,"guild_token": {"title": "工会令牌碎片", "summary": "每隔 10 秒回复 20 点生命。"}
+	,"broken_magic_stone": {"title": "残破的魔石", "summary": "获得经验时，经验获取量提高 10%。"}
+	,"rusted_dagger": {"title": "生锈的匕首", "summary": "暴击率提高 8%；暴击伤害提高 8%。"}
+	,"used_potion": {"title": "喝过的魔瓶", "summary": "每秒回复 1 点生命和 1 点大招能量。"}
+	,"broken_chestplate": {"title": "残破胸甲", "summary": "最大生命 +30；受到伤害时额外减伤 +3%。"}
+	,"unknown_spellbook": {"title": "不知名魔法书残页", "summary": "大招伤害提高 20%；其他技能冷却时间缩短 5%。"}
+	,"useless_pendant": {"title": "无用挂件", "summary": "每秒回复 1 点大招能量；大招伤害提高 10%。"}
+	,FAILED_ASSASSIN_DAGGER: {"title": "失败刺客的短匕", "summary": "移动速度提高 2%；攻击速度提高 0.03 次/秒。"}
 }
 
 
@@ -277,11 +277,11 @@ static func get_effect_text(stone_id: String, level: int) -> String:
 	var values := get_stacked_effect_values(stone_id, level)
 	match stone_id:
 		STONE_THUNDER:
-			return "连锁%d个目标，造成%s%%伤害" % [int(values["jump_count"]), _percent(values["damage_ratio"])]
+			return "连锁%d个目标，造成相当于本次普攻伤害%s%%的伤害" % [int(values["jump_count"]), _percent(values["damage_ratio"])]
 		STONE_FROST:
 			return "减速%s%%，持续%s秒" % [_percent(values["slow_ratio"]), _decimal(values["duration"])]
 		STONE_POISON:
-			return "3秒造成%s%%毒伤，最多3层" % _percent(values["total_damage_ratio"])
+			return "3秒造成相当于本次普攻伤害%s%%的毒伤，最多3层" % _percent(values["total_damage_ratio"])
 		STONE_FLAME:
 			return "普攻击杀爆炸：%d范围，造成死者最大生命%s%%伤害" % [int(values["radius"]), _percent(values["damage_ratio"])]
 		STONE_FURY:

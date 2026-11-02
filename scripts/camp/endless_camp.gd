@@ -15,6 +15,7 @@ const SHOP_PANEL := preload("res://scripts/camp/camp_shop_panel.gd")
 const ROLE_PANEL := preload("res://scripts/camp/camp_role_panel.gd")
 const ENDLESS_TIER_OVERLAY := preload("res://scripts/ui/save/endless_tier_overlay.gd")
 const TEAM_SWAP_PANEL_SCENE := preload("res://scenes/UI/team_swap_panel.tscn")
+const CHARACTER_PANEL_SCENE := preload("res://scenes/UI/panel/Mainpannel.tscn")
 const STAND_NAMES := {"swordsman": "Swordsman", "gunner": "Gunner", "mage": "Mage", "mechanic": "Mechanic"}
 const INTERACTABLE_TEXT := {
 	"blacksmith": {"name": "铁匠 · 装备", "prompt": "选购装备"},
@@ -39,6 +40,7 @@ var role_panel: Control
 var tier_overlay: Control
 var team_swap_panel: Control
 var tutorial_prompt_panel: Control
+var character_panel: Control
 var last_focus: WeakRef
 
 
@@ -96,6 +98,10 @@ func _build_ui() -> void:
 	canvas.add_child(team_swap_panel)
 	team_swap_panel.closed.connect(_on_panel_closed)
 	team_swap_panel.team_changed.connect(func(_team: Array): _refresh_camp())
+	character_panel = CHARACTER_PANEL_SCENE.instantiate()
+	character_panel.name = "CampCharacterPanel"
+	canvas.add_child(character_panel)
+	character_panel.close_requested.connect(_close_character_panel)
 	tutorial_prompt_panel = MODAL.new()
 	tutorial_prompt_panel.name = "TutorialPromptPanel"
 	canvas.add_child(tutorial_prompt_panel)
@@ -156,7 +162,13 @@ func _refresh_camp() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
+	if event is InputEventKey and event.pressed and not event.echo and GAME_SETTINGS.event_matches_action(event, GAME_SETTINGS.ACTION_CHARACTER_PANEL):
+		if character_panel.visible:
+			_close_character_panel()
+		else:
+			_open_character_panel()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("ui_cancel"):
 		if _panel_open():
 			_close_panels()
 		else:
@@ -173,7 +185,7 @@ func _process(_delta: float) -> void:
 
 
 func _panel_open() -> bool:
-	for panel in [shop_panel, role_panel, tier_overlay, team_swap_panel, tutorial_prompt_panel]:
+	for panel in [shop_panel, role_panel, tier_overlay, team_swap_panel, tutorial_prompt_panel, character_panel]:
 		if panel != null and panel.visible:
 			return true
 	return false
@@ -187,7 +199,21 @@ func _close_panels() -> void:
 			else:
 				panel.close_panel()
 	tutorial_prompt_panel.hide()
+	if character_panel.visible:
+		character_panel.hide_panel()
 	_on_panel_closed()
+
+
+func _open_character_panel() -> void:
+	_begin_panel()
+	character_panel.show_for_player(null)
+	_sync_modal_state()
+
+
+func _close_character_panel() -> void:
+	if character_panel != null and character_panel.visible:
+		character_panel.hide_panel()
+		_on_panel_closed()
 
 
 func _begin_panel() -> void:

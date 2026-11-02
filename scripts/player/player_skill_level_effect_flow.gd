@@ -1,8 +1,10 @@
 extends RefCounted
 const MAGE_BASIC_BUILD := preload("res://scripts/player/player_mage_basic_build.gd")
 const MAGE_SURGING_WAVE_BUILD := preload("res://scripts/player/player_mage_surging_wave_build.gd")
+const MAGE_META_FIELD_BUILD := preload("res://scripts/player/player_mage_meta_field_build.gd")
 const GUNNER_BASIC_BUILD := preload("res://scripts/player/player_gunner_basic_build.gd")
 const SWORDSMAN_BASIC_BUILD := preload("res://scripts/player/player_swordsman_basic_build.gd")
+const SWORDSMAN_CRESCENT_WAVE_BUILD := preload("res://scripts/player/player_swordsman_crescent_wave_build.gd")
 
 const PLAYER_SKILL_LEVEL_SYSTEM := preload("res://scripts/player/player_skill_level_system.gd")
 
@@ -36,8 +38,7 @@ const BASIC_ATTACK_EXTRA_SLASH_INTERVAL := 0.25
 const BASIC_ATTACK_EXTRA_SLASH_FIRST_LEVEL := 2
 const BASIC_ATTACK_EXTRA_SLASH_STEP := 2
 const BASIC_ATTACK_EXTRA_SLASH_MAX := 4
-# 月牙剑气：每级 +15% 伤害倍率（绝对加法）与 +10 飞行速度，2/4/6/8 级各多一道 75% 剑气（体积不变）
-const CRESCENT_WAVE_DAMAGE_RATIO_PER_LEVEL := 0.15
+# 月牙剑气伤害按阶段由专属构筑计算；飞行速度每级 +10，2/4/6/8 级各多一道 75% 剑气（体积不变）
 const CRESCENT_WAVE_SPEED_PER_LEVEL := 10.0
 const CRESCENT_WAVE_EXTRA_WAVE_DAMAGE_SCALE := 0.75
 ## 追加剑气的依次发射间隔：同方向同时出手会完全重叠，看不出追加了几道
@@ -111,12 +112,12 @@ const EXPLOSIVE_ROUND_EXTRA_SHOT_FIRST_LEVEL := 3
 const EXPLOSIVE_ROUND_EXTRA_SHOT_STEP := 3
 const EXPLOSIVE_ROUND_EXTRA_SHOT_MAX := 3
 const EXPLOSIVE_ROUND_EXTRA_SHOT_INTERVAL := 0.2
-# 魔法榴弹：每级 +10% 伤害、+5% 额外暴击率（绝对加法）；2/4/6/8 级各多一枚
-const MAGIC_GRENADE_DAMAGE_RATIO_PER_LEVEL := 0.10
-const MAGIC_GRENADE_CRIT_PER_LEVEL := 0.05
-const MAGIC_GRENADE_EXTRA_FIRST_LEVEL := 2
-const MAGIC_GRENADE_EXTRA_STEP := 2
-const MAGIC_GRENADE_EXTRA_MAX := 4
+# 魔法榴弹：LV1–3 每级 +25% 伤害；LV5–7 每级 +50% 伤害；LV6 额外 +1 枚。
+const MAGIC_GRENADE_DAMAGE_RATIO_EARLY_PER_LEVEL := 0.25
+const MAGIC_GRENADE_DAMAGE_RATIO_LATE_PER_LEVEL := 0.50
+const MAGIC_GRENADE_EXTRA_FIRST_LEVEL := 6
+const MAGIC_GRENADE_EXTRA_STEP := 99
+const MAGIC_GRENADE_EXTRA_MAX := 1
 # 魔眼聚合：每级 +2% 每次伤害、+0.75 护甲降低量
 const MAGIC_EYE_DAMAGE_RATIO_PER_LEVEL := 0.02
 const MAGIC_EYE_ARMOR_SHRED_PER_LEVEL := 0.75
@@ -145,9 +146,9 @@ const MAGE_BASIC_DAMAGE_RATIO_PER_LEVEL := 0.10
 const MAGE_BASIC_EXTRA_LIGHTNING_FIRST_LEVEL := 2
 const MAGE_BASIC_EXTRA_LIGHTNING_STEP := 2
 const MAGE_BASIC_EXTRA_LIGHTNING_MAX := 5
-# 梅塔领域：每级 +2.5 护甲、+7.5 半径
-const META_FIELD_ARMOR_PER_LEVEL := 2.5
-const META_FIELD_RADIUS_PER_LEVEL := 7.5
+# 梅塔领域：数值成长由独立 Build 线路管理（LV1-3 半径 +15，LV5-7 半径 +25，LV6 护甲 +25）
+const META_FIELD_ARMOR_PER_LEVEL := 0.0
+const META_FIELD_RADIUS_PER_LEVEL := 0.0
 # 波涛汹涌：每级 +10% 伤害倍率（绝对加法）、+0.2s 持续时间
 const SURGING_WAVE_DAMAGE_RATIO_PER_LEVEL := 0.10
 const SURGING_WAVE_DURATION_PER_LEVEL := 0.2
@@ -300,11 +301,11 @@ static func get_mage_basic_extra_lightning_count(owner) -> int:
 
 
 static func get_mage_meta_field_armor_bonus(owner) -> float:
-	return _mage_levels_above_first(owner, MAGE_META_FIELD) * META_FIELD_ARMOR_PER_LEVEL
+	return MAGE_META_FIELD_BUILD.armor_bonus(owner)
 
 
 static func get_mage_meta_field_radius_bonus(owner) -> float:
-	return _mage_levels_above_first(owner, MAGE_META_FIELD) * META_FIELD_RADIUS_PER_LEVEL
+	return MAGE_META_FIELD_BUILD.radius_bonus(owner)
 
 
 static func get_mage_surging_wave_damage_ratio_bonus(owner) -> float:
@@ -439,15 +440,18 @@ static func get_gunner_explosive_round_extra_shot_count(owner) -> int:
 
 
 static func get_gunner_magic_grenade_damage_ratio_bonus(owner) -> float:
-	return _gunner_levels_above_first(owner, GUNNER_MAGIC_GRENADE) * MAGIC_GRENADE_DAMAGE_RATIO_PER_LEVEL
+	var level := _gunner_level(owner, GUNNER_MAGIC_GRENADE)
+	var early_levels := mini(level, 3)
+	var late_levels := clampi(level - 4, 0, 3)
+	return early_levels * MAGIC_GRENADE_DAMAGE_RATIO_EARLY_PER_LEVEL + late_levels * MAGIC_GRENADE_DAMAGE_RATIO_LATE_PER_LEVEL
 
 
 static func get_gunner_magic_grenade_crit_bonus(owner) -> float:
-	return _gunner_levels_above_first(owner, GUNNER_MAGIC_GRENADE) * MAGIC_GRENADE_CRIT_PER_LEVEL
+	return 0.0
 
 
 static func get_gunner_magic_grenade_extra_count(owner) -> int:
-	return _gunner_milestone_count(owner, GUNNER_MAGIC_GRENADE, MAGIC_GRENADE_EXTRA_FIRST_LEVEL, MAGIC_GRENADE_EXTRA_STEP, MAGIC_GRENADE_EXTRA_MAX)
+	return 1 if _gunner_level(owner, GUNNER_MAGIC_GRENADE) >= MAGIC_GRENADE_EXTRA_FIRST_LEVEL else 0
 
 
 static func get_gunner_magic_eye_damage_ratio_bonus(owner) -> float:
@@ -503,7 +507,7 @@ static func get_swordsman_basic_attack_extra_slash_count(owner) -> int:
 
 
 static func get_swordsman_crescent_wave_damage_ratio_bonus(owner) -> float:
-	return _levels_above_first(owner, SWORDSMAN_CRESCENT_WAVE) * CRESCENT_WAVE_DAMAGE_RATIO_PER_LEVEL
+	return max(0.0, SWORDSMAN_CRESCENT_WAVE_BUILD.damage_ratio(owner) - 1.5)
 
 
 static func get_swordsman_crescent_wave_speed_bonus(owner) -> float:
@@ -511,12 +515,7 @@ static func get_swordsman_crescent_wave_speed_bonus(owner) -> float:
 
 
 static func get_swordsman_crescent_wave_extra_wave_count(owner) -> int:
-	return _milestone_count(
-		_get_level(owner, SWORDSMAN_CRESCENT_WAVE),
-		CRESCENT_WAVE_EXTRA_WAVE_FIRST_LEVEL,
-		CRESCENT_WAVE_EXTRA_WAVE_STEP,
-		CRESCENT_WAVE_EXTRA_WAVE_MAX
-	)
+	return SWORDSMAN_CRESCENT_WAVE_BUILD.sword_count_bonus(owner)
 
 
 static func get_swordsman_blade_storm_damage_ratio_bonus(owner) -> float:
@@ -652,6 +651,8 @@ static func _get_swordsman_upgrade_preview(owner, progress_id: String) -> String
 		return preload("res://scripts/player/player_blade_storm_build.gd").next_preview(owner)
 	if progress_id == SWORDSMAN_BASIC:
 		return SWORDSMAN_BASIC_BUILD.next_preview(owner)
+	if progress_id == SWORDSMAN_CRESCENT_WAVE:
+		return SWORDSMAN_CRESCENT_WAVE_BUILD.next_preview(owner)
 	var level := _get_level(owner, progress_id)
 	if level <= 0 or level >= PLAYER_SKILL_LEVEL_SYSTEM.MAX_SKILL_LEVEL:
 		return ""
@@ -750,8 +751,14 @@ static func _get_gunner_upgrade_preview(owner, progress_id: String) -> String:
 			parts.append("命中与扇形伤害 +10%")
 			parts.append("扇形半径 +7.5")
 		GUNNER_MAGIC_GRENADE:
-			parts.append("伤害 +10%")
-			parts.append("暴击率 +5%")
+			if next_level <= 3:
+				parts.append("每枚伤害 +25%")
+			elif next_level == 4:
+				parts.append("选择魔法追弹或幸运之弹")
+			elif next_level >= 5 and next_level <= 7:
+				parts.append("每枚伤害 +50%")
+			elif next_level == 8:
+				parts.append("选择精神震荡或连爆")
 		GUNNER_MAGIC_EYE:
 			parts.append("每次伤害 +2%")
 			parts.append("命中降低护甲额外 +0.75")
@@ -854,6 +861,8 @@ static func _get_mage_upgrade_preview(owner, progress_id: String) -> String:
 		return MAGE_BASIC_BUILD.next_preview(owner)
 	if progress_id == MAGE_SURGING_WAVE_BUILD.PROGRESS:
 		return MAGE_SURGING_WAVE_BUILD.next_preview(owner)
+	if progress_id == MAGE_META_FIELD_BUILD.PROGRESS:
+		return MAGE_META_FIELD_BUILD.next_preview(owner)
 	var level := _mage_level(owner, progress_id)
 	if level <= 0 or level >= PLAYER_SKILL_LEVEL_SYSTEM.MAX_SKILL_LEVEL:
 		return ""

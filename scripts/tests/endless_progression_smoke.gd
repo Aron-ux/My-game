@@ -20,6 +20,13 @@ func _init() -> void:
 	assert(profile.get("selected_tier") == 2)
 	assert(profile.get("last_clear_summary") == {"tier": 1, "bones": 16, "first_clear": true})
 
+	var n3_profile := {"bones": 0, "highest_cleared_tier": 2, "selected_tier": 3, "last_rewarded_run_id": ""}
+	var n3_clear := SAVE_MANAGER.settle_endless_profile(n3_profile, 3, "run-3")
+	assert(n3_clear.get("applied"))
+	assert(n3_profile.get("highest_cleared_tier") == 3)
+	assert(n3_profile.get("selected_tier") == 4)
+	assert(n3_clear.get("next_tier") == 4)
+
 	var duplicate := SAVE_MANAGER.settle_endless_profile(profile, 1, "run-1")
 	assert(not duplicate.get("applied"))
 	assert(profile.get("last_clear_summary").get("bones") == 16)

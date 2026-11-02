@@ -81,7 +81,7 @@ static func _apply_aging_aura_tick(enemy) -> void:
 	var max_health: float = maxf(0.0, float(enemy.target.get("max_health")))
 	var damage: float = current_health * enemy.skulltomb_aging_aura_current_health_drain_ratio + max_health * enemy.skulltomb_aging_aura_max_health_damage_ratio
 	if enemy.target.has_method("take_damage_ignoring_armor"):
-		enemy.target.take_damage_ignoring_armor(damage)
+		enemy.target.take_damage_ignoring_armor(damage, "aging_aura")
 
 
 static func handle_lethal_damage(enemy) -> bool:

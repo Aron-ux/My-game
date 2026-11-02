@@ -8,6 +8,9 @@ const PREPARATION_SECONDS := 30.0
 const DEATH_SECONDS := 0.7
 const EXPERIENCE_SETTLE_SECONDS := 0.5
 const MERCHANT_STAT_COST := 100
+const FLYBY_COUNT_EARLY := 24
+const FLYBY_COUNT_MID := 36
+const FLYBY_COUNT_LATE := 48
 const MERCHANT_STATS := {
 	"power": {"field": "attack", "amount": 1.0},
 	"lightness": {"field": "move_speed", "amount": 1.5},
@@ -222,7 +225,7 @@ func _update_flyby(delta: float) -> void:
 	for enemy in living_enemies():
 		if enemy.has_meta("wave_flyby"):
 			return
-	flyby_left = 12 if wave < 14 else 18 if wave < 19 else 24
+	flyby_left = get_flyby_count(wave)
 	flyby_direction = Vector2.RIGHT.rotated(main.rng.randf_range(0, TAU))
 	var viewport: Vector2 = main.get_viewport_rect().size
 	var camera: Camera2D = main.get_viewport().get_camera_2d()
@@ -231,6 +234,10 @@ func _update_flyby(delta: float) -> void:
 	flyby_origin = main.player.global_position - flyby_direction * (viewport.length() * 0.5 + 120.0)
 	flyby_remaining = 30.0
 
+static func get_flyby_count(wave_number: int) -> int:
+	return FLYBY_COUNT_EARLY if wave_number < 14 else FLYBY_COUNT_MID if wave_number < 19 else FLYBY_COUNT_LATE
+
+
 func begin_preparation() -> void:
 	_begin_wave_ending(false)
 
@@ -238,7 +245,7 @@ func _begin_wave_ending(final_wave: bool) -> void:
 	if phase != "combat":
 		return
 	phase = "clearing"
-	ending_final = final_wave
+	ending_final = final_wave and wave == 20
 	ending_elapsed = 0.0
 	token += 1
 	reservations.clear()
@@ -301,6 +308,7 @@ func _attract_wave_experience() -> bool:
 	return left
 
 func _finish_wave_ending() -> void:
+	ending_final = ending_final and wave == 20
 	phase = "complete" if ending_final else "preparation"
 	remaining = PREPARATION_SECONDS
 	claimed = false
@@ -498,8 +506,10 @@ func apply_save_data(data: Dictionary) -> void:
 	phase = str(data.get("phase", "combat"))
 	if phase not in ["combat", "preparation", "complete", "clearing", "collecting", "settling"]:
 		phase = "combat"
+	if phase == "complete" and wave != 20:
+		phase = "preparation"
 	ending_elapsed = maxf(0.0, float(data.get("ending_elapsed", 0.0)))
-	ending_final = bool(data.get("ending_final", wave == 20))
+	ending_final = wave == 20 and bool(data.get("ending_final", wave == 20))
 	small_boss_reward_pending = bool(data.get("small_boss_reward_pending", false))
 	elapsed = maxf(0, float(data.get("elapsed", 0)))
 	remaining = clampf(float(data.get("remaining", 30)), 0, 30)

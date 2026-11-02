@@ -4,6 +4,7 @@ const PLAYER_SKILL_LEVEL_SYSTEM := preload("res://scripts/player/player_skill_le
 const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
 const PLAYER_BUILD_SYSTEM := preload("res://scripts/player/player_build_system.gd")
 const PLAYER_BLESSING_SKILL_STATE := preload("res://scripts/player/player_blessing_skill_state.gd")
+const CRESCENT_WAVE_BUILD := preload("res://scripts/player/player_swordsman_crescent_wave_build.gd")
 
 var failures: Array[String] = []
 
@@ -14,6 +15,7 @@ func _init() -> void:
 
 func _run() -> void:
 	_check_flat_bonuses()
+	_check_crescent_level_up_branch()
 	_check_milestone_counts()
 	_check_preview_text()
 	_check_upgrade_card_text()
@@ -28,6 +30,7 @@ func _run() -> void:
 
 func _check_flat_bonuses() -> void:
 	var owner := _make_owner()
+	owner.role_special_states["swordsman"][CRESCENT_WAVE_BUILD.STATE_KEY] = {}
 	_set_level(owner, "swordsman_trait", 1)
 	_set_level(owner, "swordsman_entry", 1)
 	_set_level(owner, "swordsman_basic", 0)
@@ -55,14 +58,34 @@ func _check_flat_bonuses() -> void:
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_basic_attack_range_multiplier(owner), 1.0, "basic level 5 should keep normal range without heavy")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_blade_storm_damage_ratio_bonus(owner), 0.15, "legacy stored level 6 maps to storm LV5 with 15 percentage points growth")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_blade_storm_radius_bonus(owner), 0.0, "storm range needs the gale branch")
-	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_crescent_wave_damage_ratio_bonus(owner), 0.30, "crescent level 3 should add 30% damage ratio")
+	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_crescent_wave_damage_ratio_bonus(owner), 0.60, "crescent level 3 should add 60 percentage points over the 150% base")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_crescent_wave_speed_bonus(owner), 20.0, "crescent level 3 should add 20 speed")
+	for level_data in [
+		[1, 1.70], [2, 1.90], [3, 2.10], [4, 2.10],
+		[5, 2.50], [6, 2.90], [7, 3.30], [8, 3.30], [9, 3.30]
+	]:
+		_set_level(owner, "swordsman_crescent_wave", int(level_data[0]))
+		_expect_approx(
+			CRESCENT_WAVE_BUILD.damage_ratio(owner),
+			float(level_data[1]),
+			"crescent LV%d damage ratio" % int(level_data[0])
+		)
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_knight_thrust_damage_ratio_bonus(owner), 0.15, "knight thrust level 4 should add 15% damage ratio")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_knight_thrust_temp_health_bonus(owner), 3.0, "knight thrust level 4 should add 3 temporary health")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_king_blade_damage_ratio_bonus(owner), 0.10, "king blade level 2 should add 10% damage ratio")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_king_blade_range_multiplier(owner), 1.10, "king blade level 2 should add 10% range")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_judgement_sword_fall_ratio_bonus(owner), 2.0, "judgement level 5 should add 200% fall ratio")
 	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_swordsman_judgement_sword_shockwave_ratio_bonus(owner), 0.40, "judgement level 5 should add 40% shockwave ratio")
+	owner.free()
+
+
+func _check_crescent_level_up_branch() -> void:
+	var owner := _make_owner()
+	owner.role_special_states["swordsman"][CRESCENT_WAVE_BUILD.STATE_KEY] = {}
+	_set_level(owner, "swordsman_crescent_wave", 3)
+	var result: Dictionary = PLAYER_SKILL_LEVEL_SYSTEM.add_skill_level(owner, "swordsman", "swordsman_crescent_wave")
+	_expect_equal(int(result.get("level", 0)), 4, "crescent upgrade to level 4 should complete")
+	_expect(bool(result.get("pending_talent", false)), "crescent level 4 should open its branch choice")
 	owner.free()
 
 

@@ -2,6 +2,7 @@ extends RefCounted
 
 const ROLE_RESOURCE_STATE := preload("res://scripts/player/roles/role_resource_state.gd")
 const PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW := preload("res://scripts/player/player_swordsman_trait_runtime_flow.gd")
+const PLAYER_GUNNER_MAGIC_GRENADE_FLOW := preload("res://scripts/player/player_gunner_magic_grenade_flow.gd")
 
 const ULTIMATE_ENERGY_GAIN_OUTPUT_MULTIPLIER := 0.625
 const TEMPORARY_HEALTH_DURATION := 30.0
@@ -61,7 +62,10 @@ static func add_role_mana(owner, role_id: String, amount: float, emit_for_active
 		amount *= ULTIMATE_ENERGY_GAIN_OUTPUT_MULTIPLIER
 		if amount <= 0.0:
 			return get_role_mana(owner, role_id)
+	var previous_value := get_role_mana(owner, role_id)
 	var updated_value: float = ROLE_RESOURCE_STATE.add_mana(owner.role_mana_values, role_id, amount, owner.max_mana)
+	if role_id == "gunner":
+		PLAYER_GUNNER_MAGIC_GRENADE_FLOW.add_charge_energy(owner, maxf(0.0, updated_value - previous_value))
 	if role_id == get_active_role_id(owner):
 		sync_active_role_ultimate_state(owner)
 		if emit_for_active:

@@ -14,7 +14,7 @@ const OPTIONS := {
 	],
 	9: [
 		{"key": "pierce", "title": "贯穿", "description": "普通攻击子弹必定贯穿所有敌人，命中后继续飞行至最大距离消失；同一目标只命中一次。选择爆裂时，仅分裂前的主弹享受贯穿，分裂弹不享受。"},
-		{"key": "frenzy", "title": "狂烈", "description": "每次普通攻击有30%概率使攻击速度 +80%，持续5秒；持续期间不能再次触发，结束后才重新判定。状态期间显示持续进度条，分裂弹不触发。"}
+		{"key": "frenzy", "title": "狂烈", "description": "每次普通攻击有10%概率使攻击速度 +80%，持续5秒；持续期间不能再次触发，结束后才重新判定。状态期间显示持续进度条，分裂弹不触发。"}
 	]
 }
 static func state(owner) -> Dictionary:
@@ -75,7 +75,7 @@ static func speed_bonus(owner) -> float:
 static func on_shot(owner, roll: float = -1.0) -> bool:
 	if not has_choice(owner, "frenzy") or float(state(owner).get("gunner_frenzy_remaining", 0.0)) > 0.0:
 		return false
-	if (randf() if roll < 0.0 else roll) >= 0.30:
+	if (randf() if roll < 0.0 else roll) >= 0.10:
 		return false
 	var role_state := state(owner)
 	role_state["gunner_frenzy_remaining"] = 5.0

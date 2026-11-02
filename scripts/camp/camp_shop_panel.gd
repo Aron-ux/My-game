@@ -18,6 +18,8 @@ var inventory_grid: GridContainer
 var grid_buttons: Dictionary = {}
 var detail_scroll: ScrollContainer
 var detail_title: Label
+var detail_type: Label
+var item_placeholder: Label
 var description_label: Label
 var current_label: Label
 var next_label: Label
@@ -37,25 +39,32 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	modal = MODAL.new()
 	add_child(modal)
-	modal.configure(Vector2(1100, 650), 0.88, 0.91, Vector2(640, 440))
-	modal.set_title("携带物品")
-	modal.set_hint("在阮狗处使用当前存档资源购买；物品跨战斗保留，可逐份退还。")
+	modal.configure(Vector2(1420, 850), 0.96, 0.92, Vector2(720, 480))
+	modal.set_title("阮狗 · 营地商店")
+	modal.set_hint("")
 	var body := VBoxContainer.new()
 	body.add_theme_constant_override("separation", 10)
 	modal.set_body(body)
-	status_label = _label("", 18, UI.COLOR_TEXT_GOLD)
-	body.add_child(status_label)
-	carried_label = _label("", 14)
-	carried_label.max_lines_visible = 2
-	carried_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	body.add_child(carried_label)
-	carried_slots = HBoxContainer.new()
-	carried_slots.name = "CarriedEquipmentSlots"
-	carried_slots.add_theme_constant_override("separation", 8)
-	body.add_child(carried_slots)
 	var filters := HBoxContainer.new()
 	filters.add_theme_constant_override("separation", 8)
-	body.add_child(filters)
+	var columns := HBoxContainer.new()
+	columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	columns.add_theme_constant_override("separation", 22)
+	body.add_child(columns)
+	var catalog := VBoxContainer.new()
+	catalog.custom_minimum_size.x = 650
+	catalog.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	catalog.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	catalog.add_theme_constant_override("separation", 10)
+	columns.add_child(catalog)
+	var catalog_header := PanelContainer.new()
+	catalog_header.custom_minimum_size.y = 52
+	catalog_header.add_theme_stylebox_override("panel", UI.panel_style(UI.COLOR_BG_SOFT, UI.COLOR_BORDER_GOLD, 2, 5, 10))
+	catalog.add_child(catalog_header)
+	var catalog_title := _label("商品", 22, UI.COLOR_TEXT_GOLD)
+	catalog_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	catalog_header.add_child(catalog_title)
+	catalog.add_child(filters)
 	for key in FILTERS:
 		var button := Button.new()
 		button.text = FILTERS[key]
@@ -63,18 +72,20 @@ func _ready() -> void:
 		button.pressed.connect(_set_filter.bind(str(key)))
 		filters.add_child(button)
 		filter_buttons[key] = button
-	var columns := HBoxContainer.new()
-	columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	columns.add_theme_constant_override("separation", 20)
-	body.add_child(columns)
+	var grid_scroll := ScrollContainer.new()
+	grid_scroll.name = "InventoryScroll"
+	grid_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	grid_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	catalog.add_child(grid_scroll)
 	inventory_grid = GridContainer.new()
 	inventory_grid.name = "InventoryGrid"
 	inventory_grid.columns = 3
-	inventory_grid.custom_minimum_size = Vector2(390, 0)
+	inventory_grid.custom_minimum_size = Vector2(620, 0)
+	inventory_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	inventory_grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	inventory_grid.add_theme_constant_override("h_separation", 8)
 	inventory_grid.add_theme_constant_override("v_separation", 8)
-	columns.add_child(inventory_grid)
+	grid_scroll.add_child(inventory_grid)
 	item_list = ItemList.new()
 	item_list.name = "InventoryCompatibilityList"
 	item_list.visible = false
@@ -91,30 +102,52 @@ func _ready() -> void:
 	item_list.add_theme_stylebox_override("focus", UI.panel_style(Color.TRANSPARENT, UI.COLOR_TEXT_GOLD, 2, 6))
 	item_list.item_selected.connect(_select_index)
 	columns.add_child(item_list)
+	var detail_panel := PanelContainer.new()
+	detail_panel.custom_minimum_size.x = 430
+	detail_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	detail_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	detail_panel.add_theme_stylebox_override("panel", UI.panel_style(UI.COLOR_BG_SOFT, UI.COLOR_BORDER_GOLD, 2, 6, 16))
+	columns.add_child(detail_panel)
 	detail_scroll = ScrollContainer.new()
 	detail_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	detail_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	detail_scroll.size_flags_stretch_ratio = 1.45
-	columns.add_child(detail_scroll)
+	detail_panel.add_child(detail_scroll)
 	var details := VBoxContainer.new()
 	details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	details.add_theme_constant_override("separation", 18)
+	details.add_theme_constant_override("separation", 12)
 	detail_scroll.add_child(details)
+	var product_head := HBoxContainer.new()
+	product_head.add_theme_constant_override("separation", 14)
+	details.add_child(product_head)
+	var placeholder_panel := PanelContainer.new()
+	placeholder_panel.custom_minimum_size = Vector2(150, 142)
+	placeholder_panel.add_theme_stylebox_override("panel", UI.panel_style(UI.COLOR_BG_CARD, UI.COLOR_BORDER, 1, 4, 6))
+	product_head.add_child(placeholder_panel)
+	item_placeholder = _label("道具图示", 17, UI.COLOR_TEXT_MUTED)
+	item_placeholder.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	item_placeholder.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	placeholder_panel.add_child(item_placeholder)
+	var product_labels := VBoxContainer.new()
+	product_labels.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	product_labels.alignment = BoxContainer.ALIGNMENT_CENTER
+	product_head.add_child(product_labels)
 	detail_title = _label("", 24, UI.COLOR_TEXT_GOLD)
-	details.add_child(detail_title)
+	product_labels.add_child(detail_title)
+	detail_type = _label("", 15, UI.COLOR_TEXT_MUTED)
+	product_labels.add_child(detail_type)
 	description_label = _label("", 16)
-	details.add_child(description_label)
+	description_label.custom_minimum_size.y = 54
+	details.add_child(_detail_box(description_label))
 	current_label = _label("", 17)
-	details.add_child(current_label)
-	next_label = _label("", 17, UI.COLOR_TEXT_GOOD)
-	details.add_child(next_label)
-	details.add_child(_label("携带物品由队伍共享。阮石响应直接普攻，触发条件与叠加结果以此处说明为准。", 14, UI.COLOR_TEXT_MUTED))
+	details.add_child(_detail_box(current_label))
+	next_label = Label.new()
+	details.add_child(_label("具体数值、触发方式与叠加规则以当前物品说明为准。", 14, UI.COLOR_TEXT_MUTED))
 	feedback_label = _label("", 15, UI.COLOR_TEXT_GOLD)
 	feedback_label.custom_minimum_size.y = 24
 	body.add_child(feedback_label)
 	modal.add_footer_button("关闭", close_panel)
 	refund_button = modal.add_footer_button("退还 1 份 · 5 骨", _trade.bind(true))
 	buy_button = modal.add_footer_button("购买 1 份 · 5 骨", _trade.bind(false), "primary")
+	modal.footer.alignment = BoxContainer.ALIGNMENT_END
 	hide()
 
 
@@ -125,6 +158,13 @@ func _label(value: String, font_size: int, color: Color = UI.COLOR_TEXT) -> Labe
 	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", color)
 	return label
+
+
+func _detail_box(content: Control) -> PanelContainer:
+	var box := PanelContainer.new()
+	box.add_theme_stylebox_override("panel", UI.panel_style(UI.COLOR_BG_CARD, UI.COLOR_BORDER, 1, 4, 10))
+	box.add_child(content)
+	return box
 
 
 func open(initial_filter: String = "all") -> void:
@@ -157,12 +197,7 @@ func _set_filter(filter_id: String) -> void:
 
 
 func _refresh() -> void:
-	var currency_name := ITEMS.get_currency_name(profile)
-	var currency := ITEMS.get_currency(profile)
-	status_label.text = "%s %d    携带 %d / %d    通关可提升携带上限" % [currency_name, currency, ITEMS.get_carried_count(profile), ITEMS.get_carry_limit(profile)]
-	_refresh_carried_slots()
-	carried_label.text = "当前携带：" + ITEMS.get_carried_summary_text(profile.get("ruan_stone_purchased", []))
-	carried_label.tooltip_text = carried_label.text
+	modal.set_title("阮狗 · 营地商店")
 	for key in filter_buttons:
 		UI.apply_button_style(filter_buttons[key], "primary" if key == current_filter else "normal")
 	filtered_ids.clear()
@@ -180,27 +215,54 @@ func _refresh() -> void:
 		if current_filter == "owned" and count == 0:
 			continue
 		filtered_ids.append(id)
-		item_list.add_item(str(ITEMS.get_definition(id)["title"]) + ("  ×%d" % count if count > 0 else ""))
+		item_list.add_item(str(ITEMS.get_definition(id)["title"]))
 		var card := Button.new()
-		card.custom_minimum_size = Vector2(118, 84)
-		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card.custom_minimum_size = Vector2(154, 142)
+		card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		card.tooltip_text = str(ITEMS.get_definition(id).get("summary", ""))
+		card.text = ""
 		var content := VBoxContainer.new()
 		content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		content.alignment = BoxContainer.ALIGNMENT_CENTER
-		content.add_theme_constant_override("separation", 5)
+		content.add_theme_constant_override("separation", 4)
 		card.add_child(content)
+		var owned_badge := _label("已拥有" if count > 0 else "", 12, UI.COLOR_TEXT_GOLD)
+		owned_badge.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		owned_badge.offset_left = -62
+		owned_badge.offset_top = 4
+		owned_badge.offset_right = -5
+		owned_badge.offset_bottom = 23
+		owned_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		owned_badge.add_theme_color_override("font_outline_color", UI.COLOR_BG)
+		owned_badge.add_theme_constant_override("outline_size", 3)
+		card.add_child(owned_badge)
+		var icon_slot := PanelContainer.new()
+		icon_slot.custom_minimum_size = Vector2(78, 78)
+		icon_slot.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		icon_slot.add_theme_stylebox_override("panel", UI.panel_style(UI.COLOR_BG_CARD, UI.COLOR_BORDER, 1, 3, 4))
+		var icon_label := _label("图示", 14, UI.COLOR_TEXT_MUTED)
+		icon_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		icon_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		icon_slot.add_child(icon_label)
+		content.add_child(icon_slot)
 		var item_label := _label(str(ITEMS.get_definition(id).get("title", id)), 14, UI.COLOR_TEXT)
 		item_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		item_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		item_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		item_label.custom_minimum_size.y = 26
 		content.add_child(item_label)
-		var count_label := _label("携带 ×%d" % count if count > 0 else "未携带", 10, UI.COLOR_TEXT_GOLD if count > 0 else UI.COLOR_TEXT_MUTED)
-		count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		content.add_child(count_label)
+		var badge_row := HBoxContainer.new()
+		badge_row.custom_minimum_size.y = 20
+		badge_row.add_theme_constant_override("separation", 4)
+		content.add_child(badge_row)
+		var count_badge := _label("x%d" % count if count > 1 else "", 13, UI.COLOR_TEXT_GOLD)
+		count_badge.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		count_badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		count_badge.add_theme_color_override("font_outline_color", UI.COLOR_BG)
+		count_badge.add_theme_constant_override("outline_size", 3)
+		badge_row.add_child(count_badge)
 		card.pressed.connect(_select_id.bind(id))
-		UI.apply_card_button_style(card, id == selected_id, STONES.has(id))
+		UI.apply_card_button_style(card, id == selected_id)
 		inventory_grid.add_child(card)
 		grid_buttons[id] = card
 	if filtered_ids.is_empty():
@@ -260,9 +322,13 @@ func _update_details() -> void:
 	var definition := ITEMS.get_definition(selected_id)
 	var count := ITEMS.get_count(profile, selected_id)
 	detail_title.text = str(definition["title"])
+	detail_type.text = "阮石 / 特殊道具" if STONES.has(selected_id) else "装备 / 一般"
+	item_placeholder.text = "阮石" if STONES.has(selected_id) else "装备"
 	description_label.text = str(definition["summary"])
-	current_label.text = "已携带 %d 份\n%s" % [count, ITEMS.get_effect_text(selected_id, count)]
-	next_label.text = "再携带 1 份后\n" + ITEMS.get_effect_text(selected_id, count + 1)
+	description_label.add_theme_color_override("font_color", UI.COLOR_TEXT_GOLD)
+	description_label.add_theme_font_size_override("font_size", 20)
+	current_label.text = "当前效果\n" + ITEMS.get_effect_text(selected_id, count)
+	next_label.text = ITEMS.get_effect_text(selected_id, count + 1)
 	var at_limit := ITEMS.get_carried_count(profile) >= ITEMS.get_carry_limit(profile)
 	var cost := ITEMS.get_next_cost(profile, selected_id)
 	buy_button.disabled = profile.is_empty() or at_limit or ITEMS.get_currency(profile) < cost

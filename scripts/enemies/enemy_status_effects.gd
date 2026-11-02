@@ -58,10 +58,7 @@ static func tick_bleed(enemy, delta: float) -> void:
 
 	var bleed_damage: float = enemy.bleed_damage_per_second * delta
 	if bleed_damage > 0.0:
-		if enemy.has_method("take_batched_damage"):
-			enemy.take_batched_damage(bleed_damage)
-		else:
-			enemy.take_damage(bleed_damage)
+		enemy.take_damage(bleed_damage, false)
 
 static func apply_slow(enemy, multiplier: float, duration: float) -> void:
 	_apply_slow(enemy, multiplier, duration, true)

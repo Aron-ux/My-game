@@ -3,6 +3,7 @@ extends SceneTree
 const MAGE_META_FIELD_ABILITY := preload("res://scripts/abilities/mage_meta_field_ability.gd")
 const MAGE_META_FIELD_TALENT_FLOW := preload("res://scripts/player/player_mage_meta_field_talent_flow.gd")
 const PLAYER_SKILL_TALENT_SYSTEM := preload("res://scripts/player/player_skill_talent_system.gd")
+const MAGE_META_FIELD_BUILD := preload("res://scripts/player/player_mage_meta_field_build.gd")
 
 var failures: Array[String] = []
 
@@ -13,6 +14,7 @@ func _init() -> void:
 
 func _run() -> void:
 	_check_level_talent_definitions()
+	_check_reworked_build()
 	_check_radius_and_background_scaling()
 	await _check_projectile_speed_aura()
 	if not failures.is_empty():
@@ -22,6 +24,21 @@ func _run() -> void:
 		return
 	print("MAGE_META_FIELD_LEVEL_TALENTS_SMOKE_OK")
 	quit(0)
+
+func _check_reworked_build() -> void:
+	var owner := MetaOwner.new()
+	owner.role_special_states["mage"] = {"skill_levels": {"mage_meta_field": 7}, MAGE_META_FIELD_BUILD.STATE_KEY: {}}
+	_expect(is_equal_approx(MAGE_META_FIELD_BUILD.radius_bonus(owner), 105.0), "meta field levels 1-3 and 5-7 should use 15/25 radius growth")
+	_expect(is_equal_approx(MAGE_META_FIELD_BUILD.armor_bonus(owner), 25.0), "meta field level 6 should add 25 armor")
+	_expect(MAGE_META_FIELD_BUILD.choose(owner, 4, 1), "meta field LV4 should accept space lock")
+	_expect(MAGE_META_FIELD_BUILD.has_choice(owner, "space_lock"), "meta field LV4 choice should persist")
+	owner.role_special_states["mage"]["skill_levels"]["mage_meta_field"] = 8
+	_expect(MAGE_META_FIELD_BUILD.choose(owner, 8, 2), "meta field LV8 should accept magic pressure")
+	_expect(MAGE_META_FIELD_BUILD.has_choice(owner, "magic_pressure"), "meta field LV8 choice should persist")
+	owner.role_special_states["mage"]["skill_levels"]["mage_meta_field"] = 9
+	_expect(MAGE_META_FIELD_BUILD.choose(owner, 9, 2), "meta field LV9 should accept soul extraction")
+	_expect(not MAGE_META_FIELD_BUILD.choose(owner, 9, 1), "meta field LV9 should remain mutually exclusive")
+	owner.free()
 
 
 func _check_level_talent_definitions() -> void:

@@ -15,6 +15,7 @@ class TestMain:
 	extends "res://scripts/main.gd"
 	var saved: Dictionary = {}
 	var defeat_count: int = 0
+	var stage_clear_count: int = 0
 	func _ready() -> void:
 		pass
 	func _is_developer_mode() -> bool:
@@ -28,6 +29,8 @@ class TestMain:
 		defeat_count += 1
 		if is_instance_valid(wave_flow):
 			wave_flow.boss_defeated(enemy)
+	func _on_stage_cleared() -> void:
+		stage_clear_count += 1
 	func _exit_tree() -> void:
 		pass
 	func _notification(_what: int) -> void:
@@ -88,6 +91,7 @@ func _run() -> void:
 	check(main.spawn_timer.is_stopped(), "Wave mode must stop the old continuous spawn timer")
 	check(PLAN.POOLS.size() == 20 and PLAN.DURATIONS.size() == 20, "Plan must contain 20 waves")
 	check(int(PLAN.limits(19)["middle"]) == 18 and int(PLAN.limits(19)["high"]) == 5, "Late-wave caps must match approved increased limits")
+	check(FLOW.get_flyby_count(8) == 24 and FLOW.get_flyby_count(14) == 36 and FLOW.get_flyby_count(19) == 48, "Flyby eye counts must be doubled for each event tier")
 	for pool in PLAN.POOLS:
 		check("swarm" not in pool, "Fly-eyes must never enter the regular spawn pool")
 
@@ -334,6 +338,20 @@ func _run() -> void:
 		finish_ending(flow)
 		check(flow.phase == ("complete" if boss_wave == 20 else "preparation"), "Boss defeat must transition wave %d" % boss_wave)
 		_clear_enemies(main)
+	flow.wave = 19
+	flow.phase = "combat"
+	flow.begin_preparation()
+	finish_ending(flow)
+	flow.finish_wave_blessing()
+	check(flow.phase == "preparation" and not flow.ending_final, "Wave 19 must end in preparation, not victory")
+	var invalid_final_save := flow.get_save_data()
+	invalid_final_save["phase"] = "complete"
+	invalid_final_save["ending_final"] = true
+	flow.apply_save_data(invalid_final_save)
+	check(flow.phase == "preparation" and not flow.ending_final, "A saved final state on wave 19 must resume as preparation")
+	flow.skip_preparation()
+	check(flow.wave == 20 and flow.phase == "combat", "Wave 19 preparation must advance into the final Boss wave")
+	check(main.stage_clear_count == 0, "Wave 19 must not trigger stage-clear settlement")
 	var flyer = ENEMY.instantiate()
 	main.add_child(flyer)
 	flyer.target = main.player
@@ -342,6 +360,7 @@ func _run() -> void:
 	flyer.position = Vector2(-100, 40)
 	FLYBY.configure(flyer, Vector2.RIGHT)
 	var initial_velocity: Vector2 = FLYBY.velocity(flyer, 0.1)
+	check(is_equal_approx(initial_velocity.length(), flyer.speed * flyer.slow_multiplier * 0.7 * 1.1 * 2.0), "Flyby eyes must move at double their previous speed")
 	check(absf(initial_velocity.angle()) <= deg_to_rad(2.51), "Flyby turning speed must be limited")
 	flyer.position = Vector2(100, 0)
 	FLYBY.velocity(flyer, 0.1)

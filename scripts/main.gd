@@ -18,6 +18,7 @@ const GAME_SCENE_WIRING := preload("res://scripts/game/game_scene_wiring.gd")
 const GAME_STORY_CONTEXT_FLOW := preload("res://scripts/game/game_story_context_flow.gd")
 const GAME_HUD_FLOW := preload("res://scripts/game/game_hud_flow.gd")
 const GAME_CHARACTER_PANEL_FLOW := preload("res://scripts/game/game_character_panel_flow.gd")
+const CAT_VILLAGE_MENU_FLOW := preload("res://scripts/game/cat_village_menu_flow.gd")
 const GAME_MAP_FLOW := preload("res://scripts/game/game_map_flow.gd")
 const BLESSING_UNLOCK_NOTICE_FLOW := preload("res://scripts/game/blessing_unlock_notice_flow.gd")
 const PICKUP_COMPACTOR := preload("res://scripts/game/pickup_compactor.gd")
@@ -54,6 +55,7 @@ var wave_flow
 var spawn_timer: Timer
 var hud
 var character_panel
+var cat_village_menu
 var level_up_ui
 var pause_menu
 var game_over_ui
@@ -227,6 +229,12 @@ func _show_character_panel() -> void:
 
 func _hide_character_panel() -> void:
 	GAME_CHARACTER_PANEL_FLOW.hide_character_panel(self)
+
+func _toggle_cat_village_menu() -> void:
+	CAT_VILLAGE_MENU_FLOW.toggle_menu(self)
+
+func _hide_cat_village_menu() -> void:
+	CAT_VILLAGE_MENU_FLOW.hide_menu(self)
 
 func _handle_escape_toggle() -> void:
 	GAME_SESSION_FLOW.handle_escape_toggle(self)

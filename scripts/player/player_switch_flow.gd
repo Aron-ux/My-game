@@ -174,45 +174,51 @@ static func try_switch_role(owner, new_role_index: int, ignore_restrictions: boo
 	var previous_role_index: int = owner.active_role_index
 	var previous_position: Vector2 = owner.global_position
 	var previous_role_id: String = str(owner.roles[previous_role_index].get("id", ""))
-	preload("res://scripts/player/player_attack_loop_flow.gd").save_role_cooldown(owner, previous_role_id)
+	var preparation_phase := _is_preparation_phase(owner)
+	if not preparation_phase:
+		preload("res://scripts/player/player_attack_loop_flow.gd").save_role_cooldown(owner, previous_role_id)
 	var ultimate_entry_switch: bool = ultimate_switch_allowed and PLAYER_SWORDSMAN_ULTIMATE_FLOW.should_force_entry_during_ultimate(owner)
 	var preserve_switch_invulnerability: float = float(owner.switch_invulnerability_remaining)
 	var preserve_hidden_invulnerability: float = float(owner.hidden_invulnerability_status_remaining)
-	if previous_role_id == "swordsman":
+	if not preparation_phase and previous_role_id == "swordsman":
 		PLAYER_SWORDSMAN_TRAIT_RUNTIME_FLOW.clear_bloodthirst_on_role_switch(owner)
 		if owner.swordsman_death_defiance_will_remaining > 0.0:
 			if owner.switch_invulnerability_remaining <= owner.swordsman_death_defiance_will_remaining + 0.001:
 				owner.switch_invulnerability_remaining = 0.0
 			owner.swordsman_death_defiance_will_remaining = 0.0
-	var should_trigger_entry: bool = force_entry or ultimate_entry_switch or (owner.has_method("_consume_switch_energy_for_entry") and owner._consume_switch_energy_for_entry(previous_role_id))
-	if owner.has_method("_save_active_role_health"):
+	var should_trigger_entry: bool = not preparation_phase and (force_entry or ultimate_entry_switch or (owner.has_method("_consume_switch_energy_for_entry") and owner._consume_switch_energy_for_entry(previous_role_id)))
+	if not preparation_phase and owner.has_method("_save_active_role_health"):
 		owner._save_active_role_health()
-	if previous_role_id == "swordsman" and owner.has_method("_clear_temporary_health"):
+	if not preparation_phase and previous_role_id == "swordsman" and owner.has_method("_clear_temporary_health"):
 		owner._clear_temporary_health(true)
-	elif owner.has_method("_save_active_role_temporary_health"):
+	elif not preparation_phase and owner.has_method("_save_active_role_temporary_health"):
 		owner._save_active_role_temporary_health()
-	if previous_role_id == "gunner" and owner.has_method("_clear_gunner_flash_trait_on_switch"):
+	if not preparation_phase and previous_role_id == "gunner" and owner.has_method("_clear_gunner_flash_trait_on_switch"):
 		owner._clear_gunner_flash_trait_on_switch()
-	apply_exit_skill(owner, previous_role_index)
+	if not preparation_phase:
+		apply_exit_skill(owner, previous_role_index)
 	owner.active_role_index = new_role_index
-	owner.switch_cooldown_remaining = 0.0 if DEVELOPER_MODE.should_ignore_cooldowns() else _get_switch_cooldown_duration(owner)
+	owner.switch_cooldown_remaining = 0.0 if preparation_phase or DEVELOPER_MODE.should_ignore_cooldowns() else _get_switch_cooldown_duration(owner)
 	var active_role_index: int = owner.active_role_index
 	var active_role_id: String = str(owner.roles[active_role_index]["id"])
-	if ultimate_switch_allowed:
+	if not preparation_phase and ultimate_switch_allowed:
 		PLAYER_SWORDSMAN_ULTIMATE_FLOW.release_action_lock_for_switch(owner)
 		PLAYER_SWORDSMAN_ULTIMATE_FLOW.record_ultimate_switch(owner, active_role_id)
-	var flame_path_ability: Variant = owner.get("mage_flame_path_ability") if owner != null else null
-	if flame_path_ability != null and flame_path_ability.has_method("on_role_switched"):
-		flame_path_ability.on_role_switched(previous_role_id, active_role_id)
-	if previous_role_id == "mage" and owner.has_method("_transfer_mage_arcane_charge_to_role_on_switch"):
-		owner._transfer_mage_arcane_charge_to_role_on_switch(active_role_id)
-	elif owner.has_method("_relay_mage_arcane_charge_on_switch"):
-		owner._relay_mage_arcane_charge_on_switch(previous_role_id, active_role_id)
-	owner.switch_invulnerability_remaining = max(SWITCH_INVULNERABILITY, preserve_switch_invulnerability)
-	owner.hidden_invulnerability_status_remaining = max(preserve_hidden_invulnerability, SWITCH_INVULNERABILITY)
+	if not preparation_phase:
+		var flame_path_ability: Variant = owner.get("mage_flame_path_ability") if owner != null else null
+		if flame_path_ability != null and flame_path_ability.has_method("on_role_switched"):
+			flame_path_ability.on_role_switched(previous_role_id, active_role_id)
+		if previous_role_id == "mage" and owner.has_method("_transfer_mage_arcane_charge_to_role_on_switch"):
+			owner._transfer_mage_arcane_charge_to_role_on_switch(active_role_id)
+		elif owner.has_method("_relay_mage_arcane_charge_on_switch"):
+			owner._relay_mage_arcane_charge_on_switch(previous_role_id, active_role_id)
+	if not preparation_phase:
+		owner.switch_invulnerability_remaining = max(SWITCH_INVULNERABILITY, preserve_switch_invulnerability)
+		owner.hidden_invulnerability_status_remaining = max(preserve_hidden_invulnerability, SWITCH_INVULNERABILITY)
 	var switch_direction: Vector2 = owner.velocity if owner.velocity.length_squared() > 0.001 else owner.facing_direction
 	owner._update_active_role_state()
-	preload("res://scripts/player/player_attack_loop_flow.gd").restore_role_cooldown(owner, active_role_id)
+	if not preparation_phase:
+		preload("res://scripts/player/player_attack_loop_flow.gd").restore_role_cooldown(owner, active_role_id)
 	if should_trigger_entry:
 		PLAYER_SWITCH_JOB_QUEUE.run_jobs(owner, [
 			func() -> void:
@@ -226,19 +232,34 @@ static func try_switch_role(owner, new_role_index: int, ignore_restrictions: boo
 			func() -> void:
 				apply_swap_guard(owner, switch_direction)
 		])
-	if not DEVELOPER_MODE.should_ignore_cooldowns():
+	if not preparation_phase and not DEVELOPER_MODE.should_ignore_cooldowns():
 		PLAYER_SKILL_COOLDOWN_FLOW.apply_switch_lock_to_role_skills(owner, active_role_id, ROLE_SWITCH_ACTION_COOLDOWN)
 		if owner.fire_timer != null:
 			var attack_interval: float = owner._get_effective_attack_interval(active_role_id)
 			owner.fire_timer.start(ROLE_SWITCH_ACTION_COOLDOWN)
 			owner.fire_timer.wait_time = attack_interval
 	var symbol_level: int = 0
-	if symbol_level > 0:
+	if not preparation_phase and symbol_level > 0:
 		owner._add_energy(4.0 + symbol_level * 1.8)
-	if owner._has_elite_relic("elite_reactor"):
+	if not preparation_phase and owner._has_elite_relic("elite_reactor"):
 		owner._add_energy(12.0)
-	if previous_position != owner.global_position:
+	if not preparation_phase and previous_position != owner.global_position:
 		owner._spawn_dash_line_effect(previous_position, owner.global_position, Color(0.94, 0.92, 0.66, 0.7), 8.0, 0.12)
+
+
+static func _is_preparation_phase(owner) -> bool:
+	if owner == null or not owner.has_method("get_parent"):
+		return false
+	var node: Node = owner.get_parent()
+	for _index in range(5):
+		if node == null:
+			return false
+		for property in node.get_property_list():
+			if str(property.get("name", "")) == "wave_flow":
+				var wave_flow: Variant = node.get("wave_flow")
+				return wave_flow != null and is_instance_valid(wave_flow) and str(wave_flow.get("phase")) == "preparation"
+		node = node.get_parent()
+	return false
 
 
 static func get_switch_cooldown_duration(owner) -> float:

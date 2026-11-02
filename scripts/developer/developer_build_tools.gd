@@ -58,8 +58,26 @@ static func skill_catalog(player) -> Array:
 				"id": progress, "role_id": role_id, "role_name": str(role.get("name", role_id)),
 				"title": LEVELS.get_progress_title(progress), "level": level, "unlocked": unlocked,
 				"min_level": 0 if basic else 1, "max_level": 9 if basic else 1 if ultimate else 10,
-				"description": description.strip_edges(), "choices": build.choices(player).duplicate() if basic else {}
+				"description": description.strip_edges(), "choices": build.choices(player).duplicate() if basic else {},
+				"talent_pending": LEVELS.is_talent_pick_pending(player, role_id, progress) if not basic and not ultimate else false,
+				"talent_slots": LEVELS.get_granted_talent_slots(player, role_id, progress) if not basic and not ultimate else [],
+				"talent_picked": LEVELS.get_picked_talent_slot(player, role_id, progress) if not basic and not ultimate else 0,
+				"talents": _get_skill_talents(player, role_id, progress) if not basic and not ultimate else []
 			})
+	return result
+
+static func _get_skill_talents(player, role_id: String, progress_id: String) -> Array:
+	var result: Array = []
+	for slot in range(1, LEVELS.TALENT_SLOT_COUNT + 1):
+		var definition := LEVELS.get_talent_definition(role_id, progress_id, slot)
+		if definition.is_empty():
+			continue
+		result.append({
+			"slot": slot,
+			"title": str(definition.get("title", "")),
+			"summary": str(definition.get("summary", "")),
+			"description": str(definition.get("description", ""))
+		})
 	return result
 
 static func item_catalog(player) -> Array:
@@ -169,6 +187,18 @@ static func _change_skill(player, request: Dictionary) -> bool:
 			return false
 		state[build.STATE_KEY][str(stage)] = key
 		return true
+	if operation == "talent":
+		var slot := int(request.get("slot", 0))
+		if LEVELS.is_custom_basic(id) or LEVELS.is_ultimate_progress(id):
+			return false
+		if not LEVELS.is_talent_pick_pending(player, role_id, id):
+			return false
+		if slot < 1 or slot > LEVELS.TALENT_SLOT_COUNT:
+			return false
+		if LEVELS.get_talent_definition(role_id, id, slot).is_empty():
+			return false
+		LEVELS._record_talent_slot(player, role_id, id, slot, true)
+		return true
 	if operation == "unlock":
 		var skill: String = str(LEVELS.UNLOCKABLE_PROGRESS.get(id, ""))
 		return skill != "" and SKILLS.force_unlock_skill(player, skill, 1)
@@ -191,6 +221,8 @@ static func _change_skill(player, request: Dictionary) -> bool:
 	else:
 		state["skill_talent_slots"].erase(id)
 	player.role_special_states[role_id] = state
+	if not LEVELS.is_custom_basic(id):
+		LEVELS._refresh_talent_slots(player, role_id, id, level)
 	return true
 
 static func _refresh(player) -> void:
