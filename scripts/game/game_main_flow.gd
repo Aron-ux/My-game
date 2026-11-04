@@ -4,6 +4,11 @@ const PERFORMANCE_RECORDER := preload("res://scripts/game/performance_recorder.g
 const PERFORMANCE_FEATURE_FLAGS := preload("res://scripts/game/performance_feature_flags.gd")
 const PERFORMANCE_TRACE_LOGGER := preload("res://scripts/game/performance_trace_logger.gd")
 const PLAYER_AUTHORED_EFFECTS := preload("res://scripts/player/player_authored_effects.gd")
+const PLAYER_EFFECT_PRIMITIVES := preload("res://scripts/player/player_effect_primitives.gd")
+const PLAYER_EFFECT_LINE_PRIMITIVES := preload("res://scripts/player/player_effect_line_primitives.gd")
+const PLAYER_EFFECT_SHAPE_PRIMITIVES := preload("res://scripts/player/player_effect_shape_primitives.gd")
+const SWORD_CURSOR_TEXTURE := preload("res://assets/UI/cursor/sword_cursor.svg")
+const SWORD_CURSOR_HOTSPOT := Vector2(7.0, 7.0)
 
 
 static func ready(main: Node) -> void:
@@ -14,6 +19,8 @@ static func ready(main: Node) -> void:
 	if main.player == null:
 		push_error("Main.gd could not find a player node.")
 		return
+
+	_install_game_cursor()
 
 	main._load_story_stage_context()
 	main._apply_story_loadout()
@@ -48,27 +55,50 @@ static func handle_notification(main: Node, what: int) -> void:
 
 static func exit_tree(main: Node) -> void:
 	PERFORMANCE_TRACE_LOGGER.stop("scene_exit")
+	_restore_default_cursor()
 	main.GAME_SESSION_FLOW.reset_game_speed(main)
 	if not main.game_over and not main.suppress_exit_save and not main.exit_snapshot_saved:
 		main._save_run_state()
 	main._cleanup_runtime_nodes()
 
+static func _install_game_cursor() -> void:
+	Input.set_custom_mouse_cursor(SWORD_CURSOR_TEXTURE, Input.CURSOR_ARROW, SWORD_CURSOR_HOTSPOT)
+
+static func _restore_default_cursor() -> void:
+	Input.set_custom_mouse_cursor(null, Input.CURSOR_ARROW, Vector2.ZERO)
+
 
 static func cleanup_runtime_nodes(main: Node) -> void:
-	main.ENEMY_HIT_FEEDBACK.clear_runtime_state()
-	main.PLAYER_BULLET.clear_runtime_state()
+	clear_temporary_combat_effects(main)
 	var game_bgm = main._get_game_bgm()
 	if game_bgm != null and game_bgm.has_method("stop"):
 		game_bgm.stop()
 	if game_bgm != null:
 		game_bgm.set("stream", null)
+
+
+static func clear_temporary_combat_effects(main: Node) -> void:
+	main.ENEMY_HIT_FEEDBACK.clear_runtime_state()
+	main.PLAYER_BULLET.clear_runtime_state()
+	PLAYER_EFFECT_PRIMITIVES.clear_runtime_state()
+	PLAYER_EFFECT_LINE_PRIMITIVES.clear_runtime_state()
+	PLAYER_EFFECT_SHAPE_PRIMITIVES.clear_runtime_state()
+	PLAYER_AUTHORED_EFFECTS.clear_runtime_state()
 	var tree: SceneTree = main.get_tree()
 	if tree != null:
+		var projectile_batch: Node = main.get_node_or_null("PlayerProjectileBatch")
+		if projectile_batch != null and projectile_batch.has_method("clear_runtime_state"):
+			projectile_batch.clear_runtime_state()
+		var warning_batch: Node = main.get_node_or_null("SpawnWarningBatch")
+		if warning_batch != null and warning_batch.has_method("clear_runtime_state"):
+			warning_batch.clear_runtime_state()
 		for effect in tree.get_nodes_in_group("temporary_effects"):
-				if effect != null and is_instance_valid(effect):
-					if effect is Node and not effect.is_queued_for_deletion():
-						effect.free()
-	PLAYER_AUTHORED_EFFECTS.clear_runtime_state()
+			if effect == null or not is_instance_valid(effect):
+				continue
+			if effect == projectile_batch or effect == warning_batch:
+				continue
+			if effect is Node and not effect.is_queued_for_deletion():
+				effect.free()
 
 
 static func unhandled_input(main: Node, event: InputEvent) -> void:

@@ -385,10 +385,9 @@ func _update_crescent_projectiles(delta: float) -> void:
 		var data: Dictionary = active_crescent_projectiles[index]
 		var owner_ref: WeakRef = data.get("owner_ref", null) as WeakRef
 		var owner = owner_ref.get_ref() if owner_ref != null else null
-		var projectile := data.get("projectile", null) as Node2D
-		if owner == null or not is_instance_valid(owner) or projectile == null or not is_instance_valid(projectile):
-			if projectile != null and is_instance_valid(projectile):
-				_free_projectile(projectile)
+		var raw_projectile: Variant = data.get("projectile", null)
+		var projectile: Node2D = raw_projectile as Node2D if is_instance_valid(raw_projectile) and raw_projectile is Node2D else null
+		if owner == null or not is_instance_valid(owner) or projectile == null:
 			active_crescent_projectiles.remove_at(index)
 			continue
 		if int(projectile.get_meta("crescent_projectile_token", -1)) != int(data.get("token", -1)):
@@ -414,7 +413,7 @@ func _update_crescent_projectiles(delta: float) -> void:
 			var slow_multiplier: float = 0.80 if _has_cast_talent(owner, talent_ids, "swordsman_crescent_frost_trail") else 1.0
 			var slow_duration: float = 0.6 if slow_multiplier < 1.0 else 0.0
 			var hit_count: int = owner._damage_enemies_in_oriented_rect_unique(current_position, direction, sample_length, float(data.get("width", 1.0)), float(data.get("damage_amount", 0.0)), 0.0, slow_multiplier, slow_duration, hit_registry, "swordsman", "swordsman_crescent_wave")
-			_try_trigger_blood_moon(owner, hit_count)
+			_try_trigger_blood_moon(owner, hit_count, int(data.get("token", -1)))
 			if hit_count > 0 and PLAYER_COMBAT_RESULT_FLOW.get_swordsman_blood_surge_multiplier(owner) > 1.0:
 				PLAYER_COMBAT_RESULT_FLOW.consume_swordsman_blood_surge(owner)
 			data["hit_registry"] = hit_registry
@@ -644,15 +643,18 @@ func _has_cast_talent(owner, talent_ids: Array, talent_id: String) -> bool:
 	return talent_ids.has(talent_id) if cast_talent_snapshot_valid or not talent_ids.is_empty() else _has_talent(owner, talent_id)
 
 
-func _try_trigger_blood_moon(owner, hit_count: int) -> void:
+func _try_trigger_blood_moon(owner, hit_count: int, projectile_token: int) -> void:
 	if hit_count <= 0 or not BUILD.has_choice(owner, "blood_moon"):
 		return
-	if owner == null or not owner.has_method("_get_swordsman_trait_heal_proc_chance"):
+	if owner == null:
 		return
-	var proc_chance: float = clamp(float(owner._get_swordsman_trait_heal_proc_chance()) * 0.5, 0.0, 1.0)
-	if randf() > proc_chance:
-		return
-	SWORDSMAN_ROLE._try_start_bloodthirst(owner, 3.0, 1.0)
+	PLAYER_COMBAT_RESULT_FLOW.apply_swordsman_trait_heal_on_hit(
+		owner,
+		"swordsman",
+		hit_count,
+		"swordsman_blood_moon:%d" % projectile_token,
+		0.5
+	)
 
 
 func _capture_talents(owner) -> Array[String]:

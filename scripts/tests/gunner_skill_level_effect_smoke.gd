@@ -23,6 +23,7 @@ func _run() -> void:
 	_check_flat_bonuses()
 	_check_magic_eye_armor()
 	_check_magic_grenade_charge()
+	_check_magic_grenade_level_nine()
 	_check_magic_grenade_skill_talents()
 	_check_magic_grenade_launch_count()
 	_check_magic_grenade_target_spread()
@@ -114,6 +115,23 @@ func _check_magic_grenade_charge() -> void:
 	owner.level_talents.clear()
 	PLAYER_GUNNER_MAGIC_GRENADE_FLOW.add_charge_energy(owner, 1.0)
 	_expect_approx(PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_charge_critical_bonus(owner), 0.0025, "charge energy does not accumulate without the talent")
+	owner.free()
+
+
+func _check_magic_grenade_level_nine() -> void:
+	var owner := _make_owner()
+	_set_level(owner, "gunner_magic_grenade", 8)
+	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_grenade_damage_ratio_bonus(owner), 2.25, "level 8 damage upgrades should total 225 percentage points")
+	var preview := PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_upgrade_preview_text(owner, "gunner", "gunner_magic_grenade")
+	_expect(preview.contains("+50%"), "level 9 preview should show its damage increase")
+	_set_level(owner, "gunner_magic_grenade", 9)
+	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_grenade_damage_ratio_bonus(owner), 2.75, "level 9 should add 50 percentage points")
+	_expect(PLAYER_SKILL_LEVEL_SYSTEM.is_progress_upgradeable(owner, "gunner_magic_grenade"), "level 9 should remain upgradeable to level 10")
+	_set_level(owner, "gunner_magic_grenade", 10)
+	_expect_approx(PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_grenade_damage_ratio_bonus(owner), 2.75, "level 10 should not add an undocumented damage increase")
+	_expect(not PLAYER_SKILL_LEVEL_SYSTEM.is_progress_upgradeable(owner, "gunner_magic_grenade"), "level 10 should be the skill line cap")
+	PLAYER_SKILL_LEVEL_SYSTEM._refresh_talent_slots(owner, "gunner", "gunner_magic_grenade", 10)
+	_expect_equal(PLAYER_SKILL_LEVEL_SYSTEM.get_granted_talent_slots(owner, "gunner", "gunner_magic_grenade"), [1, 2], "level 10 should grant the second talent slot")
 	owner.free()
 
 

@@ -3,6 +3,7 @@ extends RefCounted
 const PLAYER_DAMAGE_RESOLVER := preload("res://scripts/player/player_damage_resolver.gd")
 const PLAYER_TARGETING := preload("res://scripts/player/player_targeting.gd")
 const PLAYER_SKILL_LEVEL_EFFECT_FLOW := preload("res://scripts/player/player_skill_level_effect_flow.gd")
+const MAGIC_GRENADE_BUILD := preload("res://scripts/player/player_gunner_magic_grenade_build.gd")
 
 ## 枪手主动技能「魔法榴弹」的来源识别与专属暴击加成。
 
@@ -47,11 +48,14 @@ static func is_magic_grenade_source(source_role_id: String) -> bool:
 static func has_talent(owner, talent_id: String) -> bool:
 	return owner != null and owner.has_method("_has_level_talent") and bool(owner._has_level_talent(talent_id))
 
+static func _has_build_choice(owner, key: String) -> bool:
+	return MAGIC_GRENADE_BUILD.has_choice(owner, key)
+
 static func has_magic_chase(owner) -> bool:
-	return has_talent(owner, TALENT_MAGIC_GRENADE_1) or _has_skill_talent_slot(owner, 1)
+	return MAGIC_GRENADE_BUILD.has_choice(owner, "magic_chase") or has_talent(owner, TALENT_MAGIC_GRENADE_1) or _has_skill_talent_slot(owner, 1)
 
 static func has_lucky_round(owner) -> bool:
-	return has_talent(owner, TALENT_MAGIC_GRENADE_2) or _has_skill_talent_slot(owner, 2)
+	return MAGIC_GRENADE_BUILD.has_choice(owner, "lucky_round") or has_talent(owner, TALENT_MAGIC_GRENADE_2) or _has_skill_talent_slot(owner, 2)
 
 static func _has_skill_talent_slot(owner, slot: int) -> bool:
 	if owner == null or not (owner.get("role_special_states") is Dictionary):
@@ -70,22 +74,25 @@ static func _has_skill_talent_slot(owner, slot: int) -> bool:
 
 
 static func get_grenade_count(owner) -> int:
-	return GRENADE_COUNT + (TALENT_1_GRENADE_BONUS if has_magic_chase(owner) else 0) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_grenade_extra_count(owner)
+	return GRENADE_COUNT + (TALENT_1_GRENADE_BONUS if has_magic_chase(owner) else 0) + (1 if MAGIC_GRENADE_BUILD.level(owner) >= 6 else 0)
 
 
 static func get_damage_ratio(owner) -> float:
-	return maxf(0.0, DAMAGE_RATIO + (TALENT_1_DAMAGE_RATIO_BONUS if has_magic_chase(owner) else 0.0) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_grenade_damage_ratio_bonus(owner))
+	return maxf(0.0, MAGIC_GRENADE_BUILD.damage_ratio(owner) + (TALENT_1_DAMAGE_RATIO_BONUS if has_talent(owner, TALENT_MAGIC_GRENADE_1) and not MAGIC_GRENADE_BUILD.has_choice(owner, "magic_chase") else 0.0))
 
 
 static func get_blast_radius(owner) -> float:
-	return BLAST_RADIUS + (TALENT_2_BLAST_RADIUS_BONUS if has_lucky_round(owner) else 0.0)
+	return BLAST_RADIUS
+
+static func get_blast_radius_for_hit(owner, was_critical: bool) -> float:
+	return BLAST_RADIUS + (TALENT_2_BLAST_RADIUS_BONUS if was_critical and has_lucky_round(owner) else 0.0)
 
 
 static func get_critical_chance_bonus(owner, source_role_id: String) -> float:
 	if source_role_id == "" or not is_magic_grenade_source(source_role_id):
 		return 0.0
-	var charge_bonus := get_charge_critical_bonus(owner) if has_talent(owner, TALENT_MAGIC_GRENADE_CHARGE) else 0.0
-	return CRIT_CHANCE_BONUS + (TALENT_2_CRIT_BONUS if has_lucky_round(owner) else 0.0) + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_gunner_magic_grenade_crit_bonus(owner) + charge_bonus
+	var charge_bonus := get_charge_critical_bonus(owner) if (_has_build_choice(owner, "magic_charge") or has_talent(owner, TALENT_MAGIC_GRENADE_CHARGE)) else 0.0
+	return CRIT_CHANCE_BONUS + (TALENT_2_CRIT_BONUS if has_lucky_round(owner) else 0.0) + charge_bonus
 
 
 static func collect_targets(owner, origin: Vector2, facing: Vector2) -> Array:
@@ -139,24 +146,38 @@ static func _spread_repeated_targets(targets: Array, origin: Vector2) -> Array:
 	return result
 
 
-static func apply_explosion(owner, center: Vector2, source_id: String = "") -> void:
+static func apply_explosion(owner, center: Vector2, source_id: String = "") -> bool:
 	if owner == null or not is_instance_valid(owner):
-		return
+		return false
 	var damage: float = float(owner._get_role_damage("gunner")) * get_damage_ratio(owner)
-	owner._damage_enemies_in_radius(center, get_blast_radius(owner), damage, 0.0, 1.0, 0.0, source_id if source_id != "" else make_damage_source_id())
+	var resolved_source := source_id if source_id != "" else make_damage_source_id()
+	if not has_lucky_round(owner):
+		owner._damage_enemies_in_radius(center, BLAST_RADIUS, damage, 0.0, 1.0, 0.0, resolved_source)
+		return false
+	var was_critical: bool = owner.has_method("_roll_critical_hit") and bool(owner._roll_critical_hit("gunner", get_critical_chance_bonus(owner, resolved_source)))
+	var radius := get_blast_radius_for_hit(owner, was_critical)
+	var candidates: Array = PLAYER_DAMAGE_RESOLVER._get_candidate_enemies_for_circle(owner, center, radius)
+	for enemy in candidates:
+		if enemy == null or not is_instance_valid(enemy) or not enemy is Node2D:
+			continue
+		var distance := (enemy as Node2D).global_position.distance_to(center)
+		if distance > radius or not PLAYER_DAMAGE_RESOLVER._enemy_hit_shape_hits_circle(owner, enemy as Node2D, center, radius):
+			continue
+		PLAYER_DAMAGE_RESOLVER.deal_damage_to_enemy(owner, enemy, damage, resolved_source, 0.0, 2.0, 1.0, 0.0, center, false, 0.0, false, "", "", 1 if was_critical else 0)
+	return was_critical
 
 static func on_magic_grenade_hit(owner, enemy: Node, source_role_id: String, was_critical: bool, killed: bool) -> void:
 	if owner == null or enemy == null or not is_instance_valid(enemy):
 		return
 	var is_free := source_role_id == make_damage_source_id(true)
-	if has_talent(owner, TALENT_MAGIC_GRENADE_MENTAL_SHOCK) and not is_free:
+	if (_has_build_choice(owner, "mental_shock") or has_talent(owner, TALENT_MAGIC_GRENADE_MENTAL_SHOCK)) and not is_free:
 		var stacks := int(enemy.get_meta(MENTAL_SHOCK_STACK_META, 0)) + 1
 		enemy.set_meta(MENTAL_SHOCK_STACK_META, stacks)
 		if enemy.has_method("apply_vulnerability"):
 			enemy.apply_vulnerability(float(stacks) * MENTAL_SHOCK_VULNERABILITY_PER_STACK, 999999.0)
 		if killed and stacks >= MENTAL_SHOCK_REQUIRED_STACKS:
 			_stun_nearby_enemies(owner, enemy)
-	if has_talent(owner, TALENT_MAGIC_GRENADE_CHAIN_BLAST) and was_critical and not is_free:
+	if (_has_build_choice(owner, "chain_blast") or has_talent(owner, TALENT_MAGIC_GRENADE_CHAIN_BLAST)) and was_critical and not is_free:
 		var count := int(owner.get_meta("gunner_magic_grenade_chain_crit_count", 0)) + 1
 		if count >= CHAIN_BLAST_CRITS_REQUIRED:
 			count -= CHAIN_BLAST_CRITS_REQUIRED
@@ -168,12 +189,12 @@ static func on_magic_grenade_hit(owner, enemy: Node, source_role_id: String, was
 static func on_gunner_basic_critical(owner, source_role_id: String, was_critical: bool) -> void:
 	if owner == null or not was_critical or not source_role_id.begins_with("gunner_basic:"):
 		return
-	if has_talent(owner, TALENT_MAGIC_GRENADE_ASSISTANT) and owner.has_method("_try_trigger_gunner_magic_grenade_free"):
+	if (_has_build_choice(owner, "magic_assistant") or has_talent(owner, TALENT_MAGIC_GRENADE_ASSISTANT)) and owner.has_method("_try_trigger_gunner_magic_grenade_free"):
 		owner._try_trigger_gunner_magic_grenade_free()
 
 
 static func add_charge_energy(owner, amount: float) -> void:
-	if owner == null or amount <= 0.0 or not has_talent(owner, TALENT_MAGIC_GRENADE_CHARGE):
+	if owner == null or amount <= 0.0 or not (_has_build_choice(owner, "magic_charge") or has_talent(owner, TALENT_MAGIC_GRENADE_CHARGE)):
 		return
 	owner.set_meta("gunner_magic_grenade_charge_energy", float(owner.get_meta("gunner_magic_grenade_charge_energy", 0.0)) + amount)
 
@@ -181,7 +202,7 @@ static func get_charge_critical_bonus(owner) -> float:
 	return maxf(0.0, float(owner.get_meta("gunner_magic_grenade_charge_energy", 0.0))) * CHARGE_CRIT_PER_ENERGY
 
 static func get_charge_critical_damage_bonus(owner, source_role_id: String) -> float:
-	if source_role_id == "" or not is_magic_grenade_source(source_role_id) or not has_talent(owner, TALENT_MAGIC_GRENADE_CHARGE):
+	if source_role_id == "" or not is_magic_grenade_source(source_role_id) or not (_has_build_choice(owner, "magic_charge") or has_talent(owner, TALENT_MAGIC_GRENADE_CHARGE)):
 		return 0.0
 	return maxf(0.0, float(owner.get_meta("gunner_magic_grenade_charge_energy", 0.0))) * CHARGE_CRIT_DAMAGE_PER_ENERGY
 

@@ -99,9 +99,10 @@ func get_cooldown_slot(owner = null) -> Dictionary:
 func get_save_data() -> Dictionary:
 	var mines: Array[Dictionary] = []
 	for data in active_mines:
-		var mine: Node2D = data.get("node", null) as Node2D
-		if mine == null or not is_instance_valid(mine):
+		var raw_mine: Variant = data.get("node", null)
+		if not is_instance_valid(raw_mine) or not raw_mine is Node2D:
 			continue
+		var mine: Node2D = raw_mine as Node2D
 		mines.append({"position": _encode_vector2(mine.global_position)})
 	return {"cooldown_remaining": cooldown_remaining, "mines": mines}
 

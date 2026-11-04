@@ -198,7 +198,7 @@ func _get_live_enemy_nodes(owner) -> Array:
 	if owner == null or not is_instance_valid(owner) or not owner.has_method("_get_live_enemies"):
 		return result
 	for enemy_value in owner._get_live_enemies():
-		if enemy_value is Node2D and is_instance_valid(enemy_value):
+		if is_instance_valid(enemy_value) and enemy_value is Node2D:
 			result.append(enemy_value)
 	return result
 
@@ -222,7 +222,7 @@ func _append_enemy_anchored_field_centers(owner, result: Array, enemies: Array, 
 	var max_attempts: int = max(target_count * FIELD_CENTER_ENEMY_ATTEMPT_MULTIPLIER, enemies.size() * 4)
 	while result.size() < target_count and attempts < max_attempts:
 		var enemy_value = enemies[randi() % enemies.size()]
-		if enemy_value is Node2D and is_instance_valid(enemy_value):
+		if is_instance_valid(enemy_value) and enemy_value is Node2D:
 			var enemy := enemy_value as Node2D
 			var candidate: Vector2 = enemy.global_position + _random_field_center_offset(owner)
 			if _is_field_center_far_enough(result, candidate):

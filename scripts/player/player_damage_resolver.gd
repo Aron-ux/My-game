@@ -46,7 +46,7 @@ static var reusable_candidates: Array = []
 static var reusable_seen_enemy_ids: Dictionary = {}
 static var reusable_bounds_list: Array[Rect2] = []
 
-static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, suppress_status_visual: bool = false, kill_energy_bonus: float = 0.0, gunner_event_prepared: bool = false, damage_event_id: String = "", slow_source_id: String = "") -> bool:
+static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, suppress_status_visual: bool = false, kill_energy_bonus: float = 0.0, gunner_event_prepared: bool = false, damage_event_id: String = "", slow_source_id: String = "", critical_override: int = -1) -> bool:
 	if not _is_live_enemy(enemy):
 		return false
 	if preload("res://scripts/enemies/enemy_necro_priest.gd").immune_to_source(enemy, source_role_id):
@@ -65,10 +65,12 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 	var source_critical_chance_bonus: float = PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_critical_chance_bonus(owner, source_role_id)
 	source_critical_chance_bonus += SWORDSMAN_BASIC_BUILD.critical_bonus(owner, source_role_id)
 	var was_critical := false
-	if source_role_id != "swordsman_aux:reflect" and owner != null and resolved_source_role_id != "" and owner.has_method("_roll_critical_hit") and owner.has_method("_get_critical_damage_multiplier"):
+	if critical_override >= 0:
+		was_critical = critical_override > 0
+	elif source_role_id != "swordsman_aux:reflect" and owner != null and resolved_source_role_id != "" and owner.has_method("_roll_critical_hit") and owner.has_method("_get_critical_damage_multiplier"):
 		was_critical = bool(owner._roll_critical_hit(resolved_source_role_id, source_critical_chance_bonus))
-		if was_critical:
-			final_damage *= float(owner._get_critical_damage_multiplier(resolved_source_role_id)) + SWORDSMAN_BASIC_BUILD.critical_damage_bonus(owner, source_role_id) + PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_charge_critical_damage_bonus(owner, source_role_id)
+	if was_critical and owner != null and owner.has_method("_get_critical_damage_multiplier"):
+		final_damage *= float(owner._get_critical_damage_multiplier(resolved_source_role_id)) + SWORDSMAN_BASIC_BUILD.critical_damage_bonus(owner, source_role_id) + PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_charge_critical_damage_bonus(owner, source_role_id)
 	if owner != null and _should_apply_gunner_hunt_multiplier(source_role_id, resolved_source_role_id) and enemy is Node2D:
 		var attack_origin: Vector2 = _get_gunner_damage_origin(owner, enemy as Node2D)
 		if owner.has_method("_get_gunner_distance_damage_multiplier"):
@@ -136,7 +138,7 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 			enemy.apply_slow_silent(slow_multiplier, slow_duration)
 		elif enemy.has_method("apply_slow"):
 			enemy.apply_slow(slow_multiplier, slow_duration)
-	var wet_pending: Variant = enemy.get_meta("mage_surge_wet_pending", null)
+	var wet_pending: Variant = enemy.get_meta("mage_surge_wet_pending", null) if enemy.has_meta("mage_surge_wet_pending") else null
 	if wet_pending != null and enemy.has_method("apply_mage_wet"):
 		enemy.remove_meta("mage_surge_wet_pending")
 		enemy.apply_mage_wet(wet_pending, 4.0)

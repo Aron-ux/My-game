@@ -40,7 +40,6 @@ func _check_reworked_build() -> void:
 	_expect(not MAGE_META_FIELD_BUILD.choose(owner, 9, 1), "meta field LV9 should remain mutually exclusive")
 	owner.free()
 
-
 func _check_level_talent_definitions() -> void:
 	var definitions: Array = PLAYER_SKILL_TALENT_SYSTEM.LEVEL_TALENT_DEFINITIONS.get("mage", [])
 	_expect(_has_candidate(definitions, MAGE_META_FIELD_TALENT_FLOW.TALENT_META_FIELD_1), "meta field I level talent should be registered")

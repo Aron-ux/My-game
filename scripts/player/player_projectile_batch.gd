@@ -103,6 +103,13 @@ func _exit_tree() -> void:
 		PLAYER_DAMAGE_RESOLVER.release_gunner_damage_event(source_player, damage_event_id)
 	damage_event_ids.clear()
 
+func clear_runtime_state() -> void:
+	_clear_projectiles()
+	animation_elapsed = 0.0
+	current_animation_frame = -1
+	last_multimesh_refresh_frame = -1
+	damage_batcher = null
+
 func configure(batch_owner: Node) -> void:
 	source_player = batch_owner
 	difficulty_projectile_speed_bonus = _get_difficulty_projectile_speed_bonus()

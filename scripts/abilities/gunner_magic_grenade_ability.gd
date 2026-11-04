@@ -22,10 +22,9 @@ func update(owner, delta: float) -> void:
 	cooldown_remaining = max(0.0, cooldown_remaining - delta)
 	for index in range(active_grenades.size() - 1, -1, -1):
 		var data: Dictionary = active_grenades[index]
-		var grenade: Node2D = data.get("node", null) as Node2D
-		if owner == null or not is_instance_valid(owner) or grenade == null or not is_instance_valid(grenade):
-			if grenade != null and is_instance_valid(grenade):
-				grenade.queue_free()
+		var raw_grenade: Variant = data.get("node", null)
+		var grenade: Node2D = raw_grenade as Node2D if is_instance_valid(raw_grenade) and raw_grenade is Node2D else null
+		if owner == null or not is_instance_valid(owner) or grenade == null:
 			active_grenades.remove_at(index)
 			continue
 		var elapsed: float = float(data.get("elapsed", 0.0)) + delta
@@ -85,7 +84,8 @@ func _launch(owner, is_free: bool) -> bool:
 	var origin: Vector2 = owner.global_position
 	var targets := PLAYER_GUNNER_MAGIC_GRENADE_FLOW.collect_targets(owner, origin, direction)
 	var spawn_origin: Vector2 = origin + direction * 26.0
-	var projectile_count := 1 if is_free else PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_grenade_count(owner)
+	# 免费释放仍按当前魔法榴弹数量完整释放；区别只在于不消耗冷却。
+	var projectile_count := PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_grenade_count(owner)
 	var fallback_targets := PLAYER_GUNNER_MAGIC_GRENADE_FLOW._build_fallback_targets(owner, origin, direction)
 	while targets.size() < projectile_count:
 		targets.append(fallback_targets[targets.size() % fallback_targets.size()])
@@ -157,9 +157,10 @@ func _build_description(owner) -> String:
 func get_save_data() -> Dictionary:
 	var grenades: Array[Dictionary] = []
 	for data in active_grenades:
-		var grenade: Node2D = data.get("node", null) as Node2D
-		if grenade == null or not is_instance_valid(grenade):
+		var raw_grenade: Variant = data.get("node", null)
+		if not is_instance_valid(raw_grenade) or not raw_grenade is Node2D:
 			continue
+		var grenade: Node2D = raw_grenade as Node2D
 		grenades.append({
 			"position": _encode_vector2(grenade.global_position),
 			"from": _encode_vector2(data.get("from", grenade.global_position)),
@@ -211,8 +212,8 @@ func restore_effect_if_active(owner) -> void:
 
 
 func _explode(owner, center: Vector2, source_id: String = "") -> void:
-	PLAYER_GUNNER_MAGIC_GRENADE_FLOW.apply_explosion(owner, center, source_id)
-	var blast_radius: float = PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_blast_radius(owner)
+	var was_critical: bool = PLAYER_GUNNER_MAGIC_GRENADE_FLOW.apply_explosion(owner, center, source_id)
+	var blast_radius: float = PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_blast_radius_for_hit(owner, was_critical)
 	if owner.has_method("_spawn_burst_effect"):
 		owner._spawn_burst_effect(center, blast_radius * 0.6, Color(0.85, 0.55, 1.0, 0.85), 0.2)
 	if owner.has_method("_spawn_ring_effect"):
@@ -235,8 +236,9 @@ func _create_grenade(scene: Node, position: Vector2, direction: Vector2) -> Node
 
 func _clear_grenades() -> void:
 	for data in active_grenades:
-		var grenade: Node2D = data.get("node", null) as Node2D
-		if grenade != null and is_instance_valid(grenade):
+		var raw_grenade: Variant = data.get("node", null)
+		if is_instance_valid(raw_grenade) and raw_grenade is Node2D:
+			var grenade: Node2D = raw_grenade as Node2D
 			grenade.queue_free()
 	active_grenades.clear()
 

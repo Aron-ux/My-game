@@ -81,7 +81,11 @@ static func armor_bonus(owner) -> float:
 	return LEVEL_SIX_ARMOR if level(owner) >= 6 else 0.0
 
 static func slow_multiplier(owner) -> float:
-	return 1.0 - BASE_SLOW
+	var lv := level(owner)
+	var slow_bonus := float(mini(maxi(lv - 1, 0), 2)) * 0.015
+	if lv >= 5:
+		slow_bonus += float(mini(lv - 4, 3)) * 0.03
+	return 1.0 - clampf(BASE_SLOW + slow_bonus, 0.0, 0.95)
 
 static func next_preview(owner) -> String:
 	match level(owner) + 1:

@@ -151,9 +151,20 @@ func _run() -> void:
 	_check_legacy_role_balance_migration(target)
 	_seed_run_state(source)
 	var source_save: Dictionary = source.get_save_data()
+	var saved_meta_field: Dictionary = (source_save.get("ability_runtime", {}) as Dictionary).get("meta_field", {})
+	if not (saved_meta_field.get("field_center") is Array):
+		failures.append("Meta Field center must be stored as JSON-safe coordinates")
 	target.apply_save_data(source_save)
+	if not target.mage_meta_field_ability.field_center.is_equal_approx(Vector2(260.1859, 20.9957)):
+		failures.append("Meta Field center must restore from saved coordinate arrays")
 	var target_save: Dictionary = target.get_save_data()
 	_compare_roundtrip(source_save, target_save)
+	var legacy_meta_field: Dictionary = saved_meta_field.duplicate(true)
+	legacy_meta_field["field_center"] = "(260.1859, 20.9957)"
+	target.mage_meta_field_ability.apply_save_data(legacy_meta_field)
+	if not target.mage_meta_field_ability.field_center.is_equal_approx(Vector2(260.1859, 20.9957)):
+		failures.append("Meta Field must restore legacy JSON Vector2 strings")
+	target.apply_save_data(source_save)
 	_check_wave_curve_migration(source, target, source_save)
 
 	scene.queue_free()
@@ -282,6 +293,7 @@ func _seed_run_state(player: Node) -> void:
 		"tick_remaining": 0.3,
 		"transferred_role_id": "gunner",
 		"expansion_tick_count": 2,
+		"field_center": Vector2(260.1859, 20.9957),
 		"talent_ids": ["mage_meta_transfer", "mage_meta_expansion"],
 		"talent_snapshot_valid": true
 	})

@@ -2,6 +2,7 @@ extends RefCounted
 
 const PLAYER_LEVEL_CURVE := preload("res://scripts/player/player_level_curve.gd")
 const PLAYER_BLESSING_SYSTEM := preload("res://scripts/player/player_blessing_system.gd")
+const PLAYER_AIM_DIRECTION_INDICATOR := preload("res://scripts/player/player_aim_direction_indicator.gd")
 
 const PLAYER_OBSTACLE_COLLISION_MASK := 1 << 6
 
@@ -70,6 +71,7 @@ static func ready(owner) -> void:
 
 	owner._setup_hurt_core_visual()
 	owner._setup_player_health_bar()
+	_setup_aim_direction_indicator(owner)
 
 	owner._initialize_existing_role_shares()
 
@@ -78,3 +80,9 @@ static func ready(owner) -> void:
 	owner.stats_changed.emit(owner.get_stat_summary())
 	owner.health_changed.emit(owner.current_health, owner.max_health)
 	owner._emit_active_mana_changed()
+
+static func _setup_aim_direction_indicator(owner) -> void:
+	var indicator := PLAYER_AIM_DIRECTION_INDICATOR.new()
+	indicator.name = "AimDirectionIndicator"
+	owner.add_child(indicator)
+	indicator.setup(owner)

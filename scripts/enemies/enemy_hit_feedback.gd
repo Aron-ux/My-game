@@ -39,6 +39,10 @@ static var active_death_bursts: Array[Dictionary] = []
 static var feedback_animation_frame: int = -1
 
 static func clear_runtime_state() -> void:
+	for pool in [damage_label_pool, death_burst_pool]:
+		for node in pool:
+			if is_instance_valid(node) and node is Node and not (node as Node).is_queued_for_deletion():
+				(node as Node).free()
 	damage_label_pool.clear()
 	death_burst_pool.clear()
 	active_damage_labels.clear()

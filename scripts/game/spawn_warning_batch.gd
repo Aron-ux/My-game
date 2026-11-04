@@ -18,6 +18,11 @@ const CRITICAL_FPS_THRESHOLD := 35
 var warnings: Array[Dictionary] = []
 var pending_finished_entries: Array[Dictionary] = []
 
+func clear_runtime_state() -> void:
+	warnings.clear()
+	pending_finished_entries.clear()
+	queue_redraw()
+
 func _ready() -> void:
 	add_to_group("temporary_effects")
 	z_index = 18

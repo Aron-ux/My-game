@@ -308,6 +308,7 @@ func _attract_wave_experience() -> bool:
 	return left
 
 func _finish_wave_ending() -> void:
+	main.GAME_MAIN_FLOW.clear_temporary_combat_effects(main)
 	ending_final = ending_final and wave == 20
 	phase = "complete" if ending_final else "preparation"
 	remaining = PREPARATION_SECONDS

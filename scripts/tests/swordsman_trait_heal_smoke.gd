@@ -19,6 +19,7 @@ func _run() -> void:
 	_check_trait_values()
 	_check_multi_target_cap_and_cooldown()
 	_check_only_basic_attacks_can_heal()
+	_check_blood_moon_uses_battle_will()
 	_check_split_damage_jobs_share_attack_budget()
 	_check_real_player_damage_sources()
 	_check_background_level_talent_shared_will()
@@ -101,6 +102,36 @@ func _check_split_damage_jobs_share_attack_budget() -> void:
 	if failed_owner.healed_amount > 0.0:
 		failures.append("failed rolls must consume the same four-roll budget")
 	failed_owner.free()
+
+
+func _check_blood_moon_uses_battle_will() -> void:
+	var owner := OwnerStub.new()
+	owner.proc_chance = 1.0
+	owner.current_health = 50.0
+	seed(1)
+	PLAYER_COMBAT_RESULT_FLOW.apply_swordsman_trait_heal_on_hit(
+		owner,
+		"swordsman",
+		1,
+		"swordsman_blood_moon:1",
+		0.5
+	)
+	if owner.healed_amount <= 0.0:
+		failures.append("blood moon should use the battle-will heal path at half the current proc chance")
+	if not is_equal_approx(owner.swordsman_trait_heal_cooldown_remaining, ROLE_ATTRIBUTE_RULES.SWORDSMAN_TRAIT_HEAL_COOLDOWN):
+		failures.append("blood moon battle-will success should start the normal trait cooldown")
+	var healed_before_next_projectile := owner.healed_amount
+	PLAYER_COMBAT_RESULT_FLOW.apply_swordsman_trait_heal_on_hit(
+		owner,
+		"swordsman",
+		1,
+		"swordsman_blood_moon:2",
+		0.5
+	)
+	if not is_equal_approx(owner.healed_amount, healed_before_next_projectile):
+		failures.append("a new blood moon projectile should respect the active battle-will cooldown")
+	owner.free()
+
 
 func _check_real_player_damage_sources() -> void:
 	var world := Node2D.new()

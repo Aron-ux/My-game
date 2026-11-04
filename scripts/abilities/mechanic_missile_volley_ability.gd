@@ -36,10 +36,9 @@ func update(owner, delta: float) -> void:
 	cooldown_remaining = max(0.0, cooldown_remaining - delta)
 	for index in range(active_cannons.size() - 1, -1, -1):
 		var data: Dictionary = active_cannons[index]
-		var cannon: Node2D = data.get("node", null) as Node2D
-		if owner == null or not is_instance_valid(owner) or cannon == null or not is_instance_valid(cannon):
-			if cannon != null and is_instance_valid(cannon):
-				cannon.queue_free()
+		var raw_cannon: Variant = data.get("node", null)
+		var cannon: Node2D = raw_cannon as Node2D if is_instance_valid(raw_cannon) and raw_cannon is Node2D else null
+		if owner == null or not is_instance_valid(owner) or cannon == null:
 			active_cannons.remove_at(index)
 			continue
 		var remaining: float = float(data.get("remaining", 0.0)) - delta
@@ -131,9 +130,10 @@ func _get_damage_ratio(owner) -> float:
 func get_save_data() -> Dictionary:
 	var cannons: Array[Dictionary] = []
 	for data in active_cannons:
-		var cannon: Node2D = data.get("node", null) as Node2D
-		if cannon == null or not is_instance_valid(cannon):
+		var raw_cannon: Variant = data.get("node", null)
+		if not is_instance_valid(raw_cannon) or not raw_cannon is Node2D:
 			continue
+		var cannon: Node2D = raw_cannon as Node2D
 		cannons.append({
 			"position": _encode_vector2(cannon.global_position),
 			"rotation": cannon.rotation,

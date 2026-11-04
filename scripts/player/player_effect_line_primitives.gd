@@ -11,6 +11,20 @@ static var active_lines: Array[Dictionary] = []
 static var active_composites: Array[Dictionary] = []
 static var effect_animation_frame: int = -1
 
+static func clear_runtime_state() -> void:
+	for line in line_pool:
+		if is_instance_valid(line) and not line.is_queued_for_deletion():
+			line.free()
+	for pool in composite_pools.values():
+		for root in pool:
+			if is_instance_valid(root) and root is Node and not (root as Node).is_queued_for_deletion():
+				(root as Node).free()
+	line_pool.clear()
+	composite_pools.clear()
+	active_lines.clear()
+	active_composites.clear()
+	effect_animation_frame = -1
+
 static func update_effect_animations(delta: float) -> void:
 	if delta <= 0.0:
 		return

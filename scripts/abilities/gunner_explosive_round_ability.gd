@@ -25,8 +25,9 @@ func update(owner, delta: float) -> void:
 	_update_pending_shots(owner, delta)
 	for index in range(active_projectiles.size() - 1, -1, -1):
 		var data: Dictionary = active_projectiles[index]
-		var projectile: Node2D = data.get("node", null) as Node2D
-		if owner == null or not is_instance_valid(owner) or projectile == null or not is_instance_valid(projectile):
+		var raw_projectile: Variant = data.get("node", null)
+		var projectile: Node2D = raw_projectile as Node2D if is_instance_valid(raw_projectile) and raw_projectile is Node2D else null
+		if owner == null or not is_instance_valid(owner) or projectile == null:
 			active_projectiles.remove_at(index)
 			continue
 		var direction: Vector2 = data.get("direction", Vector2.RIGHT)
@@ -140,9 +141,10 @@ func get_cooldown_slot(owner = null) -> Dictionary:
 func get_save_data() -> Dictionary:
 	var projectiles: Array[Dictionary] = []
 	for data in active_projectiles:
-		var projectile: Node2D = data.get("node", null) as Node2D
-		if projectile == null or not is_instance_valid(projectile):
+		var raw_projectile: Variant = data.get("node", null)
+		if not is_instance_valid(raw_projectile) or not raw_projectile is Node2D:
 			continue
+		var projectile: Node2D = raw_projectile as Node2D
 		var direction: Vector2 = data.get("direction", Vector2.RIGHT)
 		projectiles.append({
 			"position": [projectile.global_position.x, projectile.global_position.y],

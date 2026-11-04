@@ -41,10 +41,9 @@ func update(owner, delta: float) -> void:
 	var travel_distance: float = _get_travel_distance(owner)
 	for index in range(active_spheres.size() - 1, -1, -1):
 		var data: Dictionary = active_spheres[index]
-		var sphere: Node2D = data.get("node", null) as Node2D
-		if owner == null or not is_instance_valid(owner) or sphere == null or not is_instance_valid(sphere):
-			if sphere != null and is_instance_valid(sphere):
-				sphere.queue_free()
+		var raw_sphere: Variant = data.get("node", null)
+		var sphere: Node2D = raw_sphere as Node2D if is_instance_valid(raw_sphere) and raw_sphere is Node2D else null
+		if owner == null or not is_instance_valid(owner) or sphere == null:
 			active_spheres.remove_at(index)
 			continue
 		var phase := str(data.get("phase", "travel"))
@@ -132,9 +131,10 @@ func get_cooldown_slot(owner = null) -> Dictionary:
 func get_save_data() -> Dictionary:
 	var spheres: Array[Dictionary] = []
 	for data in active_spheres:
-		var sphere: Node2D = data.get("node", null) as Node2D
-		if sphere == null or not is_instance_valid(sphere):
+		var raw_sphere: Variant = data.get("node", null)
+		if not is_instance_valid(raw_sphere) or not raw_sphere is Node2D:
 			continue
+		var sphere: Node2D = raw_sphere as Node2D
 		var direction: Vector2 = data.get("direction", Vector2.RIGHT)
 		spheres.append({
 			"position": [sphere.global_position.x, sphere.global_position.y],

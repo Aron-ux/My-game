@@ -141,8 +141,16 @@ static func apply_theme_hit_returns(owner, role_id: String, hit_count: int, kill
 	return
 
 
-static func apply_swordsman_trait_heal_on_hit(owner, role_id: String, hit_count: int, basic_source_id: String = "") -> void:
-	if owner == null or role_id != "swordsman" or not basic_source_id.begins_with("swordsman_basic:"):
+static func apply_swordsman_trait_heal_on_hit(
+	owner,
+	role_id: String,
+	hit_count: int,
+	basic_source_id: String = "",
+	proc_chance_multiplier: float = 1.0
+) -> void:
+	var is_basic_attack := basic_source_id.begins_with("swordsman_basic:")
+	var is_blood_moon_wave := basic_source_id.begins_with("swordsman_blood_moon:")
+	if owner == null or role_id != "swordsman" or (not is_basic_attack and not is_blood_moon_wave):
 		return
 	if str(owner._get_active_role().get("id", "")) != "swordsman" or hit_count <= 0:
 		return
@@ -169,7 +177,7 @@ static func apply_swordsman_trait_heal_on_hit(owner, role_id: String, hit_count:
 	var same_attack_healed: bool = str(owner.get_meta(SWORDSMAN_BASIC_HEAL_LAST_EVENT_META, "")) == basic_source_id
 	if not forced_trigger and (not bool(event["eligible"]) or (owner.swordsman_trait_heal_cooldown_remaining > 0.0 and not same_attack_healed)):
 		return
-	var proc_chance: float = float(context.get("proc_chance", 0.0)) * hit_proc_multiplier(owner)
+	var proc_chance: float = float(context.get("proc_chance", 0.0)) * maxf(0.0, proc_chance_multiplier) * hit_proc_multiplier(owner)
 	var heal_ratio: float = float(context.get("heal_ratio", 0.0))
 	var missing_heal_ratio: float = float(context.get("missing_heal_ratio", 0.0))
 	if proc_chance <= 0.0 and not forced_trigger:

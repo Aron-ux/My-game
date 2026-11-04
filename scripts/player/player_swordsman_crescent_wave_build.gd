@@ -9,7 +9,7 @@ const OPTIONS := {
 		{"key": "feng_yue", "title": "风月", "description": "剑气伤害 +50%；飞行速度 +175；飞行距离 +200；冷却时间 -1秒。"}
 	],
 	8: [
-		{"key": "blood_moon", "title": "血月", "description": "剑气可以触发嗜血，触发概率为普通攻击当前触发概率的 1/2。"},
+		{"key": "blood_moon", "title": "血月", "description": "剑气命中时，按普通攻击当前战意触发概率的 1/2 尝试触发战意回复；受战意冷却限制。"},
 		{"key": "red_moon", "title": "红月", "description": "每释放 3 次月牙剑气，额外释放 1 道红月剑气；红月剑气飞行速度 +200，并额外增加 1 道剑气。"}
 	],
 	9: [

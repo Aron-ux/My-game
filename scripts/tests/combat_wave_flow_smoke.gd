@@ -146,9 +146,17 @@ func _run() -> void:
 		for gem in main.get_runtime_pickups("exp_gems").duplicate():
 			gem._run_physics_tick(0.1)
 		await capture_frame("wave-ending-experience.png")
+	var lingering_effect := Node2D.new()
+	lingering_effect.add_to_group("temporary_effects")
+	main.add_child(lingering_effect)
+	var projectile_batch_before_transition := main.get_node_or_null("PlayerProjectileBatch")
+	var warning_batch_before_transition := main.get_node_or_null("SpawnWarningBatch")
 	finish_ending(flow)
 	await process_frame
 	check(flow.phase == "preparation", "Combat timeout must begin preparation")
+	check(not is_instance_valid(lingering_effect), "Preparation must remove lingering temporary visual effects")
+	check(projectile_batch_before_transition == null or is_instance_valid(projectile_batch_before_transition), "Wave transition must preserve the projectile batch manager")
+	check(is_instance_valid(warning_batch_before_transition), "Wave transition must preserve the spawn warning manager")
 	check(flow.blessing_pending and flow.blessing_offer.get("options", []).size() == 3, "Wave end must queue three free blessing choices")
 	flow.finish_wave_blessing()
 	check(is_instance_valid(survivor) and survivor.pooled_inactive, "Wave transition must recycle leftover normal enemies")

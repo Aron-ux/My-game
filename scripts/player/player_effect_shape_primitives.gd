@@ -10,6 +10,18 @@ static var target_lock_pool: Array[Node2D] = []
 static var active_roots: Array[Dictionary] = []
 static var shape_animation_frame: int = -1
 
+static func clear_runtime_state() -> void:
+	for root in vortex_pool:
+		if is_instance_valid(root) and not root.is_queued_for_deletion():
+			root.free()
+	for root in target_lock_pool:
+		if is_instance_valid(root) and not root.is_queued_for_deletion():
+			root.free()
+	vortex_pool.clear()
+	target_lock_pool.clear()
+	active_roots.clear()
+	shape_animation_frame = -1
+
 static func update_effect_animations(delta: float) -> void:
 	if delta <= 0.0:
 		return

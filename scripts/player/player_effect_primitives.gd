@@ -18,6 +18,19 @@ static var guard_shield_pool: Array = []
 static var active_simple_effects: Array[Dictionary] = []
 static var simple_effect_animation_frame: int = -1
 
+static func clear_runtime_state() -> void:
+	for pool in [combat_tag_pool, burst_polygon_pool, frost_sigil_pool, radial_rays_pool, guard_shield_pool]:
+		for node in pool:
+			if is_instance_valid(node) and node is Node and not (node as Node).is_queued_for_deletion():
+				(node as Node).free()
+	combat_tag_pool.clear()
+	burst_polygon_pool.clear()
+	frost_sigil_pool.clear()
+	radial_rays_pool.clear()
+	guard_shield_pool.clear()
+	active_simple_effects.clear()
+	simple_effect_animation_frame = -1
+
 static func _mark_temporary_effect(node: Node) -> void:
 	if node != null:
 		node.add_to_group("temporary_effects")

@@ -25,8 +25,8 @@ const DAMAGE_RATIO_BONUS_PER_TIER := 0.02
 const FIELD_SIZE_MULTIPLIER := 0.70
 const TICK_INTERVAL := 0.7
 const MAX_CATCH_UP_TICKS := 4
-const TRANSFER_DURATION := 4.0
-const COLLAPSE_COOLDOWN := 8.0
+const TRANSFER_DURATION := 10.0
+const COLLAPSE_COOLDOWN := 15.0
 const TALENT_IDS := [
 	"mage_meta_guard_pulse",
 	"mage_meta_transfer",
@@ -66,17 +66,26 @@ func update(owner, delta: float) -> void:
 	var active_role_id := str(owner._get_active_role().get("id", ""))
 	if active_role_id != "mage":
 		if transferred_role_id.is_empty() and BUILD.has_choice(owner, "domain_remnant"):
-			remnant_remaining = maxf(remnant_remaining, 8.0)
+			remnant_remaining = maxf(remnant_remaining, TRANSFER_DURATION)
 			active_remaining = remnant_remaining
 		elif active_role_id != transferred_role_id:
 			stop(owner)
 			return
+	elif remnant_remaining > 0.0:
+		# Returning to the mage cancels the shared field and starts its separate cooldown.
+		cooldown_remaining = COLLAPSE_COOLDOWN
+		stop(owner)
+		return
 
 	if transferred_role_id.is_empty() and remnant_remaining <= 0.0:
 		active_remaining = PERMANENT_ACTIVE_REMAINING
 	else:
 		active_remaining = max(0.0, active_remaining - delta)
 		remnant_remaining = max(0.0, remnant_remaining - delta)
+		if remnant_remaining <= 0.0:
+			cooldown_remaining = COLLAPSE_COOLDOWN
+			stop(owner)
+			return
 	tick_remaining -= delta
 	projectile_slow_tick_remaining -= delta
 	_update_effect(owner)
@@ -168,7 +177,7 @@ func get_save_data() -> Dictionary:
 			"expansion_tick_count": expansion_tick_count,
 			"talent_ids": cast_talent_ids.duplicate(),
 			"talent_snapshot_valid": cast_talent_snapshot_valid,
-			"field_center": field_center,
+			"field_center": [field_center.x, field_center.y],
 			"remnant_remaining": remnant_remaining
 	}
 
@@ -182,9 +191,20 @@ func apply_save_data(data: Dictionary) -> void:
 	expansion_tick_count = clampi(int(data.get("expansion_tick_count", 0)), 0, 3)
 	cast_talent_ids = _normalize_talent_ids(data.get("talent_ids", []))
 	cast_talent_snapshot_valid = bool(data.get("talent_snapshot_valid", data.has("talent_ids")))
-	field_center = data.get("field_center", Vector2.ZERO)
+	field_center = _decode_field_center(data.get("field_center", Vector2.ZERO))
 	remnant_remaining = maxf(0.0, float(data.get("remnant_remaining", 0.0)))
 	inner_ring_enemy_ids.clear()
+
+func _decode_field_center(value: Variant) -> Vector2:
+	if value is Vector2:
+		return value
+	if value is Array and value.size() >= 2:
+		return Vector2(float(value[0]), float(value[1]))
+	if value is String:
+		var components := str(value).strip_edges().trim_prefix("Vector2(").trim_prefix("(").trim_suffix(")").split(",")
+		if components.size() >= 2 and str(components[0]).strip_edges().is_valid_float() and str(components[1]).strip_edges().is_valid_float():
+			return Vector2(float(components[0]), float(components[1]))
+	return Vector2.ZERO
 
 
 func restore_effect_if_active(owner) -> void:
@@ -206,26 +226,18 @@ func get_armor_bonus(owner) -> float:
 
 
 func _trigger_tick(owner) -> void:
-	var hits: int = 0
 	var center := _get_field_center(owner)
 	var vulnerability := 0.10 if BUILD.has_choice(owner, "magic_pressure") else 0.0
-	if owner.has_method("_damage_enemies_in_radius_suppressing_status_visuals"):
-		hits = int(owner._damage_enemies_in_radius_suppressing_status_visuals(center, _get_radius(owner), _get_damage(owner), vulnerability, _get_slow_multiplier(owner), 1.2, "mage", "mage_meta_field"))
-	elif owner.has_method("_damage_enemies_in_radius_batched"):
-		hits = int(owner._damage_enemies_in_radius_batched(center, _get_radius(owner), _get_damage(owner), vulnerability, _get_slow_multiplier(owner), 1.2, "mage", "mage_meta_field"))
-	else:
-		hits = int(owner._damage_enemies_in_radius(
-			center,
-			_get_radius(owner),
-			_get_damage(owner),
-			vulnerability,
-			_get_slow_multiplier(owner),
-			1.2,
-			"mage",
-			"mage_meta_field"
-		))
-	if hits > 0 and not _uses_batched_damage(owner):
-		owner._register_attack_result("mage", hits, false)
+	if owner.has_method("_collect_enemies_in_radius_for_damage_batch"):
+		for enemy in owner._collect_enemies_in_radius_for_damage_batch(center, _get_radius(owner)):
+			if enemy == null or not is_instance_valid(enemy):
+				continue
+			if vulnerability > 0.0 and enemy.has_method("apply_vulnerability"):
+				enemy.apply_vulnerability(vulnerability, 1.2)
+			if enemy.has_method("apply_slow_from_source"):
+				enemy.apply_slow_from_source(_get_slow_multiplier(owner), 1.2, "mage_meta_field", true)
+			elif enemy.has_method("apply_slow_silent"):
+				enemy.apply_slow_silent(_get_slow_multiplier(owner), 1.2)
 	if BUILD.has_choice(owner, "soul_shackle"):
 		_apply_soul_shackle(owner)
 

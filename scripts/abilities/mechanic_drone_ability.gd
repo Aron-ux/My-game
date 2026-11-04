@@ -36,10 +36,9 @@ func update(owner, delta: float) -> void:
 	cooldown_remaining = max(0.0, cooldown_remaining - delta)
 	for index in range(active_guards.size() - 1, -1, -1):
 		var data: Dictionary = active_guards[index]
-		var guard: Node2D = data.get("node", null) as Node2D
-		if owner == null or not is_instance_valid(owner) or guard == null or not is_instance_valid(guard):
-			if guard != null and is_instance_valid(guard):
-				guard.queue_free()
+		var raw_guard: Variant = data.get("node", null)
+		var guard: Node2D = raw_guard as Node2D if is_instance_valid(raw_guard) and raw_guard is Node2D else null
+		if owner == null or not is_instance_valid(owner) or guard == null:
 			active_guards.remove_at(index)
 			continue
 		if int(data.get("charges", 0)) <= 0:
@@ -118,9 +117,10 @@ func get_cooldown_slot(owner = null) -> Dictionary:
 func get_save_data() -> Dictionary:
 	var guards: Array[Dictionary] = []
 	for data in active_guards:
-		var guard: Node2D = data.get("node", null) as Node2D
-		if guard == null or not is_instance_valid(guard):
+		var raw_guard: Variant = data.get("node", null)
+		if not is_instance_valid(raw_guard) or not raw_guard is Node2D:
 			continue
+		var guard: Node2D = raw_guard as Node2D
 		guards.append({"charges": int(data.get("charges", 0))})
 	return {"cooldown_remaining": cooldown_remaining, "guards": guards}
 

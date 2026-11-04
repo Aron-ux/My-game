@@ -112,7 +112,7 @@ const EXPLOSIVE_ROUND_EXTRA_SHOT_FIRST_LEVEL := 3
 const EXPLOSIVE_ROUND_EXTRA_SHOT_STEP := 3
 const EXPLOSIVE_ROUND_EXTRA_SHOT_MAX := 3
 const EXPLOSIVE_ROUND_EXTRA_SHOT_INTERVAL := 0.2
-# 魔法榴弹：LV1–3 每级 +25% 伤害；LV5–7 每级 +50% 伤害；LV6 额外 +1 枚。
+# 魔法榴弹：LV1–3 每级 +25% 伤害；LV5–7、LV9 每级 +50% 伤害；LV6 额外 +1 枚。
 const MAGIC_GRENADE_DAMAGE_RATIO_EARLY_PER_LEVEL := 0.25
 const MAGIC_GRENADE_DAMAGE_RATIO_LATE_PER_LEVEL := 0.50
 const MAGIC_GRENADE_EXTRA_FIRST_LEVEL := 6
@@ -722,6 +722,8 @@ static func _is_milestone_level(level: int, first_level: int, step: int, max_cou
 static func _get_gunner_upgrade_preview(owner, progress_id: String) -> String:
 	if progress_id == GUNNER_BASIC:
 		return GUNNER_BASIC_BUILD.next_preview(owner)
+	if progress_id == GUNNER_MAGIC_GRENADE:
+		return preload("res://scripts/player/player_gunner_magic_grenade_build.gd").next_preview(owner)
 	var level := _gunner_level(owner, progress_id)
 	if level <= 0 or level >= PLAYER_SKILL_LEVEL_SYSTEM.MAX_SKILL_LEVEL:
 		return ""
@@ -759,6 +761,8 @@ static func _get_gunner_upgrade_preview(owner, progress_id: String) -> String:
 				parts.append("每枚伤害 +50%")
 			elif next_level == 8:
 				parts.append("选择精神震荡或连爆")
+			elif next_level == 9:
+				parts.append("每枚伤害 +50%")
 		GUNNER_MAGIC_EYE:
 			parts.append("每次伤害 +2%")
 			parts.append("命中降低护甲额外 +0.75")

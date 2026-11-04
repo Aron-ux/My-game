@@ -172,7 +172,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _panel_open():
 			_close_panels()
 		else:
+			get_viewport().set_input_as_handled()
 			_return_to_menu()
+			return
 		get_viewport().set_input_as_handled()
 	elif GAME_SETTINGS.event_matches_action(event, GAME_SETTINGS.ACTION_INTERACT):
 		_handle_interact()

@@ -37,10 +37,9 @@ func update(owner, delta: float) -> void:
 	cooldown_remaining = max(0.0, cooldown_remaining - delta)
 	for index in range(active_turrets.size() - 1, -1, -1):
 		var data: Dictionary = active_turrets[index]
-		var turret: Node2D = data.get("node", null) as Node2D
-		if owner == null or not is_instance_valid(owner) or turret == null or not is_instance_valid(turret):
-			if turret != null and is_instance_valid(turret):
-				turret.queue_free()
+		var raw_turret: Variant = data.get("node", null)
+		var turret: Node2D = raw_turret as Node2D if is_instance_valid(raw_turret) and raw_turret is Node2D else null
+		if owner == null or not is_instance_valid(owner) or turret == null:
 			active_turrets.remove_at(index)
 			continue
 		var remaining: float = float(data.get("remaining", 0.0)) - delta
@@ -148,9 +147,10 @@ func _get_damage_ratio(owner, progress_id: String = SKILL_LEVEL_EFFECTS.MECHANIC
 func get_save_data() -> Dictionary:
 	var turrets: Array[Dictionary] = []
 	for data in active_turrets:
-		var turret: Node2D = data.get("node", null) as Node2D
-		if turret == null or not is_instance_valid(turret):
+		var raw_turret: Variant = data.get("node", null)
+		if not is_instance_valid(raw_turret) or not raw_turret is Node2D:
 			continue
+		var turret: Node2D = raw_turret as Node2D
 		turrets.append({
 			"position": _encode_vector2(turret.global_position),
 			"rotation": turret.rotation,
