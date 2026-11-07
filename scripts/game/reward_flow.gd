@@ -32,7 +32,10 @@ static func show_level_up(main: Node, options: Array) -> void:
 static func show_skill_point_allocation(main: Node, skill_id: String = "", role_id: String = "") -> void:
 	if main.game_over or main.player == null or main.level_up_ui == null:
 		return
-	if main.get_tree().paused or main.player.is_dead or main.player.level_up_active or main.reward_context != "":
+	var character_panel_visible: bool = main.character_panel != null and bool(main.character_panel.visible)
+	if (main.get_tree().paused and not character_panel_visible) or main.player.is_dead or main.player.level_up_active or main.reward_context != "":
+		return
+	if main.pause_menu != null and main.pause_menu.visible:
 		return
 	if int(main.player.get("skill_points")) <= 0:
 		return

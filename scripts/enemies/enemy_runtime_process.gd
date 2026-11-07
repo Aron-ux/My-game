@@ -51,6 +51,13 @@ static func physics_process(enemy, delta: float) -> void:
 	if (enemy.status_root != null or had_hit_flash or enemy.hit_flash_remaining > 0.0 or enemy._has_status_visual_pressure() or enemy.skull_damage_immune_timer > 0.0 or enemy.boss_phase_three_intro_remaining > 0.0) and (hit_flash_finished or enemy._should_update_status_visual_frame()):
 		enemy._update_status_visuals()
 
+	if enemy.hit_stop_remaining > 0.0:
+		enemy.hit_stop_remaining = maxf(0.0, enemy.hit_stop_remaining - delta)
+		enemy.velocity = Vector2.ZERO
+		enemy.throttled_motion_delta = 0.0
+		enemy._update_motion_visual()
+		return
+
 	if preload("res://scripts/enemies/enemy_stun.gd").tick(enemy, delta):
 		return
 

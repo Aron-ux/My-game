@@ -18,24 +18,42 @@ static func apply_damage_tick(owner, points: Array[Vector2], path_width: float, 
 	if owner == null or not is_instance_valid(owner) or points.size() < 2:
 		return
 	var hit_registry: Dictionary = {}
-	for index in range(points.size() - 1):
+	var segment_step: int = maxi(1, ceili(float(points.size() - 1) / 48.0))
+	var shapes: Array[Dictionary] = []
+	for index in range(0, points.size() - 1, segment_step):
+		var end_index: int = mini(points.size() - 1, index + segment_step)
 		var start: Vector2 = points[index]
-		var end: Vector2 = points[index + 1]
+		var end: Vector2 = points[end_index]
 		var axis: Vector2 = end - start
 		var length: float = axis.length()
 		if length <= 0.001:
 			continue
-		var direction: Vector2 = axis / length
-		if owner.has_method("_damage_enemies_in_oriented_rect_unique"):
+		shapes.append({
+			"type": "oriented_rect",
+			"center": (start + end) * 0.5,
+			"axis": axis / length,
+			"length": length + path_width,
+			"width": path_width,
+			"damage_amount": damage_per_second * interval,
+			"vulnerability_bonus": 0.0,
+			"slow_multiplier": 1.0,
+			"slow_duration": 0.0,
+			"source_role_id": FLAME_PATH_SOURCE,
+			"hit_registry": hit_registry
+		})
+	if owner.has_method("_damage_enemies_in_shapes_batched"):
+		owner._damage_enemies_in_shapes_batched(shapes)
+	elif owner.has_method("_damage_enemies_in_oriented_rect_unique"):
+		for shape in shapes:
 			owner._damage_enemies_in_oriented_rect_unique(
-				(start + end) * 0.5,
-				direction,
-				length + path_width,
-				path_width,
-				damage_per_second * interval,
-				0.0,
-				1.0,
-				0.0,
+				shape["center"],
+				shape["axis"],
+				shape["length"],
+				shape["width"],
+				shape["damage_amount"],
+				shape["vulnerability_bonus"],
+				shape["slow_multiplier"],
+				shape["slow_duration"],
 				hit_registry,
 				FLAME_PATH_SOURCE
 			)

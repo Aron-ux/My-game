@@ -36,8 +36,14 @@ func _run() -> void:
 			failures.append("batched damage should reduce enemy health")
 		if enemy.hit_flash_remaining <= 0.0:
 			failures.append("batched player damage should trigger light hit flash")
+		if enemy.hit_stop_remaining <= 0.0:
+			failures.append("batched player damage should trigger a short hit stop")
 		if polygon.color == color_before:
 			failures.append("light hit flash should tint fallback Polygon2D immediately")
+		if not polygon.has_meta("enemy_hit_deformation_tween"):
+			failures.append("light hit feedback should start squash-and-rebound deformation")
+		if not polygon.has_meta("enemy_hit_recoil_tween"):
+			failures.append("light hit feedback should start upward recoil animation")
 		if enemy.status_root != null:
 			failures.append("light hit flash should not create status visual rings for a plain normal enemy")
 		enemy._physics_process(0.3)

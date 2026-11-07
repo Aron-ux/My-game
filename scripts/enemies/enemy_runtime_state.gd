@@ -10,6 +10,7 @@ static func reset(enemy, randomize_timers: bool) -> void:
 	preload("res://scripts/enemies/enemy_skull_mage.gd").reset(enemy)
 	preload("res://scripts/enemies/enemy_runner_haste.gd").reset(enemy)
 	enemy.stun_remaining = 0.0
+	enemy.hit_stop_remaining = 0.0
 	enemy.electric_stacks = 0
 	enemy.boss_direct_health_loss = 0.0
 	enemy.fury_armor_shred = 0.0

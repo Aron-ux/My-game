@@ -52,6 +52,7 @@ static func prepare_for_pool(enemy) -> void:
 	enemy.vulnerability_bonus = 0.0
 	enemy.status_resistance_sources.clear()
 	enemy.stun_remaining = 0.0
+	enemy.hit_stop_remaining = 0.0
 	enemy.electric_stacks = 0
 	enemy.boss_direct_health_loss = 0.0
 	enemy.fury_armor_shred = 0.0

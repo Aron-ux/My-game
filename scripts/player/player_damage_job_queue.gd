@@ -313,7 +313,8 @@ func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_rol
 		PLAYER_MAGE_ULTIMATE_TALENT_FLOW.on_ultimate_bombardment_killed(source_player, source_role_id, resolved_source_role_id)
 		PLAYER_SWORDSMAN_KING_BLADE_FLOW.on_king_blade_killed(source_player, source_role_id, resolved_source_role_id)
 		PLAYER_GUNNER_EXPLOSIVE_ROUND_FLOW.on_explosive_round_killed(source_player, source_role_id, resolved_source_role_id, enemy)
-		if slow_source_id == "mage_meta_field" and source_player.has_method("_add_mage_meta_field_extra_energy"):
+		var meta_field: Variant = source_player.get("mage_meta_field_ability") if source_player != null else null
+		if meta_field != null and meta_field.has_method("should_grant_soul_extraction_energy") and meta_field.should_grant_soul_extraction_energy(source_player, enemy) and source_player.has_method("_add_mage_meta_field_extra_energy"):
 			source_player._add_mage_meta_field_extra_energy(source_player._get_kill_energy_from_enemy(enemy))
 	if killed and source_player.has_method("_get_kill_energy_from_enemy"):
 		var kill_energy: float = source_player._get_kill_energy_from_enemy(enemy)

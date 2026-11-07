@@ -36,34 +36,34 @@ func _check_body_bounds(scene: Node2D) -> void:
 	growing.body_collision_radius = 40.0
 	small.body_collision_reference_scale = 1.0
 	growing.body_collision_reference_scale = 1.0
-	assert(is_equal_approx(GRID.get_max_body_radius(small), 12.0))
+	assert(is_equal_approx(GRID.get_max_body_radius(small), 20.0))
 	assert(SEPARATION.compute_separation_velocity(small).is_zero_approx())
 	# Growth must enlarge the conservative bound in this same physics frame.
 	growing.scale = Vector2(6.0, 6.0)
-	assert(is_equal_approx(GRID.get_max_body_radius(small), 72.0))
+	assert(is_equal_approx(GRID.get_max_body_radius(small), 120.0))
 	assert(SEPARATION.compute_separation_velocity(small).x < 0.0)
 	var before: Vector2 = small.position
 	SEPARATION.apply_body_collision_separation(small)
 	assert(small.position.x < before.x)
 	# Reference-scale and radius changes must also invalidate immediately.
 	growing.body_collision_reference_scale = 6.0
-	assert(is_equal_approx(GRID.get_max_body_radius(small), 12.0))
+	assert(is_equal_approx(GRID.get_max_body_radius(small), 20.0))
 	assert(SEPARATION.compute_separation_velocity(small).is_zero_approx())
 	growing.body_collision_radius = -1.0
 	growing.contact_radius = 25.0
-	assert(is_equal_approx(growing.get_body_collision_radius(), 7.2))
+	assert(is_equal_approx(growing.get_body_collision_radius(), 12.0))
 	growing.contact_radius = 50.0
-	assert(is_equal_approx(growing.get_body_collision_radius(), 12.3))
+	assert(is_equal_approx(growing.get_body_collision_radius(), 20.5))
 	scene.remove_child(growing)
 	growing.scale = Vector2(12.0, 12.0)
-	assert(is_equal_approx(growing.get_body_collision_radius(), 24.6))
+	assert(is_equal_approx(growing.get_body_collision_radius(), 41.0))
 	growing.scale = Vector2(18.0, 18.0)
 	scene.add_child(growing)
-	assert(is_equal_approx(growing.get_body_collision_radius(), 36.9))
+	assert(is_equal_approx(growing.get_body_collision_radius(), 61.5))
 	# A size change between two same-frame queries and a freed cached neighbor.
 	growing.free()
 	GRID.invalidate_body_bounds()
-	assert(is_equal_approx(GRID.get_max_body_radius(small), 6.0))
+	assert(is_equal_approx(GRID.get_max_body_radius(small), 10.0))
 	assert(SEPARATION.compute_separation_velocity(small).is_zero_approx())
 	small.free()
 

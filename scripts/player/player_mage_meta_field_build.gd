@@ -16,7 +16,7 @@ const OPTIONS := {
 		{"key": "barrier", "title": "屏障", "description": "领域同时使范围内敌方飞行道具减速 30%。"}
 	],
 	8: [
-		{"key": "domain_remnant", "title": "领域残阵", "description": "法师切换下场后，领域在原地继续存在 8 秒。"},
+		{"key": "shared_field", "title": "共享领域", "description": "法师切换下场后，梅塔领域会在下一个角色身上继续存在 10 秒；期间切回法师会立即取消共享领域并进入 15 秒冷却。"},
 		{"key": "magic_pressure", "title": "魔法灵压", "description": "领域内敌方单位护甲降低 20 点，并获得 10% 易伤。"}
 	],
 	9: [

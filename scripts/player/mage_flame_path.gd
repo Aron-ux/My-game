@@ -16,6 +16,7 @@ const EMBER_SPACING := 26.0
 const VISUAL_UPDATE_INTERVAL := 1.0 / 30.0
 const MAX_DETAIL_SEGMENTS := 140
 const MAX_EMBER_SEGMENTS := 90
+const MAX_PATH_POINTS := 480
 
 const HOT_CORE := Color(1.0, 0.96, 0.76, 1.0)
 const EMBER := Color(1.0, 0.78, 0.30, 1.0)
@@ -43,6 +44,8 @@ func configure(owner: Node, damage: float) -> void:
 func record_position(position: Vector2) -> void:
 	if points.is_empty() or points.back().distance_to(position) >= SAMPLE_DISTANCE:
 		points.append(position)
+		if points.size() > MAX_PATH_POINTS:
+			points.pop_front()
 
 
 func _process(delta: float) -> void:

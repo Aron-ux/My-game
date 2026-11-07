@@ -30,12 +30,12 @@ static func get_radius_multiplier(owner) -> float:
 
 
 static func should_persist_in_background(owner) -> bool:
-	return BUILD.has_choice(owner, "domain_remnant") or has_level_talent(owner, TALENT_META_FIELD_2)
+	return BUILD.has_choice(owner, "shared_field") or has_level_talent(owner, TALENT_META_FIELD_2)
 
 
 static func get_level_talent_effect_ratio(owner, active_role_id: String, transferred_role_id: String) -> float:
 	if should_persist_in_background(owner) and active_role_id != "mage" and transferred_role_id == "":
-		return 1.0 if BUILD.has_choice(owner, "domain_remnant") else BACKGROUND_EFFECT_RATIO
+		return 1.0 if BUILD.has_choice(owner, "shared_field") else BACKGROUND_EFFECT_RATIO
 	return 1.0
 
 

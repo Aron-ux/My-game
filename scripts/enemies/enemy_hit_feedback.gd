@@ -5,6 +5,12 @@ const PERFORMANCE_COUNTERS := preload("res://scripts/game/performance_counters.g
 
 const HIT_FLASH_DURATION := 0.18
 const HIT_FLASH_DIM_ALPHA := 0.26
+const HIT_STOP_DURATION := 0.07
+const HIT_DEFORMATION_DURATION := 0.19
+const HIT_DEFORMATION_IMPACT_SCALE := Vector2(1.14, 0.84)
+const HIT_DEFORMATION_REBOUND_SCALE := Vector2(0.95, 1.06)
+const HIT_RECOIL_DISTANCE := 5.0
+const HIT_RECOIL_HEIGHT := 4.0
 const DAMAGE_NUMBER_BUDGET_PER_FRAME := 12
 const DEATH_BURST_BUDGET_PER_FRAME := 8
 const LOW_FPS_DAMAGE_NUMBER_BUDGET_PER_FRAME := 6
@@ -21,6 +27,9 @@ const DAMAGE_LABEL_POOL_LIMIT := 64
 const DEATH_BURST_POOL_LIMIT := 32
 const BOSS_HIT_FLASH_OVERLAY_NAME := "BossHitFlashOverlay"
 const BOSS_HIT_FLASH_TWEEN_META := "boss_hit_flash_tween"
+const GENERIC_FLASH_TWEEN_META := "enemy_hit_feedback_flash_tween"
+const DEFORMATION_BASE_SCALE_META := "enemy_hit_deformation_base_scale"
+const DEFORMATION_TWEEN_META := "enemy_hit_deformation_tween"
 
 static var damage_number_budget_frame: int = -1
 static var damage_number_budget_used: int = 0
@@ -54,9 +63,12 @@ static func update_feedback_animations(delta: float) -> void:
 
 static func play_hit_feedback(enemy, damage_amount: float, killed: bool, is_critical: bool = false) -> void:
 	_update_static_feedback_animations(1.0 / float(Engine.physics_ticks_per_second))
+	_apply_hit_stop(enemy)
 	if killed or _consume_hit_flash_budget():
 		enemy.hit_flash_remaining = HIT_FLASH_DURATION
 		_play_custom_hit_visual(enemy)
+		_play_generic_visual_flash(enemy)
+		_play_hit_deformation(enemy)
 		_spawn_boss_hit_flash_overlay(enemy)
 		if enemy.has_method("_update_status_visuals"):
 			enemy._update_status_visuals()
@@ -71,13 +83,23 @@ static func play_light_hit_feedback(enemy) -> void:
 	if enemy == null or not is_instance_valid(enemy):
 		return
 	_update_static_feedback_animations(1.0 / float(Engine.physics_ticks_per_second))
+	_apply_hit_stop(enemy)
 	if not _consume_hit_flash_budget():
 		return
 	enemy.hit_flash_remaining = HIT_FLASH_DURATION
 	_play_custom_hit_visual(enemy)
+	_play_generic_visual_flash(enemy)
+	_play_hit_deformation(enemy)
 	_spawn_boss_hit_flash_overlay(enemy)
 	if enemy.has_method("_update_status_visuals"):
 		enemy._update_status_visuals()
+
+static func _apply_hit_stop(enemy) -> void:
+	if enemy == null or not is_instance_valid(enemy):
+		return
+	if str(enemy.get("enemy_kind")) in ["boss", "small_boss"]:
+		return
+	enemy.hit_stop_remaining = maxf(float(enemy.hit_stop_remaining), HIT_STOP_DURATION)
 
 static func _play_custom_hit_visual(enemy) -> void:
 	var cached_visual: Node = enemy.get("cached_motion_visual") as Node
@@ -108,6 +130,129 @@ static func _is_valid_hit_visual(enemy, visual: Node) -> bool:
 	if visual.is_queued_for_deletion() or not visual.is_inside_tree():
 		return false
 	return (enemy as Node).is_ancestor_of(visual)
+
+static func _play_generic_visual_flash(enemy) -> void:
+	# Authored visuals without a hit animation still need a readable white flash.
+	if enemy == null or not is_instance_valid(enemy) or not (enemy is Node):
+		return
+	var polygon := (enemy as Node).get_node_or_null("Polygon2D") as CanvasItem
+	if polygon != null and polygon.visible:
+		_flash_canvas_item(polygon)
+	for visual_name in ["ProfileVisual", "BossVisual"]:
+		var visual := (enemy as Node).get_node_or_null(visual_name)
+		if visual != null and is_instance_valid(visual):
+			_flash_visual_tree(visual)
+
+static func _flash_visual_tree(node: Node) -> void:
+	if node == null or not is_instance_valid(node) or node.is_queued_for_deletion():
+		return
+	var node_name := str(node.name).to_lower()
+	if "shadow" in node_name or node_name == "statusroot":
+		return
+	if node is CanvasItem:
+		_flash_canvas_item(node as CanvasItem)
+	for child in node.get_children():
+		_flash_visual_tree(child)
+
+static func _flash_canvas_item(item: CanvasItem) -> void:
+	if item == null or not is_instance_valid(item) or not item.visible:
+		return
+	var previous_tween: Tween = item.get_meta(GENERIC_FLASH_TWEEN_META) as Tween if item.has_meta(GENERIC_FLASH_TWEEN_META) else null
+	if previous_tween != null and previous_tween.is_valid():
+		previous_tween.kill()
+	var original: Color = item.modulate
+	item.modulate = Color(1.0, 1.0, 1.0, original.a)
+	var tween := item.create_tween()
+	item.set_meta(GENERIC_FLASH_TWEEN_META, tween)
+	tween.tween_property(item, "modulate", original, HIT_FLASH_DURATION)
+
+static func _play_hit_deformation(enemy) -> void:
+	if enemy == null or not is_instance_valid(enemy) or not (enemy is Node):
+		return
+	if str(enemy.get("enemy_kind")) in ["boss", "small_boss"]:
+		return
+	var polygon := (enemy as Node).get_node_or_null("Polygon2D") as Polygon2D
+	if polygon != null and polygon.visible:
+		_tween_hit_deformation(polygon)
+		_tween_hit_recoil(polygon, enemy)
+	for visual_name in ["ProfileVisual", "BossVisual"]:
+		var visual := (enemy as Node).get_node_or_null(visual_name)
+		if visual == null or not is_instance_valid(visual):
+			continue
+		if _visual_has_builtin_deformation(visual):
+			continue
+		var target: Node2D = visual.call("get_hit_deformation_target") as Node2D if visual.has_method("get_hit_deformation_target") else null
+		if target != null:
+			_tween_hit_deformation(target)
+			_tween_hit_recoil(target, enemy)
+		else:
+			_collect_deformation_targets(visual)
+
+static func _visual_has_builtin_deformation(visual: Node) -> bool:
+	var script := visual.get_script() as Script
+	while script != null:
+		if script.resource_path == "res://assets/enemies/pixel_sheet_visual.gd":
+			return true
+		script = script.get_base_script()
+	return false
+
+static func _collect_deformation_targets(node: Node) -> void:
+	if node == null or not is_instance_valid(node) or node.is_queued_for_deletion():
+		return
+	var node_name := str(node.name).to_lower()
+	if "shadow" in node_name or "statusroot" in node_name or "skillfx" in node_name or "hitflash" in node_name or BOSS_HIT_FLASH_OVERLAY_NAME.to_lower() in node_name:
+		return
+	if node is AnimatedSprite2D or node is Sprite2D or node is Polygon2D:
+		var canvas_item := node as CanvasItem
+		if canvas_item.visible:
+			_tween_hit_deformation(node as Node2D)
+		return
+	for child in node.get_children():
+		_collect_deformation_targets(child)
+
+static func _tween_hit_deformation(target: Node2D) -> void:
+	if target == null or not is_instance_valid(target) or target.is_queued_for_deletion():
+		return
+	var previous_tween: Tween = target.get_meta(DEFORMATION_TWEEN_META) as Tween if target.has_meta(DEFORMATION_TWEEN_META) else null
+	if previous_tween != null and previous_tween.is_valid():
+		previous_tween.kill()
+	var base_scale: Vector2 = target.get_meta(DEFORMATION_BASE_SCALE_META) if target.has_meta(DEFORMATION_BASE_SCALE_META) else target.scale
+	target.set_meta(DEFORMATION_BASE_SCALE_META, base_scale)
+	var tween := target.create_tween()
+	target.set_meta(DEFORMATION_TWEEN_META, tween)
+	tween.tween_property(target, "scale", base_scale * HIT_DEFORMATION_IMPACT_SCALE, HIT_DEFORMATION_DURATION * 0.29).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_property(target, "scale", base_scale * HIT_DEFORMATION_REBOUND_SCALE, HIT_DEFORMATION_DURATION * 0.34).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(target, "scale", base_scale, HIT_DEFORMATION_DURATION * 0.37).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+static func _tween_hit_recoil(target: Node2D, enemy) -> void:
+	if target == null or not is_instance_valid(target) or target.is_queued_for_deletion():
+		return
+	const BASE_POSITION_META := "enemy_hit_recoil_base_position"
+	const TWEEN_META := "enemy_hit_recoil_tween"
+	var previous_tween: Tween = target.get_meta(TWEEN_META) as Tween if target.has_meta(TWEEN_META) else null
+	if previous_tween != null and previous_tween.is_valid():
+		previous_tween.kill()
+	var base_position: Vector2 = target.get_meta(BASE_POSITION_META) if target.has_meta(BASE_POSITION_META) else target.position
+	target.set_meta(BASE_POSITION_META, base_position)
+	var backward := _get_hit_recoil_direction(enemy)
+	var impact_position := base_position + backward * HIT_RECOIL_DISTANCE + Vector2.UP * HIT_RECOIL_HEIGHT
+	var settle_position := base_position + backward * (HIT_RECOIL_DISTANCE * 0.28) + Vector2.UP * (HIT_RECOIL_HEIGHT * 0.35)
+	var tween := target.create_tween()
+	target.set_meta(TWEEN_META, tween)
+	tween.tween_property(target, "position", impact_position, 0.045).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_property(target, "position", settle_position, 0.055).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(target, "position", base_position, 0.09).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+static func _get_hit_recoil_direction(enemy) -> Vector2:
+	if enemy != null and enemy.get("velocity") is Vector2:
+		var velocity: Vector2 = enemy.get("velocity")
+		if absf(velocity.x) > 0.01:
+			return Vector2(-signf(velocity.x), 0.0)
+	if enemy != null and enemy.get("_cached_direction_to_target") is Vector2:
+		var direction_to_target: Vector2 = enemy.get("_cached_direction_to_target")
+		if absf(direction_to_target.x) > 0.01:
+			return Vector2(-signf(direction_to_target.x), 0.0)
+	return Vector2.LEFT
 
 static func get_hit_flash_alpha(hit_flash_remaining: float) -> float:
 	if hit_flash_remaining <= 0.0:

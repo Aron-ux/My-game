@@ -112,7 +112,8 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 			PLAYER_MAGE_ULTIMATE_TALENT_FLOW.on_ultimate_bombardment_killed(owner, source_role_id, resolved_source_role_id)
 			PLAYER_SWORDSMAN_KING_BLADE_FLOW.on_king_blade_killed(owner, source_role_id, resolved_source_role_id)
 			PLAYER_GUNNER_EXPLOSIVE_ROUND_FLOW.on_explosive_round_killed(owner, source_role_id, resolved_source_role_id, enemy)
-			if slow_source_id == "mage_meta_field" and owner.has_method("_add_mage_meta_field_extra_energy"):
+			var meta_field: Variant = owner.get("mage_meta_field_ability") if owner != null else null
+			if meta_field != null and meta_field.has_method("should_grant_soul_extraction_energy") and meta_field.should_grant_soul_extraction_energy(owner, enemy) and owner.has_method("_add_mage_meta_field_extra_energy"):
 				owner._add_mage_meta_field_extra_energy(owner._get_kill_energy_from_enemy(enemy))
 		if killed and owner != null and owner.has_method("_add_kill_energy") and owner.has_method("_get_kill_energy_from_enemy"):
 			var kill_energy: float = owner._get_kill_energy_from_enemy(enemy)

@@ -14,6 +14,7 @@ const SHADOW_COLOR := Color(0.58, 0.58, 0.58, 1.0)
 
 var sprite: AnimatedSprite2D
 var shadow: Sprite2D
+var hit_deformation_root: Node2D
 var hit_lock_remaining: float = 0.0
 var last_moving_state: bool = false
 
@@ -48,6 +49,11 @@ func play_hit() -> void:
 	hit_lock_remaining = 0.18
 	_play_animation(hit_animation)
 	set_process(true)
+
+
+func get_hit_deformation_target() -> Node2D:
+	_ensure_visuals()
+	return hit_deformation_root
 
 
 func _update_facing(move_direction: Vector2) -> void:
@@ -112,6 +118,25 @@ func _ensure_visuals() -> void:
 	sprite.scale = visual_scale
 	sprite.z_index = 1
 	_apply_animation_size_correction(move_animation)
+	_ensure_hit_deformation_root()
+
+
+func _ensure_hit_deformation_root() -> void:
+	if sprite == null:
+		return
+	hit_deformation_root = get_node_or_null("HitDeformationRoot") as Node2D
+	if hit_deformation_root == null:
+		hit_deformation_root = Node2D.new()
+		hit_deformation_root.name = "HitDeformationRoot"
+		add_child(hit_deformation_root)
+	if sprite.get_parent() == hit_deformation_root:
+		return
+	var sprite_position := sprite.position
+	var sprite_rotation := sprite.rotation
+	sprite.reparent(hit_deformation_root, false)
+	hit_deformation_root.position = sprite_position
+	sprite.position = Vector2.ZERO
+	sprite.rotation = sprite_rotation
 
 
 func _apply_animation_size_correction(animation_name: StringName) -> void:

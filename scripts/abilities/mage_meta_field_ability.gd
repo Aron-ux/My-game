@@ -65,10 +65,10 @@ func update(owner, delta: float) -> void:
 		return
 	var active_role_id := str(owner._get_active_role().get("id", ""))
 	if active_role_id != "mage":
-		if transferred_role_id.is_empty() and BUILD.has_choice(owner, "domain_remnant"):
+		if remnant_remaining <= 0.0 and PLAYER_MAGE_META_FIELD_TALENT_FLOW.should_persist_in_background(owner):
 			remnant_remaining = maxf(remnant_remaining, TRANSFER_DURATION)
 			active_remaining = remnant_remaining
-		elif active_role_id != transferred_role_id:
+		elif remnant_remaining <= 0.0:
 			stop(owner)
 			return
 	elif remnant_remaining > 0.0:
@@ -219,9 +219,8 @@ func get_armor_bonus(owner) -> float:
 	if active_role_id != "mage":
 		if not PLAYER_MAGE_META_FIELD_TALENT_FLOW.should_persist_in_background(owner):
 			return 0.0
-		if BUILD.has_choice(owner, "domain_remnant"):
-			return 0.0
-		return (BASE_ARMOR_BONUS + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_meta_field_armor_bonus(owner)) * PLAYER_MAGE_META_FIELD_TALENT_FLOW.BACKGROUND_EFFECT_RATIO
+		var effect_ratio := PLAYER_MAGE_META_FIELD_TALENT_FLOW.get_level_talent_effect_ratio(owner, active_role_id, transferred_role_id)
+		return (BASE_ARMOR_BONUS + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_meta_field_armor_bonus(owner)) * effect_ratio
 	return BASE_ARMOR_BONUS + PLAYER_SKILL_LEVEL_EFFECT_FLOW.get_mage_meta_field_armor_bonus(owner)
 
 
@@ -344,6 +343,9 @@ func _update_effect(owner) -> void:
 		return
 	var center := _get_field_center(owner)
 	effect.position = center - owner.global_position
+	var sprite: AnimatedSprite2D = effect.get_node_or_null("field") as AnimatedSprite2D
+	if sprite != null:
+		sprite.scale = Vector2.ONE * _get_visual_scale(owner)
 	var ratio: float = clamp(active_remaining / max(_get_duration(owner), 0.001), 0.0, 1.0)
 	effect.modulate.a = 0.52 + ratio * 0.32
 
@@ -485,6 +487,16 @@ func _apply_soul_shackle(owner) -> void:
 			if enemy.has_method("apply_slow_from_source"):
 				enemy.apply_slow_from_source(0.01, 2.0, "mage_meta_field_soul_shackle", true)
 		enemy.set_meta("mage_meta_field_slow_count", count)
+
+func should_grant_soul_extraction_energy(owner, enemy: Node) -> bool:
+	if owner == null or enemy == null or not is_instance_valid(enemy):
+		return false
+	if active_remaining <= 0.0 or not BUILD.has_choice(owner, "soul_extraction"):
+		return false
+	if not (enemy is Node2D):
+		return false
+	var enemy_node := enemy as Node2D
+	return enemy_node.global_position.distance_squared_to(_get_field_center(owner)) <= pow(_get_radius(owner), 2.0)
 
 func _restore_pressure_armor() -> void:
 	if effect == null or not is_instance_valid(effect):

@@ -306,6 +306,7 @@ var boss_phase_charge_rings: Array[Line2D] = []
 var boss_visual_instance: Node2D
 var profile_initialized: bool = false
 var hit_flash_remaining: float = 0.0
+var hit_stop_remaining: float = 0.0
 var separation_push: Vector2 = Vector2.ZERO
 var cached_separation_velocity: Vector2 = Vector2.ZERO
 var separation_refresh_frame: int = -1
