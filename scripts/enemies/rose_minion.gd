@@ -24,6 +24,14 @@ func configure(owner, target_node: Node2D, enemy_projectile_scene: PackedScene, 
 	target = target_node
 	projectile_scene = enemy_projectile_scene
 	projectile_damage = damage
+	# This minion has no HP/movement profile; its shot uses the owner template
+	# attack coefficient, scaled once for the current wave (not the Boss stats).
+	var scene: Node = owner.get_tree().current_scene if owner is Node and owner.is_inside_tree() else null
+	var scaling := preload("res://scripts/game/enemy_tier_wave_scaling.gd")
+	if scaling.applies(scene, "normal"):
+		var base := preload("res://scripts/enemy/enemy_archetype_database.gd").get_profile(str(owner.enemy_kind), str(owner.archetype_id))
+		var values: Dictionary = scaling.multipliers(scaling.get_tier(scene), scaling.get_wave(scene))
+		projectile_damage = float(base.get("attack", damage)) * float(values.attack) + float(values.attack_flat)
 	projectile_speed = speed
 	projectile_lifetime = shot_lifetime
 	scale = boss_scale * 0.5
@@ -80,7 +88,7 @@ func _spawn_projectile(origin: Vector2, shot_direction: Vector2, speed: float, d
 		current_scene.add_child(projectile)
 	if projectile.has_method("reset_projectile"):
 		var difficulty_speed_bonus := 0.0
-		if current_scene.has_method("_get_difficulty_projectile_speed_bonus"):
+		if not preload("res://scripts/game/enemy_tier_wave_scaling.gd").applies(current_scene, "normal") and current_scene.has_method("_get_difficulty_projectile_speed_bonus"):
 			difficulty_speed_bonus = max(0.0, float(current_scene._get_difficulty_projectile_speed_bonus()))
 		projectile.reset_projectile({
 			"position": origin,

@@ -2,7 +2,8 @@ extends RefCounted
 
 const MAX_DIRECT_SEPARATION_NEIGHBORS := 36
 const MAX_VELOCITY_SEPARATION_NEIGHBORS := 36
-const BODY_COLLISION_RADIUS_SCALE := 0.5
+const BODY_COLLISION_RADIUS_SCALE := 0.3875
+const SWARM_COLLISION_RADIUS_MULTIPLIER := 0.5
 const DIRECT_SEPARATION_OVERLAP_SCALE := 0.62
 const DIRECT_SEPARATION_PER_NEIGHBOR_LIMIT := 7.0
 const DIRECT_SEPARATION_TOTAL_LIMIT := 20.0
@@ -28,6 +29,8 @@ static func apply_body_collision_separation(enemy: Node2D) -> void:
 	var broad_radius_sq := broad_radius * broad_radius
 	for other in enemy.ENEMY_SPATIAL_GRID.get_neighbors(enemy, max(144.0, self_body_radius * 5.0)):
 		if other == null or other == enemy or not is_instance_valid(other) or not (other is Node2D):
+			continue
+		if not _can_separate_pair(enemy, other):
 			continue
 		var other_position: Vector2 = (other as Node2D).global_position
 		var offset: Vector2 = enemy_position - other_position
@@ -80,6 +83,8 @@ static func compute_separation_velocity(enemy: Node2D) -> Vector2:
 	for other in enemy.ENEMY_SPATIAL_GRID.get_neighbors(enemy, max(128.0, self_body_radius * 4.5)):
 		if other == null or other == enemy or not is_instance_valid(other) or not (other is Node2D):
 			continue
+		if not _can_separate_pair(enemy, other):
+			continue
 		var other_position: Vector2 = (other as Node2D).global_position
 		var offset: Vector2 = enemy_position - other_position
 		var distance_sq: float = offset.length_squared()
@@ -121,10 +126,22 @@ static func _get_cluster_escape_push(enemy, cluster_center: Vector2, total_overl
 
 
 static func get_body_collision_radius(enemy: Node2D) -> float:
+	var radius: float
 	if enemy.has_method("get_body_collision_radius"):
-		return enemy.get_body_collision_radius()
-	var enemy_scale := enemy.scale
-	return calculate_body_collision_radius(maxf(absf(enemy_scale.x), absf(enemy_scale.y)), float(enemy.body_collision_reference_scale), float(enemy.body_collision_radius), float(enemy.contact_radius))
+		radius = enemy.get_body_collision_radius()
+	else:
+		var enemy_scale := enemy.scale
+		radius = calculate_body_collision_radius(maxf(absf(enemy_scale.x), absf(enemy_scale.y)), float(enemy.body_collision_reference_scale), float(enemy.body_collision_radius), float(enemy.contact_radius))
+	return radius * SWARM_COLLISION_RADIUS_MULTIPLIER if _is_swarm(enemy) else radius
+
+
+static func _is_swarm(enemy: Node) -> bool:
+	return str(enemy.get("archetype_id")) == "swarm"
+
+
+static func _can_separate_pair(enemy: Node, other: Node) -> bool:
+	# Symmetric: ground enemies must not push flying eyes either.
+	return _is_swarm(enemy) == _is_swarm(other)
 
 
 static func calculate_body_collision_radius(current_scale: float, reference_scale: float, body_radius: float, contact_radius: float) -> float:

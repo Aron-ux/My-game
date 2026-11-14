@@ -1,5 +1,7 @@
 extends RefCounted
 
+const TIER_WAVE_SCALING := preload("res://scripts/game/enemy_tier_wave_scaling.gd")
+
 const TREE_COOLDOWN := 10.0
 const TREE_SEED_SPEED := 180.0
 const TREE_SEED_DISTANCE := 400.0
@@ -73,6 +75,7 @@ static func throw_tree_seed(enemy):
 		"speed_scale": enemy.speed / 60.0
 	}
 	var scene: Node = enemy.get_tree().current_scene
+	TIER_WAVE_SCALING.apply_spawn(seed, scene)
 	scene.add_child(seed)
 	if scene.has_method("_on_enemy_defeated"):
 		seed.defeated.connect(scene._on_enemy_defeated.bind(seed))
@@ -113,6 +116,9 @@ static func hatch(seed) -> void:
 	seed.current_health = seed.max_health
 	seed.attack *= float(state.get("attack_scale", 1.0))
 	seed.speed *= float(state.get("speed_scale", 1.0))
+	# Hatching is a new appearance: use the young tree template and current wave.
+	var scene: Node = seed.get_tree().current_scene if seed.is_inside_tree() else null
+	TIER_WAVE_SCALING.apply_spawn(seed, scene)
 	seed._spawn_status_burst(Color(0.7, 0.4, 0.9, 0.7), 30)
 	if seed.is_inside_tree():
 		SHEET_EFFECT.spawn(seed.get_tree().current_scene, HATCH_BURST, 6, seed.global_position, {"fps": 16.0, "art_scale": 1.3})

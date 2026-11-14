@@ -51,7 +51,7 @@ static func _fire_shooter_pattern_now(enemy, split_volley_id: int = 0) -> bool:
 		var extra_config: Dictionary = {}
 		if str(enemy.archetype_id) == "shotgunner":
 			# Shotgun speed is authored in world units, unlike legacy bullets.
-			extra_config["speed"] = enemy.projectile_speed + _get_difficulty_projectile_speed_bonus(_get_enemy_current_scene(enemy))
+			extra_config["speed"] = enemy.projectile_speed + _get_enemy_difficulty_projectile_speed_bonus(enemy, _get_enemy_current_scene(enemy))
 		if enemy.projectile_split_count > 0 and enemy.projectile_split_after > 0.0:
 			extra_config = {
 				"split_volley_id": split_volley_id,
@@ -104,7 +104,7 @@ static func spawn_projectile(enemy, origin: Vector2, shot_direction: Vector2, sh
 	if projectile == null:
 		return null
 	var speed_multiplier := NON_BOSS_PROJECTILE_SPEED_MULTIPLIER if str(enemy.enemy_kind) != "boss" else 1.0
-	var difficulty_speed_bonus := _get_difficulty_projectile_speed_bonus(current_scene)
+	var difficulty_speed_bonus := _get_enemy_difficulty_projectile_speed_bonus(enemy, current_scene)
 	if projectile.get_parent() == null:
 		current_scene.add_child(projectile)
 	elif projectile.get_parent() != current_scene:
@@ -222,6 +222,11 @@ static func _get_enemy_projectile_limit(enemy) -> int:
 	if current_scene != null and current_scene.has_method("_get_difficulty_limit"):
 		return int(current_scene._get_difficulty_limit("enemy_projectile_limit", PERFORMANCE_GUARD.DEFAULT_ENEMY_PROJECTILE_LIMIT))
 	return PERFORMANCE_GUARD.DEFAULT_ENEMY_PROJECTILE_LIMIT
+
+static func _get_enemy_difficulty_projectile_speed_bonus(enemy, current_scene: Node) -> float:
+	if preload("res://scripts/game/enemy_tier_wave_scaling.gd").applies(current_scene, str(enemy.enemy_kind)):
+		return 0.0
+	return _get_difficulty_projectile_speed_bonus(current_scene)
 
 static func _get_difficulty_projectile_speed_bonus(current_scene: Node) -> float:
 	if current_scene != null and current_scene.has_method("_get_difficulty_projectile_speed_bonus"):

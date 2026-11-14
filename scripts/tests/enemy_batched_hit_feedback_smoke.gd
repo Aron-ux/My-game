@@ -2,6 +2,7 @@ extends SceneTree
 
 const ENEMY_SCENE := preload("res://scenes/enemy.tscn")
 const PLAYER_DAMAGE_JOB_QUEUE := preload("res://scripts/player/player_damage_job_queue.gd")
+const ENEMY_HIT_FEEDBACK := preload("res://scripts/enemies/enemy_hit_feedback.gd")
 
 var failures: Array[String] = []
 
@@ -46,6 +47,22 @@ func _run() -> void:
 			failures.append("light hit feedback should start upward recoil animation")
 		if enemy.status_root != null:
 			failures.append("light hit flash should not create status visual rings for a plain normal enemy")
+		if ENEMY_HIT_FEEDBACK.active_hit_bursts.is_empty():
+			failures.append("batched player damage should spawn the hit burst effect")
+		else:
+			var hit_burst: Node2D = ENEMY_HIT_FEEDBACK.active_hit_bursts.back().get("node") as Node2D
+			if hit_burst == null or not hit_burst.has_method("get_ring_radius"):
+				failures.append("hit burst should provide a scalable ring visual")
+			else:
+				var initial_radius: float = hit_burst.get_ring_radius()
+				if hit_burst.get_particle_count() != 9:
+					failures.append("hit burst should contain irregular red circular particles")
+				hit_burst.set_progress(0.5)
+				if hit_burst.get_ring_radius() <= initial_radius:
+					failures.append("white hit ring should expand over time")
+		ENEMY_HIT_FEEDBACK._update_active_hit_bursts(0.3)
+		if not ENEMY_HIT_FEEDBACK.active_hit_bursts.is_empty():
+			failures.append("finished hit burst should be returned to its pool")
 		enemy._physics_process(0.3)
 		if enemy.hit_flash_remaining != 0.0:
 			failures.append("hit flash timer should finish after enough physics time")
@@ -56,6 +73,7 @@ func _run() -> void:
 
 	scene.queue_free()
 	await process_frame
+	ENEMY_HIT_FEEDBACK.clear_runtime_state()
 	current_scene = null
 
 	if failures.is_empty():

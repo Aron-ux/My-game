@@ -2,6 +2,7 @@ extends RefCounted
 const ARMOR_RULES := preload("res://scripts/combat/armor_rules.gd")
 const HEAVY_ARMOR := preload("res://scripts/enemies/enemy_heavy_armor_form.gd")
 const ENEMY_DROPS := preload("res://scripts/enemies/enemy_drops.gd")
+const ENEMY_DEATH_EFFECTS := preload("res://scripts/enemies/enemy_death_effects.gd")
 
 const ENEMY_SKULLTOMB_BEHAVIOR := preload("res://scripts/enemies/enemy_skulltomb_behavior.gd")
 const ENEMY_BOSS_STATE := preload("res://scripts/enemies/enemy_boss_state.gd")
@@ -11,10 +12,10 @@ const PLAYER_GUNNER_BASIC_TALENT_FLOW := preload("res://scripts/player/player_gu
 const PLAYER_COMBAT_MODIFIERS := preload("res://scripts/player/player_combat_modifiers.gd")
 const VULNERABILITY_RULES := preload("res://scripts/combat/vulnerability_rules.gd")
 
-static func take_damage(enemy, amount: float, is_critical: bool = false) -> bool:
-	return apply_damage(enemy, amount, true, is_critical)
+static func take_damage(enemy, amount: float, is_critical: bool = false, hit_direction: Vector2 = Vector2.ZERO) -> bool:
+	return apply_damage(enemy, amount, true, is_critical, false, false, true, hit_direction)
 
-static func apply_damage(enemy, amount: float, show_feedback: bool = true, is_critical: bool = false, ignore_armor: bool = false, direct_damage: bool = false, bypass_shield: bool = true) -> bool:
+static func apply_damage(enemy, amount: float, show_feedback: bool = true, is_critical: bool = false, ignore_armor: bool = false, direct_damage: bool = false, bypass_shield: bool = true, hit_direction: Vector2 = Vector2.ZERO) -> bool:
 	if enemy.has_meta("wave_cleanup"):
 		return false
 	var mage := preload("res://scripts/enemies/enemy_skull_mage.gd")
@@ -28,6 +29,8 @@ static func apply_damage(enemy, amount: float, show_feedback: bool = true, is_cr
 		return false
 	if amount <= 0.0:
 		return false
+	# Resolve before hit callbacks can turn the player or recycle this enemy.
+	var death_direction := preload("res://scripts/combat/attack_hit_direction.gd").resolve(enemy.target, hit_direction)
 	var electric_damage := 0.0
 	var electric_armor_shred: float = enemy.electric_stacks * 20.0
 	var electric_vulnerability_multiplier: float = 1.0 + enemy.electric_stacks * 0.05
@@ -121,6 +124,7 @@ static func apply_damage(enemy, amount: float, show_feedback: bool = true, is_cr
 		enemy._spawn_status_burst(Color(0.8, 0.64, 1.0, 0.32), 40.0 + enemy.scale.x * 10.0)
 		return false
 	if enemy.current_health <= 0.0:
+		ENEMY_DEATH_EFFECTS.spawn_spin_shrink(enemy, death_direction)
 		enemy.defeated.emit(enemy.enemy_kind)
 		enemy._drop_experience_gem()
 		enemy._maybe_drop_heart()

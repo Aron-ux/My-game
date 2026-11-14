@@ -21,7 +21,11 @@ static func fire_shot(owner, direction: Vector2, length: float, width: float, da
 		if not is_inside_beam((enemy as Node2D).global_position, center, direction, length, width):
 			continue
 		hit_count += 1
-		var killed: bool = owner._deal_damage_to_enemy(enemy, damage, "gunner", 0.0, 2.0, 1.0, 0.0, owner.global_position)
+		var killed: bool
+		if PLAYER_DAMAGE_RESOLVER._method_accepts_argument_count(owner, "_deal_damage_to_enemy", 11):
+			killed = owner._deal_damage_to_enemy(enemy, damage, "gunner", 0.0, 2.0, 1.0, 0.0, owner.global_position, false, 0.0, direction)
+		else:
+			killed = owner._deal_damage_to_enemy(enemy, damage, "gunner", 0.0, 2.0, 1.0, 0.0, owner.global_position)
 		if not killed and float(enemy.get("current_health")) > 0.0:
 			_shred_enemy_armor(enemy, armor_shred)
 			if legacy_talent_shred > 0.0 and enemy.get("damage_reduction_value") != null:

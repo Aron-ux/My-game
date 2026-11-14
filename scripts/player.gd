@@ -1971,11 +1971,11 @@ func _get_gunner_distance_damage_multiplier(distance: float) -> float:
 func _get_enemy_hit_radius(enemy: Node) -> float:
 	return PLAYER_DAMAGE_HELPERS.get_enemy_hit_radius(enemy)
 
-func _deal_damage_to_enemy(enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, suppress_status_visual: bool = false, kill_energy_bonus: float = 0.0) -> bool:
-	return PLAYER_DAMAGE_RESOLVER.deal_damage_to_enemy(self, enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, suppress_status_visual, kill_energy_bonus)
+func _deal_damage_to_enemy(enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, suppress_status_visual: bool = false, kill_energy_bonus: float = 0.0, hit_direction: Vector2 = Vector2.ZERO) -> bool:
+	return PLAYER_DAMAGE_RESOLVER.deal_damage_to_enemy(self, enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, suppress_status_visual, kill_energy_bonus, false, "", "", -1, hit_direction)
 
-func _damage_enemies_in_radius(center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "", slow_source_id: String = "") -> int:
-	return PLAYER_DAMAGE_RESOLVER.damage_enemies_in_radius(self, center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id, slow_source_id)
+func _damage_enemies_in_radius(center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "", slow_source_id: String = "", hit_direction: Vector2 = Vector2.ZERO) -> int:
+	return PLAYER_DAMAGE_RESOLVER.damage_enemies_in_radius(self, center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id, slow_source_id, hit_direction)
 
 func _collect_enemies_in_radius_for_damage_batch(center: Vector2, radius: float) -> Array:
 	return PLAYER_DAMAGE_RESOLVER.collect_enemies_in_radius(self, center, radius)
@@ -2016,8 +2016,8 @@ func _damage_enemies_in_oriented_rect_tracking(center: Vector2, axis_direction: 
 func _damage_enemies_in_oriented_rect_unique(center: Vector2, axis_direction: Vector2, rect_length: float, rect_width: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, hit_registry: Dictionary, source_role_id: String = "", slow_source_id: String = "", knockback_distance: float = 0.0) -> int:
 	return PLAYER_DAMAGE_RESOLVER.damage_enemies_in_oriented_rect_unique(self, center, axis_direction, rect_length, rect_width, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, hit_registry, source_role_id, knockback_distance, slow_source_id)
 
-func _damage_enemies_in_ellipse(center: Vector2, horizontal_radius: float, vertical_radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "") -> int:
-	return PLAYER_DAMAGE_RESOLVER.damage_enemies_in_ellipse(self, center, horizontal_radius, vertical_radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id)
+func _damage_enemies_in_ellipse(center: Vector2, horizontal_radius: float, vertical_radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "", hit_direction: Vector2 = Vector2.ZERO) -> int:
+	return PLAYER_DAMAGE_RESOLVER.damage_enemies_in_ellipse(self, center, horizontal_radius, vertical_radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id, hit_direction)
 
 func _damage_all_enemies(damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "") -> int:
 	return PLAYER_DAMAGE_RESOLVER.damage_all_enemies(self, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id)

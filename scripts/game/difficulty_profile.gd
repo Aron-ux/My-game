@@ -191,6 +191,9 @@ static func apply_to_wave_profile(wave_profile: Dictionary, profile: Dictionary)
 
 static func apply_to_enemy_profile(kind: String, enemy_profile: Dictionary, profile: Dictionary) -> Dictionary:
 	var adjusted: Dictionary = enemy_profile.duplicate(true)
+	# N1-N5 non-bosses keep authored skills, shot counts and attack intervals.
+	if kind in ["normal", "elite"] and int(profile.get("tier", 0)) in [1, 2, 3, 4, 5]:
+		return adjusted
 	var attack_interval_scale := get_scale(profile, "special_attack_interval_scale", 1.0)
 	var projectile_count_scale := get_scale(profile, "special_projectile_count_scale", 1.0)
 	var behavior := str(adjusted.get("behavior", ""))

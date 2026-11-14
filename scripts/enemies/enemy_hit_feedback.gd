@@ -2,6 +2,7 @@ extends RefCounted
 
 const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
 const PERFORMANCE_COUNTERS := preload("res://scripts/game/performance_counters.gd")
+const HIT_BURST := preload("res://scripts/enemies/enemy_hit_burst.gd")
 
 const HIT_FLASH_DURATION := 0.18
 const HIT_FLASH_DIM_ALPHA := 0.26
@@ -20,11 +21,15 @@ const CRITICAL_FPS_DEATH_BURST_BUDGET_PER_FRAME := 2
 const HIT_FLASH_BUDGET_PER_FRAME := 28
 const LOW_FPS_HIT_FLASH_BUDGET_PER_FRAME := 12
 const CRITICAL_FPS_HIT_FLASH_BUDGET_PER_FRAME := 5
+const HIT_BURST_BUDGET_PER_FRAME := 20
+const LOW_FPS_HIT_BURST_BUDGET_PER_FRAME := 9
+const CRITICAL_FPS_HIT_BURST_BUDGET_PER_FRAME := 4
 const KILL_DAMAGE_NUMBER_BUDGET_PER_FRAME := 6
 const LOW_FPS_KILL_DAMAGE_NUMBER_BUDGET_PER_FRAME := 3
 const CRITICAL_FPS_KILL_DAMAGE_NUMBER_BUDGET_PER_FRAME := 1
 const DAMAGE_LABEL_POOL_LIMIT := 64
 const DEATH_BURST_POOL_LIMIT := 32
+const HIT_BURST_POOL_LIMIT := 48
 const BOSS_HIT_FLASH_OVERLAY_NAME := "BossHitFlashOverlay"
 const BOSS_HIT_FLASH_TWEEN_META := "boss_hit_flash_tween"
 const GENERIC_FLASH_TWEEN_META := "enemy_hit_feedback_flash_tween"
@@ -39,23 +44,33 @@ static var death_burst_budget_frame: int = -1
 static var death_burst_budget_used: int = 0
 static var hit_flash_budget_frame: int = -1
 static var hit_flash_budget_used: int = 0
+static var hit_burst_budget_frame: int = -1
+static var hit_burst_budget_used: int = 0
 static var boss_hit_flash_shader: Shader
 static var boss_hit_flash_material: ShaderMaterial
 static var damage_label_pool: Array = []
 static var death_burst_pool: Array = []
+static var hit_burst_pool: Array[Node2D] = []
 static var active_damage_labels: Array[Dictionary] = []
 static var active_death_bursts: Array[Dictionary] = []
+static var active_hit_bursts: Array[Dictionary] = []
 static var feedback_animation_frame: int = -1
 
 static func clear_runtime_state() -> void:
-	for pool in [damage_label_pool, death_burst_pool]:
+	for pool in [damage_label_pool, death_burst_pool, hit_burst_pool]:
 		for node in pool:
 			if is_instance_valid(node) and node is Node and not (node as Node).is_queued_for_deletion():
 				(node as Node).free()
+	for data: Dictionary in active_hit_bursts:
+		var node: Variant = data.get("node", null)
+		if is_instance_valid(node) and node is Node and not (node as Node).is_queued_for_deletion():
+			(node as Node).free()
 	damage_label_pool.clear()
 	death_burst_pool.clear()
+	hit_burst_pool.clear()
 	active_damage_labels.clear()
 	active_death_bursts.clear()
+	active_hit_bursts.clear()
 	feedback_animation_frame = -1
 
 static func update_feedback_animations(delta: float) -> void:
@@ -70,6 +85,7 @@ static func play_hit_feedback(enemy, damage_amount: float, killed: bool, is_crit
 		_play_generic_visual_flash(enemy)
 		_play_hit_deformation(enemy)
 		_spawn_boss_hit_flash_overlay(enemy)
+		_spawn_hit_burst(enemy)
 		if enemy.has_method("_update_status_visuals"):
 			enemy._update_status_visuals()
 
@@ -91,6 +107,7 @@ static func play_light_hit_feedback(enemy) -> void:
 	_play_generic_visual_flash(enemy)
 	_play_hit_deformation(enemy)
 	_spawn_boss_hit_flash_overlay(enemy)
+	_spawn_hit_burst(enemy)
 	if enemy.has_method("_update_status_visuals"):
 		enemy._update_status_visuals()
 
@@ -487,6 +504,44 @@ static func _get_hit_flash_budget_per_frame() -> int:
 		return LOW_FPS_HIT_FLASH_BUDGET_PER_FRAME
 	return HIT_FLASH_BUDGET_PER_FRAME
 
+static func _consume_hit_burst_budget() -> bool:
+	var current_frame := Engine.get_physics_frames()
+	if hit_burst_budget_frame != current_frame:
+		hit_burst_budget_frame = current_frame
+		hit_burst_budget_used = 0
+	if hit_burst_budget_used >= _get_hit_burst_budget_per_frame():
+		PERFORMANCE_COUNTERS.add("suppressed_hit_burst", 1)
+		return false
+	hit_burst_budget_used += 1
+	return true
+
+static func _get_hit_burst_budget_per_frame() -> int:
+	var fps := Engine.get_frames_per_second()
+	if fps > 0 and fps < PERFORMANCE_GUARD.CRITICAL_FPS_THRESHOLD:
+		return CRITICAL_FPS_HIT_BURST_BUDGET_PER_FRAME
+	if fps > 0 and fps < PERFORMANCE_GUARD.LOW_FPS_THRESHOLD:
+		return LOW_FPS_HIT_BURST_BUDGET_PER_FRAME
+	return HIT_BURST_BUDGET_PER_FRAME
+
+static func _spawn_hit_burst(enemy) -> void:
+	if not _consume_hit_burst_budget():
+		return
+	var current_scene: Node = _get_enemy_current_scene(enemy)
+	if current_scene == null or not _can_spawn_temporary_effect(current_scene):
+		return
+	var burst := _acquire_hit_burst(current_scene)
+	burst.global_position = enemy.global_position
+	burst.z_as_relative = false
+	burst.z_index = 24
+	var contact_radius_value: Variant = enemy.get("contact_radius")
+	var contact_radius := float(contact_radius_value) if contact_radius_value is float or contact_radius_value is int else 24.0
+	burst.start_burst(clampf(contact_radius * 0.9, 26.0, 48.0))
+	active_hit_bursts.append({
+		"node": burst,
+		"elapsed": 0.0,
+		"duration": HIT_BURST.DURATION
+	})
+
 static func spawn_death_burst(enemy) -> void:
 	var current_scene: Node = _get_enemy_current_scene(enemy)
 	if current_scene == null:
@@ -524,6 +579,7 @@ static func _update_static_feedback_animations(delta: float) -> void:
 	feedback_animation_frame = current_frame
 	_update_active_damage_labels(delta)
 	_update_active_death_bursts(delta)
+	_update_active_hit_bursts(delta)
 
 static func _update_active_damage_labels(delta: float) -> void:
 	for index in range(active_damage_labels.size() - 1, -1, -1):
@@ -600,6 +656,27 @@ static func _update_active_death_bursts(delta: float) -> void:
 		data["elapsed"] = elapsed
 		active_death_bursts[index] = data
 
+static func _update_active_hit_bursts(delta: float) -> void:
+	for index in range(active_hit_bursts.size() - 1, -1, -1):
+		var data: Dictionary = active_hit_bursts[index]
+		var burst_value: Variant = data.get("node", null)
+		if not is_instance_valid(burst_value) or not (burst_value is Node2D):
+			active_hit_bursts.remove_at(index)
+			continue
+		var burst: Node2D = burst_value as Node2D
+		if burst.is_queued_for_deletion():
+			active_hit_bursts.remove_at(index)
+			continue
+		var elapsed: float = float(data.get("elapsed", 0.0)) + delta
+		var duration: float = maxf(0.001, float(data.get("duration", HIT_BURST.DURATION)))
+		if elapsed >= duration:
+			active_hit_bursts.remove_at(index)
+			_release_hit_burst(burst)
+			continue
+		burst.set_progress(elapsed / duration)
+		data["elapsed"] = elapsed
+		active_hit_bursts[index] = data
+
 static func _acquire_damage_label(current_scene: Node) -> Label:
 	while not damage_label_pool.is_empty():
 		var pooled_label: Variant = damage_label_pool.pop_back()
@@ -645,6 +722,30 @@ static func _release_death_burst(burst: Polygon2D) -> void:
 	burst.remove_from_group("temporary_effects")
 	if death_burst_pool.size() < DEATH_BURST_POOL_LIMIT and not death_burst_pool.has(burst):
 		death_burst_pool.append(burst)
+	else:
+		burst.queue_free()
+
+static func _acquire_hit_burst(current_scene: Node) -> Node2D:
+	while not hit_burst_pool.is_empty():
+		var pooled_burst: Variant = hit_burst_pool.pop_back()
+		if is_instance_valid(pooled_burst) and pooled_burst is Node2D:
+			var burst := pooled_burst as Node2D
+			if burst.is_queued_for_deletion():
+				continue
+			_prepare_pooled_node(burst, current_scene)
+			return burst
+	var burst: Node2D = HIT_BURST.new()
+	current_scene.add_child(burst)
+	burst.add_to_group("temporary_effects")
+	return burst
+
+static func _release_hit_burst(burst: Node2D) -> void:
+	if burst == null or not is_instance_valid(burst):
+		return
+	burst.hide()
+	burst.remove_from_group("temporary_effects")
+	if hit_burst_pool.size() < HIT_BURST_POOL_LIMIT and not hit_burst_pool.has(burst):
+		hit_burst_pool.append(burst)
 	else:
 		burst.queue_free()
 

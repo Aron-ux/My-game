@@ -412,13 +412,14 @@ func _apply_projectile_hit(projectile_index: int, enemy: Node2D) -> void:
 			0.0,
 			false,
 			gunner_event_prepared,
-			damage_event_ids[projectile_index]
+			damage_event_ids[projectile_index],
+			"", directions[projectile_index]
 		)
 		_try_spawn_gunner_basic_split_children(projectile_index, enemy)
 		_apply_entry_repulse(projectile_index, enemy)
 		return
 	if source_player.has_method("_deal_damage_to_enemy"):
-		PLAYER_DAMAGE_RESOLVER.queue_damage_to_enemy(source_player, enemy, resolved_hit_damage, role_id, vulnerability_bonuses[projectile_index], vulnerability_durations[projectile_index], slow_multipliers[projectile_index], slow_durations[projectile_index], source_origins[projectile_index], true, false, false, damage_event_ids[projectile_index])
+		PLAYER_DAMAGE_RESOLVER.queue_damage_to_enemy(source_player, enemy, resolved_hit_damage, role_id, vulnerability_bonuses[projectile_index], vulnerability_durations[projectile_index], slow_multipliers[projectile_index], slow_durations[projectile_index], source_origins[projectile_index], true, false, false, damage_event_ids[projectile_index], "", directions[projectile_index])
 	elif enemy.has_method("take_damage"):
 		PLAYER_DAMAGE_RESOLVER.deal_damage_to_enemy(
 			source_player,
@@ -433,7 +434,8 @@ func _apply_projectile_hit(projectile_index: int, enemy: Node2D) -> void:
 			false,
 			0.0,
 			false,
-			damage_event_ids[projectile_index]
+			damage_event_ids[projectile_index],
+			"", -1, directions[projectile_index]
 		)
 	_try_spawn_gunner_basic_split_children(projectile_index, enemy)
 	_apply_entry_repulse(projectile_index, enemy)

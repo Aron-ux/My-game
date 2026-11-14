@@ -138,6 +138,7 @@ static func process(main: Node, delta: float) -> void:
 		return
 
 	PERFORMANCE_RECORDER.begin_scope("script_logic_ms")
+	main.ENEMY_HIT_FEEDBACK.update_feedback_animations(delta)
 	main.survival_time += delta
 	main.autosave_elapsed += delta
 	if main._is_developer_mode():

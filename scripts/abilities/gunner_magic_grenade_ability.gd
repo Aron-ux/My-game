@@ -35,7 +35,8 @@ func update(owner, delta: float) -> void:
 		active_grenades[index] = data
 		if elapsed >= duration:
 			grenade.global_position = target_position
-			_explode(owner, grenade.global_position, str(data.get("source_id", "")))
+			var arrival_direction: Vector2 = target_position - data.get("previous_position", from_position)
+			_explode(owner, grenade.global_position, str(data.get("source_id", "")), arrival_direction)
 			grenade.queue_free()
 			active_grenades.remove_at(index)
 			continue
@@ -211,8 +212,8 @@ func restore_effect_if_active(owner) -> void:
 	pending_saved_grenades.clear()
 
 
-func _explode(owner, center: Vector2, source_id: String = "") -> void:
-	var was_critical: bool = PLAYER_GUNNER_MAGIC_GRENADE_FLOW.apply_explosion(owner, center, source_id)
+func _explode(owner, center: Vector2, source_id: String = "", hit_direction: Vector2 = Vector2.ZERO) -> void:
+	var was_critical: bool = PLAYER_GUNNER_MAGIC_GRENADE_FLOW.apply_explosion(owner, center, source_id, hit_direction)
 	var blast_radius: float = PLAYER_GUNNER_MAGIC_GRENADE_FLOW.get_blast_radius_for_hit(owner, was_critical)
 	if owner.has_method("_spawn_burst_effect"):
 		owner._spawn_burst_effect(center, blast_radius * 0.6, Color(0.85, 0.55, 1.0, 0.85), 0.2)

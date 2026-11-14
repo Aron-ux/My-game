@@ -64,7 +64,7 @@ func update(owner, delta: float) -> void:
 					data["linger_damage_accum"] = 0.0
 					active_spheres[index] = data
 				else:
-					_explode(owner, position)
+					_explode(owner, position, direction)
 					sphere.queue_free()
 					active_spheres.remove_at(index)
 					continue
@@ -76,7 +76,7 @@ func update(owner, delta: float) -> void:
 			data = PLAYER_MAGE_DARK_CONTRACT_FLOW.apply_linger_tick(owner, data, position, delta)
 			active_spheres[index] = data
 			if float(data.get("linger_elapsed", 0.0)) >= LINGER_DURATION:
-				_explode(owner, position)
+				_explode(owner, position, data.get("direction", Vector2.ZERO))
 				sphere.queue_free()
 				active_spheres.remove_at(index)
 				continue
@@ -188,8 +188,8 @@ func restore_effect_if_active(owner) -> void:
 	pending_saved_spheres.clear()
 
 
-func _explode(owner, position: Vector2) -> void:
-	PLAYER_MAGE_DARK_CONTRACT_FLOW.apply_explosion(owner, position)
+func _explode(owner, position: Vector2, hit_direction: Vector2 = Vector2.ZERO) -> void:
+	PLAYER_MAGE_DARK_CONTRACT_FLOW.apply_explosion(owner, position, hit_direction)
 	if owner.has_method("_spawn_burst_effect"):
 		owner._spawn_burst_effect(position, PLAYER_MAGE_DARK_CONTRACT_FLOW.BLAST_RADIUS * 0.8, Color(0.4, 0.2, 0.7, 0.85), 0.22)
 	if owner.has_method("_spawn_vortex_effect"):

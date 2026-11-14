@@ -546,17 +546,17 @@ func _update_status_timers(delta: float) -> void:
 func _update_bleed(delta: float) -> void:
 	ENEMY_STATUS_EFFECTS.tick_bleed(self, delta)
 
-func take_damage(amount: float, is_critical: bool = false) -> bool:
-	return ENEMY_DAMAGE.take_damage(self, amount, is_critical)
+func take_damage(amount: float, is_critical: bool = false, hit_direction: Vector2 = Vector2.ZERO) -> bool:
+	return ENEMY_DAMAGE.take_damage(self, amount, is_critical, hit_direction)
 
-func take_damage_ignoring_armor(amount: float, is_critical: bool = false, show_feedback: bool = true) -> bool:
-	return ENEMY_DAMAGE.apply_damage(self, amount, show_feedback, is_critical, true)
+func take_damage_ignoring_armor(amount: float, is_critical: bool = false, show_feedback: bool = true, hit_direction: Vector2 = Vector2.ZERO) -> bool:
+	return ENEMY_DAMAGE.apply_damage(self, amount, show_feedback, is_critical, true, false, true, hit_direction)
 
 func try_stalwart_body_damage() -> float:
 	return ENEMY_STALWART_BODY.try_trigger(self)
 
-func take_batched_damage(amount: float, is_critical: bool = false) -> bool:
-	return ENEMY_DAMAGE.apply_damage(self, amount, false, is_critical)
+func take_batched_damage(amount: float, is_critical: bool = false, hit_direction: Vector2 = Vector2.ZERO) -> bool:
+	return ENEMY_DAMAGE.apply_damage(self, amount, false, is_critical, false, false, true, hit_direction)
 
 func activate_pooled_enemy() -> void:
 	batch_simulation_enabled = false
@@ -666,5 +666,5 @@ func apply_stun(duration: float) -> bool:
 func take_direct_damage(amount: float) -> bool:
 	return ENEMY_DAMAGE.apply_damage(self, amount, true, false, true, true)
 
-func take_soul_impact_damage(amount: float) -> bool:
-	return ENEMY_DAMAGE.apply_damage(self, amount, true, false, true, true, false)
+func take_soul_impact_damage(amount: float, hit_direction: Vector2 = Vector2.ZERO) -> bool:
+	return ENEMY_DAMAGE.apply_damage(self, amount, true, false, true, true, false, hit_direction)

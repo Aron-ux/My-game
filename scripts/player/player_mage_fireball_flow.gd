@@ -8,9 +8,11 @@ static func resolve_target_position(owner, facing: Vector2, max_range: float) ->
 	return PLAYER_TARGETING.get_aim_target_position(owner, facing, max_range)
 
 
-static func apply_impact(owner, center: Vector2, radius: float, damage: float) -> int:
+static func apply_impact(owner, center: Vector2, radius: float, damage: float, hit_direction: Vector2 = Vector2.ZERO) -> int:
 	if owner == null or not is_instance_valid(owner):
 		return 0
+	if PLAYER_DAMAGE_RESOLVER._method_accepts_argument_count(owner, "_damage_enemies_in_radius", 9):
+		return int(owner._damage_enemies_in_radius(center, radius, damage, 0.0, 1.0, 0.0, "mage", "", hit_direction))
 	return int(owner._damage_enemies_in_radius(center, radius, damage, 0.0, 1.0, 0.0, "mage"))
 
 

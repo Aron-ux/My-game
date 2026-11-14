@@ -219,7 +219,7 @@ func _apply_piercing_beam_shapes(owner, shapes: Array[Dictionary]) -> int:
 			if not RESOLVER._is_live_enemy(enemy) or enemy is not Node2D or not RESOLVER._shape_hits_enemy_node(owner, shape, enemy):
 				continue
 			resolving_soul_impact = bool(shape.get("soul_impact", false))
-			var killed: bool = RESOLVER.deal_damage_to_enemy(owner, enemy, float(shape["damage_amount"]), SOURCE, 0.0, 2.0, 1.0, 0.0, shape["source_position"])
+			var killed: bool = RESOLVER.deal_damage_to_enemy(owner, enemy, float(shape["damage_amount"]), SOURCE, 0.0, 2.0, 1.0, 0.0, shape["source_position"], false, 0.0, false, "", "", -1, shape["axis"])
 			resolving_soul_impact = false
 			count += 1
 			if killed and bool(shape.get("soul_form", false)) and not bool(shape.get("manual", false)):
@@ -229,10 +229,13 @@ func _apply_piercing_beam_shapes(owner, shapes: Array[Dictionary]) -> int:
 					cooldown_remaining = maxf(0.0, cooldown_remaining - 0.3)
 	return count
 
-func resolve_soul_impact(enemy) -> bool:
+func resolve_soul_impact(enemy, hit_direction: Vector2 = Vector2.ZERO) -> bool:
 	if not resolving_soul_impact or not RESOLVER._is_live_enemy(enemy) or not enemy.has_method("take_soul_impact_damage"):
 		return false
-	return bool(enemy.take_soul_impact_damage(maxf(0.0, float(enemy.get("current_health"))) * 0.01))
+	var amount := maxf(0.0, float(enemy.get("current_health"))) * 0.01
+	if RESOLVER._method_accepts_argument_count(enemy, "take_soul_impact_damage", 2):
+		return bool(enemy.take_soul_impact_damage(amount, hit_direction))
+	return bool(enemy.take_soul_impact_damage(amount))
 
 func get_cooldown_slot(owner = null) -> Dictionary:
 	var duration: float = _get_cooldown(owner)

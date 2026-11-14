@@ -441,7 +441,10 @@ func _tick_reflected(delta: float) -> void:
 			nearest = enemy
 	if nearest != null:
 		global_position = start + direction * nearest_distance
-		target._deal_damage_to_enemy(nearest, damage, "swordsman_aux:reflect")
+		if preload("res://scripts/combat/damage_method_dispatch.gd").accepts_arguments(target, "_deal_damage_to_enemy", 11):
+			target._deal_damage_to_enemy(nearest, damage, "swordsman_aux:reflect", 0.0, 2.0, 1.0, 0.0, global_position, false, 0.0, direction)
+		else:
+			target._deal_damage_to_enemy(nearest, damage, "swordsman_aux:reflect")
 		recycle()
 		return
 	global_position = finish

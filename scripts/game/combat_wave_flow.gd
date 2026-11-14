@@ -4,6 +4,7 @@ const PLAN := preload("res://scripts/game/combat_wave_plan.gd")
 const MERCHANT := preload("res://scripts/game/wave_ruan_merchant.gd")
 const VIEW := preload("res://scripts/ui/hud/combat_wave_view.gd")
 const FLYBY := preload("res://scripts/enemies/enemy_swarm_flyby.gd")
+const ENEMY_DEATH_EFFECTS := preload("res://scripts/enemies/enemy_death_effects.gd")
 const PREPARATION_SECONDS := 30.0
 const DEATH_SECONDS := 0.7
 const EXPERIENCE_SETTLE_SECONDS := 0.5
@@ -367,6 +368,7 @@ func _clear_remaining_enemies_without_rewards() -> void:
 		if enemy.current_health <= 0:
 			continue
 		enemy.current_health = 0.0
+		ENEMY_DEATH_EFFECTS.spawn_spin_shrink(enemy)
 		enemy.clear_runtime_effects_after_defeat()
 		enemy.set_physics_process(false)
 		enemy.set_process(false)

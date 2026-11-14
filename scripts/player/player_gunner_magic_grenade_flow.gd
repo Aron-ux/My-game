@@ -146,13 +146,16 @@ static func _spread_repeated_targets(targets: Array, origin: Vector2) -> Array:
 	return result
 
 
-static func apply_explosion(owner, center: Vector2, source_id: String = "") -> bool:
+static func apply_explosion(owner, center: Vector2, source_id: String = "", hit_direction: Vector2 = Vector2.ZERO) -> bool:
 	if owner == null or not is_instance_valid(owner):
 		return false
 	var damage: float = float(owner._get_role_damage("gunner")) * get_damage_ratio(owner)
 	var resolved_source := source_id if source_id != "" else make_damage_source_id()
 	if not has_lucky_round(owner):
-		owner._damage_enemies_in_radius(center, BLAST_RADIUS, damage, 0.0, 1.0, 0.0, resolved_source)
+		if PLAYER_DAMAGE_RESOLVER._method_accepts_argument_count(owner, "_damage_enemies_in_radius", 9):
+			owner._damage_enemies_in_radius(center, BLAST_RADIUS, damage, 0.0, 1.0, 0.0, resolved_source, "", hit_direction)
+		else:
+			owner._damage_enemies_in_radius(center, BLAST_RADIUS, damage, 0.0, 1.0, 0.0, resolved_source)
 		return false
 	var was_critical: bool = owner.has_method("_roll_critical_hit") and bool(owner._roll_critical_hit("gunner", get_critical_chance_bonus(owner, resolved_source)))
 	var radius := get_blast_radius_for_hit(owner, was_critical)
@@ -163,7 +166,7 @@ static func apply_explosion(owner, center: Vector2, source_id: String = "") -> b
 		var distance := (enemy as Node2D).global_position.distance_to(center)
 		if distance > radius or not PLAYER_DAMAGE_RESOLVER._enemy_hit_shape_hits_circle(owner, enemy as Node2D, center, radius):
 			continue
-		PLAYER_DAMAGE_RESOLVER.deal_damage_to_enemy(owner, enemy, damage, resolved_source, 0.0, 2.0, 1.0, 0.0, center, false, 0.0, false, "", "", 1 if was_critical else 0)
+		PLAYER_DAMAGE_RESOLVER.deal_damage_to_enemy(owner, enemy, damage, resolved_source, 0.0, 2.0, 1.0, 0.0, center, false, 0.0, false, "", "", 1 if was_critical else 0, hit_direction)
 	return was_critical
 
 static func on_magic_grenade_hit(owner, enemy: Node, source_role_id: String, was_critical: bool, killed: bool) -> void:

@@ -1,5 +1,7 @@
 extends RefCounted
 
+const TIER_WAVE_SCALING := preload("res://scripts/game/enemy_tier_wave_scaling.gd")
+
 const PERFORMANCE_GUARD := preload("res://scripts/game/performance_guard.gd")
 const SPAWN_POSITION_FLOW := preload("res://scripts/game/enemy_spawn_position_flow.gd")
 const ENEMY_BOSS_STATE := preload("res://scripts/enemies/enemy_boss_state.gd")
@@ -37,21 +39,23 @@ static func spawn_configured_enemy_at_position(main: Node, kind: String, archety
 		enemy.experience_reward = int(waves.PLAN.SMALL_BOSS_EXPERIENCE[int(waves.wave)])
 	if kind == "normal" and is_instance_valid(waves) and waves.phase == "combat" and int(waves.wave) in waves.PLAN.REWARD_WAVES:
 		enemy.experience_reward = maxi(1, roundi(float(enemy.experience_reward) * 1.5))
-	var uses_authored_boss_stats: bool = kind == "boss" and archetype == "boss_spellcore"
-	var wave_health_multiplier := _get_normal_wave_health_multiplier(main, kind, waves)
-	enemy.max_health *= health_multiplier * wave_health_multiplier * (1.0 if uses_authored_boss_stats else GLOBAL_ENEMY_HEALTH_MULTIPLIER)
-	if kind == "boss":
-		enemy.current_health = ENEMY_BOSS_STATE.get_boss_spawn_health(enemy)
-	else:
-		enemy.current_health = enemy.max_health
-	enemy.speed *= speed_multiplier
-	var attack_multiplier := damage_multiplier
-	if uses_authored_boss_stats and bool(main.get("endless_mode_active")):
-		# N1 is the authored attack baseline; retain relative N-tier growth.
-		attack_multiplier /= float(DIFFICULTY_PROFILE.PROFILES["easy"]["enemy_damage_scale"])
-	enemy.attack *= attack_multiplier
-	enemy.touch_damage *= damage_multiplier
-	enemy.projectile_damage *= damage_multiplier * GLOBAL_ENEMY_PROJECTILE_DAMAGE_MULTIPLIER
+	# New non-boss rules and legacy/Boss rules are mutually exclusive.
+	if not TIER_WAVE_SCALING.apply_spawn(enemy, main):
+		var uses_authored_boss_stats: bool = kind == "boss" and archetype == "boss_spellcore"
+		var wave_health_multiplier := _get_normal_wave_health_multiplier(main, kind, waves)
+		enemy.max_health *= health_multiplier * wave_health_multiplier * (1.0 if uses_authored_boss_stats else GLOBAL_ENEMY_HEALTH_MULTIPLIER)
+		if kind == "boss":
+			enemy.current_health = ENEMY_BOSS_STATE.get_boss_spawn_health(enemy)
+		else:
+			enemy.current_health = enemy.max_health
+		enemy.speed *= speed_multiplier
+		var attack_multiplier := damage_multiplier
+		if uses_authored_boss_stats and bool(main.get("endless_mode_active")):
+			# N1 is the authored attack baseline; retain relative N-tier growth.
+			attack_multiplier /= float(DIFFICULTY_PROFILE.PROFILES["easy"]["enemy_damage_scale"])
+		enemy.attack *= attack_multiplier
+		enemy.touch_damage *= damage_multiplier
+		enemy.projectile_damage *= damage_multiplier * GLOBAL_ENEMY_PROJECTILE_DAMAGE_MULTIPLIER
 	if enemy.has_signal("defeated"):
 		disconnect_enemy_defeated_callbacks(enemy, main)
 		enemy.defeated.connect(main._on_enemy_defeated.bind(enemy))

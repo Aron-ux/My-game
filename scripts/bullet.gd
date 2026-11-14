@@ -618,7 +618,7 @@ func _apply_hit(enemy: Node2D) -> void:
 	var killed: bool = false
 	var queued_damage := false
 	if source_player != null and source_player.has_method("_deal_damage_to_enemy"):
-		PLAYER_DAMAGE_RESOLVER.queue_damage_to_enemy(source_player, enemy, hit_damage, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_origin_position, true, false, false, damage_event_id, slow_source_id)
+		PLAYER_DAMAGE_RESOLVER.queue_damage_to_enemy(source_player, enemy, hit_damage, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_origin_position, true, false, false, damage_event_id, slow_source_id, direction)
 		queued_damage = true
 	else:
 		if enemy.has_method("take_damage"):
@@ -636,7 +636,9 @@ func _apply_hit(enemy: Node2D) -> void:
 				0.0,
 				false,
 				damage_event_id,
-				slow_source_id
+				slow_source_id,
+				-1,
+				direction
 			))
 		if vulnerability_duration > 0.0 and enemy.has_method("apply_vulnerability"):
 			enemy.apply_vulnerability(vulnerability_bonus, vulnerability_duration)
@@ -679,7 +681,7 @@ func _apply_impact_blast(center: Vector2) -> void:
 	if _consume_split_burst_budget():
 		_spawn_split_visual(center, radius, 0)
 	if source_player != null and is_instance_valid(source_player) and source_player.has_method("_damage_enemies_in_radius"):
-		var hits: int = source_player._damage_enemies_in_radius(center, radius, damage, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id)
+		var hits: int = _damage_burst_in_direction(center, radius)
 		if hits > 0 and source_player.has_method("_register_attack_result"):
 			source_player._register_attack_result(source_role_id, hits, false)
 
@@ -744,9 +746,15 @@ func _apply_split_burst(center: Vector2, burst_index: int) -> void:
 	var radius: float = split_radius + float(burst_index) * 20.0
 	_spawn_split_visual(center, radius, burst_index)
 	if source_player != null and source_player.has_method("_damage_enemies_in_radius"):
-		var hit_count: int = int(source_player._damage_enemies_in_radius(center, radius, damage, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id))
+		var hit_count: int = _damage_burst_in_direction(center, radius)
 		if hit_count > 0 and source_player.has_method("_register_attack_result"):
 			source_player._register_attack_result(source_role_id, hit_count, false)
+
+func _damage_burst_in_direction(center: Vector2, radius: float) -> int:
+	if PLAYER_DAMAGE_RESOLVER._method_accepts_argument_count(source_player, "_damage_enemies_in_radius", 9):
+		return int(source_player._damage_enemies_in_radius(center, radius, damage, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id, "", direction))
+	return int(source_player._damage_enemies_in_radius(center, radius, damage, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id))
+
 
 func _consume_split_burst_budget() -> bool:
 	var current_frame: int = Engine.get_physics_frames()

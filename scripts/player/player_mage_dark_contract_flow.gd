@@ -83,7 +83,10 @@ static func apply_sphere_tick(owner, data: Dictionary, position: Vector2, delta:
 			if not collided_ids.has(enemy_id):
 				collided_ids[enemy_id] = true
 				var damage: float = float(owner._get_role_damage("mage")) * get_collide_damage_ratio(owner)
-				owner._deal_damage_to_enemy(enemy_node, damage, make_damage_source_id(), 0.0, 2.0, 1.0, 0.0, position)
+				if PLAYER_DAMAGE_RESOLVER._method_accepts_argument_count(owner, "_deal_damage_to_enemy", 11):
+					owner._deal_damage_to_enemy(enemy_node, damage, make_damage_source_id(), 0.0, 2.0, 1.0, 0.0, position, false, 0.0, data.get("direction", Vector2.ZERO))
+				else:
+					owner._deal_damage_to_enemy(enemy_node, damage, make_damage_source_id(), 0.0, 2.0, 1.0, 0.0, position)
 		if distance_squared <= attract_distance_squared and distance_squared > 0.001:
 			var distance: float = sqrt(distance_squared)
 			enemy_node.global_position += offset / distance * min(pull_step, distance)
@@ -92,7 +95,7 @@ static func apply_sphere_tick(owner, data: Dictionary, position: Vector2, delta:
 	while tick_elapsed >= ATTRACT_TICK_INTERVAL:
 		tick_elapsed -= ATTRACT_TICK_INTERVAL
 		var tick_damage: float = float(owner._get_role_damage("mage")) * ATTRACT_TICK_DAMAGE_RATIO
-		owner._damage_enemies_in_radius(position, attract_radius, tick_damage, 0.0, 1.0, 0.0, make_damage_source_id())
+		_damage_radius(owner, position, attract_radius, tick_damage, data.get("direction", Vector2.ZERO))
 	data["attract_tick_elapsed"] = tick_elapsed
 	return data
 
@@ -125,13 +128,20 @@ static func apply_linger_tick(owner, data: Dictionary, position: Vector2, delta:
 	while linger_damage_accum >= 1.0:
 		linger_damage_accum -= 1.0
 		var damage: float = float(owner._get_role_damage("mage")) * LINGER_DAMAGE_PER_SECOND_RATIO
-		owner._damage_enemies_in_radius(position, LINGER_ATTRACT_RADIUS, damage, 0.0, 1.0, 0.0, make_damage_source_id())
+		_damage_radius(owner, position, LINGER_ATTRACT_RADIUS, damage, data.get("direction", Vector2.ZERO))
 	data["linger_damage_accum"] = linger_damage_accum
 	return data
 
 
-static func apply_explosion(owner, position: Vector2) -> void:
+static func apply_explosion(owner, position: Vector2, hit_direction: Vector2 = Vector2.ZERO) -> void:
 	if owner == null or not is_instance_valid(owner):
 		return
 	var damage: float = float(owner._get_role_damage("mage")) * get_blast_damage_ratio(owner)
-	owner._damage_enemies_in_radius(position, BLAST_RADIUS, damage, 0.0, 1.0, 0.0, make_damage_source_id())
+	_damage_radius(owner, position, BLAST_RADIUS, damage, hit_direction)
+
+
+static func _damage_radius(owner, position: Vector2, radius: float, damage: float, hit_direction: Vector2) -> void:
+	if PLAYER_DAMAGE_RESOLVER._method_accepts_argument_count(owner, "_damage_enemies_in_radius", 9):
+		owner._damage_enemies_in_radius(position, radius, damage, 0.0, 1.0, 0.0, make_damage_source_id(), "", hit_direction)
+	else:
+		owner._damage_enemies_in_radius(position, radius, damage, 0.0, 1.0, 0.0, make_damage_source_id())

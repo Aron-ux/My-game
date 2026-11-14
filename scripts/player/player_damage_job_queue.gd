@@ -41,6 +41,7 @@ var slow_multipliers: PackedFloat32Array = PackedFloat32Array()
 var slow_source_ids: PackedStringArray = PackedStringArray()
 var slow_durations: PackedFloat32Array = PackedFloat32Array()
 var source_positions: Array = []
+var hit_directions: Array[Vector2] = []
 var kill_energy_bonuses: PackedFloat32Array = PackedFloat32Array()
 var prefer_silent_feedbacks: Array[bool] = []
 var suppress_status_visuals: Array[bool] = []
@@ -81,16 +82,18 @@ func enqueue(job: Dictionary) -> void:
 		bool(job.get("suppress_status_visual", false)),
 		bool(job.get("gunner_event_prepared", false)),
 		str(job.get("damage_event_id", "")),
-		str(job.get("slow_source_id", ""))
+		str(job.get("slow_source_id", "")),
+		job.get("hit_direction", Vector2.ZERO)
 	)
 
 
-func enqueue_values(enemy_ref: WeakRef, enemy_id: int, damage_amount: float, hit_count: int, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, kill_energy_bonus: float = 0.0, prefer_silent_feedback: bool = false, suppress_status_visual: bool = false, gunner_event_prepared: bool = false, damage_event_id: String = "", slow_source_id: String = "") -> void:
+func enqueue_values(enemy_ref: WeakRef, enemy_id: int, damage_amount: float, hit_count: int, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, kill_energy_bonus: float = 0.0, prefer_silent_feedback: bool = false, suppress_status_visual: bool = false, gunner_event_prepared: bool = false, damage_event_id: String = "", slow_source_id: String = "", hit_direction: Vector2 = Vector2.ZERO) -> void:
 	if enemy_ref == null:
 		return
+	hit_direction = preload("res://scripts/combat/attack_hit_direction.gd").resolve(source_player, hit_direction)
 	if enemy_id != 0:
 		var pending_index: int = int(pending_by_enemy_id.get(enemy_id, -1))
-		if pending_index >= job_cursor and pending_index < enemy_refs.size() and str(source_role_ids[pending_index]) == source_role_id and str(slow_source_ids[pending_index]) == slow_source_id and (gunner_event_prepared or str(damage_event_ids[pending_index]) == damage_event_id):
+		if pending_index >= job_cursor and pending_index < enemy_refs.size() and hit_directions[pending_index].is_equal_approx(hit_direction) and str(source_role_ids[pending_index]) == source_role_id and str(slow_source_ids[pending_index]) == slow_source_id and (gunner_event_prepared or str(damage_event_ids[pending_index]) == damage_event_id):
 			_merge_job_at_index(pending_index, damage_amount, hit_count, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, kill_energy_bonus, prefer_silent_feedback, suppress_status_visual, gunner_event_prepared)
 			PERFORMANCE_COUNTERS.add("merged_damage_jobs", 1)
 			return
@@ -105,6 +108,7 @@ func enqueue_values(enemy_ref: WeakRef, enemy_id: int, damage_amount: float, hit
 	slow_durations.append(slow_duration)
 	slow_source_ids.append(slow_source_id)
 	source_positions.append(source_position)
+	hit_directions.append(hit_direction)
 	kill_energy_bonuses.append(kill_energy_bonus)
 	prefer_silent_feedbacks.append(prefer_silent_feedback)
 	suppress_status_visuals.append(suppress_status_visual)
@@ -169,6 +173,7 @@ func _apply_job_at_index(index: int) -> void:
 	var slow_duration: float = slow_durations[index]
 	var slow_source_id: String = slow_source_ids[index]
 	var source_position: Variant = source_positions[index]
+	var hit_direction: Vector2 = hit_directions[index]
 	var kill_energy_bonus: float = kill_energy_bonuses[index]
 	var suppress_status_visual: bool = suppress_status_visuals[index]
 	var gunner_event_prepared: bool = gunner_event_prepareds[index]
@@ -176,14 +181,17 @@ func _apply_job_at_index(index: int) -> void:
 	if source_player.has_method("_deal_damage_to_enemy"):
 		var prefer_silent: bool = prefer_silent_feedbacks[index]
 		if (prefer_silent and enemy.has_method("take_batched_damage")) or gunner_event_prepared:
-			killed = bool(_deal_batched_damage_to_enemy(enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, kill_energy_bonus, suppress_status_visual, slow_source_id))
+			killed = bool(_deal_batched_damage_to_enemy(enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, kill_energy_bonus, suppress_status_visual, slow_source_id, hit_direction))
 		else:
 			var apply_source_slow: bool = slow_source_id != "" and enemy.has_method("apply_slow_from_source")
-			killed = bool(source_player._deal_damage_to_enemy(enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, 0.0 if apply_source_slow else slow_duration, source_position, suppress_status_visual, kill_energy_bonus))
+			if _method_accepts_argument_count(source_player, "_deal_damage_to_enemy", 11):
+				killed = bool(source_player._deal_damage_to_enemy(enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, 0.0 if apply_source_slow else slow_duration, source_position, suppress_status_visual, kill_energy_bonus, hit_direction))
+			else:
+				killed = bool(source_player._deal_damage_to_enemy(enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, 0.0 if apply_source_slow else slow_duration, source_position, suppress_status_visual, kill_energy_bonus))
 			if apply_source_slow and slow_duration > 0.0:
 				enemy.apply_slow_from_source(slow_multiplier, slow_duration, slow_source_id, suppress_status_visual)
 	elif enemy.has_method("take_damage"):
-		killed = bool(_deal_batched_damage_to_enemy(enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, kill_energy_bonus, suppress_status_visual, slow_source_id))
+		killed = bool(_deal_batched_damage_to_enemy(enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, kill_energy_bonus, suppress_status_visual, slow_source_id, hit_direction))
 	_queue_attack_result(resolved_source_role_id, hit_counts[index], killed)
 
 
@@ -248,7 +256,7 @@ func _flush_pending_kill_energy() -> void:
 	pending_kill_energy_by_lock_bypass.clear()
 
 
-func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float, vulnerability_duration: float, slow_multiplier: float, slow_duration: float, source_position: Variant, kill_energy_bonus: float, suppress_status_visual: bool, slow_source_id: String = "") -> bool:
+func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float, vulnerability_duration: float, slow_multiplier: float, slow_duration: float, source_position: Variant, kill_energy_bonus: float, suppress_status_visual: bool, slow_source_id: String = "", hit_direction: Vector2 = Vector2.ZERO) -> bool:
 	if not _is_enemy_damageable(enemy):
 		return false
 	if preload("res://scripts/enemies/enemy_necro_priest.gd").immune_to_source(enemy, source_role_id):
@@ -278,14 +286,17 @@ func _deal_batched_damage_to_enemy(enemy: Node, damage_amount: float, source_rol
 	var used_batched_damage := false
 	var health_before := _get_enemy_current_health(enemy)
 	if source_role_id == "swordsman_aux:split" and enemy.has_method("take_damage_ignoring_armor"):
-		killed = bool(enemy.take_damage_ignoring_armor(final_damage, was_critical, show_feedback))
+		if _method_accepts_argument_count(enemy, "take_damage_ignoring_armor", 4):
+			killed = bool(enemy.take_damage_ignoring_armor(final_damage, was_critical, show_feedback, hit_direction))
+		else:
+			killed = bool(enemy.take_damage_ignoring_armor(final_damage, was_critical, show_feedback))
 	elif show_feedback and enemy.has_method("take_damage"):
-		killed = bool(enemy.take_damage(final_damage, was_critical))
+		killed = preload("res://scripts/player/player_damage_resolver.gd")._call_enemy_take_damage(enemy, final_damage, was_critical, hit_direction)
 	elif enemy.has_method("take_batched_damage"):
 		used_batched_damage = true
-		killed = bool(_call_enemy_take_batched_damage(enemy, final_damage, was_critical))
+		killed = bool(_call_enemy_take_batched_damage(enemy, final_damage, was_critical, hit_direction))
 	elif enemy.has_method("take_damage"):
-		killed = bool(enemy.take_damage(final_damage, was_critical))
+		killed = preload("res://scripts/player/player_damage_resolver.gd")._call_enemy_take_damage(enemy, final_damage, was_critical, hit_direction)
 	if source_player.has_method("_record_swordsman_ultimate_followup_damage"):
 		source_player._record_swordsman_ultimate_followup_damage(max(0.0, health_before - _get_enemy_current_health(enemy)))
 	if used_batched_damage and not killed and _did_enemy_health_decrease(enemy, health_before) and enemy.has_method("_play_light_hit_feedback"):
@@ -405,9 +416,11 @@ func _get_gunner_damage_origin(enemy: Node2D) -> Vector2:
 		return (source_player as Node2D).global_position
 	return enemy.global_position if enemy != null else Vector2.ZERO
 
-func _call_enemy_take_batched_damage(enemy: Node, amount: float, is_critical: bool) -> bool:
+func _call_enemy_take_batched_damage(enemy: Node, amount: float, is_critical: bool, hit_direction: Vector2 = Vector2.ZERO) -> bool:
 	if enemy == null or not is_instance_valid(enemy) or not enemy.has_method("take_batched_damage"):
 		return false
+	if _method_accepts_argument_count(enemy, "take_batched_damage", 3):
+		return bool(enemy.take_batched_damage(amount, is_critical, hit_direction))
 	if _method_accepts_argument_count(enemy, "take_batched_damage", 2):
 		return bool(enemy.take_batched_damage(amount, is_critical))
 	return bool(enemy.take_batched_damage(amount))
@@ -486,6 +499,7 @@ func _compact_processed_jobs(force: bool) -> void:
 			slow_durations[write_index] = slow_durations[read_index]
 			slow_source_ids[write_index] = slow_source_ids[read_index]
 			source_positions[write_index] = source_positions[read_index]
+			hit_directions[write_index] = hit_directions[read_index]
 			kill_energy_bonuses[write_index] = kill_energy_bonuses[read_index]
 			prefer_silent_feedbacks[write_index] = prefer_silent_feedbacks[read_index]
 			suppress_status_visuals[write_index] = suppress_status_visuals[read_index]
@@ -502,6 +516,7 @@ func _compact_processed_jobs(force: bool) -> void:
 		slow_durations.resize(remaining_size)
 		slow_source_ids.resize(remaining_size)
 		source_positions.resize(remaining_size)
+		hit_directions.resize(remaining_size)
 		kill_energy_bonuses.resize(remaining_size)
 		prefer_silent_feedbacks.resize(remaining_size)
 		suppress_status_visuals.resize(remaining_size)
@@ -523,6 +538,7 @@ func _clear_jobs() -> void:
 	slow_durations.clear()
 	slow_source_ids.clear()
 	source_positions.clear()
+	hit_directions.clear()
 	kill_energy_bonuses.clear()
 	prefer_silent_feedbacks.clear()
 	suppress_status_visuals.clear()

@@ -3,6 +3,7 @@ const SWORDSMAN_BASIC_BUILD := preload("res://scripts/player/player_swordsman_ba
 const SWORDSMAN_BASIC_RUNTIME := preload("res://scripts/player/player_swordsman_basic_runtime.gd")
 
 const PERFORMANCE_COUNTERS := preload("res://scripts/game/performance_counters.gd")
+const HIT_DIRECTION := preload("res://scripts/combat/attack_hit_direction.gd")
 const DAMAGE_METHOD_DISPATCH := preload("res://scripts/combat/damage_method_dispatch.gd")
 const PLAYER_DAMAGE_JOB_QUEUE := preload("res://scripts/player/player_damage_job_queue.gd")
 const PLAYER_DAMAGE_BATCHER := preload("res://scripts/player/player_damage_batcher.gd")
@@ -46,7 +47,7 @@ static var reusable_candidates: Array = []
 static var reusable_seen_enemy_ids: Dictionary = {}
 static var reusable_bounds_list: Array[Rect2] = []
 
-static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, suppress_status_visual: bool = false, kill_energy_bonus: float = 0.0, gunner_event_prepared: bool = false, damage_event_id: String = "", slow_source_id: String = "", critical_override: int = -1) -> bool:
+static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, suppress_status_visual: bool = false, kill_energy_bonus: float = 0.0, gunner_event_prepared: bool = false, damage_event_id: String = "", slow_source_id: String = "", critical_override: int = -1, hit_direction: Vector2 = Vector2.ZERO) -> bool:
 	if not _is_live_enemy(enemy):
 		return false
 	if preload("res://scripts/enemies/enemy_necro_priest.gd").immune_to_source(enemy, source_role_id):
@@ -79,13 +80,17 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 	var max_health_value: Variant = enemy.get("max_health")
 	var target_max_health: float = max(0.0, float(max_health_value)) if max_health_value != null else 0.0
 	var killed := false
+	hit_direction = HIT_DIRECTION.resolve(owner, hit_direction)
 	if damage_amount > 0.0 and enemy.has_method("take_damage"):
 		if source_role_id == "swordsman_aux:split" and enemy.has_method("take_damage_ignoring_armor"):
-			killed = bool(enemy.take_damage_ignoring_armor(final_damage, was_critical))
+			if _method_accepts_argument_count(enemy, "take_damage_ignoring_armor", 4):
+				killed = bool(enemy.take_damage_ignoring_armor(final_damage, was_critical, true, hit_direction))
+			else:
+				killed = bool(enemy.take_damage_ignoring_armor(final_damage, was_critical))
 		else:
-			killed = _call_enemy_take_damage(enemy, final_damage, was_critical)
+			killed = _call_enemy_take_damage(enemy, final_damage, was_critical, hit_direction)
 		if source_role_id == "gunner_infinite_reload" and not killed and owner != null and owner.get("gunner_infinite_reload_ability") != null:
-			killed = bool(owner.gunner_infinite_reload_ability.resolve_soul_impact(enemy))
+			killed = bool(owner.gunner_infinite_reload_ability.resolve_soul_impact(enemy, hit_direction))
 		if owner != null and owner.has_method("_record_swordsman_ultimate_followup_damage"):
 			var health_after_value: Variant = enemy.get("current_health")
 			var health_after: float = float(health_after_value) if health_after_value != null else health_before
@@ -153,9 +158,11 @@ static func deal_damage_to_enemy(owner, enemy: Node, damage_amount: float, sourc
 	preload("res://scripts/player/player_mage_basic_runtime.gd").after_hit(owner, enemy, source_role_id, killed)
 	return killed
 
-static func _call_enemy_take_damage(enemy: Node, amount: float, is_critical: bool) -> bool:
+static func _call_enemy_take_damage(enemy: Node, amount: float, is_critical: bool, hit_direction: Vector2 = Vector2.ZERO) -> bool:
 	if enemy == null or not is_instance_valid(enemy) or not enemy.has_method("take_damage"):
 		return false
+	if _method_accepts_argument_count(enemy, "take_damage", 3):
+		return bool(enemy.take_damage(amount, is_critical, hit_direction))
 	if _method_accepts_argument_count(enemy, "take_damage", 2):
 		return bool(enemy.take_damage(amount, is_critical))
 	return bool(enemy.take_damage(amount))
@@ -163,7 +170,8 @@ static func _call_enemy_take_damage(enemy: Node, amount: float, is_critical: boo
 static func _method_accepts_argument_count(target: Object, method_name: String, argument_count: int) -> bool:
 	return DAMAGE_METHOD_DISPATCH.accepts_arguments(target, method_name, argument_count)
 
-static func queue_damage_to_enemy(owner, enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, prefer_silent_feedback: bool = false, suppress_status_visual: bool = false, gunner_event_prepared: bool = false, damage_event_id: String = "", slow_source_id: String = "") -> void:
+static func queue_damage_to_enemy(owner, enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, prefer_silent_feedback: bool = false, suppress_status_visual: bool = false, gunner_event_prepared: bool = false, damage_event_id: String = "", slow_source_id: String = "", hit_direction: Vector2 = Vector2.ZERO) -> void:
+	hit_direction = HIT_DIRECTION.resolve(owner, hit_direction)
 	if not _is_live_enemy(enemy):
 		return
 	var resolved_source_role_id := _resolve_damage_source_role_id(source_role_id)
@@ -172,9 +180,9 @@ static func queue_damage_to_enemy(owner, enemy: Node, damage_amount: float, sour
 		gunner_event_prepared = true
 	var queue := _get_or_create_damage_job_queue(owner)
 	if queue == null:
-		deal_damage_to_enemy(owner, enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, suppress_status_visual, 0.0, gunner_event_prepared, damage_event_id, slow_source_id)
+		deal_damage_to_enemy(owner, enemy, damage_amount, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, suppress_status_visual, 0.0, gunner_event_prepared, damage_event_id, slow_source_id, -1, hit_direction)
 		return
-	queue.enqueue_values(weakref(enemy), enemy.get_instance_id(), damage_amount, 1, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, 0.0, prefer_silent_feedback, suppress_status_visual, gunner_event_prepared, damage_event_id, slow_source_id)
+	queue.enqueue_values(weakref(enemy), enemy.get_instance_id(), damage_amount, 1, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, 0.0, prefer_silent_feedback, suppress_status_visual, gunner_event_prepared, damage_event_id, slow_source_id, hit_direction)
 
 static func apply_or_queue_damage_job(owner, job: Dictionary) -> void:
 	var enemy_ref: WeakRef = job.get("enemy_ref", null) as WeakRef
@@ -197,10 +205,12 @@ static func apply_or_queue_damage_job(owner, job: Dictionary) -> void:
 		bool(job.get("suppress_status_visual", false)),
 		bool(job.get("gunner_event_prepared", false)),
 		str(job.get("damage_event_id", "")),
-		str(job.get("slow_source_id", ""))
+		str(job.get("slow_source_id", "")),
+		job.get("hit_direction", Vector2.ZERO)
 	)
 
-static func apply_or_queue_damage_values(owner, enemy_ref: WeakRef, enemy_id: int, damage_amount: float, hit_count: int, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, kill_energy_bonus: float = 0.0, prefer_silent_feedback: bool = false, suppress_status_visual: bool = false, gunner_event_prepared: bool = false, damage_event_id: String = "", slow_source_id: String = "") -> void:
+static func apply_or_queue_damage_values(owner, enemy_ref: WeakRef, enemy_id: int, damage_amount: float, hit_count: int, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, kill_energy_bonus: float = 0.0, prefer_silent_feedback: bool = false, suppress_status_visual: bool = false, gunner_event_prepared: bool = false, damage_event_id: String = "", slow_source_id: String = "", hit_direction: Vector2 = Vector2.ZERO) -> void:
+	hit_direction = HIT_DIRECTION.resolve(owner, hit_direction)
 	if enemy_ref == null:
 		return
 	var enemy: Node = enemy_ref.get_ref() as Node
@@ -222,15 +232,17 @@ static func apply_or_queue_damage_values(owner, enemy_ref: WeakRef, enemy_id: in
 			kill_energy_bonus,
 			gunner_event_prepared,
 			damage_event_id,
-			slow_source_id
+			slow_source_id,
+			-1,
+			hit_direction
 		)
 		return
-	queue.enqueue_values(enemy_ref, enemy_id, damage_amount, hit_count, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, kill_energy_bonus, prefer_silent_feedback, suppress_status_visual, gunner_event_prepared, damage_event_id, slow_source_id)
+	queue.enqueue_values(enemy_ref, enemy_id, damage_amount, hit_count, source_role_id, vulnerability_bonus, vulnerability_duration, slow_multiplier, slow_duration, source_position, kill_energy_bonus, prefer_silent_feedback, suppress_status_visual, gunner_event_prepared, damage_event_id, slow_source_id, hit_direction)
 
-static func damage_enemies_in_radius(owner, center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "", slow_source_id: String = "") -> int:
-	return damage_enemies_in_radius_with_kill_energy(owner, center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id, 0.0, slow_source_id)
+static func damage_enemies_in_radius(owner, center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "", slow_source_id: String = "", hit_direction: Vector2 = Vector2.ZERO) -> int:
+	return damage_enemies_in_radius_with_kill_energy(owner, center, radius, damage_amount, vulnerability_bonus, slow_multiplier, slow_duration, source_role_id, 0.0, slow_source_id, hit_direction)
 
-static func damage_enemies_in_radius_with_kill_energy(owner, center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "", kill_energy_bonus: float = 0.0, slow_source_id: String = "") -> int:
+static func damage_enemies_in_radius_with_kill_energy(owner, center: Vector2, radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "", kill_energy_bonus: float = 0.0, slow_source_id: String = "", hit_direction: Vector2 = Vector2.ZERO) -> int:
 	var resolved_role_id: String = _resolve_role_id(owner, source_role_id)
 	var candidates: Array = _get_candidate_enemies_for_circle(owner, center, radius)
 	_record_damage_query(candidates.size())
@@ -239,7 +251,7 @@ static func damage_enemies_in_radius_with_kill_energy(owner, center: Vector2, ra
 		if not _is_live_enemy(enemy) or enemy is not Node2D:
 			continue
 		if _enemy_hit_shape_hits_circle(owner, enemy as Node2D, center, radius):
-			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center, kill_energy_bonus, false, false, "", slow_source_id)
+			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center, kill_energy_bonus, false, false, "", slow_source_id, hit_direction)
 	var hit_count: int = batcher.hit_count
 	PERFORMANCE_COUNTERS.add("damage_hits", hit_count)
 	return batcher.flush()
@@ -307,7 +319,8 @@ static func damage_enemies_in_shapes_batched(owner, shapes: Array[Dictionary]) -
 				float(shape.get("slow_multiplier", 1.0)),
 				float(shape.get("slow_duration", 0.0)),
 				shape.get("source_position", null),
-				float(shape.get("kill_energy_bonus", 0.0))
+				float(shape.get("kill_energy_bonus", 0.0)),
+				false, false, "", "", HIT_DIRECTION.for_shape(owner, shape)
 			)
 	_record_damage_query(total_candidates)
 	PERFORMANCE_COUNTERS.add("damage_hits", batcher.hit_count)
@@ -484,7 +497,7 @@ static func damage_enemies_in_line(owner, start_position: Vector2, end_position:
 		if not _is_live_enemy(enemy):
 			continue
 		if enemy is Node2D and _enemy_hit_shape_hits_line(owner, enemy as Node2D, start_position, end_position, width):
-			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, start_position)
+			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, start_position, 0.0, false, false, "", "", direction)
 	var hit_count: int = batcher.hit_count
 	PERFORMANCE_COUNTERS.add("damage_hits", hit_count)
 	return batcher.flush()
@@ -525,7 +538,7 @@ static func damage_enemies_in_oriented_rect_unique(owner, center: Vector2, axis_
 				if distance < primary_distance:
 					primary_distance = distance
 					primary_position = enemy.global_position
-			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center, 0.0, false, false, "", slow_source_id)
+			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center, 0.0, false, false, "", slow_source_id, knockback_direction)
 			if knockback_distance > 0.0:
 				(enemy as Node2D).global_position += knockback_direction * knockback_distance
 	var hit_count: int = batcher.hit_count
@@ -560,14 +573,14 @@ static func damage_enemies_in_oriented_rect_tracking(owner, center: Vector2, axi
 			if not hit_registry.has(id):
 				hit_registry[id] = true
 				new_hit_count += 1
-			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center)
+			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center, 0.0, false, false, "", "", direction)
 			if knockback_distance > 0.0:
 				(enemy as Node2D).global_position += direction * knockback_distance
 	PERFORMANCE_COUNTERS.add("damage_hits", batcher.hit_count)
 	batcher.flush()
 	return new_hit_count
 
-static func damage_enemies_in_ellipse(owner, center: Vector2, horizontal_radius: float, vertical_radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "") -> int:
+static func damage_enemies_in_ellipse(owner, center: Vector2, horizontal_radius: float, vertical_radius: float, damage_amount: float, vulnerability_bonus: float, slow_multiplier: float, slow_duration: float, source_role_id: String = "", hit_direction: Vector2 = Vector2.ZERO) -> int:
 	var safe_horizontal: float = max(1.0, horizontal_radius)
 	var safe_vertical: float = max(1.0, vertical_radius)
 	var resolved_role_id: String = _resolve_role_id(owner, source_role_id)
@@ -578,7 +591,7 @@ static func damage_enemies_in_ellipse(owner, center: Vector2, horizontal_radius:
 		if not _is_live_enemy(enemy) or enemy is not Node2D:
 			continue
 		if _enemy_hit_shape_hits_ellipse(owner, enemy as Node2D, center, safe_horizontal, safe_vertical):
-			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center)
+			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, center, 0.0, false, false, "", "", hit_direction)
 	var hit_count: int = batcher.hit_count
 	PERFORMANCE_COUNTERS.add("damage_hits", hit_count)
 	return batcher.flush()
@@ -611,7 +624,7 @@ static func damage_enemies_in_cone(owner, origin: Vector2, direction: Vector2, c
 		if not _is_live_enemy(enemy) or enemy is not Node2D:
 			continue
 		if _enemy_hit_shape_hits_cone(owner, enemy as Node2D, origin, forward, safe_range, half_angle, cos_half_angle):
-			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, origin)
+			batcher.add_enemy(enemy, damage_amount, resolved_role_id, vulnerability_bonus, 2.0, slow_multiplier, slow_duration, origin, 0.0, false, false, "", "", forward)
 	var hit_count: int = batcher.hit_count
 	PERFORMANCE_COUNTERS.add("damage_hits", hit_count)
 	return batcher.flush()

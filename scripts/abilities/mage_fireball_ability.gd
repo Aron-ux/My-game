@@ -26,6 +26,7 @@ var active_fire_fields: Array[Dictionary] = []
 var pending_saved_fields: Array[Dictionary] = []
 var pending_impact_remaining: float = 0.0
 var pending_impact_center: Vector2 = Vector2.ZERO
+var pending_impact_direction: Vector2 = Vector2.ZERO
 var fireball_projectile: Node2D = null
 
 
@@ -106,6 +107,7 @@ func try_trigger(owner) -> bool:
 	cooldown_remaining = COOLDOWN
 	var blast_radius: float = _get_blast_radius(owner)
 	pending_impact_center = PLAYER_MAGE_FIREBALL_FLOW.resolve_target_position(owner, direction, MAX_RANGE)
+	pending_impact_direction = (pending_impact_center - owner.global_position).normalized()
 	pending_impact_remaining = CHARGE_DURATION
 	_spawn_projectile(owner, pending_impact_center)
 	if owner.has_method("_spawn_ring_effect"):
@@ -125,7 +127,7 @@ func _resolve_pending_impact(owner) -> void:
 	var blast_radius: float = _get_blast_radius(owner)
 	var damage: float = float(owner._get_role_damage("mage")) * _get_blast_damage_ratio(owner)
 	# 第一次爆炸
-	PLAYER_MAGE_FIREBALL_FLOW.apply_impact(owner, center, blast_radius, damage)
+	PLAYER_MAGE_FIREBALL_FLOW.apply_impact(owner, center, blast_radius, damage, pending_impact_direction)
 	# 天赋II：8个方向的第二次小爆炸
 	if _has_talent(owner, "mage_level_talent_fireball_2"):
 		var secondary_damage: float = float(owner._get_role_damage("mage")) * SECONDARY_BLAST_DAMAGE_RATIO
@@ -134,7 +136,7 @@ func _resolve_pending_impact(owner) -> void:
 			var angle: float = TAU * float(i) / float(SECONDARY_BLAST_COUNT)
 			var offset: Vector2 = Vector2.RIGHT.rotated(angle) * ring_distance
 			var secondary_center: Vector2 = center + offset
-			PLAYER_MAGE_FIREBALL_FLOW.apply_impact(owner, secondary_center, SECONDARY_BLAST_RADIUS, secondary_damage)
+			PLAYER_MAGE_FIREBALL_FLOW.apply_impact(owner, secondary_center, SECONDARY_BLAST_RADIUS, secondary_damage, pending_impact_direction)
 			if owner.has_method("_spawn_ring_effect"):
 				owner._spawn_ring_effect(secondary_center, SECONDARY_BLAST_RADIUS, Color(1.0, 0.5, 0.15, 0.8), 3.0, 0.2)
 	_spawn_blast(owner, center, blast_radius)

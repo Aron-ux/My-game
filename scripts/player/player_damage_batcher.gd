@@ -14,6 +14,7 @@ var slow_multipliers: PackedFloat32Array = PackedFloat32Array()
 var slow_source_ids: PackedStringArray = PackedStringArray()
 var slow_durations: PackedFloat32Array = PackedFloat32Array()
 var source_positions: Array = []
+var hit_directions: Array[Vector2] = []
 var kill_energy_bonuses: PackedFloat32Array = PackedFloat32Array()
 var suppress_status_visuals: Array[bool] = []
 var gunner_event_prepareds: Array[bool] = []
@@ -40,6 +41,7 @@ func reset(source_owner: Node) -> void:
 	slow_durations.clear()
 	slow_source_ids.clear()
 	source_positions.clear()
+	hit_directions.clear()
 	kill_energy_bonuses.clear()
 	suppress_status_visuals.clear()
 	gunner_event_prepareds.clear()
@@ -49,12 +51,13 @@ func reset(source_owner: Node) -> void:
 	hit_count = 0
 
 
-func add_enemy(enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, kill_energy_bonus: float = 0.0, suppress_status_visual: bool = false, gunner_event_prepared: bool = false, damage_event_id: String = "", slow_source_id: String = "") -> void:
+func add_enemy(enemy: Node, damage_amount: float, source_role_id: String, vulnerability_bonus: float = 0.0, vulnerability_duration: float = 2.0, slow_multiplier: float = 1.0, slow_duration: float = 0.0, source_position: Variant = null, kill_energy_bonus: float = 0.0, suppress_status_visual: bool = false, gunner_event_prepared: bool = false, damage_event_id: String = "", slow_source_id: String = "", hit_direction: Vector2 = Vector2.ZERO) -> void:
 	if enemy == null or not is_instance_valid(enemy):
 		return
+	hit_direction = preload("res://scripts/combat/attack_hit_direction.gd").resolve(owner, hit_direction)
 	var enemy_id: int = enemy.get_instance_id()
 	var damage_event_key := _damage_event_key(source_role_id, source_position, damage_event_id)
-	var merge_key: String = "%s|%s|%s|%s" % [enemy_id, source_role_id, slow_source_id, damage_event_key]
+	var merge_key: String = "%s|%s|%s|%s|%s" % [enemy_id, source_role_id, slow_source_id, damage_event_key, hit_direction]
 	hit_count += 1
 	if not indexes_by_enemy_id.has(merge_key):
 		indexes_by_enemy_id[merge_key] = enemy_refs.size()
@@ -69,6 +72,7 @@ func add_enemy(enemy: Node, damage_amount: float, source_role_id: String, vulner
 		slow_durations.append(slow_duration)
 		slow_source_ids.append(slow_source_id)
 		source_positions.append(source_position)
+		hit_directions.append(hit_direction)
 		kill_energy_bonuses.append(kill_energy_bonus)
 		suppress_status_visuals.append(suppress_status_visual)
 		gunner_event_prepareds.append(gunner_event_prepared)
@@ -120,7 +124,8 @@ func flush() -> int:
 			suppress_status_visuals[index],
 			gunner_event_prepared,
 			damage_event_ids[index],
-			slow_source_ids[index]
+			slow_source_ids[index],
+			hit_directions[index]
 		)
 	reset(owner)
 	return result

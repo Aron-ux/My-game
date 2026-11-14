@@ -87,9 +87,15 @@ static func apply_explosion(owner, center: Vector2, direction: Vector2, hit_enem
 		if talent_1:
 			# 爆破弹 I：命中伤害提升 50%（线性 +0.5）并变为半径 100 的范围伤害（命中目标也在圈内）。
 			var impact_ratio: float = IMPACT_DAMAGE_RATIO + TALENT_1_IMPACT_RATIO_BONUS + level_ratio_bonus
-			owner._damage_enemies_in_ellipse(center, TALENT_1_IMPACT_RADIUS, TALENT_1_IMPACT_RADIUS, damage * impact_ratio, 0.0, 1.0, 0.0, make_damage_source_id())
+			if PLAYER_DAMAGE_RESOLVER._method_accepts_argument_count(owner, "_damage_enemies_in_ellipse", 9):
+				owner._damage_enemies_in_ellipse(center, TALENT_1_IMPACT_RADIUS, TALENT_1_IMPACT_RADIUS, damage * impact_ratio, 0.0, 1.0, 0.0, make_damage_source_id(), direction)
+			else:
+				owner._damage_enemies_in_ellipse(center, TALENT_1_IMPACT_RADIUS, TALENT_1_IMPACT_RADIUS, damage * impact_ratio, 0.0, 1.0, 0.0, make_damage_source_id())
 		else:
-			owner._deal_damage_to_enemy(hit_enemy, damage * (IMPACT_DAMAGE_RATIO + level_ratio_bonus), SOURCE_ROLE_ID, 0.0, 2.0, 1.0, 0.0, center)
+			if PLAYER_DAMAGE_RESOLVER._method_accepts_argument_count(owner, "_deal_damage_to_enemy", 11):
+				owner._deal_damage_to_enemy(hit_enemy, damage * (IMPACT_DAMAGE_RATIO + level_ratio_bonus), SOURCE_ROLE_ID, 0.0, 2.0, 1.0, 0.0, center, false, 0.0, direction)
+			else:
+				owner._deal_damage_to_enemy(hit_enemy, damage * (IMPACT_DAMAGE_RATIO + level_ratio_bonus), SOURCE_ROLE_ID, 0.0, 2.0, 1.0, 0.0, center)
 	var cone_radius: float = BLAST_CONE_RADIUS + (TALENT_1_CONE_RADIUS_BONUS if talent_1 else 0.0)
 	var cone_ratio: float = BLAST_DAMAGE_RATIO + (TALENT_1_BLAST_RATIO_BONUS if talent_1 else 0.0) + level_ratio_bonus
 	owner._damage_enemies_in_cone(center, direction, cone_radius, BLAST_CONE_ANGLE, damage * cone_ratio, 0.0, 1.0, 0.0, make_damage_source_id())
